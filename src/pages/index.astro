@@ -1,0 +1,1181 @@
+---
+import { getCollection } from 'astro:content';
+import { phArt, formatDate, trackLabel, trackClass } from '../lib/phArt';
+import ArticleSection from '../partials/article-section.astro';
+
+const all = (await getCollection('articles', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+const featured = all.find(a => a.data.featured) ?? all[0];
+const gridArticles = all.filter(a => a.slug !== featured?.slug);
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Legal Overflow — Where law meets machine intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="grain"></div>
+  <div id="cursor-dot" aria-hidden="true"></div>
+
+  <!-- NAV -->
+  <header class="nav">
+    <a href="#" class="brand" aria-label="Legal Overflow home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/>
+        <path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/>
+        <circle cx="20" cy="14" r="2.5" fill="currentColor"/>
+        <circle cx="20" cy="26" r="2.5" fill="var(--accent)"/>
+      </svg>
+      <span class="brand-text">
+        <span>Legal</span><span class="brand-over">Overflow</span>
+      </span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#skills" data-nav>Skills</a>
+      <a href="#articles" data-nav>Resources</a>
+      <a href="#services" data-nav>Services</a>
+      <a href="/about/" data-nav>About</a>
+    </nav>
+    <div class="nav-right">
+      <div class="live-dot" aria-hidden="true"></div>
+      <span class="nav-meta" id="nav-clock">—</span>
+      <a href="#subscribe" class="nav-sub">Subscribe</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <canvas id="graph" aria-hidden="true"></canvas>
+    <div class="hero-grid">
+      <div class="hero-lede">
+      <div class="hero-kicker">
+        <span class="kicker-dash"></span>
+        <span>Issue 024 · Spring 2026 · A field journal on AI and the legal profession</span>
+      </div>
+      <h1 class="hero-title">
+        <span class="line">The law is</span>
+        <span class="line"><em>learning</em> to</span>
+        <span class="line">automate itself.</span>
+      </h1>
+      <p class="hero-sub">
+        Custom Claude Skills, working notes, and deep reporting on how artificial intelligence is
+        <em>actually</em> getting work out the door — for legal teams and the businesses they serve. Written and tested by an in-house attorney, in public.
+      </p>
+      <div class="hero-cta">
+        <a href="#articles" class="btn-primary">
+          <span>Start reading</span>
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </a>
+        <a href="#subscribe" class="btn-ghost">
+          <span>Weekly dispatch</span>
+          <span class="btn-count">Free &middot; plain text</span>
+        </a>
+      </div>
+
+      <!-- Narrow-viewport demo fallback: stacks under CTA on <1200px -->
+      <figure class="hero-demo hero-demo-inline">
+        <div class="hero-demo-frame" data-sound="off">
+          <div class="macbook-screen">
+            <div class="macbook-bezel">
+              <video
+                class="hero-demo-video"
+                src="/assets/hero-demo.mp4"
+                autoplay muted loop playsinline preload="metadata"
+                aria-label="Legal Overflow demo video">
+              </video>
+              <button type="button" class="sound-toggle" aria-label="Toggle sound">
+                <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                <span class="label"></span>
+              </button>
+            </div>
+          </div>
+          <div class="macbook-base" aria-hidden="true"></div>
+        </div>
+        <figcaption class="hero-demo-caption">
+          <span class="dot"></span>
+          <span>Live demo</span>
+          <span class="sep">·</span>
+          <span>Skills in the wild</span>
+        </figcaption>
+      </figure>
+      </div>
+
+      <!-- Desktop demo: fills right column on ≥1200px -->
+      <figure class="hero-demo" aria-label="Product demo">
+        <div class="hero-demo-frame" data-sound="off">
+          <div class="macbook-screen">
+            <div class="macbook-bezel">
+              <video
+                class="hero-demo-video"
+                src="/assets/hero-demo.mp4"
+                autoplay muted loop playsinline preload="metadata"
+                aria-label="Legal Overflow demo video">
+              </video>
+              <button type="button" class="sound-toggle" aria-label="Toggle sound">
+                <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                <span class="label"></span>
+              </button>
+            </div>
+          </div>
+          <div class="macbook-base" aria-hidden="true"></div>
+        </div>
+        <figcaption class="hero-demo-caption">
+          <span class="dot"></span>
+          <span>Live demo</span>
+          <span class="sep">·</span>
+          <span>Skills in the wild</span>
+        </figcaption>
+      </figure>
+
+      <!-- NOW PANEL — the current state of the work, not historical traction. -->
+      <div class="hero-now" aria-label="Current status">
+        <div class="now-head">
+          <span class="now-live"><span class="now-dot"></span>Now</span>
+          <span class="now-stamp">Updated <time datetime="2026-04-18">Apr 18</time></span>
+        </div>
+        <div class="now-grid">
+          <div class="now-cell">
+            <span class="now-label">Writing</span>
+            <span class="now-val"><em>The ghost in the redline</em></span>
+            <span class="now-sub">essay · draft 3 of 4</span>
+          </div>
+          <div class="now-cell">
+            <span class="now-label">Last shipped</span>
+            <span class="now-val">cite-check.skill <span class="now-ver">v2</span></span>
+            <span class="now-sub">Apr 14 · <a href="#skills">view Skill</a></span>
+          </div>
+          <div class="now-cell">
+            <span class="now-label">In the lab</span>
+            <span class="now-val">Deposition-prep field study</span>
+            <span class="now-sub">4 firms · interviews in progress</span>
+          </div>
+          <div class="now-cell">
+            <span class="now-label">Next up</span>
+            <span class="now-val">&ldquo;Same model, both sides&rdquo;</span>
+            <span class="now-sub">May · transactional case study</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- cinematic hero scene removed per request -->
+  </section>
+
+  <!-- MARQUEE -->
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <span>§ 230 reform</span><span>·</span><span>LLM hallucination sanctions</span><span>·</span>
+      <span>e-discovery at scale</span><span>·</span><span>Bar Rule 1.1 competence</span><span>·</span>
+      <span>contract graph extraction</span><span>·</span><span>regulatory sandboxes</span><span>·</span>
+      <span>Mata v. Avianca</span><span>·</span><span>privilege & retrieval</span><span>·</span>
+      <span>deposition transcription</span><span>·</span><span>agentic paralegals</span><span>·</span>
+      <span>§ 230 reform</span><span>·</span><span>LLM hallucination sanctions</span><span>·</span>
+      <span>e-discovery at scale</span><span>·</span><span>Bar Rule 1.1 competence</span><span>·</span>
+      <span>contract graph extraction</span><span>·</span><span>regulatory sandboxes</span><span>·</span>
+    </div>
+  </div>
+
+  <!-- TIME-SAVED TICKER -->
+  <section class="tsticker" aria-label="Time saved by Skills">
+    <div class="tst-inner">
+      <div class="tst-lead">
+        <span class="tst-label">Time saved this month</span>
+        <span class="tst-big"><span id="tst-hours" data-count="37420">0</span><span class="tst-unit">hrs</span></span>
+        <span class="tst-fine">by readers running Skills published here · <a href="#skills">view Skills</a></span>
+      </div>
+      <ol class="tst-rows">
+        <li>
+          <span class="tst-skill">Contract redline <em>Tier 1</em></span>
+          <span class="tst-from">4 h 20 m</span>
+          <span class="tst-arrow">→</span>
+          <span class="tst-to">11 min</span>
+          <span class="tst-delta">−95%</span>
+        </li>
+        <li>
+          <span class="tst-skill">Deposition prep <em>in one afternoon</em></span>
+          <span class="tst-from">2 days</span>
+          <span class="tst-arrow">→</span>
+          <span class="tst-to">3 h</span>
+          <span class="tst-delta">−81%</span>
+        </li>
+        <li>
+          <span class="tst-skill">Citation verification <em>protocol</em></span>
+          <span class="tst-from">90 min</span>
+          <span class="tst-arrow">→</span>
+          <span class="tst-to">4 min</span>
+          <span class="tst-delta">−96%</span>
+        </li>
+        <li>
+          <span class="tst-skill">e-Discovery triage <em>100k → 500</em></span>
+          <span class="tst-from">11 days</span>
+          <span class="tst-arrow">→</span>
+          <span class="tst-to">6 h</span>
+          <span class="tst-delta">−93%</span>
+        </li>
+        <li>
+          <span class="tst-skill">Motion-to-dismiss <em>research + draft</em></span>
+          <span class="tst-from">22 h</span>
+          <span class="tst-arrow">→</span>
+          <span class="tst-to">2 h 40 m</span>
+          <span class="tst-delta">−88%</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- THREE PILLARS -->
+  <section class="pillars" id="pillars">
+    <div class="pillar-intro">
+      <span class="pillar-kicker"><span class="kicker-dash"></span> What's here</span>
+      <h2 class="pillar-h">One in-house attorney, writing the <em>playbook</em> in public.</h2>
+      <p class="pillar-p">Three ways in, all free. Pull a <strong>Skill</strong> off the shelf and run it this afternoon. Read a <strong>Resource</strong> to understand why it works and where it breaks. Book a <strong>Service</strong> engagement if you'd rather have someone do it with you. Everything here is tagged <span class="track-pill track-legal-inline">Legal</span> or <span class="track-pill track-biz-inline">Business</span> so you can filter to what fits your role.</p>
+    </div>
+    <div class="pillar-grid">
+      <a href="#skills" class="pillar-card">
+        <div class="pillar-num">P / 01</div>
+        <div class="pillar-icon">
+          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <rect x="8" y="10" width="32" height="28" rx="2" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M14 18h20M14 24h20M14 30h12" stroke="currentColor" stroke-width="1.4"/>
+            <circle cx="38" cy="34" r="5" fill="var(--accent)"/>
+            <path d="M35.5 34l2 2 3-3.5" stroke="var(--ink)" stroke-width="1.4" fill="none"/>
+          </svg>
+        </div>
+        <div class="pillar-label">Skills</div>
+        <h3 class="pillar-title">Ready-to-use AI prompts &amp; workflows</h3>
+        <p class="pillar-desc">Prompt packs, chained workflows, and templates — designed to plug into any agent or chat surface. Free to download, MIT-licensed.</p>
+        <div class="pillar-cta"><span>View Skills</span>
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </div>
+      </a>
+      <a href="#articles" class="pillar-card">
+        <div class="pillar-num">P / 02</div>
+        <div class="pillar-icon">
+          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <path d="M10 8h20l8 8v24H10V8z" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M30 8v8h8" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M15 22h18M15 28h18M15 34h12" stroke="currentColor" stroke-width="1.4"/>
+          </svg>
+        </div>
+        <div class="pillar-label">Resources</div>
+        <h3 class="pillar-title">Guides, reports &amp; insights</h3>
+        <p class="pillar-desc">Long-form essays, implementation guides, case studies, and a weekly dispatch for busy in-house counsel and operators who actually need to ship.</p>
+        <div class="pillar-cta"><span>View Resources</span>
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </div>
+      </a>
+      <a href="#services" class="pillar-card">
+        <div class="pillar-num">P / 03</div>
+        <div class="pillar-icon">
+          <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M24 14v10l7 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <circle cx="24" cy="24" r="2.5" fill="var(--accent)"/>
+          </svg>
+        </div>
+        <div class="pillar-label">Services</div>
+        <h3 class="pillar-title">End-to-end AI implementation</h3>
+        <p class="pillar-desc">Hands-on engagements: audit your current stack, design the workflow, train the team, and handle the ethics-compliance paperwork.</p>
+        <div class="pillar-cta"><span>View Services</span>
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <!-- RESOURCES (blog/articles) -->
+  <section class="featured" id="articles">
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <h2 class="section-title">Resources</h2>
+      <span class="section-meta">Guides, reports &amp; insights · Updated weekly</span>
+      <div class="track-filter" data-filter-scope="#articles">
+        <span class="tf-label">Filter by track:</span>
+        <button type="button" data-track-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-track-filter="legal" aria-pressed="false">· Legal</button>
+        <button type="button" data-track-filter="business" aria-pressed="false">· Business</button>
+        <span class="tf-count" data-filter-count></span>
+      </div>
+    </div>
+
+    <ArticleSection featured={featured} gridArticles={gridArticles} />
+  </section>
+
+  <!-- SKILLS & WORKFLOWS -->
+  <section class="skills" id="skills">
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <h2 class="section-title">Skills &amp; workflows</h2>
+      <span class="section-meta">Free downloads · Prompts, checklists, and templates I actually use</span>
+      <div class="track-filter" data-filter-scope="#skills">
+        <span class="tf-label">Filter by track:</span>
+        <button type="button" data-track-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-track-filter="legal" aria-pressed="false">· Legal</button>
+        <button type="button" data-track-filter="business" aria-pressed="false">· Business</button>
+        <span class="tf-count" data-filter-count></span>
+      </div>
+    </div>
+
+    <div class="skills-grid">
+      <article class="skill-card" data-track="legal">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Prompt pack</span>
+            <span class="skill-format">.md · 14 KB</span>
+          <span class="track-pill track-legal">Legal</span>
+          </div>
+          <h3 class="skill-title">Contract redline review — Tier 1</h3>
+          <p class="skill-desc">Nine chained prompts that walk a frontier model through a first-pass review of an NDA, MSA, or SaaS agreement. Includes confidence gates and an escalation prompt.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> Tested on GPT-5, Claude 4.5, Gemini 2.5</li>
+            <li><span class="sk-dot"></span> Works inside any chat surface</li>
+            <li><span class="sk-dot"></span> MIT-licensed, remix as you like</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <a href="#" class="skill-dl" data-file="contract-redline-tier1.md">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download</span>
+            </a>
+            <span class="skill-count"><span class="sk-n">1,842</span> downloads</span>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · clause from draft MSA</span>
+              <pre class="sk-io-block">§7.2 LIMITATION OF LIABILITY. In no event shall Vendor's aggregate liability exceed the fees paid by Customer in the twelve (12) months preceding the claim.</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · redline memo</span>
+              <pre class="sk-io-block"><span class="tok-a">▲ §7.2</span>  one-sided cap
+<span class="tok-m">→</span> request mutual cap
+<span class="tok-m">→</span> carve-outs: IP indemnity,
+    confidentiality breach,
+    gross negligence
+<span class="tok-k">suggested:</span> "…except
+for obligations under §11
+(Indemnification) and §13
+(Confidentiality)…"</pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card featured-skill" data-track="both">
+        <div class="sk-face sk-front">
+          <div class="skill-ribbon">Most downloaded</div>
+          <div class="skill-head">
+            <span class="skill-type">Workflow</span>
+            <span class="skill-format">.zip · 218 KB</span>
+          <span class="track-pill track-both">Legal + Business</span>
+          </div>
+          <h3 class="skill-title">Deposition prep in one afternoon</h3>
+          <p class="skill-desc">A complete four-step workflow — transcript ingestion prompt, witness timeline generator, impeachment-material finder, and a single-page cross-exam outline generator. Used on real cases.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> 4 prompts + 2 JSON schemas + sample runs</li>
+            <li><span class="sk-dot"></span> Privilege-safe: runs fully local if you want</li>
+            <li><span class="sk-dot"></span> Includes a 12-min walkthrough video link</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <a href="#" class="skill-dl primary" data-file="deposition-prep-workflow.zip">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download</span>
+            </a>
+            <span class="skill-count"><span class="sk-n">3,104</span> downloads</span>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · 1,842 pp discovery</span>
+              <pre class="sk-io-block">Witness: R. Hsu, CFO
+Topics: Q2 revenue restatement,
+audit committee communications,
+board deck versioning.
+Run: full discovery corpus.</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · cross-exam outline</span>
+              <pre class="sk-io-block"><span class="tok-k">I. BACKGROUND</span> — 12 Q
+<span class="tok-k">II. TIMELINE</span> — 34 Q
+  <span class="tok-a">▲ Apr 11 email</span> contradicts
+    Mar 28 board deck
+<span class="tok-k">III. IMPEACHMENT</span> — 9 Q
+  → Ex. 14 (email chain)
+  → Ex. 22 (slide v3 → v4)
+<span class="tok-m">41 exhibits linked</span></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card" data-track="business">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Checklist</span>
+            <span class="skill-format">.pdf · 96 KB</span>
+          <span class="track-pill track-biz">Business</span>
+          </div>
+          <h3 class="skill-title">Citation verification protocol</h3>
+          <p class="skill-desc">The one-page compliance checklist my firm uses post-<em>Avianca</em> to verify every model-generated citation before filing. Includes the Rule 11 attestation template.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> Printable, 1-page, double-sided</li>
+            <li><span class="sk-dot"></span> Annotated with case authority</li>
+            <li><span class="sk-dot"></span> Updated quarterly</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <a href="#" class="skill-dl" data-file="citation-verification-protocol.pdf">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download</span>
+            </a>
+            <span class="skill-count">MIT-licensed &middot; updated Apr 2026</span>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · 18-pp draft brief</span>
+              <pre class="sk-io-block">47 citations extracted
+Source: draft_motion_v3.docx
+Cross-check: Westlaw +
+CourtListener + official rptr.</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · verification report</span>
+              <pre class="sk-io-block"><span class="tok-k">✓ 44</span> verified clean
+<span class="tok-a">▲  2</span> misquoted pin-cites
+  → §II.B, §IV.A
+<span class="tok-a">✗  1</span> case not found
+  → <span class="tok-s">"Dawson v. Meridian, 487
+     F.3d 211 (2d Cir. 2019)"</span>
+<span class="tok-m">likely hallucination</span>
+<span class="tok-k">suggest:</span> remove or
+replace before filing</pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card" data-track="legal">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Template</span>
+            <span class="skill-format">.docx · 44 KB</span>
+          <span class="track-pill track-legal">Legal</span>
+          </div>
+          <h3 class="skill-title">AI-use disclosure rider</h3>
+          <p class="skill-desc">Plain-language engagement-letter rider disclosing model use, retention, and supervision. Written for US-state ethics rules, with a version for the UK and the EU.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> US · UK · EU drafts included</li>
+            <li><span class="sk-dot"></span> Redline mode for partner review</li>
+            <li><span class="sk-dot"></span> Plain-English client summary</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <a href="#" class="skill-dl" data-file="ai-disclosure-rider.docx">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download</span>
+            </a>
+            <span class="skill-count"><span class="sk-n">984</span> downloads</span>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Template preview</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io sk-io-single">
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Excerpt · §2 (plain language)</span>
+              <pre class="sk-io-block">In representing you, <span class="tok-k">[Firm]</span>
+may use generative AI tools
+to assist with research,
+drafting, and document review.
+A qualified attorney reviews
+and is responsible for all
+work product before it leaves
+this office.
+
+<span class="tok-k">→</span> No client data is used to
+  train third-party models.
+<span class="tok-k">→</span> Prompts and outputs are
+  retained per §5 below.
+<span class="tok-k">→</span> You may opt out at any
+  time in writing.</pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card" data-track="business">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Prompt pack</span>
+            <span class="skill-format">.md · 22 KB</span>
+          <span class="track-pill track-biz">Business</span>
+          </div>
+          <h3 class="skill-title">e-Discovery triage: 100k → 500 docs</h3>
+          <p class="skill-desc">A document-culling workflow for early-case assessment. Seven prompts plus a calibration set that lets you tune precision/recall without touching code.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> Privilege-preserving by design</li>
+            <li><span class="sk-dot"></span> Works on raw ESI or Relativity exports</li>
+            <li><span class="sk-dot"></span> Includes audit-trail prompt</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <a href="#" class="skill-dl" data-file="ediscovery-triage.md">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download</span>
+            </a>
+            <span class="skill-count"><span class="sk-n">1,519</span> downloads</span>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · ESI export</span>
+              <pre class="sk-io-block">104,218 documents
+Format: Relativity load file
+Issues: breach of contract,
+  failure to disclose, fraud
+Date range: 2022-03 → 2024-11</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · review queue</span>
+              <pre class="sk-io-block"><span class="tok-k">dedupe + cluster</span>
+  <span class="tok-m">→</span> 38,904 unique
+<span class="tok-a">privilege screen</span>
+  <span class="tok-m">→</span> 217 flagged
+<span class="tok-k">responsive</span>
+  <span class="tok-m">→</span> 504 hot docs
+<span class="tok-k">issue-coded</span>
+  breach · 302
+  disclosure · 141
+  fraud · 61
+<span class="tok-m">audit trail: run_id 7f2c</span></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card" data-track="legal">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Workflow</span>
+            <span class="skill-format">.zip · 142 KB</span>
+          <span class="track-pill track-legal">Legal</span>
+          </div>
+          <h3 class="skill-title">Motion-to-dismiss research &amp; draft</h3>
+          <p class="skill-desc">Chained workflow: issue-spotter → authority survey → counter-argument generator → draft skeleton. Output is a partner-ready first draft, not a finished brief.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> Includes a fabricated-citation detector</li>
+            <li><span class="sk-dot"></span> Federal &amp; NY state variants</li>
+            <li><span class="sk-dot"></span> Tested across 14 real matters</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <a href="#" class="skill-dl" data-file="mtd-research-workflow.zip">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download</span>
+            </a>
+            <span class="skill-count"><span class="sk-n">1,260</span> downloads</span>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · complaint excerpt</span>
+              <pre class="sk-io-block">Plaintiff alleges:
+• breach of fiduciary duty
+• unjust enrichment
+• declaratory judgment
+Venue: S.D.N.Y.
+Standard: 12(b)(6)</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · draft skeleton</span>
+              <pre class="sk-io-block"><span class="tok-k">I.  ARGUMENT</span>
+  A. fiduciary — no duty
+     alleged (<span class="tok-s">Eurycleia</span>)
+  B. unjust enrichment
+     — preempted by contract
+  C. declaratory — not ripe
+<span class="tok-k">II. AUTHORITY</span>
+  14 controlling cites
+  <span class="tok-m">(all cite-checked)</span>
+<span class="tok-a">▲</span> <span class="tok-m">partner review:</span> §I.B
+  counter-argument weak</pre>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="skills-foot">
+      <span>14 more in the vault · new drops every Wednesday</span>
+      <a href="#subscribe" class="skills-all">Get new workflows by email <span>→</span></a>
+    </div>
+  </section>
+
+  <!-- SERVICES -->
+  <section class="services" id="services">
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <h2 class="section-title">Services</h2>
+      <span class="section-meta">End-to-end implementation · Limited slots per quarter</span>
+    </div>
+
+    <div class="services-wrap">
+      <div class="services-lede">
+        <p>Need more than a prompt pack? I take on a small number of hands-on engagements each quarter — usually boutique and mid-sized firms who want someone who has lived in both the legal side and the tooling side to help them actually ship.</p>
+        <p>Every engagement starts with a free 30-minute discovery call. If we're a fit, you'll get a fixed-scope proposal within a week; if we're not, I'll tell you and point you somewhere better.</p>
+        <a href="mailto:services@legaloverflow.com" class="services-cta">
+          <span>Book a free discovery call</span>
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </a>
+      </div>
+
+      <ol class="services-list">
+        <li class="service-item">
+          <div class="svc-num">01</div>
+          <div class="svc-body">
+            <h3>AI stack audit</h3>
+            <p>Two-week engagement. I interview your attorneys and ops team, map your matter lifecycle, and deliver a written report with specific tool recommendations, a workflow map, and an 18-month roadmap.</p>
+            <span class="svc-tag">From $6,500 · 2 weeks</span>
+          </div>
+        </li>
+        <li class="service-item">
+          <div class="svc-num">02</div>
+          <div class="svc-body">
+            <h3>Workflow design &amp; build</h3>
+            <p>Pick one practice area — contracts, e-discovery, litigation support — and I'll design and ship the prompts, schemas, and internal documentation your team needs to run it with AI. Includes hand-off training.</p>
+            <span class="svc-tag">From $12,000 · 4&ndash;6 weeks</span>
+          </div>
+        </li>
+        <li class="service-item">
+          <div class="svc-num">03</div>
+          <div class="svc-body">
+            <h3>Attorney training &amp; onboarding</h3>
+            <p>Two-day in-person or virtual workshop for up to 20 attorneys. Hands-on sessions, practice-area-specific exercises, an internal "competence memo" template for each participant, and a 60-day follow-up.</p>
+            <span class="svc-tag">From $8,500 · 2 days + follow-up</span>
+          </div>
+        </li>
+        <li class="service-item">
+          <div class="svc-num">04</div>
+          <div class="svc-body">
+            <h3>Ethics &amp; compliance review</h3>
+            <p>Independent review of your firm's AI policy, engagement-letter language, model-use disclosures, and privilege protocols. Delivered as a redlined memo suitable for your ethics committee.</p>
+            <span class="svc-tag">From $4,500 · 10 business days</span>
+          </div>
+        </li>
+        <li class="service-item">
+          <div class="svc-num">05</div>
+          <div class="svc-body">
+            <h3>Fractional AI counsel</h3>
+            <p>Monthly retainer — I'm available for strategy calls, new-tool evaluations, vendor reviews, and escalations. For firms that want a running conversation rather than one-off projects.</p>
+            <span class="svc-tag">From $3,500 / mo · 3-mo minimum</span>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- SUBSCRIBE -->
+  <section class="subscribe" id="subscribe">
+    <div class="sub-left">
+      <span class="section-num">05</span>
+      <h2 class="section-title">The Weekly Overflow</h2>
+      <p class="sub-lede">
+        One long piece, three short case notes, and a single recommendation — delivered Wednesday morning,
+        before opening bell. Read by associates at 42 AmLaw firms and GCs at 140 companies.
+      </p>
+      <ul class="sub-list">
+        <li><span>—</span> No sponsored content, ever.</li>
+        <li><span>—</span> Archives open to subscribers after 30 days.</li>
+        <li><span>—</span> Unsubscribe in one click; I will not take it personally.</li>
+      </ul>
+    </div>
+    <form class="sub-form" onsubmit="event.preventDefault(); this.classList.add('sent');">
+      <label for="email">Email address</label>
+      <div class="sub-row">
+        <input id="email" type="email" required placeholder="you@firm.com"/>
+        <button type="submit">
+          <span class="b-a">Subscribe</span>
+          <span class="b-b">Welcome ✓</span>
+        </button>
+      </div>
+      <div class="sub-fine">
+        <span><span class="live-dot"></span> Plain text · no tracking</span>
+        <span>Free · Weekly · Unsubscribe in one click</span>
+      </div>
+    </form>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="foot">
+    <div class="foot-top">
+      <div class="foot-logo">
+        <span>Legal</span><span class="brand-over">Overflow</span>
+      </div>
+      <p class="foot-tag">A field journal on AI and the legal profession. Written in New York.</p>
+    </div>
+    <div class="foot-cols">
+      <div><h5>Read</h5><a href="#articles">Resources</a><a href="#skills">Skills</a><a href="#services">Services</a><a href="#articles">Latest</a></div>
+      <div><h5>About</h5><a href="/about/">Author</a><a href="/about/">Editorial standards</a><a href="/about/">Corrections</a></div>
+      <div><h5>Elsewhere</h5><a href="#">Mastodon</a><a href="#">LinkedIn</a><a href="#">RSS</a><a href="#">Email</a></div>
+      <div><h5>Fine print</h5><a href="#">Not legal advice</a><a href="#">Privacy</a><a href="#">Colophon</a></div>
+    </div>
+    <p class="foot-disclaimer">Claude™ and Claude Skills are trademarks of Anthropic PBC. GPT is a trademark of OpenAI. Gemini is a trademark of Google LLC. Westlaw is a trademark of Thomson Reuters. Legal Overflow is an independent publication and is not affiliated with, endorsed by, or sponsored by any of these companies.</p>
+    <div class="foot-bot">
+      <span>© 2026 Legal Overflow · Built by hand in New York</span>
+      <span class="foot-version">v2026.04 · last deploy 2h ago</span>
+    </div>
+  </footer>
+
+  <script is:inline>
+// ============ clock ============
+(function clock() {
+  const el = document.getElementById('nav-clock');
+  if (!el) return;
+  function tick() {
+    const d = new Date();
+    let h = d.getHours();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    el.textContent = `NYC · ${h}:${mm} ${ampm}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+
+// ============ track filter (Legal / Business) ============
+(function trackFilter() {
+  const filters = document.querySelectorAll('.track-filter');
+  filters.forEach(filter => {
+    const scopeSel = filter.getAttribute('data-filter-scope');
+    const scope = document.querySelector(scopeSel);
+    if (!scope) return;
+    const cards = scope.querySelectorAll('[data-track]');
+    const countEl = filter.querySelector('[data-filter-count]');
+    const buttons = filter.querySelectorAll('button[data-track-filter]');
+
+    function apply(track) {
+      let shown = 0;
+      cards.forEach(card => {
+        const cardTrack = card.getAttribute('data-track');
+        const match = track === 'all' || cardTrack === track || cardTrack === 'both';
+        if (match) { card.removeAttribute('data-hidden'); shown++; }
+        else { card.setAttribute('data-hidden', ''); }
+      });
+      if (countEl) countEl.textContent = `${shown} showing`;
+      buttons.forEach(b => {
+        b.setAttribute('aria-pressed', b.getAttribute('data-track-filter') === track ? 'true' : 'false');
+      });
+    }
+
+    buttons.forEach(b => {
+      b.addEventListener('click', () => apply(b.getAttribute('data-track-filter')));
+    });
+    apply('all');
+  });
+})();
+
+// ============ cursor dot ============
+(function cursor() {
+  const dot = document.getElementById('cursor-dot');
+  if (!dot) return;
+  let x = window.innerWidth / 2, y = window.innerHeight / 2, tx = x, ty = y;
+  window.addEventListener('mousemove', (e) => { tx = e.clientX; ty = e.clientY; });
+  function loop() {
+    x += (tx - x) * 0.18;
+    y += (ty - y) * 0.18;
+    dot.style.left = x + 'px';
+    dot.style.top = y + 'px';
+    requestAnimationFrame(loop);
+  }
+  loop();
+  document.querySelectorAll('a, button, .card, .series-card, input').forEach(el => {
+    el.addEventListener('mouseenter', () => dot.classList.add('grow'));
+    el.addEventListener('mouseleave', () => dot.classList.remove('grow'));
+  });
+})();
+
+// ============ reveal on scroll ============
+(function reveal() {
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+})();
+
+// ============ skill card peek (flip) ============
+(function peek() {
+  document.querySelectorAll('.skill-card').forEach(card => {
+    const peekBtn = card.querySelector('.sk-peek');
+    const closeBtn = card.querySelector('.sk-flip-back');
+    if (peekBtn) peekBtn.addEventListener('click', (e) => { e.preventDefault(); card.classList.add('flipped'); });
+    if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); card.classList.remove('flipped'); });
+  });
+})();
+
+// ============ count-up stats ============
+(function count() {
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      const target = parseInt(el.getAttribute('data-count'), 10);
+      if (isNaN(target)) return;
+      const dur = 1400;
+      const start = performance.now();
+      function tick(t) {
+        const p = Math.min(1, (t - start) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(target * eased).toLocaleString();
+        if (p < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      io.unobserve(el);
+    });
+  }, { threshold: 0.5 });
+  document.querySelectorAll('[data-count]').forEach(el => io.observe(el));
+})();
+
+// ============ neural graph canvas ============
+(function graph() {
+  const canvas = document.getElementById('graph');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W, H, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const nodes = [];
+  const N = 44;
+  let mouseX = -9999, mouseY = -9999;
+
+  function resize() {
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  function init() {
+    nodes.length = 0;
+    for (let i = 0; i < N; i++) {
+      nodes.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.18,
+        vy: (Math.random() - 0.5) * 0.18,
+        r: Math.random() * 1.4 + 0.6,
+        hub: Math.random() < 0.12
+      });
+    }
+  }
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // lines
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      a.x += a.vx; a.y += a.vy;
+      if (a.x < 0 || a.x > W) a.vx *= -1;
+      if (a.y < 0 || a.y > H) a.vy *= -1;
+
+      // mouse repulsion (very slight)
+      const mdx = a.x - mouseX, mdy = a.y - mouseY;
+      const md2 = mdx*mdx + mdy*mdy;
+      if (md2 < 140*140) {
+        const f = 0.4 * (1 - Math.sqrt(md2) / 140);
+        a.x += (mdx/Math.sqrt(md2||1)) * f;
+        a.y += (mdy/Math.sqrt(md2||1)) * f;
+      }
+
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d2 = dx*dx + dy*dy;
+        const max = 180;
+        if (d2 < max*max) {
+          const alpha = (1 - Math.sqrt(d2)/max) * 0.22;
+          ctx.strokeStyle = `rgba(14,21,18,${alpha})`;
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    // nodes
+    for (const n of nodes) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fillStyle = n.hub ? 'rgba(10,125,87,.85)' : 'rgba(14,21,18,.45)';
+      ctx.fill();
+      if (n.hub) {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r + 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(16,185,129,.35)';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', () => { resize(); });
+  window.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    mouseX = e.clientX - r.left; mouseY = e.clientY - r.top;
+  });
+  window.addEventListener('mouseleave', () => { mouseX = -9999; mouseY = -9999; });
+  resize(); init(); draw();
+})();
+
+// ============ hero title wrap ============
+(function wrap() {
+  document.querySelectorAll('.hero-title .line').forEach(line => {
+    const inner = line.innerHTML;
+    line.innerHTML = `<span>${inner}</span>`;
+  });
+})();
+
+// ============ hero video sound toggle ============
+// Browsers block autoplay w/ audio. Start muted, let user tap the pill to
+// unmute. There are TWO frames in the DOM (desktop + mobile fallback), only
+// one is visible at any viewport. To guarantee no double-audio we (a) only
+// unmute the visible/clicked frame, (b) pause + force-mute the OTHER frame,
+// and (c) mirror playback state whenever the viewport crosses the breakpoint.
+(function soundToggle() {
+  const frames = Array.from(document.querySelectorAll('.hero-demo-frame'));
+  if (!frames.length) return;
+
+  function isVisible(el) {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    return getComputedStyle(el).display !== 'none';
+  }
+
+  function findVisibleFrame() {
+    return frames.find(f => {
+      // walk up to the figure which carries the media-query display rule
+      const fig = f.closest('figure');
+      return isVisible(fig);
+    });
+  }
+
+  function silenceAndPauseHidden() {
+    frames.forEach(frame => {
+      const fig = frame.closest('figure');
+      if (isVisible(fig)) return;
+      const v = frame.querySelector('video');
+      if (!v) return;
+      v.muted = true;
+      v.volume = 0;
+      if (!v.paused) v.pause();
+      frame.setAttribute('data-sound', 'off');
+    });
+  }
+
+  function unmute(frame) {
+    silenceAndPauseHidden();
+    const v = frame.querySelector('video');
+    if (!v) return;
+    v.muted = false;
+    v.volume = 1;
+    frame.setAttribute('data-sound', 'on');
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+
+  function muteAll() {
+    frames.forEach(frame => {
+      const v = frame.querySelector('video');
+      if (v) {
+        v.muted = true;
+        v.volume = 0;
+      }
+      frame.setAttribute('data-sound', 'off');
+    });
+  }
+
+  // Initial: pause hidden video so it isn't silently consuming a decoder slot.
+  silenceAndPauseHidden();
+
+  frames.forEach(frame => {
+    const btn = frame.querySelector('.sound-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const visible = findVisibleFrame() || frame;
+      const currentlyOn = visible.getAttribute('data-sound') === 'on';
+      if (currentlyOn) muteAll();
+      else unmute(visible);
+    });
+  });
+
+  // Re-sync on viewport crossing the breakpoint.
+  let lastWide = window.innerWidth >= 1200;
+  window.addEventListener('resize', () => {
+    const nowWide = window.innerWidth >= 1200;
+    if (nowWide !== lastWide) {
+      lastWide = nowWide;
+      muteAll();
+      silenceAndPauseHidden();
+      // resume the newly-visible one (muted)
+      const vis = findVisibleFrame();
+      if (vis) {
+        const v = vis.querySelector('video');
+        if (v && v.paused) { const p = v.play(); if (p && p.catch) p.catch(()=>{}); }
+      }
+    }
+  });
+})();
+
+// ============ (legacy no-op) ============
+(function watchRunLegacy() {
+  const body = document.getElementById('trace');
+  if (!body) return;
+
+  // each skill = title + scripted output lines. tokens are marked:
+  //   k = keyword/prompt, n = number, s = string/value, m = muted, a = accent
+  const skills = [
+    {
+      title: 'redline.skill',
+      lines: [
+        '<span class="tok-m">$</span> claude run <span class="tok-a">contract-redline</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">ingest</span> MSA_ACME_v3.pdf <span class="tok-m">· 41 pp</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">classify</span> → <span class="tok-s">"MSA / SaaS"</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">extract clauses</span> <span class="tok-m">·</span> <span class="tok-n">94</span> found',
+        '<span class="tok-m">⟳</span> <span class="tok-k">redline pass</span> <span class="tok-m">·</span> <span class="tok-n">3</span> material flags',
+        '  <span class="tok-a">▲ §7.2</span> liability cap <span class="tok-m">— ask for mutual</span>',
+        '  <span class="tok-a">▲ §11</span>  indemnity <span class="tok-m">— scope overbroad</span>',
+        '  <span class="tok-a">▲ §14</span>  IP assign <span class="tok-m">— carve-out missing</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">memo</span> drafted <span class="tok-m">·</span> <span class="tok-n">612</span> words',
+        '<span class="tok-k">done.</span> <span class="tok-m">manual review →</span>',
+      ],
+      total: 11,
+      saved: '4h 20m',
+    },
+    {
+      title: 'depo-prep.skill',
+      lines: [
+        '<span class="tok-m">$</span> claude run <span class="tok-a">deposition-prep</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">ingest</span> <span class="tok-n">1,842</span> pp discovery',
+        '<span class="tok-m">✓</span> <span class="tok-k">build timeline</span> <span class="tok-m">·</span> <span class="tok-n">73</span> events',
+        '<span class="tok-m">✓</span> <span class="tok-k">flag</span> inconsistencies <span class="tok-m">·</span> <span class="tok-n">9</span>',
+        '<span class="tok-m">⟳</span> <span class="tok-k">draft outline</span>',
+        '  <span class="tok-s">I.</span>   background <span class="tok-m">·</span> <span class="tok-n">12</span> Q',
+        '  <span class="tok-s">II.</span>  timeline <span class="tok-m">·</span> <span class="tok-n">34</span> Q',
+        '  <span class="tok-s">III.</span> impeachment <span class="tok-m">·</span> <span class="tok-n">9</span> Q',
+        '<span class="tok-m">✓</span> <span class="tok-k">exhibits</span> linked <span class="tok-m">·</span> <span class="tok-n">41</span>',
+        '<span class="tok-k">done.</span> <span class="tok-m">outline + exhibits →</span>',
+      ],
+      total: 8,
+      saved: '2 days',
+    },
+    {
+      title: 'cite-check.skill',
+      lines: [
+        '<span class="tok-m">$</span> claude run <span class="tok-a">citation-verify</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">parse brief</span> <span class="tok-m">·</span> <span class="tok-n">18</span> pp',
+        '<span class="tok-m">✓</span> <span class="tok-k">extract</span> <span class="tok-n">47</span> citations',
+        '<span class="tok-m">⟳</span> <span class="tok-k">verify</span> vs. Westlaw + CourtListener',
+        '  <span class="tok-k">✓</span> <span class="tok-n">44</span> verified',
+        '  <span class="tok-a">▲</span>  <span class="tok-n">2</span> misquoted <span class="tok-m">—</span> see §II.B',
+        '  <span class="tok-a">✗</span>  <span class="tok-n">1</span> not found <span class="tok-m">—</span> possible hallucination',
+        '<span class="tok-m">✓</span> <span class="tok-k">render report</span> <span class="tok-m">·</span> pdf',
+        '<span class="tok-k">done.</span> <span class="tok-m">3 issues →</span>',
+      ],
+      total: 7,
+      saved: '90 min',
+    },
+    {
+      title: 'ediscovery.skill',
+      lines: [
+        '<span class="tok-m">$</span> claude run <span class="tok-a">ediscovery-triage</span>',
+        '<span class="tok-m">✓</span> <span class="tok-k">ingest</span> <span class="tok-n">104,218</span> docs',
+        '<span class="tok-m">⟳</span> <span class="tok-k">cluster + dedupe</span>',
+        '  <span class="tok-m">→</span> <span class="tok-n">38,904</span> unique',
+        '<span class="tok-m">⟳</span> <span class="tok-k">privilege screen</span>',
+        '  <span class="tok-a">▲</span> <span class="tok-n">217</span> presumptively privileged',
+        '<span class="tok-m">⟳</span> <span class="tok-k">responsiveness</span> <span class="tok-m">·</span> issue codes',
+        '  <span class="tok-m">→</span> <span class="tok-n">504</span> responsive · hot',
+        '<span class="tok-k">done.</span> <span class="tok-m">→ review queue built</span>',
+      ],
+      total: 7,
+      saved: '11 days',
+    },
+  ];
+
+  let skillIdx = 0, lineIdx = 0, charIdx = 0;
+  let elapsedStart = 0, elapsedInt = null;
+  const caret = '<span class="wt-caret"></span>';
+
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  }
+
+  function startSkill() {
+    const s = skills[skillIdx];
+    title.textContent = s.title;
+    status.textContent = 'running';
+    status.style.color = '#88d9a8';
+    body.innerHTML = caret;
+    lineIdx = 0; charIdx = 0;
+    elapsedStart = performance.now();
+    if (elapsedInt) clearInterval(elapsedInt);
+    elapsedInt = setInterval(() => {
+      elapsed.textContent = fmtTime(performance.now() - elapsedStart);
+    }, 200);
+    stepLine();
+  }
+
+  function stepLine() {
+    const s = skills[skillIdx];
+    if (lineIdx >= s.lines.length) return finishSkill();
+    const line = s.lines[lineIdx];
+    // type char-by-char on the *rendered* text, but reveal the HTML in one go per line for the colour tokens
+    // simulate typing by delaying each line's full render
+    const delay = 180 + Math.random() * 140;
+    setTimeout(() => {
+      // append this full line + caret
+      const built = s.lines.slice(0, lineIdx + 1).join('\n');
+      body.innerHTML = built + '\n' + caret;
+      lineIdx++;
+      stepLine();
+    }, delay);
+  }
+
+  function finishSkill() {
+    const s = skills[skillIdx];
+    clearInterval(elapsedInt);
+    status.textContent = `saved ${s.saved}`;
+    status.style.color = '#d97757';
+    body.innerHTML = body.innerHTML.replace(/<span class="wt-caret"[^>]*><\/span>/, '');
+    setTimeout(() => {
+      skillIdx = (skillIdx + 1) % skills.length;
+      startSkill();
+    }, 2600);
+  }
+
+  startSkill();
+})();
+
+</script>
+</body>
+</html>

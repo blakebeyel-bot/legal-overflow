@@ -1,0 +1,109 @@
+---
+import { getCollection, render } from 'astro:content';
+import { phArt, formatDate, trackLabel } from '../../lib/phArt';
+
+export async function getStaticPaths() {
+  const articles = await getCollection('articles', ({ data }) => !data.draft);
+  return articles.map(a => ({ params: { slug: a.slug }, props: { entry: a } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{d.title.replace(/<[^>]*>/g, '')} — Legal Overflow</title>
+  <meta name="description" content={d.dek.replace(/<[^>]*>/g, '')} />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="grain"></div>
+
+  <header class="nav">
+    <a href="/" class="brand" aria-label="Legal Overflow home">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/>
+        <path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/>
+        <circle cx="20" cy="14" r="2.5" fill="currentColor"/>
+        <circle cx="20" cy="26" r="2.5" fill="var(--accent)"/>
+      </svg>
+      <span class="brand-text">
+        <span>Legal</span><span class="brand-over">Overflow</span>
+      </span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="/#skills">Skills</a>
+      <a href="/#articles">Resources</a>
+      <a href="/#services">Services</a>
+      <a href="/about/">About</a>
+    </nav>
+    <div class="nav-right">
+      <div class="live-dot" aria-hidden="true"></div>
+      <span class="nav-meta" id="nav-clock">—</span>
+      <a href="/#subscribe" class="nav-sub">Subscribe</a>
+    </div>
+  </header>
+
+  <section class="article-hero">
+    <div class="article-crumbs"><a href="/">Home</a> / <a href="/#articles">Essays</a> / {d.kind}</div>
+    <div class="article-kicker">{d.kind} · {d.topic} · {d.readMinutes} min read</div>
+    <h1 class="article-title" set:html={d.title}></h1>
+    <p class="article-dek" set:html={d.dek}></p>
+    <div class="article-meta">
+      <span><strong>By</strong> Blake Beyel</span>
+      <span><strong>Published</strong> {formatDate(d.date)}</span>
+      <span><strong>Track</strong> {trackLabel(d.track)}</span>
+    </div>
+  </section>
+
+  <div class="article-cover">
+    <div class={`ph ${d.cover}`}>
+      <Fragment set:html={phArt[d.cover]} />
+    </div>
+  </div>
+
+  <article class="article-body">
+    <Content />
+  </article>
+
+  <div class="article-end">
+    <span>— {formatDate(d.date)} —</span>
+    <a href="/#articles">More essays →</a>
+  </div>
+
+  <footer class="foot">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-brand">Legal Overflow</div>
+        <p>A field journal on AI and the legal profession.</p>
+      </div>
+      <div><h5>Read</h5><a href="/#articles">Resources</a><a href="/#skills">Skills</a></div>
+      <div><h5>About</h5><a href="/about/">Author</a></div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Legal Overflow · Blake Beyel</span>
+      <span>Published in public</span>
+    </div>
+  </footer>
+
+  <script is:inline>
+    (function clock() {
+      const el = document.getElementById('nav-clock');
+      if (!el) return;
+      function tick() {
+        const d = new Date();
+        const t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' });
+        el.textContent = 'NYC · ' + t;
+      }
+      tick(); setInterval(tick, 30000);
+    })();
+  </script>
+</body>
+</html>

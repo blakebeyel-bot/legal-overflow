@@ -1,0 +1,52 @@
+---
+import { phArt, formatDate, trackLabel, trackClass } from '../lib/phArt';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  featured: CollectionEntry<'articles'> | undefined;
+  gridArticles: CollectionEntry<'articles'>[];
+}
+
+const { featured, gridArticles } = Astro.props;
+---
+{featured && (
+  <article class="feature-lead" data-track={featured.data.track}>
+    <a href={`/articles/${featured.slug}/`} class="feature-media">
+      <div class={`ph ${featured.data.cover}`}>
+        <Fragment set:html={phArt[featured.data.cover]} />
+        <div class="ph-overlay"></div>
+      </div>
+      <div class="feature-tag">Featured · {featured.data.readMinutes} min read</div>
+    </a>
+    <div class="feature-body">
+      <div class="feature-meta">{featured.data.kind} · {formatDate(featured.data.date)}</div>
+      <h3 class="feature-title">
+        <a href={`/articles/${featured.slug}/`} set:html={featured.data.title}></a>
+      </h3>
+      <p class="feature-excerpt" set:html={featured.data.dek}></p>
+      <div class="feature-foot">
+        <div class="author-chip">
+          <div class="avatar"></div>
+          <div><strong>Blake Beyel</strong><br/><span>In-House Counsel, Beyel Brothers Inc.</span></div>
+        </div>
+        <a href={`/articles/${featured.slug}/`} class="read-link">Read the essay <span>→</span></a>
+      </div>
+    </div>
+  </article>
+)}
+
+<!-- ARTICLE GRID -->
+<div class="article-grid">
+  {gridArticles.map(a => (
+    <article class="card reveal" data-track={a.data.track}>
+      <a href={`/articles/${a.slug}/`} class={`card-media ph ${a.data.cover}`}>
+        <Fragment set:html={phArt[a.data.cover]} />
+      </a>
+      <div class="card-track-row"><span class={`track-pill ${trackClass(a.data.track)}`}>{trackLabel(a.data.track)}</span></div>
+      <div class="card-kind">{a.data.kind} · {a.data.readMinutes} min</div>
+      <h4><a href={`/articles/${a.slug}/`} set:html={a.data.title}></a></h4>
+      <p set:html={a.data.dek}></p>
+      <div class="card-foot"><span>{formatDate(a.data.date)}</span><span class="dot"></span><span>{a.data.topic}</span></div>
+    </article>
+  ))}
+</div>

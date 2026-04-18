@@ -1,0 +1,31 @@
+backend:
+  name: git-gateway
+  branch: main
+
+# Git Gateway auth is handled by Netlify Identity (set up in Phase 4).
+# This avoids creating a GitHub OAuth app.
+
+
+media_folder: "public/assets/articles"
+public_folder: "/assets/articles"
+
+collections:
+  - name: "articles"
+    label: "Articles"
+    folder: "src/content/articles"
+    create: true
+    slug: "{{slug}}"
+    extension: "md"
+    format: "frontmatter"
+    fields:
+      - { label: "Title", name: "title", widget: "string", hint: "Use <em>word</em> for emerald italic emphasis" }
+      - { label: "Deck / Summary", name: "dek", widget: "text", hint: "1–3 sentence summary that appears under the title" }
+      - { label: "Kind", name: "kind", widget: "select", options: ["Essay", "Case Study", "Field Note", "Interview", "Long Read", "Primer", "Op-Ed"] }
+      - { label: "Track", name: "track", widget: "select", options: [{ label: "Legal", value: "legal" }, { label: "Business", value: "business" }, { label: "Legal + Business", value: "both" }] }
+      - { label: "Read Minutes", name: "readMinutes", widget: "number", min: 1, max: 90, value_type: "int" }
+      - { label: "Date", name: "date", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, format: "YYYY-MM-DD" }
+      - { label: "Topic", name: "topic", widget: "string", hint: "One-word tag: Litigation, Ethics, Practice, Regulation, etc." }
+      - { label: "Cover Illustration", name: "cover", widget: "select", options: ["ph-a", "ph-b", "ph-c", "ph-d", "ph-e", "ph-f", "ph-g"], default: "ph-b", hint: "Pick which SVG illustration to use as the article's cover image" }
+      - { label: "Featured on homepage?", name: "featured", widget: "boolean", default: false, required: false }
+      - { label: "Draft (hide from site)?", name: "draft", widget: "boolean", default: false, required: false }
+      - { label: "Body", name: "body", widget: "markdown" }
