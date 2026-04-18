@@ -2,9 +2,8 @@ backend:
   name: git-gateway
   branch: main
 
-# Git Gateway auth is handled by Netlify Identity (set up in Phase 4).
-# This avoids creating a GitHub OAuth app.
-
+site_url: https://resplendent-lollipop-59d4c4.netlify.app
+display_url: https://resplendent-lollipop-59d4c4.netlify.app
 
 media_folder: "public/assets/articles"
 public_folder: "/assets/articles"
