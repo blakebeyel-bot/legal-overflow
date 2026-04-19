@@ -1224,6 +1224,24 @@ a { color: inherit; text-decoration: none; }
 .about-portrait { position: relative; aspect-ratio: 4/5; border-radius: 6px; overflow: hidden; max-width: 440px; margin-left: auto; }
 .about-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .about-portrait .ph-label { font-size: 11px; }
+.portrait-meta {
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: 440px; margin: 16px 0 0 auto;
+  padding-top: 4px;
+}
+.pm-rule {
+  width: 40px; height: 1px; background: var(--ink); display: block;
+}
+.pm-name {
+  font-family: var(--sans); font-weight: 500; font-size: 15px;
+  color: var(--ink); letter-spacing: -.005em;
+  line-height: 1.3;
+}
+.pm-role {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3); letter-spacing: .05em; text-transform: uppercase;
+  line-height: 1.4;
+}
 .about-bio { max-width: 66ch; margin: 60px auto; font-family: var(--serif); font-size: 22px; line-height: 1.55; }
 .about-bio p { margin: 0 0 28px; }
 .about-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding: 40px 0; border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); margin: 40px 0; }
@@ -1299,6 +1317,24 @@ a { color: inherit; text-decoration: none; }
 .about-portrait { position: relative; aspect-ratio: 4/5; border-radius: 6px; overflow: hidden; max-width: 440px; margin-left: auto; }
 .about-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .about-portrait .ph-label { font-size: 11px; }
+.portrait-meta {
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: 440px; margin: 16px 0 0 auto;
+  padding-top: 4px;
+}
+.pm-rule {
+  width: 40px; height: 1px; background: var(--ink); display: block;
+}
+.pm-name {
+  font-family: var(--sans); font-weight: 500; font-size: 15px;
+  color: var(--ink); letter-spacing: -.005em;
+  line-height: 1.3;
+}
+.pm-role {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3); letter-spacing: .05em; text-transform: uppercase;
+  line-height: 1.4;
+}
 .about-bio { max-width: 66ch; margin: 60px auto; font-family: var(--serif); font-size: 22px; line-height: 1.55; }
 .about-bio p { margin: 0 0 28px; }
 .about-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding: 40px 0; border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); margin: 40px 0; }
