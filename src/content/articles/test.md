@@ -1,7 +1,7 @@
 ---
 title: Test
 dek: "This is a test. "
-kind: Essay
+kind: Article
 track: legal
 readMinutes: 3
 date: 2026-04-18

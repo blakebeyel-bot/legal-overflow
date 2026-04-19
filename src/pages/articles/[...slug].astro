@@ -62,7 +62,7 @@ const d = entry.data;
   </header>
 
   <section class="article-hero">
-    <div class="article-crumbs"><a href="/">Home</a> / <a href="/#articles">Essays</a> / {d.kind}</div>
+    <div class="article-crumbs"><a href="/">Home</a> / <a href="/#articles">Articles</a> / {d.kind}</div>
     <div class="article-kicker">{d.kind} · {d.topic} · {d.readMinutes} min read</div>
     <h1 class="article-title" set:html={d.title}></h1>
     <p class="article-dek" set:html={d.dek}></p>
@@ -85,7 +85,7 @@ const d = entry.data;
 
   <div class="article-end">
     <span>— {formatDate(d.date)} —</span>
-    <a href="/#articles">More essays →</a>
+    <a href="/#articles">More articles →</a>
   </div>
 
   <footer class="foot">

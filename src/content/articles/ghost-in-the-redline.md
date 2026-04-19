@@ -1,7 +1,7 @@
 ---
 title: "The ghost in the <em>redline</em>: what happens when both sides negotiate with the same model."
 dek: "A transactional attorney and her counterparty feed identical drafts into identical frontier models. The markups come back nearly identical — and the space for human negotiation shrinks in ways that nobody in the partnership agreement ever anticipated."
-kind: "Essay — Vol. III, № 07"
+kind: "Article — Vol. III, № 07"
 track: "both"
 readMinutes: 22
 date: 2026-04-14
@@ -35,4 +35,4 @@ These textures do not survive a frontier model's editorial pass. The model, give
 2. When the model suggests language neither side would have drafted unprompted, whose interests does that language serve?
 3. What does "zealous representation" mean when the zeal gets smoothed out in the first pass?
 
-I have been writing this essay for six weeks. I do not know how it ends.
+I have been writing this article for six weeks. I do not know how it ends.

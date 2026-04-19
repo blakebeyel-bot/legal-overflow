@@ -1,7 +1,7 @@
 ---
 title: "Privilege in the age of retrieval: your prompts are discoverable. Probably."
 dek: "A working theory of how work-product doctrine bends around a tool that both drafts and remembers — and a checklist for the attorneys who depend on it daily."
-kind: "Essay"
+kind: "Article"
 track: "legal"
 readMinutes: 9
 date: 2026-03-11
@@ -17,4 +17,4 @@ Neither assumption is still load-bearing.
 
 When an attorney drafts a brief by iterating thirty-four prompts against a frontier model — revising, refining, occasionally arguing with the tool — those prompts constitute *something*. The question is what.
 
-*(Full essay coming soon.)*
+*(Full article coming soon.)*
