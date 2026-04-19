@@ -380,6 +380,12 @@ for obligations under §11
 (Confidentiality)…"</pre>
             </div>
           </div>
+          <div class="sk-back-foot">
+            <button class="skill-dl sk-back-dl" type="button">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </button>
+          </div>
         </div>
       </article>
 
@@ -430,6 +436,12 @@ Run: full discovery corpus.</pre>
 <span class="tok-m">41 exhibits linked</span></pre>
             </div>
           </div>
+          <div class="sk-back-foot">
+            <button class="skill-dl sk-back-dl" type="button">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </button>
+          </div>
         </div>
       </article>
 
@@ -479,6 +491,12 @@ CourtListener + official rptr.</pre>
 replace before filing</pre>
             </div>
           </div>
+          <div class="sk-back-foot">
+            <button class="skill-dl sk-back-dl" type="button">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </button>
+          </div>
         </div>
       </article>
 
@@ -526,6 +544,12 @@ this office.
 <span class="tok-k">→</span> You may opt out at any
   time in writing.</pre>
             </div>
+          </div>
+          <div class="sk-back-foot">
+            <button class="skill-dl sk-back-dl" type="button">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </button>
           </div>
         </div>
       </article>
@@ -579,6 +603,12 @@ Date range: 2022-03 → 2024-11</pre>
 <span class="tok-m">audit trail: run_id 7f2c</span></pre>
             </div>
           </div>
+          <div class="sk-back-foot">
+            <button class="skill-dl sk-back-dl" type="button">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </button>
+          </div>
         </div>
       </article>
 
@@ -631,6 +661,12 @@ Standard: 12(b)(6)</pre>
 <span class="tok-a">▲</span> <span class="tok-m">partner review:</span> §I.B
   counter-argument weak</pre>
             </div>
+          </div>
+          <div class="sk-back-foot">
+            <button class="skill-dl sk-back-dl" type="button">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </button>
           </div>
         </div>
       </article>
@@ -841,6 +877,53 @@ Standard: 12(b)(6)</pre>
     const closeBtn = card.querySelector('.sk-flip-back');
     if (peekBtn) peekBtn.addEventListener('click', (e) => { e.preventDefault(); card.classList.add('flipped'); });
     if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); card.classList.remove('flipped'); });
+  });
+})();
+
+// ============ skill sample-output download (back of flip card) ============
+(function sampleDownload() {
+  function slugify(s) {
+    return (s || 'sample-output')
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .slice(0, 60);
+  }
+  document.querySelectorAll('.sk-back-dl').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const card = btn.closest('.skill-card');
+      if (!card) return;
+      const title = card.querySelector('.skill-title')?.textContent?.trim() || 'sample-output';
+      const inputLabel = card.querySelector('.sk-io-label:not(.sk-io-out)')?.textContent?.trim() || 'Input';
+      const outputLabel = card.querySelector('.sk-io-label.sk-io-out')?.textContent?.trim() || 'Output';
+      const inputBlock = card.querySelector('.sk-io-col:not(:has(.sk-io-out)) .sk-io-block')?.textContent?.trim() || '';
+      const outputBlock = card.querySelector('.sk-io-col:has(.sk-io-out) .sk-io-block')?.textContent?.trim() || '';
+      const parts = [
+        'LEGAL OVERFLOW — Sample output',
+        '================================',
+        '',
+        'Skill: ' + title,
+        'Generated: ' + new Date().toISOString().slice(0, 10),
+        ''
+      ];
+      if (inputBlock) {
+        parts.push('--- ' + inputLabel + ' ---', '', inputBlock, '');
+      }
+      parts.push('--- ' + outputLabel + ' ---', '', outputBlock || inputBlock, '');
+      parts.push('', '— legaloverflow.com');
+      const text = parts.join('\n');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = slugify(title) + '-sample-output.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    });
   });
 })();
 

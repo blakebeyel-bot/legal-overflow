@@ -933,6 +933,33 @@ a { color: inherit; text-decoration: none; }
   transition: color .2s ease;
 }
 .sk-peek:hover { color: var(--ink); }
+.sk-back-foot {
+  margin-top: auto; padding-top: 14px;
+  border-top: 1px solid var(--rule-soft);
+  display: flex; justify-content: center;
+}
+.skill-card.featured-skill .sk-back-foot { border-top-color: rgba(255,255,255,.1); }
+.sk-back-foot .sk-back-dl {
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: .05em; text-transform: uppercase;
+  padding: 10px 20px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent-deep); color: var(--paper);
+  border: 1px solid var(--accent-deep);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, transform .15s ease;
+}
+.sk-back-foot .sk-back-dl:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.sk-back-foot .sk-back-dl:active { transform: scale(.97); }
+.sk-back-foot .sk-back-dl svg { transition: transform .25s ease; }
+.sk-back-foot .sk-back-dl:hover svg { transform: translateY(2px); }
+.skill-card.featured-skill .sk-back-foot .sk-back-dl {
+  background: var(--accent); border-color: var(--accent); color: var(--ink);
+}
+.skill-card.featured-skill .sk-back-foot .sk-back-dl:hover {
+  background: var(--paper); border-color: var(--paper); color: var(--ink);
+}
 .skill-card.featured-skill .sk-peek { color: var(--accent); }
 .skill-card.featured-skill .sk-peek:hover { color: var(--paper); }
 .skill-card:hover { background: var(--paper-2); }
