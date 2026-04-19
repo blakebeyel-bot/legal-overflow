@@ -1,6 +1,8 @@
 ---
 import { getCollection, render } from 'astro:content';
 import { phArt, formatDate, trackLabel } from '../../lib/phArt';
+import Consent from '../../partials/consent.astro';
+import DownloadGate from '../../partials/download-gate.astro';
 
 export async function getStaticPaths() {
   const articles = await getCollection('articles', ({ data }) => !data.draft);
@@ -115,5 +117,7 @@ const d = entry.data;
       tick(); setInterval(tick, 30000);
     })();
   </script>
+  <DownloadGate />
+  <Consent />
 </body>
 </html>

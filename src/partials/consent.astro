@@ -1,0 +1,60 @@
+---
+// Consent modal: shown to every new visitor on page load.
+// Stores acceptance in localStorage so returning visitors aren't re-prompted.
+// Loads Microsoft Clarity only AFTER the user accepts.
+// To activate Clarity: paste your project ID into CLARITY_PROJECT_ID below.
+---
+<div id="consent-modal" class="consent-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+  <div class="consent-backdrop"></div>
+  <div class="consent-card">
+    <div class="consent-kicker">Before you continue</div>
+    <h2 id="consent-title" class="consent-title">One thing first.</h2>
+    <div class="consent-body">
+      <p><strong>This site is not legal advice.</strong> Everything published here is a field journal about legal technology. <strong>It does not create an attorney-client relationship and should not be relied upon for any specific legal matter.</strong> The site discusses AI-generated work regularly. <strong>Always verify AI output with qualified counsel before relying on it.</strong></p>
+      <p>This site uses <strong>Microsoft Clarity</strong> cookies to understand how visitors interact with the page. By clicking accept, you consent to the use of analytics cookies.</p>
+    </div>
+    <button type="button" id="consent-accept" class="consent-accept">
+      <span>I Understand and Accept</span>
+    </button>
+  </div>
+</div>
+
+<script is:inline>
+(function() {
+  var STORAGE_KEY = 'legaloverflow-consent-v1';
+  var CLARITY_PROJECT_ID = ''; // Paste your Microsoft Clarity project ID here
+
+  function loadClarity(projectId) {
+    if (!projectId) return;
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", projectId);
+  }
+
+  var modal = document.getElementById('consent-modal');
+  var acceptBtn = document.getElementById('consent-accept');
+  if (!modal || !acceptBtn) return;
+
+  var stored = null;
+  try { stored = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+
+  if (stored) {
+    loadClarity(CLARITY_PROJECT_ID);
+    return;
+  }
+
+  modal.setAttribute('aria-hidden', 'false');
+  modal.classList.add('open');
+  document.body.classList.add('consent-lock');
+
+  acceptBtn.addEventListener('click', function() {
+    try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch (e) {}
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('consent-lock');
+    loadClarity(CLARITY_PROJECT_ID);
+  });
+})();
+</script>

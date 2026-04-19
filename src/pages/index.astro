@@ -2,6 +2,8 @@
 import { getCollection } from 'astro:content';
 import { phArt, formatDate, trackLabel, trackClass } from '../lib/phArt';
 import ArticleSection from '../partials/article-section.astro';
+import Consent from '../partials/consent.astro';
+import DownloadGate from '../partials/download-gate.astro';
 
 const all = (await getCollection('articles', ({ data }) => !data.draft))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
@@ -150,7 +152,7 @@ const gridArticles = all.filter(a => a.slug !== featured?.slug);
       <div class="hero-now" aria-label="Current status">
         <div class="now-head">
           <span class="now-live"><span class="now-dot"></span>Now</span>
-          <span class="now-stamp">Updated <time datetime="2026-04-18">Apr 18</time></span>
+          <span class="now-stamp">Updated <time id="now-stamp-date" datetime="">—</time></span>
         </div>
         <div class="now-grid">
           <div class="now-cell">
@@ -224,13 +226,6 @@ const gridArticles = all.filter(a => a.slug !== featured?.slug);
           <span class="tst-arrow">→</span>
           <span class="tst-to">4 min</span>
           <span class="tst-delta">−96%</span>
-        </li>
-        <li>
-          <span class="tst-skill">e-Discovery triage <em>100k → 500</em></span>
-          <span class="tst-from">11 days</span>
-          <span class="tst-arrow">→</span>
-          <span class="tst-to">6 h</span>
-          <span class="tst-delta">−93%</span>
         </li>
         <li>
           <span class="tst-skill">Motion-to-dismiss <em>research + draft</em></span>
@@ -403,20 +398,19 @@ for obligations under §11
           <span class="track-pill track-both">Legal + Business</span>
           </div>
           <h3 class="skill-title">Deposition prep in one afternoon</h3>
-          <p class="skill-desc">A complete four-step workflow — transcript ingestion prompt, witness timeline generator, impeachment-material finder, and a single-page cross-exam outline generator. Used on real cases.</p>
+          <p class="skill-desc">A complete four-step workflow — transcript ingestion prompt, witness timeline generator, impeachment-material finder, and a single-page cross-exam outline generator.</p>
           <ul class="skill-meta-list">
             <li><span class="sk-dot"></span> 4 prompts + 2 JSON schemas + sample runs</li>
             <li><span class="sk-dot"></span> Privilege-safe: runs fully local if you want</li>
-            <li><span class="sk-dot"></span> Includes a 12-min walkthrough video link</li>
           </ul>
           <div class="skill-foot">
             <button class="sk-peek" type="button">Peek inside →</button>
             <div class="skill-dl-group">
-              <a href="#" class="skill-dl primary" data-file="deposition-prep-workflow-claude-skill.zip">
+              <a href="/assets/skills/deposition-prep-workflow-claude-skill.zip" class="skill-dl primary" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Install as Claude Skill</span>
               </a>
-              <a href="#" class="skill-dl" data-file="deposition-prep-workflow-prompts.md">
+              <a href="/assets/skills/deposition-prep-workflow-prompts.md" class="skill-dl" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Download prompt pack</span>
               </a>
@@ -447,36 +441,36 @@ Run: full discovery corpus.</pre>
             </div>
           </div>
           <div class="sk-back-foot">
-            <button class="skill-dl sk-back-dl" type="button">
+            <a href="/assets/skills/deposition-prep-workflow-sample-output.docx" class="skill-dl sk-back-dl" download>
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Download sample output</span>
-            </button>
+            </a>
           </div>
         </div>
       </article>
 
-      <article class="skill-card" data-track="business">
+      <article class="skill-card" data-track="legal">
         <div class="sk-face sk-front">
           <div class="skill-head">
-            <span class="skill-type">Checklist</span>
-            <span class="skill-format">.pdf · 96 KB</span>
-          <span class="track-pill track-biz">Business</span>
+            <span class="skill-type">Protocol</span>
+            <span class="skill-format">.zip · 24 KB</span>
+          <span class="track-pill track-legal">Legal</span>
           </div>
           <h3 class="skill-title">Citation verification protocol</h3>
-          <p class="skill-desc">The one-page compliance checklist my firm uses post-<em>Avianca</em> to verify every model-generated citation before filing. Includes the Rule 11 attestation template.</p>
+          <p class="skill-desc">A five-stage <em>Bluebook</em> 22e form-check. Extracts every citation from a draft, maps each to its governing rule, flags non-conforming entries, and produces a .docx verification report plus a printable drafting sign-off for the matter file.</p>
           <ul class="skill-meta-list">
-            <li><span class="sk-dot"></span> Printable, 1-page, double-sided</li>
-            <li><span class="sk-dot"></span> Annotated with case authority</li>
-            <li><span class="sk-dot"></span> Updated quarterly</li>
+            <li><span class="sk-dot"></span> Every finding pin-cited to a BB rule or table</li>
+            <li><span class="sk-dot"></span> .docx verification report + 1-page sign-off</li>
+            <li><span class="sk-dot"></span> Form only — substance remains attorney responsibility</li>
           </ul>
           <div class="skill-foot">
             <button class="sk-peek" type="button">Peek inside →</button>
             <div class="skill-dl-group">
-              <a href="#" class="skill-dl primary" data-file="citation-verification-protocol-claude-skill.zip">
+              <a href="/assets/skills/citation-verification-protocol-claude-skill.zip" class="skill-dl primary" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Install as Claude Skill</span>
               </a>
-              <a href="#" class="skill-dl" data-file="citation-verification-protocol-prompts.md">
+              <a href="/assets/skills/citation-verification-protocol-prompts.md" class="skill-dl" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Download prompt pack</span>
               </a>
@@ -487,30 +481,33 @@ Run: full discovery corpus.</pre>
           <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
           <div class="sk-io">
             <div class="sk-io-col">
-              <span class="sk-io-label">Input · 18-pp draft brief</span>
-              <pre class="sk-io-block">47 citations extracted
-Source: draft_motion_v3.docx
-Cross-check: Westlaw +
-CourtListener + official rptr.</pre>
+              <span class="sk-io-label">Input · 18-pp practitioner brief</span>
+              <pre class="sk-io-block">Style: Bluepages (BP)
+47 citations extracted
+Draft: draft_motion_v3.docx
+Authority: <span class="tok-s">Bluebook 22e</span></pre>
             </div>
             <div class="sk-io-col">
-              <span class="sk-io-label sk-io-out">Output · verification report</span>
-              <pre class="sk-io-block"><span class="tok-k">✓ 44</span> verified clean
-<span class="tok-a">▲  2</span> misquoted pin-cites
-  → §II.B, §IV.A
-<span class="tok-a">✗  1</span> case not found
-  → <span class="tok-s">"Dawson v. Meridian, 487
-     F.3d 211 (2d Cir. 2019)"</span>
-<span class="tok-m">likely hallucination</span>
-<span class="tok-k">suggest:</span> remove or
-replace before filing</pre>
+              <span class="sk-io-label sk-io-out">Output · form-check report</span>
+              <pre class="sk-io-block"><span class="tok-k">✓ 44</span> CONFORMING
+<span class="tok-a">▲  2</span> NEEDS CORRECTION
+  §II.B #18 — abbrev.
+    <span class="tok-m">BB R. 10.2.2; T6</span>
+  §IV.A #34 — F.3d→F.4th
+    <span class="tok-m">BB R. 10.3.1; T1.1</span>
+<span class="tok-a">✗  1</span> NON-CONFORMING
+  §III.C #31 — missing
+    components
+    <span class="tok-m">BB R. 10.1</span>
+<span class="tok-k">action:</span> re-source /
+rewrite / remove</pre>
             </div>
           </div>
           <div class="sk-back-foot">
-            <button class="skill-dl sk-back-dl" type="button">
+            <a href="/assets/skills/citation-verification-protocol-sample-output.docx" class="skill-dl sk-back-dl" download>
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Download sample output</span>
-            </button>
+            </a>
           </div>
         </div>
       </article>
@@ -519,24 +516,24 @@ replace before filing</pre>
         <div class="sk-face sk-front">
           <div class="skill-head">
             <span class="skill-type">Template</span>
-            <span class="skill-format">.docx · 44 KB</span>
+            <span class="skill-format">.zip · 24 KB</span>
           <span class="track-pill track-legal">Legal</span>
           </div>
           <h3 class="skill-title">AI-use disclosure rider</h3>
-          <p class="skill-desc">Plain-language engagement-letter rider disclosing model use, retention, and supervision. Written for US-state ethics rules, with a version for the UK and the EU.</p>
+          <p class="skill-desc">A plain-language engagement-letter rider disclosing a firm's use of generative AI. US, UK, or EU regional versions anchored to <em>ABA Formal Opinion 512</em>, SRA Principles, or the EU AI Act, plus a 150-word client summary and a countersignature page.</p>
           <ul class="skill-meta-list">
-            <li><span class="sk-dot"></span> US · UK · EU drafts included</li>
-            <li><span class="sk-dot"></span> Redline mode for partner review</li>
-            <li><span class="sk-dot"></span> Plain-English client summary</li>
+            <li><span class="sk-dot"></span> US · UK · EU regional templates included</li>
+            <li><span class="sk-dot"></span> 150-word plain-English client summary</li>
+            <li><span class="sk-dot"></span> Cites ABA Op. 512, SRA Principles, EU AI Act</li>
           </ul>
           <div class="skill-foot">
             <button class="sk-peek" type="button">Peek inside →</button>
             <div class="skill-dl-group">
-              <a href="#" class="skill-dl primary" data-file="ai-disclosure-rider-claude-skill.zip">
+              <a href="/assets/skills/ai-disclosure-rider-claude-skill.zip" class="skill-dl primary" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Install as Claude Skill</span>
               </a>
-              <a href="#" class="skill-dl" data-file="ai-disclosure-rider-prompts.md">
+              <a href="/assets/skills/ai-disclosure-rider-prompts.md" class="skill-dl" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Download prompt pack</span>
               </a>
@@ -547,7 +544,7 @@ replace before filing</pre>
           <div class="sk-back-head"><span class="sk-back-label">Template preview</span><button class="sk-flip-back" type="button">× close</button></div>
           <div class="sk-io sk-io-single">
             <div class="sk-io-col">
-              <span class="sk-io-label sk-io-out">Excerpt · §2 (plain language)</span>
+              <span class="sk-io-label sk-io-out">Excerpt · §1 (scope, anchor language)</span>
               <pre class="sk-io-block">In representing you, <span class="tok-k">[Firm]</span>
 may use generative AI tools
 to assist with research,
@@ -566,73 +563,10 @@ this office.
             </div>
           </div>
           <div class="sk-back-foot">
-            <button class="skill-dl sk-back-dl" type="button">
+            <a href="/assets/skills/ai-disclosure-rider-sample-output.docx" class="skill-dl sk-back-dl" download>
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Download sample output</span>
-            </button>
-          </div>
-        </div>
-      </article>
-
-      <article class="skill-card" data-track="business">
-        <div class="sk-face sk-front">
-          <div class="skill-head">
-            <span class="skill-type">Prompt pack</span>
-            <span class="skill-format">.md · 22 KB</span>
-          <span class="track-pill track-biz">Business</span>
-          </div>
-          <h3 class="skill-title">e-Discovery triage: 100k → 500 docs</h3>
-          <p class="skill-desc">A document-culling workflow for early-case assessment. Seven prompts plus a calibration set that lets you tune precision/recall without touching code.</p>
-          <ul class="skill-meta-list">
-            <li><span class="sk-dot"></span> Privilege-preserving by design</li>
-            <li><span class="sk-dot"></span> Works on raw ESI or Relativity exports</li>
-            <li><span class="sk-dot"></span> Includes audit-trail prompt</li>
-          </ul>
-          <div class="skill-foot">
-            <button class="sk-peek" type="button">Peek inside →</button>
-            <div class="skill-dl-group">
-              <a href="#" class="skill-dl primary" data-file="ediscovery-triage-claude-skill.zip">
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Install as Claude Skill</span>
-              </a>
-              <a href="#" class="skill-dl" data-file="ediscovery-triage-prompts.md">
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Download prompt pack</span>
-              </a>
-            </div>
-          </div>
-        </div>
-        <div class="sk-face sk-back">
-          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
-          <div class="sk-io">
-            <div class="sk-io-col">
-              <span class="sk-io-label">Input · ESI export</span>
-              <pre class="sk-io-block">104,218 documents
-Format: Relativity load file
-Issues: breach of contract,
-  failure to disclose, fraud
-Date range: 2022-03 → 2024-11</pre>
-            </div>
-            <div class="sk-io-col">
-              <span class="sk-io-label sk-io-out">Output · review queue</span>
-              <pre class="sk-io-block"><span class="tok-k">dedupe + cluster</span>
-  <span class="tok-m">→</span> 38,904 unique
-<span class="tok-a">privilege screen</span>
-  <span class="tok-m">→</span> 217 flagged
-<span class="tok-k">responsive</span>
-  <span class="tok-m">→</span> 504 hot docs
-<span class="tok-k">issue-coded</span>
-  breach · 302
-  disclosure · 141
-  fraud · 61
-<span class="tok-m">audit trail: run_id 7f2c</span></pre>
-            </div>
-          </div>
-          <div class="sk-back-foot">
-            <button class="skill-dl sk-back-dl" type="button">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>Download sample output</span>
-            </button>
+            </a>
           </div>
         </div>
       </article>
@@ -641,24 +575,24 @@ Date range: 2022-03 → 2024-11</pre>
         <div class="sk-face sk-front">
           <div class="skill-head">
             <span class="skill-type">Workflow</span>
-            <span class="skill-format">.zip · 142 KB</span>
+            <span class="skill-format">.zip · 30 KB</span>
           <span class="track-pill track-legal">Legal</span>
           </div>
           <h3 class="skill-title">Motion-to-dismiss research &amp; draft</h3>
-          <p class="skill-desc">Chained workflow: issue-spotter → authority survey → counter-argument generator → draft skeleton. Output is a partner-ready first draft, not a finished brief.</p>
+          <p class="skill-desc">A seven-stage workflow from complaint to filing-ready Rule 12(b) motion. Every citation flagged <em>[VERIFY]</em>, every fact paragraph-cited. Closes with a 15-item partner-review checklist.</p>
           <ul class="skill-meta-list">
-            <li><span class="sk-dot"></span> Includes a fabricated-citation detector</li>
-            <li><span class="sk-dot"></span> Federal &amp; NY state variants</li>
-            <li><span class="sk-dot"></span> Tested across 14 real matters</li>
+            <li><span class="sk-dot"></span> 7 stages, complaint to filing-ready draft</li>
+            <li><span class="sk-dot"></span> [VERIFY] citation discipline; paragraph cites required</li>
+            <li><span class="sk-dot"></span> Federal default, state-court adaptation included</li>
           </ul>
           <div class="skill-foot">
             <button class="sk-peek" type="button">Peek inside →</button>
             <div class="skill-dl-group">
-              <a href="#" class="skill-dl primary" data-file="mtd-research-workflow-claude-skill.zip">
+              <a href="/assets/skills/mtd-research-workflow-claude-skill.zip" class="skill-dl primary" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Install as Claude Skill</span>
               </a>
-              <a href="#" class="skill-dl" data-file="mtd-research-workflow-prompts.md">
+              <a href="/assets/skills/mtd-research-workflow-prompts.md" class="skill-dl" download>
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span>Download prompt pack</span>
               </a>
@@ -669,38 +603,152 @@ Date range: 2022-03 → 2024-11</pre>
           <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
           <div class="sk-io">
             <div class="sk-io-col">
-              <span class="sk-io-label">Input · complaint excerpt</span>
-              <pre class="sk-io-block">Plaintiff alleges:
-• breach of fiduciary duty
-• unjust enrichment
-• declaratory judgment
-Venue: S.D.N.Y.
-Standard: 12(b)(6)</pre>
+              <span class="sk-io-label">Input · complaint (S.D. Fla.)</span>
+              <pre class="sk-io-block">HCP v. Meridian
+Diversity · 3 counts:
+  fiduciary duty · negligence
+  · unjust enrichment
+22 pp · 51 ¶¶ · 5 exhibits</pre>
             </div>
             <div class="sk-io-col">
-              <span class="sk-io-label sk-io-out">Output · draft skeleton</span>
-              <pre class="sk-io-block"><span class="tok-k">I.  ARGUMENT</span>
-  A. fiduciary — no duty
-     alleged (<span class="tok-s">Eurycleia</span>)
-  B. unjust enrichment
-     — preempted by contract
-  C. declaratory — not ripe
-<span class="tok-k">II. AUTHORITY</span>
-  14 controlling cites
-  <span class="tok-m">(all cite-checked)</span>
-<span class="tok-a">▲</span> <span class="tok-m">partner review:</span> §I.B
-  counter-argument weak</pre>
+              <span class="sk-io-label sk-io-out">Output · §§ I–V draft</span>
+              <pre class="sk-io-block"><span class="tok-k">I. ARGUMENT</span>
+  B. Fiduciary duty
+    <span class="tok-a">▲</span> element 1 conclusory
+  C. Negligence
+    <span class="tok-a">▲</span> duty / econ-loss rule
+  D. Unjust enrichment
+    <span class="tok-a">▲</span> contract governs
+  E. SOL — dates &amp; math
+<span class="tok-k">war-game:</span> 3 pre-empted
+  1 unanswered → partner
+<span class="tok-m">every cite [VERIFY]</span>
+<span class="tok-k">checklist:</span> 15/15 pass</pre>
             </div>
           </div>
           <div class="sk-back-foot">
-            <button class="skill-dl sk-back-dl" type="button">
+            <a href="/assets/skills/mtd-research-workflow-sample-output.docx" class="skill-dl sk-back-dl" download>
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Download sample output</span>
-            </button>
+            </a>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card" data-track="legal">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Workflow</span>
+            <span class="skill-format">.zip · 16 KB</span>
+          <span class="track-pill track-legal">Legal</span>
+          </div>
+          <h3 class="skill-title">Clause extractor</h3>
+          <p class="skill-desc">The deterministic first stage of a clause-by-clause contract-review pipeline. Segments a contract into labeled clauses using a configurable taxonomy, then hands the structured output to downstream reviewer agents.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> Feeds clause-specific reviewer agents downstream</li>
+            <li><span class="sk-dot"></span> 12 default labels, configurable per practice area</li>
+            <li><span class="sk-dot"></span> Verbatim text only — no paraphrase or scoring</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <div class="skill-dl-group">
+              <a href="/assets/skills/clause-extractor-claude-skill.zip" class="skill-dl primary" download>
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Install as Claude Skill</span>
+              </a>
+              <a href="/assets/skills/clause-extractor-prompts.md" class="skill-dl" download>
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Download prompt pack</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · SaaS MSA excerpt</span>
+              <pre class="sk-io-block">§§ 7 (warranties)
+§§ 8 (indem + LoL)
+§§ 11 (data protection)
+§§ 14 (governing law)
+Format: .docx · 4 sections</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · JSON array</span>
+              <pre class="sk-io-block"><span class="tok-k">8 entries</span> emitted
+<span class="tok-m">→</span> c_001 warranty
+<span class="tok-m">→</span> c_002 <span class="tok-a">LoL</span> (paired)
+<span class="tok-m">→</span> c_003 warranty
+<span class="tok-m">→</span> c_004 indemnification
+<span class="tok-m">→</span> c_005 <span class="tok-a">LoL</span> (paired)
+<span class="tok-m">→</span> c_006 <span class="tok-a">LoL</span>
+<span class="tok-m">→</span> c_007 data-protection
+<span class="tok-m">→</span> c_008 dispute-res.
+<span class="tok-k">multi-label:</span> §§ 7.1, 8.1
+<span class="tok-m">no paraphrase · verbatim</span></pre>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card" data-track="legal">
+        <div class="sk-face sk-front">
+          <div class="skill-head">
+            <span class="skill-type">Workflow</span>
+            <span class="skill-format">.zip · 41 KB</span>
+          <span class="track-pill track-legal">Legal</span>
+          </div>
+          <h3 class="skill-title">Wills, trusts &amp; estate planning</h3>
+          <p class="skill-desc">A jurisdiction-neutral drafting assistant for the six-document estate planning package — revocable trust, pour-over will, DPOA, advance directive, living will, and guardian declaration. Loads state-specific substance from an adopter-supplied checklist.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> 6-doc package per client; mirror pair for married couples</li>
+            <li><span class="sk-dot"></span> Ethics hard-refusals wired in (drafter-as-beneficiary, AI-consent)</li>
+            <li><span class="sk-dot"></span> State-neutral; adopter supplies the jurisdictional checklist</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <div class="skill-dl-group">
+              <a href="/assets/skills/wills-trusts-estates-claude-skill.zip" class="skill-dl primary" download>
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Install as Claude Skill</span>
+              </a>
+              <a href="/assets/skills/wills-trusts-estates-prompts.md" class="skill-dl" download>
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Download prompt pack</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · married couple</span>
+              <pre class="sk-io-block">Spouses, 2 minors
+$3.8M net worth
+State X (UPC-based)
+6-doc package × 2</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · 3-phase run</span>
+              <pre class="sk-io-block"><span class="tok-k">Phase 1</span> intake
+  <span class="tok-m">→</span> ethics gates × 5
+  <span class="tok-m">→</span> 9 sections captured
+<span class="tok-k">Phase 2</span> drafting
+  <span class="tok-m">→</span> 12 docs (mirror pair)
+  <span class="tok-a">▲</span> 5 [TO BE CONFIRMED]
+<span class="tok-k">Phase 3</span> compliance
+  <span class="tok-m">→</span> jurisdictional ✓
+  <span class="tok-m">→</span> exec memos × 12
+  <span class="tok-m">→</span> open items listed</pre>
+            </div>
           </div>
         </div>
       </article>
     </div>
+
+    <nav class="skills-pagination" data-skill-pagination aria-label="Skills pages" hidden></nav>
 
     <div class="skills-foot">
       <span>14 more in the vault · new drops every Wednesday</span>
@@ -824,6 +872,17 @@ Standard: 12(b)(6)</pre>
   </footer>
 
   <script is:inline>
+// ============ now-panel "Updated [date]" stamp ============
+(function nowStamp() {
+  var el = document.getElementById('now-stamp-date');
+  if (!el) return;
+  var d = new Date();
+  var iso = d.toISOString().slice(0, 10);
+  var label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  el.setAttribute('datetime', iso);
+  el.textContent = label;
+})();
+
 // ============ clock ============
 (function clock() {
   const el = document.getElementById('nav-clock');
@@ -863,6 +922,8 @@ Standard: 12(b)(6)</pre>
       buttons.forEach(b => {
         b.setAttribute('aria-pressed', b.getAttribute('data-track-filter') === track ? 'true' : 'false');
       });
+      // Notify pagination (or anything else listening) that the filter changed.
+      scope.dispatchEvent(new CustomEvent('filterchange'));
     }
 
     buttons.forEach(b => {
@@ -870,6 +931,69 @@ Standard: 12(b)(6)</pre>
     });
     apply('all');
   });
+})();
+
+// ============ skills pagination (6 per page) ============
+(function skillsPagination() {
+  const PAGE_SIZE = 6;
+  const scope = document.getElementById('skills');
+  if (!scope) return;
+  const grid = scope.querySelector('.skills-grid');
+  const pagination = scope.querySelector('[data-skill-pagination]');
+  if (!grid || !pagination) return;
+  const allCards = Array.from(grid.querySelectorAll('.skill-card'));
+  let currentPage = 1;
+
+  function render() {
+    const visible = allCards.filter(c => !c.hasAttribute('data-hidden'));
+    const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    // Reset then apply page-hidden only to the visible set outside the current window
+    allCards.forEach(c => c.removeAttribute('data-page-hidden'));
+    visible.forEach((card, i) => {
+      if (i < start || i >= end) card.setAttribute('data-page-hidden', '');
+    });
+    // Pad the current page to a full row of 3 with empty placeholder cells so
+    // partial pages match the grid rhythm of full pages.
+    grid.querySelectorAll('.skill-card-placeholder').forEach(p => p.remove());
+    const onPage = Math.min(PAGE_SIZE, visible.length - start);
+    const remainder = onPage % 3;
+    const toAdd = remainder === 0 ? 0 : 3 - remainder;
+    for (let i = 0; i < toAdd; i++) {
+      const ph = document.createElement('div');
+      ph.className = 'skill-card skill-card-placeholder';
+      ph.setAttribute('aria-hidden', 'true');
+      grid.appendChild(ph);
+    }
+    // Rebuild UI
+    pagination.innerHTML = '';
+    if (visible.length <= PAGE_SIZE) { pagination.hidden = true; return; }
+    pagination.hidden = false;
+    const mkBtn = (label, opts) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'skills-page-btn' + (opts.nav ? ' skills-page-nav' : '') + (opts.active ? ' active' : '');
+      b.textContent = label;
+      if (opts.disabled) b.disabled = true;
+      if (opts.active) b.setAttribute('aria-current', 'page');
+      b.addEventListener('click', opts.onClick);
+      return b;
+    };
+    pagination.appendChild(mkBtn('← Prev', { nav: true, disabled: currentPage === 1,
+      onClick: () => { currentPage--; render(); scope.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
+    for (let i = 1; i <= totalPages; i++) {
+      pagination.appendChild(mkBtn(String(i), { active: i === currentPage,
+        onClick: () => { currentPage = i; render(); scope.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
+    }
+    pagination.appendChild(mkBtn('Next →', { nav: true, disabled: currentPage === totalPages,
+      onClick: () => { currentPage++; render(); scope.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
+  }
+
+  scope.addEventListener('filterchange', () => { currentPage = 1; render(); });
+  render();
 })();
 
 // ============ cursor dot ============
@@ -1228,22 +1352,6 @@ Standard: 12(b)(6)</pre>
       total: 7,
       saved: '90 min',
     },
-    {
-      title: 'ediscovery.skill',
-      lines: [
-        '<span class="tok-m">$</span> claude run <span class="tok-a">ediscovery-triage</span>',
-        '<span class="tok-m">✓</span> <span class="tok-k">ingest</span> <span class="tok-n">104,218</span> docs',
-        '<span class="tok-m">⟳</span> <span class="tok-k">cluster + dedupe</span>',
-        '  <span class="tok-m">→</span> <span class="tok-n">38,904</span> unique',
-        '<span class="tok-m">⟳</span> <span class="tok-k">privilege screen</span>',
-        '  <span class="tok-a">▲</span> <span class="tok-n">217</span> presumptively privileged',
-        '<span class="tok-m">⟳</span> <span class="tok-k">responsiveness</span> <span class="tok-m">·</span> issue codes',
-        '  <span class="tok-m">→</span> <span class="tok-n">504</span> responsive · hot',
-        '<span class="tok-k">done.</span> <span class="tok-m">→ review queue built</span>',
-      ],
-      total: 7,
-      saved: '11 days',
-    },
   ];
 
   let skillIdx = 0, lineIdx = 0, charIdx = 0;
@@ -1302,5 +1410,8 @@ Standard: 12(b)(6)</pre>
 })();
 
 </script>
+
+<DownloadGate />
+<Consent />
 </body>
 </html>

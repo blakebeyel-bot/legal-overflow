@@ -1,0 +1,208 @@
+---
+// Download gate: intercepts all skill/file downloads and requires email + AI-use
+// acknowledgment before releasing the file. Captures data via Netlify Forms
+// (form name: "downloads"). Remembers completion in localStorage for 30 days so
+// repeat downloads in the same window don't re-prompt.
+---
+<!-- Static form so Netlify detects it at build time for form submissions. -->
+<form name="downloads" method="POST" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input type="text" name="name" />
+  <input type="text" name="email" />
+  <input type="text" name="is_attorney" />
+  <input type="text" name="jurisdictions" />
+  <input type="checkbox" name="ack_data" />
+  <input type="checkbox" name="ack_attorney" />
+  <input type="checkbox" name="ack_non_attorney" />
+  <input type="text" name="file" />
+  <input type="text" name="bot-field" />
+</form>
+
+<div id="download-gate" class="download-gate" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="dg-title">
+  <div class="dg-backdrop"></div>
+  <div class="dg-card">
+    <button type="button" class="dg-close" id="dg-close" aria-label="Close">×</button>
+    <div class="dg-kicker">Before you download</div>
+    <h2 id="dg-title" class="dg-title">A quick acknowledgment.</h2>
+    <p class="dg-sub">This download is free. In exchange, we ask for your email and a short acknowledgment of how these tools are meant to be used.</p>
+
+    <form id="dg-form" class="dg-form" novalidate>
+      <input type="hidden" name="form-name" value="downloads" />
+      <input type="hidden" name="file" id="dg-file" value="" />
+
+      <div class="dg-field">
+        <label for="dg-name" class="dg-label">Full name <span class="dg-req">*</span></label>
+        <input type="text" id="dg-name" name="name" required placeholder="Jane Smith" autocomplete="name" />
+      </div>
+
+      <div class="dg-field">
+        <label for="dg-email" class="dg-label">Email address <span class="dg-req">*</span></label>
+        <input type="email" id="dg-email" name="email" required placeholder="you@firm.com" autocomplete="email" />
+      </div>
+
+      <div class="dg-field">
+        <span class="dg-label">Are you a licensed attorney? <span class="dg-req">*</span></span>
+        <div class="dg-radio-row">
+          <label class="dg-radio"><input type="radio" name="is_attorney" value="yes" required /> <span>Yes</span></label>
+          <label class="dg-radio"><input type="radio" name="is_attorney" value="no" /> <span>No</span></label>
+        </div>
+      </div>
+
+      <div class="dg-field dg-field-attorney" id="dg-jurisdiction-field" hidden>
+        <label for="dg-jurisdictions" class="dg-label">Jurisdiction(s) where you are licensed <span class="dg-req">*</span></label>
+        <input type="text" id="dg-jurisdictions" name="jurisdictions" placeholder="e.g., Florida, New York" autocomplete="off" />
+      </div>
+
+      <label class="dg-check">
+        <input type="checkbox" name="ack_data" required />
+        <span><strong>I understand the implications of entering confidential or client data into AI tools.</strong> I take responsibility for any data I input and acknowledge that AI outputs must be verified before I rely on them.</span>
+      </label>
+
+      <label class="dg-check dg-field-attorney" id="dg-ack-attorney-field" hidden>
+        <input type="checkbox" name="ack_attorney" />
+        <span><strong>Attorney certification.</strong> If I am a licensed attorney, I confirm that I will comply with my jurisdiction's professional responsibility rules on AI use, including <a href="https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/ethics-opinions/aba-formal-opinion-512.pdf" target="_blank" rel="noopener">ABA Formal Opinion 512</a> (covering Model Rules 1.1 competence, 1.4 communication, 1.6 confidentiality, 3.3 candor, and 5.1/5.3 supervision) and any applicable state ethics opinions (e.g., <a href="https://www.floridabar.org/etopinions/opinion-24-1/" target="_blank" rel="noopener">Florida Bar Opinion 24-1</a>, Texas Opinion 705, NYC Bar Formal Opinion 2025-6, California State Bar Practical Guidance) and any court-specific AI disclosure or certification orders in any jurisdiction where I appear.</span>
+      </label>
+
+      <label class="dg-check dg-field-non-attorney" id="dg-ack-non-attorney-field" hidden>
+        <input type="checkbox" name="ack_non_attorney" />
+        <span><strong>Non-attorney acknowledgment.</strong> I understand that the skills, prompt packs, and sample outputs on this site <strong>are tools and templates, not legal advice.</strong> Nothing I download here creates an attorney-client relationship. <strong>These materials are not a substitute for consultation with a licensed attorney in my jurisdiction</strong>, and I will independently verify any output produced by these tools with qualified counsel before relying on it for any actual legal matter. I accept sole responsibility for how I use these materials and for any consequences arising from that use. I also understand that using AI-generated content without attorney review in connection with a court filing, contract, or other binding legal matter may carry significant risk.</span>
+      </label>
+
+      <button type="submit" class="dg-submit">Accept and Download</button>
+      <p class="dg-fineprint">Your email is stored securely and used only to notify you about updates to this skill. It will not be sold or shared.</p>
+    </form>
+  </div>
+</div>
+
+<script is:inline>
+(function() {
+  var STORAGE_KEY = 'legaloverflow-download-gate-v1';
+  var COOLDOWN_DAYS = 30;
+
+  var gate = document.getElementById('download-gate');
+  if (!gate) return;
+  var form = document.getElementById('dg-form');
+  var fileField = document.getElementById('dg-file');
+  var closeBtn = document.getElementById('dg-close');
+  var jurisdictionField = document.getElementById('dg-jurisdiction-field');
+  var attorneyAckField = document.getElementById('dg-ack-attorney-field');
+  var nonAttorneyAckField = document.getElementById('dg-ack-non-attorney-field');
+  var jurisdictionInput = jurisdictionField ? jurisdictionField.querySelector('input[name=jurisdictions]') : null;
+  var attorneyAckInput = attorneyAckField ? attorneyAckField.querySelector('input[name=ack_attorney]') : null;
+  var nonAttorneyAckInput = nonAttorneyAckField ? nonAttorneyAckField.querySelector('input[name=ack_non_attorney]') : null;
+
+  var pendingDownloadUrl = null;
+  var pendingDownloadName = null;
+
+  function isExpired() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return true;
+      var data = JSON.parse(raw);
+      var age = Date.now() - (data.ts || 0);
+      return age > (COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+    } catch (e) { return true; }
+  }
+
+  function remember(email) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ email: email, ts: Date.now() })); } catch (e) {}
+  }
+
+  function openGate() {
+    gate.classList.add('open');
+    gate.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('consent-lock');
+    var nameInput = document.getElementById('dg-name');
+    if (nameInput) setTimeout(function(){ nameInput.focus(); }, 80);
+  }
+
+  function closeGate() {
+    gate.classList.remove('open');
+    gate.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('consent-lock');
+    pendingDownloadUrl = null;
+    pendingDownloadName = null;
+  }
+
+  function triggerDownload(url, filename) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename || '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // Intercept any anchor tag that points at a file in /assets/skills/ and has a download attribute
+  document.querySelectorAll('a[href^="/assets/skills/"][download]').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      if (!isExpired()) return; // already acknowledged recently, let the browser download
+      e.preventDefault();
+      pendingDownloadUrl = link.getAttribute('href');
+      pendingDownloadName = pendingDownloadUrl.split('/').pop();
+      if (fileField) fileField.value = pendingDownloadName;
+      openGate();
+    });
+  });
+
+  // Toggle attorney-only / non-attorney-only fields based on is_attorney answer
+  form.addEventListener('change', function(e) {
+    if (e.target && e.target.name === 'is_attorney') {
+      var isYes = e.target.value === 'yes';
+      var isNo = e.target.value === 'no';
+      if (jurisdictionField) jurisdictionField.hidden = !isYes;
+      if (attorneyAckField) attorneyAckField.hidden = !isYes;
+      if (nonAttorneyAckField) nonAttorneyAckField.hidden = !isNo;
+      if (jurisdictionInput) {
+        jurisdictionInput.required = isYes;
+        if (!isYes) jurisdictionInput.value = '';
+      }
+      if (attorneyAckInput) {
+        attorneyAckInput.required = isYes;
+        if (!isYes) attorneyAckInput.checked = false;
+      }
+      if (nonAttorneyAckInput) {
+        nonAttorneyAckInput.required = isNo;
+        if (!isNo) nonAttorneyAckInput.checked = false;
+      }
+    }
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', closeGate);
+
+  // Backdrop click closes
+  gate.querySelector('.dg-backdrop').addEventListener('click', closeGate);
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    // Manual validity check (novalidate is on for styling control)
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    var submit = form.querySelector('.dg-submit');
+    if (submit) { submit.disabled = true; submit.textContent = 'Downloading…'; }
+
+    var data = new FormData(form);
+    var params = new URLSearchParams();
+    data.forEach(function(v, k) { params.append(k, v); });
+
+    var email = data.get('email');
+
+    fetch('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    }).catch(function(){ /* swallow — still allow download so user isn't blocked by form outage */ })
+      .finally(function() {
+        remember(email);
+        if (pendingDownloadUrl) triggerDownload(pendingDownloadUrl, pendingDownloadName);
+        closeGate();
+        if (submit) { submit.disabled = false; submit.textContent = 'Accept and Download'; }
+        form.reset();
+        if (jurisdictionField) jurisdictionField.hidden = true;
+        if (attorneyAckField) attorneyAckField.hidden = true;
+        if (nonAttorneyAckField) nonAttorneyAckField.hidden = true;
+      });
+  });
+})();
+</script>
