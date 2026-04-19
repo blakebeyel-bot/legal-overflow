@@ -24,7 +24,25 @@ collections:
       - { label: "Read Minutes", name: "readMinutes", widget: "number", min: 1, max: 90, value_type: "int" }
       - { label: "Date", name: "date", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, format: "YYYY-MM-DD" }
       - { label: "Topic", name: "topic", widget: "string", hint: "One-word tag: Litigation, Ethics, Practice, Regulation, etc." }
-      - { label: "Cover Illustration", name: "cover", widget: "select", options: ["ph-a", "ph-b", "ph-c", "ph-d", "ph-e", "ph-f", "ph-g"], default: "ph-b", hint: "Pick which SVG illustration to use as the article's cover image" }
+      - label: "Cover Illustration"
+        name: "cover"
+        widget: "select"
+        default: "ph-b"
+        hint: "Pick the SVG illustration that appears as the article's cover"
+        options:
+          - { label: "Contract graph (two documents)", value: "ph-a" }
+          - { label: "Courthouse columns", value: "ph-b" }
+          - { label: "Workflow triage (kanban)", value: "ph-c" }
+          - { label: "Building with lit window", value: "ph-d" }
+          - { label: "Redacted transcript", value: "ph-e" }
+          - { label: "Stack of books", value: "ph-f" }
+          - { label: "Neural network", value: "ph-g" }
+          - { label: "Scales of justice", value: "ph-h" }
+          - { label: "Gavel", value: "ph-i" }
+          - { label: "Clock face", value: "ph-j" }
+          - { label: "Wax seal on document", value: "ph-k" }
+          - { label: "Padlock (privilege / security)", value: "ph-l" }
+          - { label: "Compass rose", value: "ph-m" }
       - { label: "Featured on homepage?", name: "featured", widget: "boolean", default: false, required: false }
       - { label: "Draft (hide from site)?", name: "draft", widget: "boolean", default: false, required: false }
       - { label: "Body", name: "body", widget: "markdown" }

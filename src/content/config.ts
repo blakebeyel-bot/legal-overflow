@@ -10,7 +10,7 @@ const articles = defineCollection({
     readMinutes: z.number(),
     date: z.date(),
     topic: z.string(),
-    cover: z.enum(['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f', 'ph-g']).default('ph-b'),
+    cover: z.enum(['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f', 'ph-g', 'ph-h', 'ph-i', 'ph-j', 'ph-k', 'ph-l', 'ph-m']).default('ph-b'),
     featured: z.boolean().default(false),
     draft: z.boolean().default(false),
   }),

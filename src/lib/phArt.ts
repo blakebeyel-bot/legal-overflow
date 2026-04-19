@@ -1,6 +1,24 @@
 // SVG illustrations for article cover placeholders.
 // Each article's frontmatter picks one via the `cover` field.
 
+// Labeled list of cover illustrations. The `id` is the frontmatter value
+// stored per article. The `label` is what shows in the CMS dropdown.
+export const coverOptions = [
+  { id: 'ph-a', label: 'Contract graph (two documents)' },
+  { id: 'ph-b', label: 'Courthouse columns' },
+  { id: 'ph-c', label: 'Workflow triage (kanban)' },
+  { id: 'ph-d', label: 'Building with lit window' },
+  { id: 'ph-e', label: 'Redacted transcript' },
+  { id: 'ph-f', label: 'Stack of books' },
+  { id: 'ph-g', label: 'Neural network' },
+  { id: 'ph-h', label: 'Scales of justice' },
+  { id: 'ph-i', label: 'Gavel' },
+  { id: 'ph-j', label: 'Clock face' },
+  { id: 'ph-k', label: 'Wax seal on document' },
+  { id: 'ph-l', label: 'Padlock (privilege / security)' },
+  { id: 'ph-m', label: 'Compass rose' },
+] as const;
+
 export const phArt: Record<string, string> = {
   'ph-a': `<svg class="ph-art" viewBox="0 0 500 400" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
     <g stroke="rgba(14,21,18,.55)" stroke-width="1.2" fill="rgba(255,255,255,.28)">
@@ -186,6 +204,128 @@ export const phArt: Record<string, string> = {
       <circle cx="230" cy="170" r="4.5"/>
       <circle cx="310" cy="130" r="4.5"/>
     </g>
+  </svg>`,
+
+  'ph-h': `<svg class="ph-art" viewBox="0 0 400 300" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <rect x="185" y="240" width="30" height="12" stroke="rgba(14,21,18,.55)" stroke-width="1.3" fill="rgba(255,255,255,.2)"/>
+    <rect x="150" y="252" width="100" height="8" stroke="rgba(14,21,18,.55)" stroke-width="1.3" fill="rgba(255,255,255,.2)"/>
+    <line x1="200" y1="90" x2="200" y2="240" stroke="rgba(14,21,18,.55)" stroke-width="1.5"/>
+    <line x1="110" y1="90" x2="290" y2="90" stroke="rgba(14,21,18,.55)" stroke-width="1.5"/>
+    <circle cx="200" cy="90" r="5" fill="#0a7d57"/>
+    <line x1="110" y1="90" x2="130" y2="145" stroke="rgba(14,21,18,.35)" stroke-width="1"/>
+    <line x1="110" y1="90" x2="90" y2="145" stroke="rgba(14,21,18,.35)" stroke-width="1"/>
+    <path d="M80 145 Q110 165 140 145" stroke="rgba(14,21,18,.55)" stroke-width="1.4" fill="rgba(255,255,255,.2)"/>
+    <line x1="80" y1="145" x2="140" y2="145" stroke="rgba(14,21,18,.55)" stroke-width="1.4"/>
+    <line x1="290" y1="90" x2="270" y2="155" stroke="rgba(14,21,18,.35)" stroke-width="1"/>
+    <line x1="290" y1="90" x2="310" y2="155" stroke="rgba(14,21,18,.35)" stroke-width="1"/>
+    <path d="M260 155 Q290 177 320 155" stroke="rgba(14,21,18,.55)" stroke-width="1.4" fill="rgba(255,255,255,.2)"/>
+    <line x1="260" y1="155" x2="320" y2="155" stroke="rgba(14,21,18,.55)" stroke-width="1.4"/>
+    <circle cx="290" cy="150" r="4" fill="#0a7d57"/>
+    <circle cx="278" cy="148" r="3" fill="rgba(14,21,18,.4)"/>
+    <circle cx="302" cy="148" r="3" fill="rgba(14,21,18,.4)"/>
+  </svg>`,
+
+  'ph-i': `<svg class="ph-art" viewBox="0 0 400 300" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <rect x="100" y="220" width="200" height="18" stroke="rgba(14,21,18,.55)" stroke-width="1.3" fill="rgba(255,255,255,.25)"/>
+    <rect x="90" y="238" width="220" height="10" stroke="rgba(14,21,18,.55)" stroke-width="1.3" fill="rgba(14,21,18,.08)"/>
+    <g stroke="rgba(14,21,18,.35)" stroke-width="1">
+      <line x1="120" y1="230" x2="280" y2="230"/>
+    </g>
+    <line x1="110" y1="160" x2="240" y2="105" stroke="rgba(14,21,18,.55)" stroke-width="4.5" stroke-linecap="round"/>
+    <g transform="rotate(-22 250 105)">
+      <rect x="220" y="88" width="70" height="34" rx="3" stroke="rgba(14,21,18,.55)" stroke-width="1.4" fill="rgba(255,255,255,.35)"/>
+      <line x1="242" y1="88" x2="242" y2="122" stroke="rgba(14,21,18,.4)" stroke-width="1"/>
+      <line x1="268" y1="88" x2="268" y2="122" stroke="rgba(14,21,18,.4)" stroke-width="1"/>
+    </g>
+    <g fill="#0a7d57">
+      <circle cx="115" cy="218" r="2.5"/>
+      <circle cx="105" cy="210" r="1.8"/>
+      <circle cx="125" cy="210" r="1.8"/>
+    </g>
+    <line x1="100" y1="206" x2="95" y2="198" stroke="#0a7d57" stroke-width="1.3" stroke-linecap="round"/>
+    <line x1="130" y1="206" x2="135" y2="198" stroke="#0a7d57" stroke-width="1.3" stroke-linecap="round"/>
+    <line x1="110" y1="202" x2="110" y2="195" stroke="#0a7d57" stroke-width="1.3" stroke-linecap="round"/>
+  </svg>`,
+
+  'ph-j': `<svg class="ph-art" viewBox="0 0 400 300" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <circle cx="200" cy="150" r="75" stroke="rgba(14,21,18,.55)" stroke-width="1.4" fill="rgba(255,255,255,.2)"/>
+    <circle cx="200" cy="150" r="68" stroke="rgba(14,21,18,.2)" stroke-width="1" fill="none"/>
+    <g stroke="rgba(14,21,18,.6)" stroke-width="1.6" stroke-linecap="round">
+      <line x1="200" y1="82" x2="200" y2="92"/>
+      <line x1="268" y1="150" x2="258" y2="150"/>
+      <line x1="200" y1="218" x2="200" y2="208"/>
+      <line x1="132" y1="150" x2="142" y2="150"/>
+    </g>
+    <g stroke="rgba(14,21,18,.3)" stroke-width="1" stroke-linecap="round">
+      <line x1="234" y1="90" x2="231" y2="97"/>
+      <line x1="260" y1="116" x2="253" y2="119"/>
+      <line x1="260" y1="184" x2="253" y2="181"/>
+      <line x1="234" y1="210" x2="231" y2="203"/>
+      <line x1="166" y1="210" x2="169" y2="203"/>
+      <line x1="140" y1="184" x2="147" y2="181"/>
+      <line x1="140" y1="116" x2="147" y2="119"/>
+      <line x1="166" y1="90" x2="169" y2="97"/>
+    </g>
+    <line x1="200" y1="150" x2="230" y2="118" stroke="rgba(14,21,18,.75)" stroke-width="2.6" stroke-linecap="round"/>
+    <line x1="200" y1="150" x2="170" y2="102" stroke="rgba(14,21,18,.75)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="200" y1="150" x2="225" y2="195" stroke="#0a7d57" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="200" cy="150" r="4" fill="rgba(14,21,18,.85)"/>
+    <circle cx="200" cy="150" r="1.8" fill="#0a7d57"/>
+  </svg>`,
+
+  'ph-k': `<svg class="ph-art" viewBox="0 0 400 300" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <rect x="80" y="50" width="240" height="200" stroke="rgba(14,21,18,.3)" stroke-width="1" fill="rgba(255,255,255,.22)"/>
+    <g stroke="rgba(14,21,18,.25)" stroke-width="1" stroke-linecap="round">
+      <line x1="100" y1="78" x2="280" y2="78"/>
+      <line x1="100" y1="94" x2="260" y2="94"/>
+      <line x1="100" y1="110" x2="275" y2="110"/>
+      <line x1="100" y1="126" x2="250" y2="126"/>
+    </g>
+    <path d="M180 215 L180 262 L197 248 L214 262 L214 215 Z" fill="#0a7d57" opacity=".9"/>
+    <circle cx="197" cy="200" r="42" fill="#0a7d57"/>
+    <g fill="#10b981">
+      <circle cx="197" cy="158" r="4"/><circle cx="219" cy="163" r="4"/><circle cx="234" cy="180" r="4"/><circle cx="239" cy="200" r="4"/>
+      <circle cx="234" cy="220" r="4"/><circle cx="219" cy="237" r="4"/><circle cx="197" cy="242" r="4"/><circle cx="175" cy="237" r="4"/>
+      <circle cx="160" cy="220" r="4"/><circle cx="155" cy="200" r="4"/><circle cx="160" cy="180" r="4"/><circle cx="175" cy="163" r="4"/>
+    </g>
+    <circle cx="197" cy="200" r="28" stroke="rgba(255,255,255,.45)" stroke-width="1" fill="none"/>
+    <g stroke="rgba(255,255,255,.9)" stroke-width="1.6" fill="none" stroke-linecap="round">
+      <line x1="185" y1="190" x2="209" y2="210"/>
+      <line x1="209" y1="190" x2="185" y2="210"/>
+    </g>
+    <circle cx="197" cy="200" r="14" stroke="rgba(255,255,255,.5)" stroke-width="1" fill="none"/>
+  </svg>`,
+
+  'ph-l': `<svg class="ph-art" viewBox="0 0 400 300" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <path d="M165 130 L165 100 Q165 72 200 72 Q235 72 235 100 L235 130" stroke="rgba(14,21,18,.55)" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+    <path d="M170 130 L170 100 Q170 77 200 77 Q230 77 230 100 L230 130" stroke="rgba(14,21,18,.2)" stroke-width="1" fill="none"/>
+    <rect x="140" y="128" width="120" height="112" rx="8" stroke="rgba(14,21,18,.55)" stroke-width="1.5" fill="rgba(255,255,255,.3)"/>
+    <rect x="146" y="134" width="108" height="100" rx="5" stroke="rgba(14,21,18,.2)" stroke-width="1" fill="none"/>
+    <circle cx="200" cy="172" r="12" fill="#0a7d57"/>
+    <path d="M194 178 L193 210 L207 210 L206 178 Z" fill="#0a7d57"/>
+  </svg>`,
+
+  'ph-m': `<svg class="ph-art" viewBox="0 0 400 300" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <circle cx="200" cy="150" r="82" stroke="rgba(14,21,18,.55)" stroke-width="1.4" fill="rgba(255,255,255,.18)"/>
+    <circle cx="200" cy="150" r="52" stroke="rgba(14,21,18,.3)" stroke-width="1" fill="none"/>
+    <g stroke="rgba(14,21,18,.6)" stroke-width="1.5" stroke-linecap="round">
+      <line x1="200" y1="68" x2="200" y2="78"/>
+      <line x1="282" y1="150" x2="272" y2="150"/>
+      <line x1="200" y1="232" x2="200" y2="222"/>
+      <line x1="118" y1="150" x2="128" y2="150"/>
+    </g>
+    <g stroke="rgba(14,21,18,.3)" stroke-width="1" stroke-linecap="round">
+      <line x1="258" y1="92" x2="252" y2="98"/>
+      <line x1="258" y1="208" x2="252" y2="202"/>
+      <line x1="142" y1="208" x2="148" y2="202"/>
+      <line x1="142" y1="92" x2="148" y2="98"/>
+    </g>
+    <path d="M200 150 L192 90 L200 98 L208 90 Z" fill="#0a7d57"/>
+    <path d="M200 150 L192 210 L200 202 L208 210 Z" fill="rgba(14,21,18,.6)"/>
+    <path d="M200 150 L260 142 L250 150 L260 158 Z" fill="rgba(14,21,18,.3)"/>
+    <path d="M200 150 L140 142 L150 150 L140 158 Z" fill="rgba(14,21,18,.3)"/>
+    <circle cx="200" cy="150" r="4.5" fill="rgba(14,21,18,.85)"/>
+    <circle cx="200" cy="150" r="2" fill="#0a7d57"/>
   </svg>`,
 };
 
