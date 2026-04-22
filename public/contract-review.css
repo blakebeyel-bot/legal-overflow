@@ -866,6 +866,29 @@
     padding: 28px 32px;
     border-bottom: 1px solid var(--rule-soft);
   }
+  .progress-elapsed {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    padding-left: 18px;
+    border-left: 1px solid var(--rule-soft);
+  }
+  .progress-elapsed-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .progress-elapsed-time {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    color: var(--ink);
+    font-weight: 500;
+  }
   .progress-file-icon {
     width: 44px; height: 56px;
     background: var(--paper-2);

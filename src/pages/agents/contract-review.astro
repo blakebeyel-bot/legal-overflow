@@ -296,6 +296,10 @@ import Consent from '../../partials/consent.astro';
           <div class="progress-file-name" id="progress-file-name">file.docx</div>
           <div class="progress-file-sub" id="progress-file-sub">Uploading…</div>
         </div>
+        <div class="progress-elapsed">
+          <span class="progress-elapsed-label">Elapsed</span>
+          <span class="progress-elapsed-time" id="progress-elapsed-time">0:00</span>
+        </div>
       </div>
       <div class="stage-list">
         <div class="stage pending" data-stage="extract">
@@ -861,15 +865,41 @@ import Consent from '../../partials/consent.astro';
       }
       markStage('extract', 'done');
       markStage('classify', 'done');
-      const final = await api.pollReview(kickoff.review_id, (snap) => {
-        const stage = STAGE_MAP[snap.review.status] || 'specialists';
-        // Mark everything up to current stage as done/active
-        const order = ['extract','classify','specialists','audit','assemble'];
-        const idx = order.indexOf(stage);
-        order.forEach((s, i) => {
-          markStage(s, i < idx ? 'done' : i === idx && snap.review.status !== 'complete' ? 'active' : i === idx ? 'done' : 'pending');
+
+      // Start the elapsed-time ticker. Stops when the review finishes
+      // (promise resolves) or the user navigates away.
+      const reviewStartedAt = Date.now();
+      const elapsedEl = document.getElementById('progress-elapsed-time');
+      const tickInterval = setInterval(() => {
+        const secs = Math.floor((Date.now() - reviewStartedAt) / 1000);
+        const m = Math.floor(secs / 60);
+        const s = String(secs % 60).padStart(2, '0');
+        if (elapsedEl) elapsedEl.textContent = `${m}:${s}`;
+      }, 1000);
+
+      try {
+        const final = await api.pollReview(kickoff.review_id, (snap) => {
+          const stage = STAGE_MAP[snap.review.status] || 'specialists';
+          // Mark stages done / running / pending based on DB status
+          const order = ['extract','classify','specialists','audit','assemble'];
+          const idx = order.indexOf(stage);
+          order.forEach((s, i) => {
+            markStage(s, i < idx ? 'done' : i === idx && snap.review.status !== 'complete' ? 'running' : i === idx ? 'done' : 'pending');
+          });
+          // Surface progress_message on the active stage's detail line
+          const activeEl = document.querySelector('.stage.running .stage-detail');
+          if (activeEl) activeEl.textContent = snap.review.progress_message || '';
         });
-      });
+        clearInterval(tickInterval);
+        if (final.review.status === 'failed') {
+          throw new Error(final.review.error_message || 'Review failed');
+        }
+        showResults(final);
+        await refreshStatus();
+        return;
+      } finally {
+        clearInterval(tickInterval);
+      }
       if (final.review.status === 'failed') {
         throw new Error(final.review.error_message || 'Review failed');
       }

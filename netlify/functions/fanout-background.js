@@ -96,13 +96,17 @@ async function processReview({ userId, reviewId, supabase }) {
   const pipeline = registry.pipeline_modes[mode];
   if (!pipeline) throw new Error(`Unknown pipeline mode: ${mode}`);
 
-  await updateProgress(supabase, reviewId, 'analyzing', `Running ${mode} pipeline…`);
-
   // 5. Run the "analyze" stage in parallel
   const analyzeStage = pipeline.stages.find(s => s.stage === 'analyze');
   const specialists = analyzeStage?.agents || [];
 
+  await updateProgress(
+    supabase, reviewId, 'analyzing',
+    `Running ${specialists.length} specialist${specialists.length === 1 ? '' : 's'} in parallel…`,
+  );
+
   let tokensUsed = 0;
+  let completedCount = 0;
   const allFindings = [];
   const specialistResults = await Promise.allSettled(
     specialists.map(async (agentName) => {
@@ -133,8 +137,19 @@ async function processReview({ userId, reviewId, supabase }) {
       let findings;
       try { findings = extractJson(resp.text); } catch (e) {
         console.error(`${agentName} returned non-JSON:`, e.message);
-        return [];
+        findings = [];
       }
+      // Bump the completed counter and update progress_message so the
+      // UI sees forward motion during the longest stage. Best-effort —
+      // a failed update doesn't block the review.
+      completedCount++;
+      try {
+        await updateProgress(
+          supabase, reviewId, 'analyzing',
+          `Specialists: ${completedCount} of ${specialists.length} complete — just finished ${humanizeAgent(agentName)}…`,
+        );
+      } catch {}
+      console.log(`[fanout-background] ${agentName} done (${completedCount}/${specialists.length})`);
       return Array.isArray(findings) ? findings : [];
     })
   );
@@ -272,6 +287,15 @@ async function updateProgress(supabase, reviewId, status, message) {
     status,
     progress_message: message,
   }).eq('id', reviewId);
+}
+
+/**
+ * Turn an agent id like "risk-allocation-analyst" into a friendly name
+ * "risk allocation analyst" for the UI's progress_message.
+ */
+function humanizeAgent(name) {
+  return String(name).replace(/-/g, ' ').replace(/\banalyst\b/, '').trim()
+    || name;
 }
 
 function tallySeverities(findings) {
