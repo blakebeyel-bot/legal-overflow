@@ -412,43 +412,68 @@ import Consent from '../../partials/consent.astro';
         <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n" id="sev-minor">0</div></div>
       </div>
 
-      <!-- Top 3 to Raise — partner-level summary, rendered above the full list -->
-      <div class="priority-three-section hidden" id="priority-three-section">
-        <div class="priority-three-head">
-          <div class="priority-three-title">Top 3 to Raise</div>
-          <div class="priority-three-sub">Partner-level summary. Raise these on a call before sending the full redline.</div>
-        </div>
-        <div class="priority-three-list" id="priority-three-list"></div>
-      </div>
+      <!-- Tabbed results panel: Top 3 | All Findings | Structural | Coverage -->
+      <div class="results-tabs-wrap">
+        <nav class="results-tabs" role="tablist" aria-label="Review results">
+          <button type="button" class="results-tab active" data-tab="priority" role="tab">Top 3<span class="tab-count" id="tab-count-priority">0</span></button>
+          <button type="button" class="results-tab" data-tab="findings" role="tab">All Findings<span class="tab-count" id="tab-count-findings">0</span></button>
+          <button type="button" class="results-tab" data-tab="structural" role="tab">Structural<span class="tab-count" id="tab-count-structural">0</span></button>
+          <button type="button" class="results-tab" data-tab="coverage" role="tab">Coverage<span class="tab-count" id="tab-count-coverage">0</span></button>
+        </nav>
 
-      <!-- Structural issues / missing clauses — separate section for
-           findings that couldn't be anchored in the document or are
-           fundamentally structural in nature. These are often the
-           highest-judgment findings. -->
-      <div class="structural-section hidden" id="structural-section">
-        <div class="structural-head">
-          <div class="structural-title">Structural issues / missing clauses</div>
-          <div class="structural-sub">Findings that can't be pinned to a specific line of text. Usually the most strategic items — read these first.</div>
-        </div>
-        <div class="structural-list" id="structural-list"></div>
-      </div>
-
-      <!-- In-browser findings viewer with severity/category filter -->
-      <div class="findings-section" id="findings-section">
-        <div class="findings-head">
-          <button type="button" class="findings-collapse-btn" id="findings-collapse-btn" aria-expanded="true">
-            <span class="findings-title">Findings</span>
-            <span class="findings-collapse-arrow" aria-hidden="true">▾</span>
-          </button>
-          <div class="findings-head-right">
-            <div class="findings-sub" id="findings-sub">Click any finding to expand its details.</div>
-            <div class="findings-filters" id="findings-filters" role="tablist" aria-label="Filter findings by severity">
-              <!-- rendered by JS -->
+        <!-- Tab: Top 3 to Raise -->
+        <div class="tab-panel active" data-tab-panel="priority">
+          <div class="priority-three-section" id="priority-three-section">
+            <div class="priority-three-head">
+              <div class="priority-three-title">Top 3 to Raise</div>
+              <div class="priority-three-sub">Partner-level summary. Raise these on a call before sending the full redline.</div>
+            </div>
+            <div class="priority-three-list" id="priority-three-list">
+              <div class="findings-empty">No priority findings for this review.</div>
             </div>
           </div>
         </div>
-        <div class="findings-list" id="findings-list">
-          <div class="findings-empty">Loading findings…</div>
+
+        <!-- Tab: All Findings (filterable) -->
+        <div class="tab-panel" data-tab-panel="findings">
+          <div class="findings-section" id="findings-section">
+            <div class="findings-head">
+              <div>
+                <span class="findings-title">All Findings</span>
+                <div class="findings-sub" id="findings-sub">Click any finding to expand its details.</div>
+              </div>
+              <div class="findings-filters" id="findings-filters" role="tablist" aria-label="Filter findings by severity"></div>
+            </div>
+            <div class="findings-list" id="findings-list">
+              <div class="findings-empty">Loading findings…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Structural issues / missing clauses -->
+        <div class="tab-panel" data-tab-panel="structural">
+          <div class="structural-section" id="structural-section">
+            <div class="structural-head">
+              <div class="structural-title">Structural issues / missing clauses</div>
+              <div class="structural-sub">Findings that can't be pinned to a specific line of text. Usually the most strategic items — read these first.</div>
+            </div>
+            <div class="structural-list" id="structural-list">
+              <div class="findings-empty">No structural issues for this review.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Coverage pass — per-specialist audit trail -->
+        <div class="tab-panel" data-tab-panel="coverage">
+          <div class="coverage-section" id="coverage-section">
+            <div class="coverage-head">
+              <div class="coverage-title">Coverage Pass</div>
+              <div class="coverage-sub">Every specialist's enumeration of what it checked, grouped by specialist. Expand each specialist to see the full list.</div>
+            </div>
+            <div class="coverage-list" id="coverage-list">
+              <div class="findings-empty">No coverage data for this review.</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1217,7 +1242,7 @@ import Consent from '../../partials/consent.astro';
     };
 
     return {
-      async loadFrom(url, priorityEl, structuralEl) {
+      async loadFrom(url, priorityEl, structuralEl, coverageEl, tabRoot, tabCounts) {
         if (!url) {
           listEl.innerHTML = '<div class="findings-empty">No findings file available for this review.</div>';
           findings = [];
@@ -1226,15 +1251,20 @@ import Consent from '../../partials/consent.astro';
         }
         listEl.innerHTML = '<div class="findings-empty">Loading findings…</div>';
         let priorityIds = [];
+        let coverageAggregate = [];
+        let isLegacySchema = false;
         try {
           const resp = await fetch(url);
           if (!resp.ok) throw new Error('Fetch returned ' + resp.status);
           const data = await resp.json();
           if (Array.isArray(data)) {
             findings = data;
+            isLegacySchema = true;
           } else if (data && Array.isArray(data.findings)) {
             findings = data.findings;
             priorityIds = Array.isArray(data.priority_three) ? data.priority_three : [];
+            coverageAggregate = Array.isArray(data.coverage_pass_aggregate) ? data.coverage_pass_aggregate : [];
+            isLegacySchema = !('schema_version' in data) || data.schema_version < 2;
           } else {
             findings = [];
           }
@@ -1245,10 +1275,91 @@ import Consent from '../../partials/consent.astro';
         activeFilter = 'all';
         renderFilters();
         renderList();
-        if (priorityEl) renderPriorityThree(priorityEl, findings, priorityIds);
-        if (structuralEl) renderStructural(structuralEl, findings);
+
+        const priorityCount = priorityEl ? renderPriorityThree(priorityEl, findings, priorityIds) : 0;
+        const structuralCount = structuralEl ? renderStructural(structuralEl, findings) : 0;
+        const coverageCount = coverageEl ? renderCoverage(coverageEl, coverageAggregate) : 0;
+
+        // Populate tab counts + legacy-schema badge
+        if (tabCounts) {
+          if (tabCounts.priority)    tabCounts.priority.textContent    = priorityCount || 0;
+          if (tabCounts.findings)    tabCounts.findings.textContent    = findings.length;
+          if (tabCounts.structural)  tabCounts.structural.textContent  = structuralCount;
+          if (tabCounts.coverage)    tabCounts.coverage.textContent    = coverageCount;
+        }
+        if (tabRoot) {
+          tabRoot.classList.toggle('legacy-schema', isLegacySchema);
+        }
+
+        // Default-tab logic: Top 3 if populated, otherwise All Findings
+        if (tabRoot) {
+          const initialTab = priorityCount > 0 ? 'priority' : 'findings';
+          activateTab(tabRoot, initialTab);
+        }
       },
     };
+  }
+
+  // Tab-panel switching (scoped to a specific tab-root — lets Review panel
+  // and each Archive drawer have independent tab state).
+  function activateTab(root, tabName) {
+    root.querySelectorAll('.results-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    root.querySelectorAll('.tab-panel').forEach(panel => {
+      panel.classList.toggle('active', panel.dataset.tabPanel === tabName);
+    });
+  }
+
+  function wireTabs(root) {
+    root.querySelectorAll('.results-tab').forEach(btn => {
+      btn.addEventListener('click', () => activateTab(root, btn.dataset.tab));
+    });
+  }
+
+  /**
+   * Render the coverage-pass section: one collapsible per specialist.
+   * Returns the total coverage-entry count for tab-badge display.
+   */
+  function renderCoverage(sectionEl, coverageAggregate) {
+    const listEl = sectionEl.querySelector('.coverage-list') || sectionEl;
+    if (!Array.isArray(coverageAggregate) || coverageAggregate.length === 0) {
+      listEl.innerHTML = '<div class="findings-empty">No coverage data for this review (legacy schema or clean pass).</div>';
+      return 0;
+    }
+    // Group by specialist
+    const bySpecialist = {};
+    for (const entry of coverageAggregate) {
+      const key = entry.specialist || 'unknown';
+      (bySpecialist[key] ||= []).push(entry);
+    }
+    listEl.innerHTML = '';
+    for (const [spec, entries] of Object.entries(bySpecialist)) {
+      const wrap = document.createElement('details');
+      wrap.className = 'coverage-specialist';
+      wrap.innerHTML = `
+        <summary class="coverage-specialist-summary">
+          <span class="coverage-specialist-name">${escapeHtml(spec)}</span>
+          <span class="coverage-specialist-count">${entries.length} item${entries.length === 1 ? '' : 's'}</span>
+          <span class="coverage-collapse-arrow" aria-hidden="true">▸</span>
+        </summary>
+        <div class="coverage-entries">
+          ${entries.map(e => `
+            <div class="coverage-entry status-${escapeHtml((e.status || 'unknown').replace(/_/g, '-'))}">
+              <div class="coverage-entry-head">
+                <span class="coverage-status">${escapeHtml(e.status || '—')}</span>
+                <span class="coverage-item">${escapeHtml(e.item || '—')}</span>
+                <span class="coverage-source">${escapeHtml(e.source || '—')}</span>
+              </div>
+              ${e.evidence ? `<div class="coverage-evidence">${escapeHtml(e.evidence)}</div>` : ''}
+              ${e.profile_ref ? `<div class="coverage-profile-ref">profile: ${escapeHtml(e.profile_ref)}${e.playbook_fit ? ` · fit: ${escapeHtml(e.playbook_fit)}` : ''}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+      listEl.appendChild(wrap);
+    }
+    return coverageAggregate.length;
   }
 
   /**
@@ -1268,50 +1379,54 @@ import Consent from '../../partials/consent.astro';
   }
 
   function renderStructural(sectionEl, allFindings) {
-    const listEl = sectionEl.querySelector('.structural-list');
+    const listEl = sectionEl.querySelector('.structural-list') || sectionEl;
     const structural = allFindings.filter(isStructuralFinding);
     if (!structural.length) {
-      sectionEl.classList.add('hidden');
-      return;
+      listEl.innerHTML = '<div class="findings-empty">No structural issues for this review.</div>';
+      return 0;
     }
-    sectionEl.classList.remove('hidden');
     listEl.innerHTML = '';
     const sevOrder = { blocker: 0, major: 1, moderate: 2, minor: 3 };
     const isTier1 = (f) => Array.isArray(f.profile_refs) && f.profile_refs.length > 0;
     const sorted = [...structural].sort((a, b) => {
+      // Existential first
+      if (a.existential && !b.existential) return -1;
+      if (!a.existential && b.existential) return 1;
       const ta = isTier1(a) ? 0 : 1;
       const tb = isTier1(b) ? 0 : 1;
       if (ta !== tb) return ta - tb;
       return (sevOrder[(a.severity || '').toLowerCase()] ?? 99) - (sevOrder[(b.severity || '').toLowerCase()] ?? 99);
     });
     sorted.forEach((f, i) => listEl.appendChild(renderFindingCard(f, i)));
+    return sorted.length;
   }
 
   function renderPriorityThree(sectionEl, allFindings, priorityIds) {
     const section = sectionEl;
-    const listEl = section.querySelector('.priority-three-list');
+    const listEl = section.querySelector('.priority-three-list') || section;
     if (!Array.isArray(priorityIds) || priorityIds.length === 0) {
-      section.classList.add('hidden');
-      return;
+      listEl.innerHTML = '<div class="findings-empty">No priority findings for this review.</div>';
+      return 0;
     }
     const resolved = priorityIds.slice(0, 3).map(id => {
       if (typeof id === 'number') return allFindings[id] || null;
       return allFindings.find(f => f.id === id) || null;
     }).filter(Boolean);
     if (!resolved.length) {
-      section.classList.add('hidden');
-      return;
+      listEl.innerHTML = '<div class="findings-empty">No priority findings for this review.</div>';
+      return 0;
     }
-    section.classList.remove('hidden');
     listEl.innerHTML = '';
     resolved.forEach((f, i) => {
       const sev = (f.severity || 'minor').toLowerCase();
       const card = document.createElement('div');
-      card.className = `priority-card sev-${sev}`;
+      card.className = `priority-card sev-${sev}${f.existential ? ' existential' : ''}`;
+      const existentialTag = f.existential ? '<span class="finding-existential">EXISTENTIAL</span>' : '';
       card.innerHTML = `
         <div class="priority-card-head">
           <span class="priority-card-num">${i + 1}</span>
           <span class="finding-sev-tag ${sev}">${escapeHtml(f.severity || 'Minor')}</span>
+          ${existentialTag}
           <span class="finding-category">${escapeHtml(f.category || '—')}</span>
           <span class="finding-preview">${escapeHtml((f.location || '').slice(0, 80))}</span>
         </div>
@@ -1320,6 +1435,7 @@ import Consent from '../../partials/consent.astro';
       `;
       listEl.appendChild(card);
     });
+    return resolved.length;
   }
 
   // Single viewer for the Review panel. Archive creates its own per row.
@@ -1329,10 +1445,24 @@ import Consent from '../../partials/consent.astro';
   });
 
   async function loadFindingsInline(findingsUrl) {
+    const tabRoot = document.querySelector('#review-results .results-tabs-wrap');
+    const tabCounts = {
+      priority:   document.getElementById('tab-count-priority'),
+      findings:   document.getElementById('tab-count-findings'),
+      structural: document.getElementById('tab-count-structural'),
+      coverage:   document.getElementById('tab-count-coverage'),
+    };
+    if (tabRoot && !tabRoot.dataset.tabsWired) {
+      wireTabs(tabRoot);
+      tabRoot.dataset.tabsWired = '1';
+    }
     await reviewFindingsViewer.loadFrom(
       findingsUrl,
       document.getElementById('priority-three-section'),
       document.getElementById('structural-section'),
+      document.getElementById('coverage-section'),
+      tabRoot,
+      tabCounts,
     );
   }
 
@@ -1349,9 +1479,8 @@ import Consent from '../../partials/consent.astro';
   function renderFindingCard(f, idx) {
     const severity = (f.severity || 'minor').toLowerCase();
     const card = document.createElement('div');
-    card.className = `finding-card sev-${severity}`;
+    card.className = `finding-card sev-${severity}${f.existential ? ' existential' : ''}`;
 
-    // Preview text: the external_comment if it's short, else first line of source_text
     const previewSource = f.external_comment || f.source_text || f.anchor_text || '';
     const preview = previewSource.split('\n')[0].slice(0, 140);
 
@@ -1359,10 +1488,15 @@ import Consent from '../../partials/consent.astro';
       ? '<span class="finding-tier tier-client-position" title="Driven by the client\'s negotiating position / profile">CLIENT POSITION</span>'
       : '<span class="finding-tier tier-baseline" title="Standard industry-practice check">INDUSTRY BASELINE</span>';
 
+    const existentialTag = f.existential
+      ? '<span class="finding-existential" title="Enforcement as written would eliminate the client\'s business model, core IP, market access, or ability to serve other customers.">EXISTENTIAL</span>'
+      : '';
+
     const head = document.createElement('div');
     head.className = 'finding-head';
     head.innerHTML = `
       <span class="finding-sev-tag ${severity}">${escapeHtml(f.severity || 'Minor')}</span>
+      ${existentialTag}
       ${tierTag}
       <span class="finding-category">${escapeHtml(f.category || '—')}</span>
       <span class="finding-markup">${escapeHtml(f.markup_type || '—')}</span>
@@ -1375,6 +1509,12 @@ import Consent from '../../partials/consent.astro';
     body.className = 'finding-body';
 
     const blocks = [];
+    if (f.specialist || f.jurisdiction_assumed) {
+      const meta = [];
+      if (f.specialist) meta.push(`<span class="finding-meta-chip">${escapeHtml(f.specialist)}</span>`);
+      if (f.jurisdiction_assumed) meta.push(`<span class="finding-meta-chip jurisdiction">Jurisdiction assumed: ${escapeHtml(f.jurisdiction_assumed)}</span>`);
+      blocks.push(`<div class="finding-block"><div class="finding-meta-row">${meta.join('')}</div></div>`);
+    }
     if (f.materiality_rationale) {
       blocks.push(`
         <div class="finding-block">
@@ -1529,16 +1669,17 @@ import Consent from '../../partials/consent.astro';
         const listEl = drawer.querySelector('.findings-list');
         const priorityEl = drawer.querySelector('.priority-three-section');
         const structuralEl = drawer.querySelector('.structural-section');
+        const coverageEl = drawer.querySelector('.coverage-section');
+        const tabRoot = drawer.querySelector('.results-tabs-wrap');
+        const tabCounts = tabRoot ? {
+          priority:   tabRoot.querySelector('[data-count="priority"]'),
+          findings:   tabRoot.querySelector('[data-count="findings"]'),
+          structural: tabRoot.querySelector('[data-count="structural"]'),
+          coverage:   tabRoot.querySelector('[data-count="coverage"]'),
+        } : null;
+        if (tabRoot) wireTabs(tabRoot);
         const viewer = createFindingsViewer({ filtersEl, listEl });
-        viewer.loadFrom(snap.downloads?.findings_json, priorityEl, structuralEl);
-
-        // Collapsible body within the drawer (parity with Review panel)
-        const collapseBtn = drawer.querySelector('.findings-collapse-btn');
-        const section = drawer.querySelector('.findings-section');
-        collapseBtn?.addEventListener('click', () => {
-          const collapsed = section.classList.toggle('collapsed');
-          collapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        });
+        viewer.loadFrom(snap.downloads?.findings_json, priorityEl, structuralEl, coverageEl, tabRoot, tabCounts);
       } catch (err) {
         drawer.innerHTML = `<div class="findings-empty">Could not load: ${escapeHtml(err.message)}</div>`;
       }
@@ -1572,34 +1713,56 @@ import Consent from '../../partials/consent.astro';
         </div>
       </div>
 
-      <div class="priority-three-section hidden">
-        <div class="priority-three-head">
-          <div class="priority-three-title">Top 3 to Raise</div>
-          <div class="priority-three-sub">Partner-level summary — raise these on a call before sending the full redline.</div>
-        </div>
-        <div class="priority-three-list"></div>
-      </div>
+      <div class="results-tabs-wrap">
+        <nav class="results-tabs" role="tablist" aria-label="Review results">
+          <button type="button" class="results-tab active" data-tab="priority" role="tab">Top 3<span class="tab-count" data-count="priority">0</span></button>
+          <button type="button" class="results-tab" data-tab="findings" role="tab">All Findings<span class="tab-count" data-count="findings">${total}</span></button>
+          <button type="button" class="results-tab" data-tab="structural" role="tab">Structural<span class="tab-count" data-count="structural">0</span></button>
+          <button type="button" class="results-tab" data-tab="coverage" role="tab">Coverage<span class="tab-count" data-count="coverage">0</span></button>
+        </nav>
 
-      <div class="structural-section hidden">
-        <div class="structural-head">
-          <div class="structural-title">Structural issues / missing clauses</div>
-          <div class="structural-sub">Findings that can't be pinned to a specific line of text.</div>
-        </div>
-        <div class="structural-list"></div>
-      </div>
-
-      <div class="findings-section">
-        <div class="findings-head">
-          <button type="button" class="findings-collapse-btn" aria-expanded="true">
-            <span class="findings-title">Findings <span class="findings-count-badge">${total}</span></span>
-            <span class="findings-collapse-arrow" aria-hidden="true">▾</span>
-          </button>
-          <div class="findings-head-right">
-            <div class="findings-sub">Click any finding to see the source, proposed language, and comment.</div>
-            <div class="findings-filters" role="tablist" aria-label="Filter findings by severity"></div>
+        <div class="tab-panel active" data-tab-panel="priority">
+          <div class="priority-three-section">
+            <div class="priority-three-head">
+              <div class="priority-three-title">Top 3 to Raise</div>
+              <div class="priority-three-sub">Partner-level summary — raise these on a call before sending the full redline.</div>
+            </div>
+            <div class="priority-three-list"></div>
           </div>
         </div>
-        <div class="findings-list"><div class="findings-empty">Loading findings…</div></div>
+
+        <div class="tab-panel" data-tab-panel="findings">
+          <div class="findings-section">
+            <div class="findings-head">
+              <div>
+                <span class="findings-title">All Findings</span>
+                <div class="findings-sub">Click any finding to see the source, proposed language, and comment.</div>
+              </div>
+              <div class="findings-filters" role="tablist" aria-label="Filter findings by severity"></div>
+            </div>
+            <div class="findings-list"><div class="findings-empty">Loading findings…</div></div>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-tab-panel="structural">
+          <div class="structural-section">
+            <div class="structural-head">
+              <div class="structural-title">Structural issues / missing clauses</div>
+              <div class="structural-sub">Findings that can't be pinned to a specific line of text.</div>
+            </div>
+            <div class="structural-list"></div>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-tab-panel="coverage">
+          <div class="coverage-section">
+            <div class="coverage-head">
+              <div class="coverage-title">Coverage Pass</div>
+              <div class="coverage-sub">Every specialist's enumeration of what it checked, grouped by specialist.</div>
+            </div>
+            <div class="coverage-list"></div>
+          </div>
+        </div>
       </div>
 
       ${downloadLinks ? `<div class="action-row">${downloadLinks}</div>` : ''}

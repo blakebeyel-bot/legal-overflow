@@ -1036,6 +1036,222 @@
   .sev.moderate .sev-l, .sev.moderate .sev-n { color: var(--ink-2); }
   .sev.minor .sev-l, .sev.minor .sev-n { color: var(--ink-3); }
 
+  /* Tabbed results panel — Top 3 / All Findings / Structural / Coverage */
+  .results-tabs-wrap { display: block; }
+  .results-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 36px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper-2);
+  }
+  .results-tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 16px 18px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color .12s ease, border-color .12s ease;
+  }
+  .results-tab:hover { color: var(--ink-2); }
+  .results-tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent-deep);
+    background: var(--paper);
+  }
+  .tab-count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 2px 6px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: 10px;
+    color: var(--ink-3);
+    text-align: center;
+  }
+  .results-tab.active .tab-count {
+    background: var(--accent-deep);
+    color: var(--paper);
+    border-color: var(--accent-deep);
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  /* legacy-schema indicator on archive reviews from before Wave 3 */
+  .results-tabs-wrap.legacy-schema::before {
+    content: 'Reviewed under prior schema — some fields may be missing.';
+    display: block;
+    padding: 8px 36px;
+    background: color-mix(in oklab, var(--warn) 10%, var(--paper));
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+
+  /* Existential finding badge */
+  .finding-existential {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 3px;
+    background: var(--warn);
+    color: var(--paper);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .finding-card.existential {
+    border-left-width: 4px;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--warn) 20%, transparent);
+  }
+  .priority-card.existential {
+    border-left-width: 4px;
+  }
+
+  /* Per-finding meta chips (specialist + jurisdiction_assumed) */
+  .finding-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .finding-meta-chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .04em;
+    padding: 3px 8px;
+    background: var(--paper-2);
+    color: var(--ink-3);
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+  }
+  .finding-meta-chip.jurisdiction {
+    background: color-mix(in oklab, var(--accent) 6%, var(--paper-2));
+    border-color: color-mix(in oklab, var(--accent-deep) 25%, var(--rule));
+    color: var(--accent-deep);
+  }
+
+  /* Coverage pass tab — per-specialist collapsible sections */
+  .coverage-section { padding: 26px 36px 22px; }
+  .coverage-section .coverage-head { margin-bottom: 16px; }
+  .coverage-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .coverage-sub {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    margin-top: 4px;
+    line-height: 1.45;
+  }
+  .coverage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .coverage-specialist {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .coverage-specialist[open] { background: var(--paper-2); }
+  .coverage-specialist-summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    user-select: none;
+    list-style: none;
+  }
+  .coverage-specialist-summary::-webkit-details-marker { display: none; }
+  .coverage-specialist-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+    flex: 1;
+  }
+  .coverage-specialist-count {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+  }
+  .coverage-collapse-arrow {
+    font-size: 12px;
+    color: var(--ink-3);
+    transition: transform .12s ease;
+  }
+  .coverage-specialist[open] .coverage-collapse-arrow { transform: rotate(90deg); }
+  .coverage-entries {
+    padding: 8px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .coverage-entry {
+    padding: 10px 12px;
+    background: var(--paper);
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .coverage-entry-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .coverage-status {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 3px;
+    background: var(--ink-3);
+    color: var(--paper);
+    flex-shrink: 0;
+  }
+  .coverage-entry.status-present .coverage-status { background: var(--accent-deep); }
+  .coverage-entry.status-absent .coverage-status { background: var(--warn); }
+  .coverage-entry.status-partially-addressed .coverage-status { background: var(--ink-2); }
+  .coverage-entry.status-not-applicable-to-this-deal .coverage-status { background: var(--ink-3); }
+  .coverage-entry.status-cross-referenced-to-master .coverage-status { background: var(--accent); color: var(--ink); }
+  .coverage-item { font-weight: 500; color: var(--ink); }
+  .coverage-source {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-left: auto;
+  }
+  .coverage-evidence {
+    color: var(--ink-2);
+    font-style: italic;
+  }
+  .coverage-profile-ref {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 4px;
+  }
+
   /* Deal-posture dropdown on the Upload panel */
   .upload-posture {
     margin-bottom: 28px;

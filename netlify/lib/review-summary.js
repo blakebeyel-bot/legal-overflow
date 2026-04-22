@@ -31,6 +31,8 @@ export async function buildReviewSummaryDocx({
   pipelineMode,
   findings,
   priorityThree = [],
+  coveragePassAggregate = [],
+  rejectedFindings = [],
   unanchored = [],
   severityCounts,
   reviewedAt,
@@ -158,6 +160,80 @@ export async function buildReviewSummaryDocx({
     }
   }
 
+  // Coverage pass — grouped by specialist, internal audit trail
+  if (coveragePassAggregate && coveragePassAggregate.length > 0) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun('Coverage pass (internal audit trail)')],
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({
+        text: 'Every specialist is required to enumerate the hard-requirement items in its domain and state what it checked, whether it found the item present, absent, cross-referenced to a master agreement, partially addressed, or not applicable. Silence is not acceptable — items checked and found fine are the majority of entries.',
+        italics: true,
+      })],
+    }));
+    const bySpecialist = {};
+    for (const entry of coveragePassAggregate) {
+      const key = entry.specialist || 'unknown';
+      (bySpecialist[key] ||= []).push(entry);
+    }
+    for (const [spec, entries] of Object.entries(bySpecialist)) {
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: spec })],
+      }));
+      for (const e of entries) {
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: `• [${e.status || '—'}] ${e.item || '—'}`, bold: true }),
+          ],
+        }));
+        if (e.source) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `   source: ${e.source}${e.profile_ref ? ` (${e.profile_ref})` : ''}${e.playbook_fit ? ` — playbook_fit: ${e.playbook_fit}` : ''}`, italics: true })],
+          }));
+        }
+        if (e.evidence) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: `   evidence: ${e.evidence}`, italics: true })],
+          }));
+        }
+      }
+      children.push(new Paragraph({ children: [new TextRun('')] }));
+    }
+  }
+
+  // Rejected findings — audit trail of what got dropped and why
+  if (rejectedFindings && rejectedFindings.length > 0) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun('Rejected findings (audit trail)')],
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({
+        text: 'Findings the pipeline dropped during compilation, posture-integrity, proportionality, or schema validation. Included for audit and calibration — not part of the redline.',
+        italics: true,
+      })],
+    }));
+    for (const f of rejectedFindings) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `• [${f.rejection_source || f.rejection_reason ? (f.rejection_source || 'rejected') : 'rejected'}] ${f.category || '—'} · ${f.specialist || '—'}`, bold: true }),
+        ],
+      }));
+      if (f.rejection_reason) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: `   reason: ${f.rejection_reason}`, italics: true })],
+        }));
+      }
+      if (f.source_text) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: `   source_text: "${String(f.source_text).slice(0, 240)}${f.source_text.length > 240 ? '…' : ''}"`, italics: true })],
+        }));
+      }
+    }
+  }
+
   const doc = new Document({
     creator: 'Legal Overflow',
     title: 'Contract Review Summary',
@@ -179,11 +255,21 @@ function tableRow(cells, header = false) {
 
 function renderFinding(f, opts = {}) {
   const out = [];
-  const title = `[${f.severity || '—'}] ${f.category || '—'} · ${f.location || 'Unlocated'}`;
+  const existentialTag = f.existential ? ' [EXISTENTIAL]' : '';
+  const title = `[${f.severity || '—'}]${existentialTag} ${f.category || '—'} · ${f.location || 'Unlocated'}`;
   out.push(new Paragraph({
     heading: HeadingLevel.HEADING_2,
     children: [new TextRun({ text: title })],
   }));
+
+  if (f.specialist || f.jurisdiction_assumed) {
+    const parts = [];
+    if (f.specialist) parts.push(`Specialist: ${f.specialist}`);
+    if (f.jurisdiction_assumed) parts.push(`Jurisdiction assumed: ${f.jurisdiction_assumed}`);
+    out.push(new Paragraph({
+      children: [new TextRun({ text: parts.join('  ·  '), italics: true })],
+    }));
+  }
 
   if (f.materiality_rationale) {
     out.push(new Paragraph({
