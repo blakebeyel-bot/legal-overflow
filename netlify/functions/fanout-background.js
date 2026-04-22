@@ -275,7 +275,9 @@ async function processReview({ userId, reviewId, supabase }) {
     try { cParsed = extractJson(coherenceResp.text); } catch { cParsed = null; }
     coherenceFindings = Array.isArray(cParsed?.findings) ? cParsed.findings : [];
     restoredFindings = Array.isArray(cParsed?.restored_findings) ? cParsed.restored_findings : [];
-    // Tag each coherence finding
+    // Tag + alias each coherence finding
+    coherenceFindings.forEach(aliasProposedText);
+    restoredFindings.forEach(aliasProposedText);
     coherenceFindings.forEach((f, i) => {
       f.specialist = 'coherence-checker';
       if (!f.id) f.id = `c${i + 1}`;
@@ -427,7 +429,23 @@ function normalizeSpecialistOutput(parsed, agentName) {
   // Tag specialist where missing
   findings.forEach(f => { if (!f.specialist) f.specialist = agentName; });
   coverage.forEach(c => { if (!c.specialist) c.specialist = agentName; });
+  // Alias proposed_text → suggested_text for Wave 3 specialist compatibility.
+  // Wave 3 template uses `proposed_text`; markup libraries read `suggested_text`.
+  findings.forEach(aliasProposedText);
   return { findings, coverage };
+}
+
+/**
+ * Wave 3 specialists emit `proposed_text`; markup-docx.js and markup-pdf.js
+ * both read `suggested_text` (Wave 1/2 field name). This alias keeps both
+ * field names working without changing markup code or renaming the new
+ * field in specialist templates.
+ */
+function aliasProposedText(f) {
+  if (!f || typeof f !== 'object') return;
+  if (f.proposed_text && !f.suggested_text) {
+    f.suggested_text = f.proposed_text;
+  }
 }
 
 /**
@@ -437,6 +455,10 @@ function normalizeSpecialistOutput(parsed, agentName) {
  */
 function validateFindingSchema(f) {
   if (!f || typeof f !== 'object') return false;
+  // Belt-and-suspenders: alias proposed_text → suggested_text here in case
+  // the compiler or a downstream stage reshaped the finding without carrying
+  // the alias through.
+  aliasProposedText(f);
   if (!f.materiality_rationale || typeof f.materiality_rationale !== 'string' || f.materiality_rationale.trim().length < 10) {
     console.log('[schema-reject] missing materiality_rationale:', f.id || f.category);
     return false;
