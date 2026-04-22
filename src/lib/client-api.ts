@@ -154,6 +154,14 @@ export interface StartReviewResponse {
   contract_type: string;
   pipeline_mode: string;
   quota: { used: number; cap: number; remaining: number; tier: string };
+  /**
+   * 'configured' — the user has a company profile; Tier-1 playbook-driven
+   *                checks will apply alongside industry baseline.
+   * 'baseline_only' — no profile saved; review uses DEFAULT_PROFILE, so
+   *                Tier-1 produces nothing and all findings are INDUSTRY
+   *                BASELINE. The UI should show a nudge to fill the form.
+   */
+  profile_mode: 'configured' | 'baseline_only';
 }
 
 export interface GetReviewResponse {

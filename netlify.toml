@@ -16,6 +16,15 @@
 # files into their sandboxes simultaneously on Windows.
 [functions]
   node_bundler = "esbuild"
+  # pdfjs-dist's legacy build dynamically imports pdf.worker.mjs at runtime.
+  # esbuild can't statically trace the import, so even with external_node_modules
+  # set it only copies pdf.mjs into the sandbox. Force-include the whole
+  # legacy/build/ directory so pdf.worker.mjs (and its source map) ship too.
+  external_node_modules = ["pdfjs-dist"]
+  included_files = [
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs.map",
+  ]
 
 # Background function — up to 15 min runtime. Name must end in `-background`.
 [functions."fanout-background"]

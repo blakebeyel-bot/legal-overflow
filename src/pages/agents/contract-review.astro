@@ -348,6 +348,26 @@ import Consent from '../../partials/consent.astro';
         <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n" id="sev-moderate">0</div></div>
         <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n" id="sev-minor">0</div></div>
       </div>
+
+      <!-- In-browser findings viewer with severity/category filter -->
+      <div class="findings-section" id="findings-section">
+        <div class="findings-head">
+          <button type="button" class="findings-collapse-btn" id="findings-collapse-btn" aria-expanded="true">
+            <span class="findings-title">Findings</span>
+            <span class="findings-collapse-arrow" aria-hidden="true">▾</span>
+          </button>
+          <div class="findings-head-right">
+            <div class="findings-sub" id="findings-sub">Click any finding to expand its details.</div>
+            <div class="findings-filters" id="findings-filters" role="tablist" aria-label="Filter findings by severity">
+              <!-- rendered by JS -->
+            </div>
+          </div>
+        </div>
+        <div class="findings-list" id="findings-list">
+          <div class="findings-empty">Loading findings…</div>
+        </div>
+      </div>
+
       <div class="action-row" id="results-actions"></div>
       <div class="back-row">
         <button class="btn btn-ghost btn-sm" id="review-another-btn">← Review another contract</button>
@@ -482,13 +502,15 @@ import Consent from '../../partials/consent.astro';
     fastTrackCopy.textContent = 'Parsing…';
     try {
       const result = await api.uploadPlaybook(file);
-      fastTrackCopy.textContent = 'Parsed.';
+      fastTrackCopy.textContent = 'Parsed. Your profile is saved — scroll down to view it.';
       const panel = document.getElementById('playbook-parse');
       const fields = document.getElementById('playbook-parse-fields');
       fields.innerHTML = renderProfileSummary(result.profile);
       panel.classList.remove('hidden');
       currentProfile = result.profile;
       await refreshStatus();
+      // Bring the summary panel into view so users don't miss it
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       fastTrackCopy.textContent = 'Error: ' + err.message;
     }
@@ -549,15 +571,14 @@ import Consent from '../../partials/consent.astro';
       try {
         const result = await api.uploadPlaybook(file);
         qsStatus.className = 'qs-status ok';
-        qsStatus.textContent = 'Profile saved.';
-        // Reuse the same success panel the playbook-upload path uses
+        qsStatus.textContent = 'Profile saved — see summary below.';
         const panel = document.getElementById('playbook-parse');
         const fields = document.getElementById('playbook-parse-fields');
         fields.innerHTML = renderProfileSummary(result.profile);
         panel.classList.remove('hidden');
-        // Also update the live side panel + cache for chat layering
         currentProfile = result.profile;
         await refreshStatus();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } catch (err) {
         qsStatus.className = 'qs-status err';
         qsStatus.textContent = 'Error: ' + err.message;
@@ -817,8 +838,27 @@ import Consent from '../../partials/consent.astro';
 
     try {
       const kickoff = await api.startReview(file);
+      const baselineNote = kickoff.profile_mode === 'baseline_only'
+        ? ' · baseline only (no profile)'
+        : '';
       document.getElementById('progress-file-sub').textContent =
-        `${kickoff.contract_type} · ${kickoff.pipeline_mode}`;
+        `${kickoff.contract_type} · ${kickoff.pipeline_mode}${baselineNote}`;
+      if (kickoff.profile_mode === 'baseline_only') {
+        // One-time inline banner above the stage list explaining the mode
+        const progress = document.getElementById('review-progress');
+        if (!progress.querySelector('.baseline-banner')) {
+          const banner = document.createElement('div');
+          banner.className = 'banner baseline-banner';
+          banner.innerHTML =
+            `<span class="banner-tag">Baseline</span>` +
+            `<span>Running an industry-baseline review because no profile is saved. <a href="#view-configure" data-view="configure">Fill the Configure form</a> for a tailored review driven by your own red flags and positions.</span>`;
+          progress.insertBefore(banner, progress.firstChild);
+          banner.querySelector('a')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('configure');
+          });
+        }
+      }
       markStage('extract', 'done');
       markStage('classify', 'done');
       const final = await api.pollReview(kickoff.review_id, (snap) => {
@@ -875,6 +915,190 @@ import Consent from '../../partials/consent.astro';
     if (snap.downloads?.findings_json) {
       actions.appendChild(btn('findings.json', snap.downloads.findings_json, false));
     }
+
+    // Populate the in-browser findings viewer
+    loadFindingsInline(snap.downloads?.findings_json);
+  }
+
+  // ---- In-browser findings viewer (per-container factory) ----
+  // Each instance owns its own filter state and DOM. Used by both the
+  // Review results panel and each expanded Archive row.
+  function createFindingsViewer({ filtersEl, listEl }) {
+    let findings = [];
+    let activeFilter = 'all'; // all | blocker | major | moderate | minor
+
+    const tally = () => {
+      const t = { all: findings.length, blocker: 0, major: 0, moderate: 0, minor: 0 };
+      for (const f of findings) {
+        const sev = (f.severity || '').toLowerCase();
+        if (t[sev] != null) t[sev]++;
+      }
+      return t;
+    };
+
+    const renderFilters = () => {
+      const counts = tally();
+      filtersEl.innerHTML = '';
+      for (const sev of ['all', 'blocker', 'major', 'moderate', 'minor']) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `findings-filter ${sev}${activeFilter === sev ? ' active' : ''}`;
+        const label = sev.charAt(0).toUpperCase() + sev.slice(1);
+        btn.innerHTML = `${escapeHtml(label)}<span class="ff-count">${counts[sev] || 0}</span>`;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeFilter = sev;
+          renderFilters();
+          renderList();
+        });
+        filtersEl.appendChild(btn);
+      }
+    };
+
+    const renderList = () => {
+      const filtered = activeFilter === 'all'
+        ? findings
+        : findings.filter(f => (f.severity || '').toLowerCase() === activeFilter);
+
+      if (!filtered.length) {
+        const msg = activeFilter === 'all'
+          ? 'No findings — this contract is clean against your playbook.'
+          : `No ${activeFilter} findings.`;
+        listEl.innerHTML = `<div class="findings-empty">${escapeHtml(msg)}</div>`;
+        return;
+      }
+
+      // Two-key sort: Tier-1 (playbook-driven, has profile_refs) before
+      // Tier-2 (industry baseline). Within tier: Blocker > Major > Moderate > Minor.
+      const sevOrder = { blocker: 0, major: 1, moderate: 2, minor: 3 };
+      const isTier1 = (f) => Array.isArray(f.profile_refs) && f.profile_refs.length > 0;
+      const sorted = [...filtered].sort((a, b) => {
+        const ta = isTier1(a) ? 0 : 1;
+        const tb = isTier1(b) ? 0 : 1;
+        if (ta !== tb) return ta - tb;
+        const sa = sevOrder[(a.severity || '').toLowerCase()] ?? 99;
+        const sb = sevOrder[(b.severity || '').toLowerCase()] ?? 99;
+        return sa - sb;
+      });
+
+      listEl.innerHTML = '';
+      sorted.forEach((f, idx) => listEl.appendChild(renderFindingCard(f, idx)));
+    };
+
+    return {
+      async loadFrom(url) {
+        if (!url) {
+          listEl.innerHTML = '<div class="findings-empty">No findings file available for this review.</div>';
+          findings = [];
+          renderFilters();
+          return;
+        }
+        listEl.innerHTML = '<div class="findings-empty">Loading findings…</div>';
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error('Fetch returned ' + resp.status);
+          const data = await resp.json();
+          findings = Array.isArray(data) ? data : [];
+        } catch (err) {
+          listEl.innerHTML = `<div class="findings-empty">Could not load findings: ${escapeHtml(err.message)}</div>`;
+          return;
+        }
+        activeFilter = 'all';
+        renderFilters();
+        renderList();
+      },
+    };
+  }
+
+  // Single viewer for the Review panel. Archive creates its own per row.
+  const reviewFindingsViewer = createFindingsViewer({
+    filtersEl: document.getElementById('findings-filters'),
+    listEl: document.getElementById('findings-list'),
+  });
+
+  async function loadFindingsInline(findingsUrl) {
+    await reviewFindingsViewer.loadFrom(findingsUrl);
+  }
+
+  // Click-to-collapse on the Review Findings section header
+  {
+    const collapseBtn = document.getElementById('findings-collapse-btn');
+    const section = document.getElementById('findings-section');
+    collapseBtn?.addEventListener('click', () => {
+      const collapsed = section.classList.toggle('collapsed');
+      collapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+  }
+
+  function renderFindingCard(f, idx) {
+    const severity = (f.severity || 'minor').toLowerCase();
+    const card = document.createElement('div');
+    card.className = `finding-card sev-${severity}`;
+
+    // Preview text: the external_comment if it's short, else first line of source_text
+    const previewSource = f.external_comment || f.source_text || f.anchor_text || '';
+    const preview = previewSource.split('\n')[0].slice(0, 140);
+
+    const tierTag = Array.isArray(f.profile_refs) && f.profile_refs.length > 0
+      ? '<span class="finding-tier tier-playbook" title="Flagged against your playbook">YOUR PLAYBOOK</span>'
+      : '<span class="finding-tier tier-baseline" title="Standard industry-practice check">INDUSTRY BASELINE</span>';
+
+    const head = document.createElement('div');
+    head.className = 'finding-head';
+    head.innerHTML = `
+      <span class="finding-sev-tag ${severity}">${escapeHtml(f.severity || 'Minor')}</span>
+      ${tierTag}
+      <span class="finding-category">${escapeHtml(f.category || '—')}</span>
+      <span class="finding-markup">${escapeHtml(f.markup_type || '—')}</span>
+      <span class="finding-preview">${escapeHtml(preview)}</span>
+      <span class="finding-toggle" aria-hidden="true">›</span>
+    `;
+    head.addEventListener('click', () => card.classList.toggle('open'));
+
+    const body = document.createElement('div');
+    body.className = 'finding-body';
+
+    const blocks = [];
+    if (f.external_comment) {
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Margin comment (counterparty-facing)</div>
+          <div class="finding-comment">${escapeHtml(f.external_comment)}</div>
+        </div>`);
+    }
+    if (f.source_text) {
+      const strikeClass = (f.markup_type === 'delete' || f.markup_type === 'replace') ? ' strike' : '';
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Source text ${f.markup_type === 'delete' ? '(to remove)' : f.markup_type === 'replace' ? '(to replace)' : ''}</div>
+          <div class="finding-source${strikeClass}">${escapeHtml(f.source_text)}</div>
+        </div>`);
+    } else if (f.anchor_text) {
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Anchor (for insertion)</div>
+          <div class="finding-source">${escapeHtml(f.anchor_text)}</div>
+        </div>`);
+    }
+    if (f.suggested_text) {
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Proposed replacement language</div>
+          <div class="finding-suggested">${escapeHtml(f.suggested_text)}</div>
+        </div>`);
+    }
+    if (f.internal_comment) {
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Internal note</div>
+          <div class="finding-comment">${escapeHtml(f.internal_comment)}</div>
+        </div>`);
+    }
+    body.innerHTML = blocks.join('');
+
+    card.appendChild(head);
+    card.appendChild(body);
+    return card;
   }
 
   function btn(text, href, primary) {
@@ -905,28 +1129,129 @@ import Consent from '../../partials/consent.astro';
         const findings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
         const statusLabel = r.status === 'complete' ? 'Complete' : r.status === 'failed' ? 'Failed' : 'In progress';
         const statusClass = r.status === 'complete' ? 'complete' : r.status === 'failed' ? 'escalated' : '';
+        // Each row is wrapped so we can append a collapsible drawer below
         return `
-          <div class="history-row" data-review-id="${r.id}">
-            <div class="h-name">${escapeHtml(r.filename)}</div>
-            <div class="h-meta">${escapeHtml(r.contract_type || '—')}</div>
-            <div class="h-meta emph">${new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-            <div class="h-meta">${findings} findings</div>
-            <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
+          <div class="history-row-wrap" data-review-id="${r.id}">
+            <div class="history-row" role="button" aria-expanded="false" tabindex="0">
+              <div class="h-name">${escapeHtml(r.filename)}</div>
+              <div class="h-meta">${escapeHtml(r.contract_type || '—')}</div>
+              <div class="h-meta emph">${new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+              <div class="h-meta">${findings} findings</div>
+              <div>
+                <span class="status-pill ${statusClass}">${statusLabel}</span>
+                <span class="history-row-arrow" aria-hidden="true">▸</span>
+              </div>
+            </div>
+            <div class="history-row-drawer hidden"></div>
           </div>`;
       }).join('');
-      rows.querySelectorAll('.history-row').forEach(row => {
-        row.addEventListener('click', async () => {
-          const id = row.dataset.reviewId;
-          const snap = await api.getReview(id);
-          if (snap.review.status === 'complete') {
-            switchView('review');
-            showResults(snap);
-          }
+      rows.querySelectorAll('.history-row-wrap').forEach(wrap => {
+        const row = wrap.querySelector('.history-row');
+        row.addEventListener('click', () => toggleArchiveRow(wrap));
+        row.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleArchiveRow(wrap); }
         });
       });
     } catch (err) {
       rows.innerHTML = `<div class="cr-empty-state">Error: ${escapeHtml(err.message)}</div>`;
     }
+  }
+
+  /**
+   * Expand / collapse an archive row's inline findings drawer. On first
+   * open, fetches the review snapshot + findings and builds a fresh
+   * viewer (each row keeps its own filter state).
+   */
+  async function toggleArchiveRow(wrap) {
+    const row = wrap.querySelector('.history-row');
+    const drawer = wrap.querySelector('.history-row-drawer');
+    const isOpen = wrap.classList.contains('open');
+
+    if (isOpen) {
+      wrap.classList.remove('open');
+      row.setAttribute('aria-expanded', 'false');
+      drawer.classList.add('hidden');
+      return;
+    }
+
+    wrap.classList.add('open');
+    row.setAttribute('aria-expanded', 'true');
+    drawer.classList.remove('hidden');
+
+    // Fetch once, cache on the wrap element
+    if (!drawer.dataset.loaded) {
+      drawer.innerHTML = '<div class="findings-empty">Loading review…</div>';
+      try {
+        const snap = await api.getReview(wrap.dataset.reviewId);
+        drawer.innerHTML = renderArchiveDrawer(snap);
+        drawer.dataset.loaded = '1';
+
+        // Wire download buttons + findings viewer
+        const r = snap.review;
+        if (r.status === 'failed') return;
+        if (r.status !== 'complete') return;
+
+        const filtersEl = drawer.querySelector('.findings-filters');
+        const listEl = drawer.querySelector('.findings-list');
+        const viewer = createFindingsViewer({ filtersEl, listEl });
+        viewer.loadFrom(snap.downloads?.findings_json);
+
+        // Collapsible body within the drawer (parity with Review panel)
+        const collapseBtn = drawer.querySelector('.findings-collapse-btn');
+        const section = drawer.querySelector('.findings-section');
+        collapseBtn?.addEventListener('click', () => {
+          const collapsed = section.classList.toggle('collapsed');
+          collapseBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        });
+      } catch (err) {
+        drawer.innerHTML = `<div class="findings-empty">Could not load: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+  }
+
+  function renderArchiveDrawer(snap) {
+    const r = snap.review;
+    if (r.status === 'failed') {
+      return `<div class="findings-empty">This review failed: ${escapeHtml(r.error_message || 'no error message recorded.')}</div>`;
+    }
+    if (r.status !== 'complete') {
+      return `<div class="findings-empty">Still running — ${escapeHtml(r.progress_message || r.status)}</div>`;
+    }
+    const sc = r.severity_counts || {};
+    const total = (sc.blocker || 0) + (sc.major || 0) + (sc.moderate || 0) + (sc.minor || 0);
+    const d = snap.downloads || {};
+    const downloadLinks = [
+      d.annotated     ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(d.annotated)}" target="_blank" rel="noopener">Annotated contract</a>` : '',
+      d.summary       ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(d.summary)}" target="_blank" rel="noopener">Review summary</a>` : '',
+      d.findings_json ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(d.findings_json)}" target="_blank" rel="noopener">findings.json</a>` : '',
+    ].filter(Boolean).join('');
+
+    return `
+      <div class="drawer-head">
+        <div class="severity-row">
+          <div class="sev blocker"><div class="sev-l">Blocker</div><div class="sev-n">${sc.blocker || 0}</div></div>
+          <div class="sev major"><div class="sev-l">Major</div><div class="sev-n">${sc.major || 0}</div></div>
+          <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n">${sc.moderate || 0}</div></div>
+          <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n">${sc.minor || 0}</div></div>
+        </div>
+      </div>
+
+      <div class="findings-section">
+        <div class="findings-head">
+          <button type="button" class="findings-collapse-btn" aria-expanded="true">
+            <span class="findings-title">Findings <span class="findings-count-badge">${total}</span></span>
+            <span class="findings-collapse-arrow" aria-hidden="true">▾</span>
+          </button>
+          <div class="findings-head-right">
+            <div class="findings-sub">Click any finding to see the source, proposed language, and comment.</div>
+            <div class="findings-filters" role="tablist" aria-label="Filter findings by severity"></div>
+          </div>
+        </div>
+        <div class="findings-list"><div class="findings-empty">Loading findings…</div></div>
+      </div>
+
+      ${downloadLinks ? `<div class="action-row">${downloadLinks}</div>` : ''}
+    `;
   }
 </script>
 

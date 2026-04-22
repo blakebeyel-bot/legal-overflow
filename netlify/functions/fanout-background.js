@@ -24,6 +24,7 @@ import { applyDocxMarkup } from '../lib/markup-docx.js';
 import { applyPdfMarkup } from '../lib/markup-pdf.js';
 import { buildReviewSummaryDocx } from '../lib/review-summary.js';
 import { estimateCostUsd } from '../lib/constants.js';
+import { DEFAULT_PROFILE } from '../lib/default-profile.js';
 
 export default async (req) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -66,13 +67,15 @@ export default async (req) => {
 };
 
 async function processReview({ userId, reviewId, supabase }) {
-  // 1. Load the user's profile
-  const { data: profileRow, error: profileErr } = await supabase
-    .from('company_profiles').select('profile_json').eq('user_id', userId).single();
-  if (profileErr || !profileRow) {
-    throw new Error('No company profile found. Complete onboarding first.');
+  // 1. Load the user's profile. If none exists, fall back to a minimal
+  //    default — the review will produce Tier-2 (industry-baseline)
+  //    findings only, since the profile's red_flags / positions are empty.
+  const { data: profileRow } = await supabase
+    .from('company_profiles').select('profile_json').eq('user_id', userId).maybeSingle();
+  const profile = profileRow?.profile_json || DEFAULT_PROFILE;
+  if (!profileRow) {
+    console.log(`[fanout-background] No profile for user ${userId} — using DEFAULT_PROFILE (industry-baseline review).`);
   }
-  const profile = profileRow.profile_json;
 
   // 2. Load the review row
   const { data: review } = await supabase.from('reviews').select('*').eq('id', reviewId).single();
@@ -109,7 +112,19 @@ async function processReview({ userId, reviewId, supabase }) {
         systemPrompt: agent.systemPrompt,
         profileJson: profile,
         contractText,
-        taskPrompt: `Apply your specialist checklist to the contract above. Return ONLY a JSON array of findings matching the schema defined in your system prompt. No preface, no prose.`,
+        taskPrompt:
+          `Review the contract above against the company profile. The profile is AUTHORITATIVE — treat it as the client's own instructions and prioritize accordingly.\n\n` +
+          `PRIORITY ORDER for your findings:\n\n` +
+          `TIER 1 — PROFILE-DRIVEN (highest priority). Anything tied to this specific client's stated preferences. Include the matching profile path in the finding's "profile_refs" array:\n` +
+          `  1a. Provisions in the contract that MATCH an entry in profile.red_flags (use the red flag's severity; set requires_senior_review=true if auto_escalate).\n` +
+          `  1b. Provisions in the contract that VIOLATE profile.positions.<your_category>.rejects (severity: Blocker or Major).\n` +
+          `  1c. Provisions in the contract that MISALIGN with profile.positions.<your_category>.accepts (severity: Major).\n` +
+          `  1d. Provisions REQUIRED by profile.positions.<your_category>.accepts that are ABSENT from the contract (markup_type: "insert", severity: Major — these are missing required provisions).\n\n` +
+          `TIER 2 — INDUSTRY-BASELINE (lower priority, fills gaps). Only AFTER Tier 1 is exhausted, apply your own system-level checklist using profile.company.industry and profile.company.role_in_contracts as context. Do NOT second-guess a Tier-1 finding with a generic industry check — the profile wins.\n` +
+          `  Examples of Tier-2 absence findings when applicable and not already covered by the profile: a SaaS agreement without any SLA, a services agreement without a limitation-of-liability cap, a contract handling personal data without a DPA reference, an indefinite term without termination-for-convenience, a subscription without data export/deletion rights at termination.\n` +
+          `  Tier-2 findings MUST leave profile_refs empty and set severity based on industry impact (usually Moderate unless it's a clear safety rail like absent liability cap).\n\n` +
+          `For ABSENCE findings (Tier 1d or Tier 2): 'location' can say "Entire agreement — missing"; use a short anchor from the nearest related section as 'source_text' for insert placement, or 'anchor_text': null + 'markup_type': "annotate" if no related section exists.\n\n` +
+          `Return ONLY a JSON array of findings matching the schema defined in your system prompt. Order: all Tier-1 findings first, then Tier-2. No preface, no prose.`,
         userId, reviewId,
         maxTokens: 8192,
         tokensUsedSoFar: tokensUsed,
@@ -136,7 +151,19 @@ async function processReview({ userId, reviewId, supabase }) {
       systemPrompt: auditor.systemPrompt,
       profileJson: profile,
       contractText,
-      taskPrompt: `The following findings were produced by the specialist fan-out:\n\n${JSON.stringify(allFindings)}\n\nRun your red-flag sweep against the profile. Return ONLY additional findings as a JSON array (may be empty).`,
+      taskPrompt:
+        `The specialist fan-out has already produced these findings:\n\n${JSON.stringify(allFindings)}\n\n` +
+        `Run your final sweep with strict PRIORITY ORDER. The profile is AUTHORITATIVE.\n\n` +
+        `TIER 1 — PROFILE-DRIVEN (highest priority).\n` +
+        `  1a. RED-FLAG SWEEP. Check every entry in profile.red_flags against the contract using its trigger_phrases + semantic confirmation. Emit findings for confirmed hits with severity from the red_flag entry; set requires_senior_review=true if auto_escalate. Include "profile_refs": ["red_flags.<id>"].\n` +
+        `  1b. PROFILE-REQUIRED ABSENCE SWEEP. For every position the profile treats as accepted/required (profile.positions.<category>.accepts entries, preferred_language, etc.) that is NOT in the contract, emit an absence finding. Include the profile path in profile_refs.\n\n` +
+        `TIER 2 — INDUSTRY-BASELINE (lower priority, fills gaps).\n` +
+        `  Independent of the profile's explicit lists, audit for categorically absent provisions that a contract of this type SHOULD contain based on profile.company.industry and profile.company.role_in_contracts. ` +
+        `Common omissions to flag when applicable AND not already covered above: SLA, limitation of liability cap, DPA / data processing, data security + breach notification, termination for convenience, data export/deletion rights at termination, indemnification structure, warranty scope, governing law + venue, subcontractor flow-down for compliance-sensitive industries. ` +
+        `Tier-2 findings leave profile_refs empty.\n\n` +
+        `DO NOT duplicate findings already in the specialist list above — the compiler dedupes but effort is wasted.\n` +
+        `DO NOT reorder or contradict Tier-1 findings with Tier-2 reasoning. The profile wins.\n\n` +
+        `Return ONLY a JSON array of ADDITIONAL findings, Tier-1 first then Tier-2. Empty array if the specialists covered everything.`,
       userId, reviewId,
       maxTokens: 4096,
       tokensUsedSoFar: tokensUsed,
@@ -158,7 +185,14 @@ async function processReview({ userId, reviewId, supabase }) {
       systemPrompt: compiler.systemPrompt,
       profileJson: profile,
       contractText,
-      taskPrompt: `Deduplicate and consolidate the findings below. Enforce the voice rules in your system prompt — no case citations, no severity labels in external_comment, no profile references in external_comment. Return ONLY the cleaned JSON array.\n\nFINDINGS:\n${JSON.stringify(allFindings)}`,
+      taskPrompt:
+        `Deduplicate and consolidate the findings below. Enforce the voice rules in your system prompt — no case citations, no severity labels in external_comment, no profile references in external_comment.\n\n` +
+        `ORDERING RULES (important — the client reads findings top-to-bottom):\n` +
+        `1. Sort FIRST by tier: findings with a non-empty profile_refs array (Tier 1 — client-specific, playbook-driven) BEFORE findings with empty profile_refs (Tier 2 — generic industry baseline).\n` +
+        `2. Within each tier, sort by severity: Blocker > Major > Moderate > Minor.\n` +
+        `3. When deduplicating, if a Tier-1 finding and a Tier-2 finding cover the same issue, KEEP the Tier-1 version (it references the client's specific playbook language).\n\n` +
+        `Return ONLY the cleaned JSON array in the sorted order above.\n\n` +
+        `FINDINGS:\n${JSON.stringify(allFindings)}`,
       userId, reviewId,
       maxTokens: 12_000,
       tokensUsedSoFar: tokensUsed,

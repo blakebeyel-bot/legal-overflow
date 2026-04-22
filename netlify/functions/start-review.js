@@ -26,16 +26,13 @@ export default async (req) => {
   const auth = await requireUser(req.headers.get('Authorization'));
   if (auth.error) return json({ error: auth.error }, auth.status);
 
-  // Ensure the user has a profile — the pipeline needs one
+  // Profile is OPTIONAL. If absent, fanout-background falls back to the
+  // default profile and produces an industry-baseline review. Tell the
+  // client in the response so the UI can show a "baseline only" note.
   const supabase = getSupabaseAdmin();
   const { data: profileRow } = await supabase
     .from('company_profiles').select('id').eq('user_id', auth.user.id).maybeSingle();
-  if (!profileRow) {
-    return json({
-      error: 'Complete onboarding first — no company profile found.',
-      redirect: '/agents/contract-review/onboarding/',
-    }, 400);
-  }
+  const hasProfile = !!profileRow;
 
   // Quota gate
   const quota = await checkReviewQuota(auth.user.id);
@@ -152,6 +149,7 @@ export default async (req) => {
     contract_type: classification.contract_type,
     pipeline_mode: classification.pipeline_mode,
     quota,
+    profile_mode: hasProfile ? 'configured' : 'baseline_only',
   });
 };
 

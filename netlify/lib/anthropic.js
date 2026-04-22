@@ -133,16 +133,89 @@ export async function callSpecialist({
 export function extractJson(text) {
   // Strip markdown fences
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (fenced) return JSON.parse(fenced[1]);
+  if (fenced) {
+    try { return JSON.parse(fenced[1]); } catch (e) { /* fall through to repair */ }
+  }
   // Find first [ or { and match to its counterpart
   const firstArr = text.indexOf('[');
   const firstObj = text.indexOf('{');
   const start = firstArr === -1 ? firstObj : (firstObj === -1 ? firstArr : Math.min(firstArr, firstObj));
   if (start === -1) throw new Error('No JSON found in response');
+
   const closer = text[start] === '[' ? ']' : '}';
   const end = text.lastIndexOf(closer);
-  if (end === -1 || end < start) throw new Error('Unterminated JSON in response');
-  return JSON.parse(text.slice(start, end + 1));
+  const candidate = end > start ? text.slice(start, end + 1) : text.slice(start);
+
+  // Fast path: valid JSON as-is
+  try { return JSON.parse(candidate); } catch (e) { /* attempt repair */ }
+
+  // Slow path: model probably hit max_tokens mid-output. Walk the string,
+  // stop at the last complete value, and close whatever is still open.
+  const repaired = repairTruncatedJson(candidate);
+  try {
+    return JSON.parse(repaired);
+  } catch (e) {
+    throw new Error(`JSON parse failed even after repair: ${e.message}`);
+  }
+}
+
+/**
+ * Salvage JSON that was cut off mid-generation (the classic `max_tokens`
+ * truncation). Walks the string tracking the bracket/string state, rewinds
+ * to the last fully-complete element, trims trailing commas, and closes
+ * all still-open arrays and objects.
+ */
+function repairTruncatedJson(s) {
+  // Track: are we inside a string? which bracket stack are we in?
+  // For each position we remember a "safe rollback" — the last index at which
+  // we were at depth 0 inside a container with no pending partial element.
+  const stack = []; // each entry: '[' or '{'
+  let inString = false;
+  let escape = false;
+  let lastSafeEnd = -1; // index of the last completed element (exclusive)
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === '[' || ch === '{') {
+      stack.push(ch);
+    } else if (ch === ']' || ch === '}') {
+      stack.pop();
+      lastSafeEnd = i + 1;
+    } else if (ch === ',') {
+      // Record position just before the comma as a safe rollback point.
+      lastSafeEnd = i;
+    }
+  }
+
+  // Rewind to the last safe point (strips the partial element at the end).
+  let out = lastSafeEnd > 0 ? s.slice(0, lastSafeEnd) : s;
+  // Trim trailing comma + whitespace
+  out = out.replace(/,\s*$/, '');
+
+  // Rebuild the open-bracket stack for the trimmed string so we close the
+  // right number. We need to re-walk because the rewind may have closed
+  // some brackets (shouldn't happen with lastSafeEnd logic, but belt-and-suspenders).
+  const closeStack = [];
+  let s2 = false, esc2 = false;
+  for (let i = 0; i < out.length; i++) {
+    const ch = out[i];
+    if (esc2) { esc2 = false; continue; }
+    if (ch === '\\' && s2) { esc2 = true; continue; }
+    if (ch === '"') { s2 = !s2; continue; }
+    if (s2) continue;
+    if (ch === '[' || ch === '{') closeStack.push(ch);
+    else if (ch === ']' || ch === '}') closeStack.pop();
+  }
+  while (closeStack.length) {
+    const open = closeStack.pop();
+    out += open === '[' ? ']' : '}';
+  }
+  return out;
 }
 
 /**

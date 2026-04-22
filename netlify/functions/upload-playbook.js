@@ -73,24 +73,30 @@ export default async (req) => {
 
   // Focused system prompt — we don't need the full workflow-configurator
   // agent (2K+ tokens of Python-agent framing). This function has ONE job:
-  // take a playbook text and emit a JSON profile. Keeping the prompt lean
-  // makes the call fast enough to finish inside Netlify dev's hardcoded
-  // 30s local-emulator timeout.
+  // take a playbook text and emit a JSON profile.
+  //
+  // Large playbook PDFs (100K+ chars) approach the Netlify timeout even on
+  // production. We slice to 25K chars (~6K tokens) — picks up the first
+  // ~20 pages which typically contain the core positions. Users can always
+  // chat-in extra nuance after the initial save.
   const schema = loadConfig('company_profile.schema');
   const systemPrompt =
-    `You are a contract-review playbook ingestor. You receive a text ` +
-    `playbook (may be short/structured form answers, may be a full written ` +
-    `playbook) and emit a company_profile.json object that conforms to the ` +
-    `provided schema.\n\n` +
+    `You are a contract-review playbook ingestor. You receive a text playbook ` +
+    `and emit a company_profile.json object that conforms to the provided schema.\n\n` +
     `Rules:\n` +
     `1. Output ONLY a JSON object — no prose, no markdown fences, no commentary.\n` +
     `2. Do not invent positions the user didn't state. For unspecified sections, use an empty object/array or null, and set a top-level "needs_review": true marker.\n` +
     `3. Be faithful to the user's words. Use their phrasings for red flags and positions.\n` +
-    `4. Keep the response concise — target under 3KB of JSON.`;
+    `4. KEEP IT TIGHT — aim for under 1.5KB of JSON. Summarize rather than restate. Pick the 10–15 most important red flags/positions, not everything.\n` +
+    `5. Emit the JSON immediately — no reasoning preamble.\n` +
+    `6. Field values should be short strings (~100 chars) not long paragraphs. The full playbook lives in storage — this profile is a structured summary.\n\n` +
+    `SCHEMA:\n${JSON.stringify(schema, null, 2)}`;
 
+  const MAX_PLAYBOOK_CHARS = 25_000;
+  const truncated = extracted.text.length > MAX_PLAYBOOK_CHARS;
+  const playbookSnippet = extracted.text.slice(0, MAX_PLAYBOOK_CHARS);
   const userMessage =
-    `SCHEMA:\n${JSON.stringify(schema, null, 2)}\n\n` +
-    `PLAYBOOK TEXT:\n${extracted.text.slice(0, 40_000)}\n\n` +
+    `PLAYBOOK TEXT${truncated ? ` (first ${MAX_PLAYBOOK_CHARS} of ${extracted.text.length} chars)` : ''}:\n${playbookSnippet}\n\n` +
     `Emit the JSON profile now.`;
 
   let profile;
@@ -100,7 +106,10 @@ export default async (req) => {
       systemPrompt,
       userMessage,
       userId: auth.user.id,
-      maxTokens: 3072,
+      // 1500 tokens ≈ 4–5KB of JSON. Enough room that the model rarely
+      // hits the ceiling mid-output (extractJson repairs truncation as
+      // a safety net, but clean completions are preferred).
+      maxTokens: 1500,
     });
     stamp('model returned ' + (resp.text?.length || 0) + ' chars');
     profile = extractJson(resp.text);
