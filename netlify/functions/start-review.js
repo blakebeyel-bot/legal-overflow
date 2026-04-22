@@ -132,16 +132,33 @@ export default async (req) => {
     progress_message: `Classified as ${classification.contract_type} — starting ${classification.pipeline_mode} pipeline.`,
   }).eq('id', reviewId);
 
-  // Fire the background function (fire-and-forget)
+  // Invoke the background function. Background functions return 202
+  // immediately and continue running asynchronously, so awaiting this
+  // only waits for the HTTP request to be accepted — not for the work
+  // to complete. We MUST await it: on Lambda, an un-awaited fetch often
+  // gets aborted when the parent function returns and the container
+  // freezes. (This was the "stuck at Extracting" bug.)
   const backgroundUrl = new URL('/.netlify/functions/fanout-background', req.url).toString();
-  fetch(backgroundUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': req.headers.get('Authorization'),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ review_id: reviewId }),
-  }).catch(err => console.error('failed to kick background fanout:', err));
+  try {
+    const bgResp = await fetch(backgroundUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': req.headers.get('Authorization'),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ review_id: reviewId }),
+    });
+    console.log(`[start-review] background fanout kicked: HTTP ${bgResp.status}`);
+  } catch (err) {
+    console.error('[start-review] failed to kick background fanout:', err);
+    // Mark the review as failed so the UI shows a real error instead
+    // of spinning forever.
+    await supabase.from('reviews').update({
+      status: 'failed',
+      error_message: 'Could not start background review: ' + err.message,
+    }).eq('id', reviewId);
+    return json({ error: 'Background fanout failed to start: ' + err.message }, 500);
+  }
 
   return json({
     ok: true,
