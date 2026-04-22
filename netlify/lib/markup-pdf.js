@@ -17,9 +17,9 @@
  * to be native/text-bearing.
  */
 import { PDFDocument, rgb } from 'pdf-lib';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-// Legacy build includes an inline fake worker for Node. Don't set
-// GlobalWorkerOptions.workerSrc — the setter rejects non-string values.
+// pdfjs-dist is lazy-loaded inside extractTextPositions() to keep it off
+// the cold-start path. The DOCX markup path never needs it, and a broken
+// PDF dep must not crash the whole function.
 
 const AUTHOR = 'Legal Overflow';
 
@@ -118,6 +118,9 @@ export async function applyPdfMarkup(pdfBuffer, findings) {
 // ---------- pdfjs text-position extraction ----------
 
 async function extractTextPositions(pdfBuffer) {
+  // Lazy-load pdfjs-dist — only callers of applyPdfMarkup (i.e. PDF
+  // contract reviews) pay the import cost.
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const uint8 = new Uint8Array(pdfBuffer);
   const loadingTask = pdfjsLib.getDocument({ data: uint8, disableFontFace: true });
   const pdf = await loadingTask.promise;

@@ -12,9 +12,11 @@
  * rejected here, not silently processed to produce bad redlines.
  */
 import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-// The legacy build ships with a fake worker that runs inline in Node —
-// no GlobalWorkerOptions.workerSrc assignment needed.
+// pdfjs-dist is lazy-loaded inside extractPdf() (see below). Static import
+// at the top caused a prod cold-start failure because esbuild's handling
+// of pdfjs-dist's dynamic worker import was fragile — DOCX uploads died
+// before the function even ran. Lazy-loading keeps the module off the
+// critical path for non-PDF files.
 
 export const SCANNED_PDF_MIN_CHARS = 200;
 
@@ -61,6 +63,9 @@ async function extractDocx(buffer) {
 }
 
 async function extractPdf(buffer) {
+  // Lazy-load pdfjs-dist so a broken PDF dependency can't kill the whole
+  // function at cold start. Only PDF uploads pay the import cost.
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   let pdf;
   try {
     const uint8 = new Uint8Array(buffer);
