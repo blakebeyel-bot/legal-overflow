@@ -105,3 +105,16 @@ Profile.jurisdiction.preferred_statutes.prompt_payment = "Tex. Bus. & Com. Code 
   }
 ]
 ```
+
+# Worked non-flags — when silence is correct
+
+The single most common failure mode of commercial-terms review is over-flagging. Here are three patterns where the correct answer is to say nothing:
+
+**Non-flag A — Net-30 vs Net-45 with early-pay discount.**
+Playbook says "Net 30." Contract says "Net 45 with 2% discount for payment within 10 days." The contract's structure gives the client the same economics as Net-30 (or better) if it pays quickly. The form differs; the effect is equivalent. Do not emit a finding. If the client routinely pays later than 30, the discount irrelevance is a client operations issue, not a contract issue.
+
+**Non-flag B — Playbook position doesn't fit the deal structure.**
+Playbook says "Require annual true-up against forecasted volumes." Contract is a one-time purchase order for a fixed quantity of hardware, no subscription, no recurring volume. The playbook provision is for subscription deals; forcing it into an order form is overkill_for_this_deal. Consider it, log internally, do not emit.
+
+**Non-flag C — Absent provision with no realistic trigger.**
+Playbook lists "MFN pricing prohibition" as a reject. Contract is silent on MFN entirely — no "most favored," no "best pricing," no price-comparison clause. Silence means there is no MFN obligation. Do not emit a finding "contract is missing an explicit MFN prohibition." You only flag MFN when MFN-like language is actually PRESENT.

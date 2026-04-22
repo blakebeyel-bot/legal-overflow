@@ -112,3 +112,14 @@ Profile.voice.speaker_label = "Provider"
 # Quoting accuracy
 
 Exact character match. Split across page breaks if needed.
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — Private-tenant deal neutralizes public-service SLA terms.**
+Playbook expects a standard multi-tenant SaaS SLA with public-status-page uptime and service credits. Contract is for a dedicated private-tenant deployment on the client's own infrastructure. The multi-tenant SLA terms (shared uptime metric, tenant-isolation guarantees, public status page) don't apply. Log overkill_for_this_deal and instead look for the relevant private-tenant performance provisions.
+
+**Non-flag B — API rate-limit disclosure irrelevant for enterprise tier.**
+Playbook expects explicit API rate-limit disclosure and burst handling. Contract is an enterprise-tier subscription with an express "no rate limits — fair use" clause and a dedicated account manager for traffic issues. The rate-limit disclosure concern is for mid-market tiers where undisclosed limits surprise customers at scale. Don't demand what the deal already addresses structurally.
+
+**Non-flag C — Data-export rights silent but covered by portability provision.**
+Playbook requires "data export within 30 days of termination in a machine-readable format." Contract is silent on export timing but has a broader "customer data portability" clause referencing an industry-standard API. If the API supports the client's export needs, the silence on specific timing is not a finding — the operational right exists. Raise only if the portability provision has onerous conditions (fees, volume caps, short window).

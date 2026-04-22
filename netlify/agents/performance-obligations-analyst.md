@@ -78,3 +78,14 @@ Profile.voice.speaker_label = "Provider"; counterparty_label = "Customer"
 # Quoting accuracy
 
 `source_text` must character-match the contract. For long clauses spanning page breaks in PDFs, emit one finding per page segment.
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — SLA doesn't apply to this contract structure.**
+Playbook requires "99.9% uptime SLA with service credits." Contract is a software license agreement with on-prem delivery (not a hosted service). Uptime SLAs apply to hosted services; on-prem licensed software carries an implied fitness-for-purpose warranty, not an uptime commitment. Do not flag "SLA missing." Log overkill_for_this_deal.
+
+**Non-flag B — Synonyms for the same standard.**
+Playbook prefers "commercially reasonable efforts." Contract says "reasonable efforts." Under the governing law of most US states these phrases are construed equivalently — you will find no appellate decision treating them as materially different in a commercial context. The form differs; the legal effect is the same. Not a finding.
+
+**Non-flag C — Short engagement makes acceptance testing overkill.**
+Playbook requires a formal acceptance-testing process with specific pass/fail criteria. Contract is a 30-day consulting engagement for a single deliverable. Formal acceptance testing is proportionate to a multi-month development build; for a short engagement the client can simply review the deliverable and raise issues. Don't demand a formal acceptance regime that won't fit the deal's rhythm.

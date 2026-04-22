@@ -30,6 +30,7 @@ export async function buildReviewSummaryDocx({
   contractType,
   pipelineMode,
   findings,
+  priorityThree = [],
   unanchored = [],
   severityCounts,
   reviewedAt,
@@ -72,6 +73,47 @@ export async function buildReviewSummaryDocx({
     ],
   }));
   children.push(new Paragraph({ children: [new TextRun('')] }));
+
+  // Top 3 to Raise — phone-call-level summary (FIRST section per partner request)
+  if (priorityThree && priorityThree.length > 0) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun('Top 3 to raise')],
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({
+        text: 'Partner-level summary. Raise these on a call with the counterparty before sending the full redline.',
+        italics: true,
+      })],
+    }));
+    priorityThree.slice(0, 3).forEach((f, i) => {
+      children.push(new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: `${i + 1}. [${f.severity || '—'}] ${f.category || '—'} · ${f.location || 'Unlocated'}` })],
+      }));
+      if (f.materiality_rationale) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: 'Why: ', bold: true }), new TextRun(f.materiality_rationale)],
+        }));
+      }
+      if (f.position) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: 'Position (opening ask): ', bold: true }), new TextRun(f.position)],
+        }));
+      }
+      if (f.fallback) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: 'Fallback: ', bold: true }), new TextRun(f.fallback)],
+        }));
+      }
+      if (f.walkaway) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: 'Walkaway: ', bold: true }), new TextRun(f.walkaway)],
+        }));
+      }
+      children.push(new Paragraph({ children: [new TextRun('')] }));
+    });
+  }
 
   // Senior-review callouts first (per CLAUDE.md §7)
   const seniorFindings = findings.filter(f => f.requires_senior_review);
@@ -143,9 +185,29 @@ function renderFinding(f, opts = {}) {
     children: [new TextRun({ text: title })],
   }));
 
+  if (f.materiality_rationale) {
+    out.push(new Paragraph({
+      children: [new TextRun({ text: 'Materiality: ', bold: true }), new TextRun(f.materiality_rationale)],
+    }));
+  }
   if (f.internal_note) {
     out.push(new Paragraph({
       children: [new TextRun({ text: 'Why it matters: ', bold: true }), new TextRun(f.internal_note)],
+    }));
+  }
+  if (f.position) {
+    out.push(new Paragraph({
+      children: [new TextRun({ text: 'Position (opening ask): ', bold: true }), new TextRun(f.position)],
+    }));
+  }
+  if (f.fallback) {
+    out.push(new Paragraph({
+      children: [new TextRun({ text: 'Fallback: ', bold: true }), new TextRun(f.fallback)],
+    }));
+  }
+  if (f.walkaway) {
+    out.push(new Paragraph({
+      children: [new TextRun({ text: 'Walkaway: ', bold: true }), new TextRun(f.walkaway)],
     }));
   }
   if (f.source_text) {

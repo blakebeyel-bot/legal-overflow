@@ -42,12 +42,40 @@ async function parseResponse(res: Response, labelOnFail: string): Promise<any> {
   return body;
 }
 
-export async function startReview(file: File): Promise<StartReviewResponse> {
+export async function startReview(
+  file: File,
+  dealPosture: string,
+): Promise<StartReviewResponse> {
   const headers = await authHeader();
   const fd = new FormData();
   fd.append('file', file);
+  fd.append('deal_posture', dealPosture);
   const res = await fetch('/.netlify/functions/start-review', { method: 'POST', headers, body: fd });
   return parseResponse(res, 'Start review');
+}
+
+export interface GoverningAgreementContext {
+  mode: 'summary' | 'file';
+  text?: string;
+  storage_key?: string;
+}
+
+export async function confirmReview(
+  reviewId: string,
+  pipelineMode: 'express' | 'standard' | 'comprehensive',
+  governingAgreementContext?: GoverningAgreementContext | null,
+): Promise<{ ok: boolean; review_id: string }> {
+  const headers = { ...(await authHeader()), 'Content-Type': 'application/json' };
+  const res = await fetch('/.netlify/functions/confirm-review', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      review_id: reviewId,
+      pipeline_mode: pipelineMode,
+      governing_agreement_context: governingAgreementContext ?? null,
+    }),
+  });
+  return parseResponse(res, 'Confirm review');
 }
 
 export async function getReview(reviewId: string): Promise<GetReviewResponse> {
@@ -153,15 +181,12 @@ export interface StartReviewResponse {
   review_id: string;
   contract_type: string;
   pipeline_mode: string;
+  confidence: number;
+  is_subordinate: boolean;
+  reasoning: string;
   quota: { used: number; cap: number; remaining: number; tier: string };
-  /**
-   * 'configured' — the user has a company profile; Tier-1 playbook-driven
-   *                checks will apply alongside industry baseline.
-   * 'baseline_only' — no profile saved; review uses DEFAULT_PROFILE, so
-   *                Tier-1 produces nothing and all findings are INDUSTRY
-   *                BASELINE. The UI should show a nudge to fill the form.
-   */
   profile_mode: 'configured' | 'baseline_only';
+  deal_posture: string | null;
 }
 
 export interface GetReviewResponse {

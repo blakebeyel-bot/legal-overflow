@@ -34,6 +34,10 @@ export default async (req) => {
     .from('company_profiles').select('id').eq('user_id', auth.user.id).maybeSingle();
   const hasProfile = !!profileRow;
 
+  // Parse deal_posture (now collected upfront in the UI). Optional at the
+  // API level so legacy clients still work — but the UI requires it.
+  let dealPosture = null;
+
   // Quota gate
   const quota = await checkReviewQuota(auth.user.id);
   if (!quota.allowed) {
@@ -58,6 +62,15 @@ export default async (req) => {
     return json({ error: `File exceeds ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB cap` }, 413);
   }
 
+  // deal_posture is part of the form — validated here, saved on reviews row
+  const postureRaw = formData.get('deal_posture');
+  const ALLOWED_POSTURES = new Set([
+    'our_paper', 'their_paper_high_leverage', 'their_paper_low_leverage', 'negotiated_draft',
+  ]);
+  if (postureRaw && typeof postureRaw === 'string' && ALLOWED_POSTURES.has(postureRaw)) {
+    dealPosture = postureRaw;
+  }
+
   const filename = file.name || 'contract';
   const ext = (filename.split('.').pop() || '').toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {
@@ -73,6 +86,7 @@ export default async (req) => {
     .insert({
       user_id: auth.user.id,
       filename,
+      deal_posture: dealPosture,
       status: 'queued',
       progress_message: 'Uploaded; extracting text…',
     })
@@ -105,68 +119,79 @@ export default async (req) => {
   }
 
   const classifier = getAgent('document-classifier');
-  let classification = { contract_type: 'unclassified', pipeline_mode: 'standard' };
+  let classification = {
+    contract_type: 'unclassified',
+    pipeline_mode: 'standard',
+    confidence: 0,
+  };
   try {
     const resp = await callModel({
       agentName: 'document-classifier',
       systemPrompt: classifier.systemPrompt,
       userMessage:
-        `Classify the following contract. Return ONLY a JSON object with keys ` +
-        `"contract_type" (string), "pipeline_mode" (one of "express"|"standard"|"comprehensive"), ` +
-        `and "reasoning" (one-sentence string).\n\nCONTRACT:\n${contractText.slice(0, 20_000)}`,
+        `Classify the following contract. Return ONLY a JSON object with keys:\n` +
+        `  "contract_type"  — string, e.g. "master_services_agreement", "order_form", "sow", "nda", "subscription_agreement", "purchase_order", "work_order", "license_agreement", ...\n` +
+        `  "pipeline_mode"  — one of "express" | "standard" | "comprehensive"\n` +
+        `  "confidence"     — number 0-1 representing how certain you are about contract_type AND pipeline_mode. Be honest; low confidence is better than wrong.\n` +
+        `  "is_subordinate" — boolean. True if the document is an order_form, sow, work_order, statement_of_work, addendum, or similar document that references or is governed by a separate master agreement.\n` +
+        `  "reasoning"      — one-sentence string.\n\n` +
+        `CONFIDENCE GUIDE:\n` +
+        `  0.9+: unambiguous match — clearly labeled as the type, standard structure present.\n` +
+        `  0.7–0.89: likely but with some ambiguity.\n` +
+        `  0.4–0.69: plausible but uncertain — document is malformed, mixed, or atypical.\n` +
+        `  <0.4: unclassifiable.\n\n` +
+        `CONTRACT:\n${contractText.slice(0, 20_000)}`,
       userId: auth.user.id,
       reviewId,
       maxTokens: 1024,
     });
     const parsed = extractJson(resp.text);
-    if (parsed && parsed.contract_type) classification = parsed;
+    if (parsed && parsed.contract_type) {
+      classification = {
+        contract_type: parsed.contract_type,
+        pipeline_mode: parsed.pipeline_mode || 'standard',
+        confidence: Number.isFinite(parsed.confidence) ? parsed.confidence : 0.5,
+        is_subordinate: parsed.is_subordinate === true,
+        reasoning: parsed.reasoning || '',
+      };
+    }
   } catch (err) {
-    // Classification failure isn't fatal — default to standard pipeline
     console.error('classifier failed, defaulting to standard:', err.message);
+  }
+
+  // Confidence-based pipeline-mode guardrails:
+  //   Only downgrade to express when the classifier is highly confident.
+  //   On low confidence, force standard so we don't skip specialists on
+  //   something we misread.
+  if (classification.pipeline_mode === 'express' && classification.confidence < 0.85) {
+    classification.pipeline_mode = 'standard';
+  }
+  if (classification.confidence < 0.4) {
+    classification.pipeline_mode = 'standard';
   }
 
   await supabase.from('reviews').update({
     contract_type: classification.contract_type,
     pipeline_mode: classification.pipeline_mode,
+    classification_confidence: classification.confidence,
     status: 'classifying',
-    progress_message: `Classified as ${classification.contract_type} — starting ${classification.pipeline_mode} pipeline.`,
+    progress_message: `Classified as ${classification.contract_type} — awaiting confirmation.`,
   }).eq('id', reviewId);
 
-  // Invoke the background function. Background functions return 202
-  // immediately and continue running asynchronously, so awaiting this
-  // only waits for the HTTP request to be accepted — not for the work
-  // to complete. We MUST await it: on Lambda, an un-awaited fetch often
-  // gets aborted when the parent function returns and the container
-  // freezes. (This was the "stuck at Extracting" bug.)
-  const backgroundUrl = new URL('/.netlify/functions/fanout-background', req.url).toString();
-  try {
-    const bgResp = await fetch(backgroundUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': req.headers.get('Authorization'),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ review_id: reviewId }),
-    });
-    console.log(`[start-review] background fanout kicked: HTTP ${bgResp.status}`);
-  } catch (err) {
-    console.error('[start-review] failed to kick background fanout:', err);
-    // Mark the review as failed so the UI shows a real error instead
-    // of spinning forever.
-    await supabase.from('reviews').update({
-      status: 'failed',
-      error_message: 'Could not start background review: ' + err.message,
-    }).eq('id', reviewId);
-    return json({ error: 'Background fanout failed to start: ' + err.message }, 500);
-  }
-
+  // DO NOT fire fanout here. The UI displays the classification, optionally
+  // prompts for MSA context if is_subordinate, then calls confirm-review
+  // which actually kicks the background fanout.
   return json({
     ok: true,
     review_id: reviewId,
     contract_type: classification.contract_type,
     pipeline_mode: classification.pipeline_mode,
+    confidence: classification.confidence,
+    is_subordinate: !!classification.is_subordinate,
+    reasoning: classification.reasoning || '',
     quota,
     profile_mode: hasProfile ? 'configured' : 'baseline_only',
+    deal_posture: dealPosture,
   });
 };
 

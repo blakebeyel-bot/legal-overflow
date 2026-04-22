@@ -81,6 +81,16 @@ async function processReview({ userId, reviewId, supabase }) {
   const { data: review } = await supabase.from('reviews').select('*').eq('id', reviewId).single();
   if (!review) throw new Error('Review row missing');
 
+  // 2a. Snapshot the profile onto the review row for audit. Lets us
+  //     answer "why did we flag X in this review but not that one six
+  //     months ago" — the profile may have changed since.
+  try {
+    await supabase.from('reviews').update({ profile_snapshot: profile }).eq('id', reviewId);
+  } catch (e) { console.error('[fanout-background] profile_snapshot write failed:', e); }
+
+  const dealPosture = review.deal_posture || null;
+  const governingAgreementContext = review.governing_agreement_context || null;
+
   // 3. Download the contract from contracts-incoming
   const storagePath = `${userId}/${reviewId}/${review.filename}`;
   const { data: blob, error: dlErr } = await supabase.storage
@@ -117,18 +127,41 @@ async function processReview({ userId, reviewId, supabase }) {
         profileJson: profile,
         contractText,
         taskPrompt:
-          `Review the contract above against the company profile. The profile is AUTHORITATIVE — treat it as the client's own instructions and prioritize accordingly.\n\n` +
-          `PRIORITY ORDER for your findings:\n\n` +
-          `TIER 1 — PROFILE-DRIVEN (highest priority). Anything tied to this specific client's stated preferences. Include the matching profile path in the finding's "profile_refs" array:\n` +
-          `  1a. Provisions in the contract that MATCH an entry in profile.red_flags (use the red flag's severity; set requires_senior_review=true if auto_escalate).\n` +
-          `  1b. Provisions in the contract that VIOLATE profile.positions.<your_category>.rejects (severity: Blocker or Major).\n` +
-          `  1c. Provisions in the contract that MISALIGN with profile.positions.<your_category>.accepts (severity: Major).\n` +
-          `  1d. Provisions REQUIRED by profile.positions.<your_category>.accepts that are ABSENT from the contract (markup_type: "insert", severity: Major — these are missing required provisions).\n\n` +
-          `TIER 2 — INDUSTRY-BASELINE (lower priority, fills gaps). Only AFTER Tier 1 is exhausted, apply your own system-level checklist using profile.company.industry and profile.company.role_in_contracts as context. Do NOT second-guess a Tier-1 finding with a generic industry check — the profile wins.\n` +
-          `  Examples of Tier-2 absence findings when applicable and not already covered by the profile: a SaaS agreement without any SLA, a services agreement without a limitation-of-liability cap, a contract handling personal data without a DPA reference, an indefinite term without termination-for-convenience, a subscription without data export/deletion rights at termination.\n` +
-          `  Tier-2 findings MUST leave profile_refs empty and set severity based on industry impact (usually Moderate unless it's a clear safety rail like absent liability cap).\n\n` +
-          `For ABSENCE findings (Tier 1d or Tier 2): 'location' can say "Entire agreement — missing"; use a short anchor from the nearest related section as 'source_text' for insert placement, or 'anchor_text': null + 'markup_type': "annotate" if no related section exists.\n\n` +
-          `Return ONLY a JSON array of findings matching the schema defined in your system prompt. Order: all Tier-1 findings first, then Tier-2. No preface, no prose.`,
+          `You are reviewing the contract above on behalf of the client whose profile is your context. Act like a senior outside counsel doing a thoughtful redline — not a checklist bot.\n\n` +
+          dealPostureBlock(dealPosture) +
+          governingAgreementBlock(governingAgreementContext) +
+          `STEP 0 — NAME YOUR ASSUMED JURISDICTION\n` +
+          `Before you begin, identify the governing-law jurisdiction the contract specifies. If it is silent or ambiguous from the four corners of the document, state "not determinable from the four corners" in your reasoning and proceed conservatively (assume the client's home jurisdiction only when nothing else applies). Your absence-reasoning in STEP 2 must reflect this.\n\n` +
+          `STEP 1 — PROVISIONS PRESENT (Tier 1 and Tier 2)\n` +
+          `TIER 1 — CLIENT-SPECIFIC. Flag issues tied to the client's actual positions in their profile. Include the matching profile path in profile_refs:\n` +
+          `  • Provisions matching profile.red_flags → use the red_flag's severity; set requires_senior_review=true if auto_escalate.\n` +
+          `  • Provisions VIOLATING profile.positions.<your_category>.rejects → Blocker or Major.\n` +
+          `  • Provisions meaningfully MISALIGNING with profile.positions.<your_category>.accepts → Major or Moderate, using judgment on magnitude. Minor wording differences that achieve the same effect are NOT findings.\n` +
+          `TIER 2 — INDUSTRY BASELINE. Apply your system-level checklist to provisions the profile doesn't explicitly address. Leave profile_refs empty; severity based on real-world impact.\n\n` +
+          `STEP 2 — ABSENT PROVISIONS — THE THREE-QUESTION GATE (strict)\n` +
+          `Before you emit ANY absence finding, the playbook position (or your baseline check) must pass all three gates. If any fails, do NOT emit the finding.\n` +
+          `  (a) Does this absence create CONCRETE exposure in THIS deal, given its size, posture, and transaction type? Name the dollar, operational, or legal exposure specifically.\n` +
+          `  (b) Is the concern already covered — elsewhere in the contract, by an incorporated MSA/terms, or by background law in the governing jurisdiction you named in STEP 0?\n` +
+          `  (c) Would a senior lawyer ACTUALLY fight for this in negotiation for a deal of this size and profile? Or would it die in the first round as a nit?\n\n` +
+          `If an absence passes all three gates, prefer markup_type "annotate" unless there is a clean insertion point AND the omission is clearly material — then use "insert". Silence on a non-material absence is the correct answer.\n\n` +
+          `STEP 3 — CAP AND CURATION\n` +
+          `You may emit AT MOST 4 findings. If you have more candidates, keep the four whose materiality_rationale names the most concrete deal-specific harm. Proportionality is your job, not the compiler's.\n\n` +
+          `STEP 4 — SUGGESTED LANGUAGE\n` +
+          `Match the contract's drafting style and defined terms. Do not paste playbook.preferred_language verbatim unless it fits. Propose the minimum edit that solves the problem.\n\n` +
+          `STEP 5 — TONE\n` +
+          `This review goes to the counterparty. Frame findings as measured, market-standard positions. A redline that flags 30 things when 4 are material gets dismissed.\n\n` +
+          `STRICT FINDING SCHEMA — every finding MUST include these fields:\n` +
+          `  {\n` +
+          `    category, location, source_text, anchor_text, markup_type,\n` +
+          `    suggested_text, external_comment, internal_note, severity,\n` +
+          `    profile_refs, requires_senior_review,\n` +
+          `    materiality_rationale:      // 1-2 sentence concrete business harm if signed as-is, specific to THIS deal. If you cannot articulate one, do not emit the finding.\n` +
+          `    playbook_fit:               // REQUIRED when profile_refs is non-empty. One of: "applies" | "applies_with_modification" | "overkill_for_this_deal". Only the first two may appear in your output — if the correct answer is "overkill_for_this_deal" you considered it and chose NOT to flag. (Omit this field when profile_refs is empty — it's a Tier-2 industry-baseline finding.)\n` +
+          `    position:                   // the opening ask — your ideal clause language or demand\n` +
+          `    fallback:                   // optional — the acceptable middle-ground language the client could live with\n` +
+          `    walkaway:                   // optional — the point below which the client should NOT sign this deal\n` +
+          `  }\n\n` +
+          `Return ONLY a JSON array of findings. Order: all Tier-1 findings first, then Tier-2. No preface, no prose.`,
         userId, reviewId,
         maxTokens: 8192,
         tokensUsedSoFar: tokensUsed,
@@ -168,17 +201,20 @@ async function processReview({ userId, reviewId, supabase }) {
       contractText,
       taskPrompt:
         `The specialist fan-out has already produced these findings:\n\n${JSON.stringify(allFindings)}\n\n` +
-        `Run your final sweep with strict PRIORITY ORDER. The profile is AUTHORITATIVE.\n\n` +
-        `TIER 1 — PROFILE-DRIVEN (highest priority).\n` +
-        `  1a. RED-FLAG SWEEP. Check every entry in profile.red_flags against the contract using its trigger_phrases + semantic confirmation. Emit findings for confirmed hits with severity from the red_flag entry; set requires_senior_review=true if auto_escalate. Include "profile_refs": ["red_flags.<id>"].\n` +
-        `  1b. PROFILE-REQUIRED ABSENCE SWEEP. For every position the profile treats as accepted/required (profile.positions.<category>.accepts entries, preferred_language, etc.) that is NOT in the contract, emit an absence finding. Include the profile path in profile_refs.\n\n` +
-        `TIER 2 — INDUSTRY-BASELINE (lower priority, fills gaps).\n` +
-        `  Independent of the profile's explicit lists, audit for categorically absent provisions that a contract of this type SHOULD contain based on profile.company.industry and profile.company.role_in_contracts. ` +
-        `Common omissions to flag when applicable AND not already covered above: SLA, limitation of liability cap, DPA / data processing, data security + breach notification, termination for convenience, data export/deletion rights at termination, indemnification structure, warranty scope, governing law + venue, subcontractor flow-down for compliance-sensitive industries. ` +
-        `Tier-2 findings leave profile_refs empty.\n\n` +
-        `DO NOT duplicate findings already in the specialist list above — the compiler dedupes but effort is wasted.\n` +
-        `DO NOT reorder or contradict Tier-1 findings with Tier-2 reasoning. The profile wins.\n\n` +
-        `Return ONLY a JSON array of ADDITIONAL findings, Tier-1 first then Tier-2. Empty array if the specialists covered everything.`,
+        `You are the final sweep — a senior partner's last read before the redline goes out.\n\n` +
+        dealPostureBlock(dealPosture) +
+        governingAgreementBlock(governingAgreementContext) +
+        `STEP 0 — JURISDICTION. Identify the governing-law jurisdiction. If not determinable from the four corners, state so and proceed conservatively.\n\n` +
+        `STEP 1 — RED-FLAG CHECK. For each entry in profile.red_flags that ACTUALLY appears in the contract (trigger_phrases + semantic confirmation), emit a finding with the red_flag's severity. Skip if a specialist already covered it.\n\n` +
+        `STEP 2 — MATERIAL-OMISSION CHECK (three-question gate — same as specialists):\n` +
+        `  (a) Concrete exposure in THIS deal?\n` +
+        `  (b) Covered elsewhere in the contract or by background law in the named jurisdiction?\n` +
+        `  (c) Would a senior lawyer actually fight this in negotiation?\n` +
+        `If any gate fails, do NOT emit.\n\n` +
+        `STEP 3 — CAP AT 3 ADDITIONAL FINDINGS. Your value is catching genuine misses, not expanding coverage. If the specialists already covered the serious items, return an empty array. Silence is acceptable.\n\n` +
+        `STRICT FINDING SCHEMA — identical to specialists, required fields:\n` +
+        `  materiality_rationale (concrete business harm), playbook_fit (when profile_refs non-empty; only "applies" or "applies_with_modification" may appear), position, optional fallback, optional walkaway.\n\n` +
+        `Return ONLY a JSON array of ADDITIONAL findings (or empty array). No preface, no prose.`,
       userId, reviewId,
       maxTokens: 4096,
       tokensUsedSoFar: tokensUsed,
@@ -194,6 +230,7 @@ async function processReview({ userId, reviewId, supabase }) {
   await updateProgress(supabase, reviewId, 'compiling', 'Compiling review…');
   const compiler = getAgent('review-compiler');
   let compiledFindings = allFindings;
+  let compiledPriorityThree = [];
   try {
     const compileResp = await callSpecialist({
       agentName: 'review-compiler',
@@ -201,23 +238,72 @@ async function processReview({ userId, reviewId, supabase }) {
       profileJson: profile,
       contractText,
       taskPrompt:
-        `Deduplicate and consolidate the findings below. Enforce the voice rules in your system prompt — no case citations, no severity labels in external_comment, no profile references in external_comment.\n\n` +
-        `ORDERING RULES (important — the client reads findings top-to-bottom):\n` +
-        `1. Sort FIRST by tier: findings with a non-empty profile_refs array (Tier 1 — client-specific, playbook-driven) BEFORE findings with empty profile_refs (Tier 2 — generic industry baseline).\n` +
-        `2. Within each tier, sort by severity: Blocker > Major > Moderate > Minor.\n` +
-        `3. When deduplicating, if a Tier-1 finding and a Tier-2 finding cover the same issue, KEEP the Tier-1 version (it references the client's specific playbook language).\n\n` +
-        `Return ONLY the cleaned JSON array in the sorted order above.\n\n` +
-        `FINDINGS:\n${JSON.stringify(allFindings)}`,
+        `Consolidate and polish the findings below into a final redline. Enforce the voice rules in your system prompt — no case citations, no severity labels in external_comment, no profile references in external_comment.\n\n` +
+        dealPostureBlock(dealPosture) +
+        `STEP 1 — SCHEMA VALIDATION. Every finding MUST have:\n` +
+        `  • materiality_rationale: non-empty 1-2 sentence concrete-harm statement specific to THIS deal.\n` +
+        `  • position: non-empty string (the opening ask).\n` +
+        `  • When profile_refs is non-empty: playbook_fit ∈ {"applies","applies_with_modification"}. Any "overkill_for_this_deal" or missing playbook_fit → DROP the finding.\n` +
+        `DROP any finding that fails validation. If materiality_rationale is hand-wavy ("this could be risky", "market standard") without concrete deal-specific harm, DROP it.\n\n` +
+        `STEP 2 — PROPORTIONALITY PRUNE.\n` +
+        `  • Drop findings that are nits, redundant with a stronger finding, or would make the redline look unreasonable.\n` +
+        `  • When two findings touch the same section, keep the higher-severity one and fold relevant context into its external_comment.\n` +
+        `  • Target 4–10 total findings. A focused redline lands harder than a 25-item demand list.\n\n` +
+        `STEP 3 — ORDERING.\n` +
+        `  1. Tier-1 (non-empty profile_refs) before Tier-2.\n` +
+        `  2. Within tier: Blocker > Major > Moderate > Minor.\n` +
+        `  3. On Tier-1/Tier-2 overlap, keep the Tier-1 version.\n\n` +
+        `STEP 4 — PRIORITY-THREE SELECTION.\n` +
+        `From the pruned list, select up to 3 findings that a partner should raise on a phone call with the counterparty. Pick by: (severity × client-leverage × playbook priority). Blockers always qualify; Major issues with client-leverage implications qualify; nothing below Major should appear unless the deal has no higher-severity issues.\n\n` +
+        `STEP 5 — VOICE POLISH.\n` +
+        `  • suggested_text matches the contract's drafting style and defined terms.\n` +
+        `  • external_comment reads as a measured senior-counsel suggestion, not an ultimatum.\n` +
+        `  • Do NOT leak internal_note, materiality_rationale, position, fallback, or walkaway content into external_comment. Those are internal.\n\n` +
+        `OUTPUT FORMAT — return ONE JSON object (not an array) with this exact shape:\n` +
+        `  {\n` +
+        `    "findings": [ ...cleaned & sorted finding objects... ],\n` +
+        `    "priority_three": [ "finding_id_or_index_1", "finding_id_or_index_2", "finding_id_or_index_3" ]\n` +
+        `  }\n` +
+        `Use each finding's 'id' field if it has one, otherwise use the zero-based index into the findings array. priority_three should have 1–3 entries (empty only if the contract is entirely clean).\n\n` +
+        `FINDINGS TO PROCESS:\n${JSON.stringify(allFindings)}`,
       userId, reviewId,
       maxTokens: 12_000,
       tokensUsedSoFar: tokensUsed,
     });
     tokensUsed += (compileResp.usage.input_tokens || 0) + (compileResp.usage.output_tokens || 0);
     const compiled = extractJson(compileResp.text);
-    if (Array.isArray(compiled)) compiledFindings = compiled;
+    // Compiler now returns { findings, priority_three }. Fall back to
+    // array shape for backward compatibility during rollout.
+    if (Array.isArray(compiled)) {
+      compiledFindings = compiled;
+    } else if (compiled && Array.isArray(compiled.findings)) {
+      compiledFindings = compiled.findings;
+      compiledPriorityThree = Array.isArray(compiled.priority_three) ? compiled.priority_three : [];
+    }
   } catch (e) {
     console.error('compiler failed, using raw findings:', e.message);
   }
+
+  // Post-process: drop any finding missing required fields (final guardrail
+  // in case the compiler didn't). Preserves the priority_three list but
+  // filters out referenced IDs that got dropped.
+  compiledFindings = compiledFindings.filter(f => {
+    if (!f || typeof f !== 'object') return false;
+    if (!f.materiality_rationale || typeof f.materiality_rationale !== 'string') return false;
+    if (Array.isArray(f.profile_refs) && f.profile_refs.length > 0) {
+      const fit = f.playbook_fit;
+      if (fit !== 'applies' && fit !== 'applies_with_modification') return false;
+    }
+    if (!f.position || typeof f.position !== 'string') return false;
+    return true;
+  });
+  // Assign stable ids so priority_three references survive markup / summary
+  compiledFindings.forEach((f, i) => { if (!f.id) f.id = `f${i + 1}`; });
+  // Resolve priority_three to actual findings (by id or index)
+  const priorityFindings = (compiledPriorityThree || []).slice(0, 3).map(ref => {
+    if (typeof ref === 'number') return compiledFindings[ref] || null;
+    return compiledFindings.find(f => f.id === ref) || null;
+  }).filter(Boolean);
 
   // 8. Apply markup
   let annotated, unanchored;
@@ -241,6 +327,7 @@ async function processReview({ userId, reviewId, supabase }) {
     contractType: review.contract_type,
     pipelineMode: mode,
     findings: compiledFindings,
+    priorityThree: priorityFindings,
     unanchored,
     severityCounts,
     reviewedAt: new Date(),
@@ -262,7 +349,10 @@ async function processReview({ userId, reviewId, supabase }) {
       contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       upsert: true,
     }),
-    supabase.storage.from('reviews-output').upload(findingsKey, Buffer.from(JSON.stringify(compiledFindings, null, 2)), {
+    supabase.storage.from('reviews-output').upload(findingsKey, Buffer.from(JSON.stringify({
+      findings: compiledFindings,
+      priority_three: priorityFindings.map(f => f.id),
+    }, null, 2)), {
       contentType: 'application/json',
       upsert: true,
     }),
@@ -287,6 +377,50 @@ async function updateProgress(supabase, reviewId, status, message) {
     status,
     progress_message: message,
   }).eq('id', reviewId);
+}
+
+/**
+ * Prompt-injection for deal posture. Materially changes how aggressive
+ * the specialists should be about flagging deviations from the playbook.
+ */
+function dealPostureBlock(posture) {
+  if (!posture) return '';
+  const text = {
+    our_paper:
+      `DEAL POSTURE: OUR PAPER\n` +
+      `This is the client's own form. Deviations from playbook positions are unusual and should be explained — raise the bar for ACCEPTING deviations. Any edit the counterparty made that weakens our position deserves scrutiny. Maintain confidence in the client's preferred language.\n\n`,
+    their_paper_high_leverage:
+      `DEAL POSTURE: THEIR PAPER, WE NEED THIS DEAL\n` +
+      `The client has low leverage. Only blocker-level issues justify pushback; nits and minor misalignments should be suppressed hard. Be pragmatic — what would realistically get conceded without risking the deal? Your redline should look like you were reviewing for a partner who needs this contract signed, not winning a paper war. Soft-pedal the language of suggestions. Prefer "annotate" over "insert" or "replace" unless a provision creates truly material exposure.\n\n`,
+    their_paper_low_leverage:
+      `DEAL POSTURE: THEIR PAPER, THEY NEED THIS DEAL\n` +
+      `The client has strong leverage. Be direct about deviations from the playbook — a Major finding here is genuinely a Major. Don't soft-pedal; the counterparty is motivated to accept reasonable edits. Still avoid nit-picks that would signal inexperience.\n\n`,
+    negotiated_draft:
+      `DEAL POSTURE: NEGOTIATED DRAFT\n` +
+      `Both sides are actively editing. Focus on provisions that remain open or that have drifted from prior rounds; assume counterparty has already pushed back on anything obvious. Propose compromises where the playbook position is extreme. Call out anything that has changed materially from standard market positions.\n\n`,
+  }[posture];
+  return text || '';
+}
+
+/**
+ * Prompt-injection for governing-agreement context. Only present when the
+ * user indicated the contract is subordinate to an MSA and provided context.
+ */
+function governingAgreementBlock(ctx) {
+  if (!ctx) return '';
+  if (ctx.mode === 'summary' && ctx.text) {
+    return (
+      `GOVERNING AGREEMENT CONTEXT (user-supplied summary of the MSA this document sits under):\n` +
+      `${ctx.text}\n\n` +
+      `Use this context to avoid flagging provisions already handled by the MSA. A clause absent from this document may be covered by the MSA above — check before emitting absence findings. Cite "the governing MSA" (not the playbook) when referring to provisions you assume are covered upstream.\n\n`
+    );
+  }
+  if (ctx.mode === 'file') {
+    return (
+      `GOVERNING AGREEMENT CONTEXT: the user uploaded a governing MSA (storage key: ${ctx.storage_key}). For this review pass, assume the MSA contains standard-market provisions for the clauses this document leaves out. Do not demand insertion of clauses you would reasonably expect an MSA to cover (indemnity, liability cap, IP ownership, confidentiality, governing law) unless this document expressly overrides them.\n\n`
+    );
+  }
+  return '';
 }
 
 /**

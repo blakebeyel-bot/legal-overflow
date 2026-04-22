@@ -81,3 +81,14 @@ Profile.voice.speaker_label = "Provider"
 # Quoting accuracy
 
 Character-exact `source_text`. Split across page breaks if needed.
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — Short-term contract makes termination-for-convenience less critical.**
+Playbook wants "30 days' notice termination for convenience." Contract term is 90 days with automatic end (no renewal). Termination for convenience adds ~2 months of optionality on a 3-month deal; the marginal value is minimal and counterparty will reasonably resist. Senior counsel would not fight this. Log overkill_for_this_deal.
+
+**Non-flag B — Cure period difference that's still market-reasonable.**
+Playbook wants 10-day cure. Contract has 30-day cure. For a non-time-sensitive deliverable, 30 days is the industry norm and a reasonable accommodation. Fighting for 10-day cure signals either a specific operational need (which should be documented) or a nit. Don't emit unless the deal type or deliverable has true time-sensitivity.
+
+**Non-flag C — Silence on dispute-resolution mechanism.**
+Playbook prefers JAMS arbitration. Contract is silent on dispute resolution. In most jurisdictions, silence defaults to court litigation in the governing-law venue — which is a perfectly functional dispute mechanism, not a defect. The absence of an arbitration clause is a preference miss, not a legal vulnerability. Log overkill_for_this_deal or flag as Moderate only if the client has strong operational reasons to require arbitration.

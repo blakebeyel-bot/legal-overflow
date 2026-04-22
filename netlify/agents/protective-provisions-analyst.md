@@ -78,3 +78,14 @@ Profile.voice.speaker_label = "Provider"
 # Quoting accuracy
 
 Exact character match. Split across page breaks if needed.
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — Confidentiality duration silent but governed by default.**
+Playbook wants "3-year confidentiality term post-termination." Contract's confidentiality clause has no stated duration. Under the governing law of most US states, unlimited-duration confidentiality covenants are construed as lasting for a "reasonable time" which courts generally uphold for 2–5 years in a B2B context. The client's 3-year position is within the default-interpreted range. Not a finding.
+
+**Non-flag B — IP ownership provision doesn't apply to the deal type.**
+Playbook says "Client retains ownership of all work product." Contract is an inbound software license — the client is the licensee, not the commissioner of custom work. There is no "work product" for the license-out party to own; the playbook position is directed at services/development deals. Log overkill_for_this_deal.
+
+**Non-flag C — Absent non-compete in a deal structure where it doesn't apply.**
+Playbook wants "mutual non-compete — provider may not serve competitors in the same vertical during the term." Contract is a volume-discount purchase agreement for commodity goods from a supplier the client buys the same goods from quarterly. Non-competes in goods-purchase relationships are atypical and unenforceable in most jurisdictions. Don't demand one. Log overkill_for_this_deal.

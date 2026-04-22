@@ -276,6 +276,17 @@ import Consent from '../../partials/consent.astro';
 
     <!-- Upload -->
     <div id="review-upload" class="panel" style="padding:40px;">
+      <div class="upload-posture">
+        <label for="deal-posture-select" class="upload-posture-label">Deal posture <span class="req">*</span></label>
+        <select id="deal-posture-select" required>
+          <option value="">Select the deal's negotiating posture…</option>
+          <option value="our_paper">Our paper — client's own form</option>
+          <option value="their_paper_high_leverage">Their paper — we need this deal</option>
+          <option value="their_paper_low_leverage">Their paper — they need this deal</option>
+          <option value="negotiated_draft">Negotiated draft — both sides editing</option>
+        </select>
+        <div class="upload-posture-hint">Affects how aggressively the specialists push back on deviations from the playbook.</div>
+      </div>
       <div class="dropzone" id="dropzone">
         <div class="dropzone-title">Drop a contract <em>here</em></div>
         <div class="dropzone-sub">or click to select a file</div>
@@ -286,6 +297,54 @@ import Consent from '../../partials/consent.astro';
         </div>
       </div>
       <input type="file" id="contract-file-input" accept=".pdf,.docx,.txt,.md" style="display:none;" />
+    </div>
+
+    <!-- Classification confirm (between upload and progress) -->
+    <div id="review-confirm" class="panel hidden">
+      <div class="confirm-head">
+        <div class="kicker"><span class="kicker-dash"></span><span>Confirm</span></div>
+        <h2 class="confirm-title">Classified as <em id="confirm-contract-type">—</em></h2>
+        <div class="confirm-sub" id="confirm-sub">Running standard pipeline. Change mode if you disagree.</div>
+        <div class="confirm-confidence" id="confirm-confidence"></div>
+      </div>
+
+      <!-- Governing-agreement context: shown when classifier marks doc as subordinate -->
+      <div id="confirm-governing" class="confirm-governing hidden">
+        <div class="confirm-governing-head">Governing MSA / master-agreement context</div>
+        <div class="confirm-governing-sub">This looks like a subordinate document. The specialists need to know what the governing MSA covers so they don't flag provisions already handled upstream.</div>
+        <div class="confirm-governing-tabs">
+          <button type="button" class="cg-tab active" data-cg-tab="summary">Paste key terms</button>
+          <button type="button" class="cg-tab" data-cg-tab="file">Upload MSA file</button>
+          <button type="button" class="cg-tab" data-cg-tab="skip">Skip (no MSA)</button>
+        </div>
+        <div class="confirm-governing-body">
+          <textarea id="cg-summary" class="cg-panel" rows="4" placeholder="e.g. Indemnification is mutual; liability cap is 2× fees paid in prior 12 months; IP ownership retained by Provider; 30-day termination for convenience; Delaware governing law."></textarea>
+          <div id="cg-file-panel" class="cg-panel hidden">
+            <input type="file" id="cg-file-input" accept=".pdf,.docx,.txt,.md" />
+            <div class="cg-file-hint">Upload the MSA file; the specialists will treat it as context for what's already covered.</div>
+          </div>
+          <div id="cg-skip-panel" class="cg-panel hidden">
+            <div class="cg-file-hint">Proceeding without MSA context. Specialists will assume no governing agreement — this may produce more "missing provision" findings.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="confirm-mode-row">
+        <div class="confirm-mode-label">Pipeline mode</div>
+        <div class="confirm-mode-options">
+          <button type="button" class="confirm-mode-btn" data-mode="express">Express</button>
+          <button type="button" class="confirm-mode-btn" data-mode="standard">Standard</button>
+          <button type="button" class="confirm-mode-btn" data-mode="comprehensive">Comprehensive</button>
+        </div>
+      </div>
+
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-primary" id="confirm-start-btn">
+          Run review <span id="confirm-countdown" class="confirm-countdown"></span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" id="confirm-cancel-btn">Cancel</button>
+      </div>
     </div>
 
     <!-- Progress -->
@@ -351,6 +410,27 @@ import Consent from '../../partials/consent.astro';
         <div class="sev major"><div class="sev-l">Major</div><div class="sev-n" id="sev-major">0</div></div>
         <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n" id="sev-moderate">0</div></div>
         <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n" id="sev-minor">0</div></div>
+      </div>
+
+      <!-- Top 3 to Raise — partner-level summary, rendered above the full list -->
+      <div class="priority-three-section hidden" id="priority-three-section">
+        <div class="priority-three-head">
+          <div class="priority-three-title">Top 3 to Raise</div>
+          <div class="priority-three-sub">Partner-level summary. Raise these on a call before sending the full redline.</div>
+        </div>
+        <div class="priority-three-list" id="priority-three-list"></div>
+      </div>
+
+      <!-- Structural issues / missing clauses — separate section for
+           findings that couldn't be anchored in the document or are
+           fundamentally structural in nature. These are often the
+           highest-judgment findings. -->
+      <div class="structural-section hidden" id="structural-section">
+        <div class="structural-head">
+          <div class="structural-title">Structural issues / missing clauses</div>
+          <div class="structural-sub">Findings that can't be pinned to a specific line of text. Usually the most strategic items — read these first.</div>
+        </div>
+        <div class="structural-list" id="structural-list"></div>
       </div>
 
       <!-- In-browser findings viewer with severity/category filter -->
@@ -831,25 +911,36 @@ import Consent from '../../partials/consent.astro';
     complete:    'assemble',
   };
 
+  // Pending review state between upload and confirm
+  let pendingKickoff = null;
+  let pendingFile = null;
+  let confirmCountdownInterval = null;
+  let confirmTimeoutMs = 10000;
+
   async function handleContractUpload(file) {
+    // Validate deal_posture before doing anything
+    const postureSelect = document.getElementById('deal-posture-select');
+    const dealPosture = postureSelect?.value || '';
+    if (!dealPosture) {
+      postureSelect?.focus();
+      alert('Please select the deal posture before uploading a contract.');
+      return;
+    }
+
     document.getElementById('review-upload').classList.add('hidden');
     const progress = document.getElementById('review-progress');
     progress.classList.remove('hidden');
     const ext = (file.name.split('.').pop() || '').toUpperCase();
     document.getElementById('progress-file-icon').textContent = ext;
     document.getElementById('progress-file-name').textContent = file.name;
-    document.getElementById('progress-file-sub').textContent = `${Math.round(file.size / 1024)} KB · uploading`;
+    document.getElementById('progress-file-sub').textContent = `${Math.round(file.size / 1024)} KB · classifying…`;
 
     try {
-      const kickoff = await api.startReview(file);
-      const baselineNote = kickoff.profile_mode === 'baseline_only'
-        ? ' · baseline only (no profile)'
-        : '';
-      document.getElementById('progress-file-sub').textContent =
-        `${kickoff.contract_type} · ${kickoff.pipeline_mode}${baselineNote}`;
+      const kickoff = await api.startReview(file, dealPosture);
+      pendingKickoff = kickoff;
+      pendingFile = file;
+
       if (kickoff.profile_mode === 'baseline_only') {
-        // One-time inline banner above the stage list explaining the mode
-        const progress = document.getElementById('review-progress');
         if (!progress.querySelector('.baseline-banner')) {
           const banner = document.createElement('div');
           banner.className = 'banner baseline-banner';
@@ -866,40 +957,146 @@ import Consent from '../../partials/consent.astro';
       markStage('extract', 'done');
       markStage('classify', 'done');
 
-      // Start the elapsed-time ticker. Stops when the review finishes
-      // (promise resolves) or the user navigates away.
-      const reviewStartedAt = Date.now();
-      const elapsedEl = document.getElementById('progress-elapsed-time');
-      const tickInterval = setInterval(() => {
-        const secs = Math.floor((Date.now() - reviewStartedAt) / 1000);
-        const m = Math.floor(secs / 60);
-        const s = String(secs % 60).padStart(2, '0');
-        if (elapsedEl) elapsedEl.textContent = `${m}:${s}`;
-      }, 1000);
+      // Transition to the confirmation panel. Hide progress until confirm fires.
+      progress.classList.add('hidden');
+      showConfirmPanel(kickoff);
+    } catch (err) {
+      document.getElementById('progress-file-sub').textContent = 'Error: ' + err.message;
+    }
+  }
 
-      try {
-        const final = await api.pollReview(kickoff.review_id, (snap) => {
-          const stage = STAGE_MAP[snap.review.status] || 'specialists';
-          // Mark stages done / running / pending based on DB status
-          const order = ['extract','classify','specialists','audit','assemble'];
-          const idx = order.indexOf(stage);
-          order.forEach((s, i) => {
-            markStage(s, i < idx ? 'done' : i === idx && snap.review.status !== 'complete' ? 'running' : i === idx ? 'done' : 'pending');
-          });
-          // Surface progress_message on the active stage's detail line
-          const activeEl = document.querySelector('.stage.running .stage-detail');
-          if (activeEl) activeEl.textContent = snap.review.progress_message || '';
-        });
-        clearInterval(tickInterval);
-        if (final.review.status === 'failed') {
-          throw new Error(final.review.error_message || 'Review failed');
-        }
-        showResults(final);
-        await refreshStatus();
-        return;
-      } finally {
-        clearInterval(tickInterval);
+  function showConfirmPanel(kickoff) {
+    const confirmPanel = document.getElementById('review-confirm');
+    confirmPanel.classList.remove('hidden');
+
+    document.getElementById('confirm-contract-type').textContent = kickoff.contract_type || 'unclassified';
+    const modeLabel = kickoff.pipeline_mode || 'standard';
+    const conf = typeof kickoff.confidence === 'number' ? kickoff.confidence : 0;
+    const confPct = Math.round(conf * 100);
+    const confLabel = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
+    document.getElementById('confirm-sub').textContent =
+      `Running the ${modeLabel} pipeline. Change the mode below if you disagree.`;
+    document.getElementById('confirm-confidence').innerHTML =
+      `Classification confidence: <strong>${confPct}%</strong> (${confLabel}).` +
+      (kickoff.reasoning ? ` ${escapeHtml(kickoff.reasoning)}` : '');
+
+    // Highlight the recommended mode button
+    document.querySelectorAll('.confirm-mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === modeLabel);
+    });
+
+    // Show governing-agreement panel if classifier flagged subordinate type
+    const governingEl = document.getElementById('confirm-governing');
+    governingEl.classList.toggle('hidden', !kickoff.is_subordinate);
+
+    // Start 10-second auto-proceed countdown (pauses when user interacts)
+    startConfirmCountdown();
+  }
+
+  function startConfirmCountdown() {
+    const btn = document.getElementById('confirm-start-btn');
+    const label = document.getElementById('confirm-countdown');
+    let remaining = Math.floor(confirmTimeoutMs / 1000);
+    label.textContent = ` (auto-proceeding in ${remaining}s)`;
+    if (confirmCountdownInterval) clearInterval(confirmCountdownInterval);
+    confirmCountdownInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(confirmCountdownInterval);
+        confirmCountdownInterval = null;
+        btn.click();
+      } else {
+        label.textContent = ` (auto-proceeding in ${remaining}s)`;
       }
+    }, 1000);
+  }
+
+  function cancelConfirmCountdown() {
+    if (confirmCountdownInterval) {
+      clearInterval(confirmCountdownInterval);
+      confirmCountdownInterval = null;
+      document.getElementById('confirm-countdown').textContent = '';
+    }
+  }
+
+  // Wire confirm panel interactions
+  document.querySelectorAll('.confirm-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      cancelConfirmCountdown();
+      document.querySelectorAll('.confirm-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.cg-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      cancelConfirmCountdown();
+      document.querySelectorAll('.cg-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const which = tab.dataset.cgTab;
+      document.getElementById('cg-summary').classList.toggle('hidden', which !== 'summary');
+      document.getElementById('cg-file-panel').classList.toggle('hidden', which !== 'file');
+      document.getElementById('cg-skip-panel').classList.toggle('hidden', which !== 'skip');
+    });
+  });
+  document.getElementById('cg-summary')?.addEventListener('focus', cancelConfirmCountdown);
+
+  document.getElementById('confirm-cancel-btn')?.addEventListener('click', () => {
+    cancelConfirmCountdown();
+    document.getElementById('review-confirm').classList.add('hidden');
+    document.getElementById('review-upload').classList.remove('hidden');
+    pendingKickoff = null;
+    pendingFile = null;
+  });
+
+  document.getElementById('confirm-start-btn')?.addEventListener('click', async () => {
+    cancelConfirmCountdown();
+    if (!pendingKickoff) return;
+
+    // Gather final pipeline mode + governing context
+    const activeModeBtn = document.querySelector('.confirm-mode-btn.active');
+    const finalMode = activeModeBtn?.dataset.mode || pendingKickoff.pipeline_mode || 'standard';
+
+    let governingCtx = null;
+    const governingEl = document.getElementById('confirm-governing');
+    if (!governingEl.classList.contains('hidden')) {
+      const activeTab = document.querySelector('.cg-tab.active')?.dataset.cgTab;
+      if (activeTab === 'summary') {
+        const text = document.getElementById('cg-summary').value.trim();
+        if (text) governingCtx = { mode: 'summary', text };
+      }
+      // file upload mode: TODO — would need a separate upload endpoint. For now, skip.
+    }
+
+    // Hide confirm, show progress
+    document.getElementById('review-confirm').classList.add('hidden');
+    const progress = document.getElementById('review-progress');
+    progress.classList.remove('hidden');
+    document.getElementById('progress-file-sub').textContent =
+      `${pendingKickoff.contract_type} · ${finalMode}`;
+
+    // Start elapsed-time ticker
+    const reviewStartedAt = Date.now();
+    const elapsedEl = document.getElementById('progress-elapsed-time');
+    const tickInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - reviewStartedAt) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = String(secs % 60).padStart(2, '0');
+      if (elapsedEl) elapsedEl.textContent = `${m}:${s}`;
+    }, 1000);
+
+    try {
+      await api.confirmReview(pendingKickoff.review_id, finalMode, governingCtx);
+
+      const final = await api.pollReview(pendingKickoff.review_id, (snap) => {
+        const stage = STAGE_MAP[snap.review.status] || 'specialists';
+        const order = ['extract','classify','specialists','audit','assemble'];
+        const idx = order.indexOf(stage);
+        order.forEach((s, i) => {
+          markStage(s, i < idx ? 'done' : i === idx && snap.review.status !== 'complete' ? 'running' : i === idx ? 'done' : 'pending');
+        });
+        const activeEl = document.querySelector('.stage.running .stage-detail');
+        if (activeEl) activeEl.textContent = snap.review.progress_message || '';
+      });
       if (final.review.status === 'failed') {
         throw new Error(final.review.error_message || 'Review failed');
       }
@@ -907,8 +1104,12 @@ import Consent from '../../partials/consent.astro';
       await refreshStatus();
     } catch (err) {
       document.getElementById('progress-file-sub').textContent = 'Error: ' + err.message;
+    } finally {
+      clearInterval(tickInterval);
+      pendingKickoff = null;
+      pendingFile = null;
     }
-  }
+  });
 
   function markStage(name, state) {
     const el = document.querySelector(`.stage[data-stage="${name}"]`);
@@ -1016,7 +1217,7 @@ import Consent from '../../partials/consent.astro';
     };
 
     return {
-      async loadFrom(url) {
+      async loadFrom(url, priorityEl, structuralEl) {
         if (!url) {
           listEl.innerHTML = '<div class="findings-empty">No findings file available for this review.</div>';
           findings = [];
@@ -1024,11 +1225,19 @@ import Consent from '../../partials/consent.astro';
           return;
         }
         listEl.innerHTML = '<div class="findings-empty">Loading findings…</div>';
+        let priorityIds = [];
         try {
           const resp = await fetch(url);
           if (!resp.ok) throw new Error('Fetch returned ' + resp.status);
           const data = await resp.json();
-          findings = Array.isArray(data) ? data : [];
+          if (Array.isArray(data)) {
+            findings = data;
+          } else if (data && Array.isArray(data.findings)) {
+            findings = data.findings;
+            priorityIds = Array.isArray(data.priority_three) ? data.priority_three : [];
+          } else {
+            findings = [];
+          }
         } catch (err) {
           listEl.innerHTML = `<div class="findings-empty">Could not load findings: ${escapeHtml(err.message)}</div>`;
           return;
@@ -1036,8 +1245,81 @@ import Consent from '../../partials/consent.astro';
         activeFilter = 'all';
         renderFilters();
         renderList();
+        if (priorityEl) renderPriorityThree(priorityEl, findings, priorityIds);
+        if (structuralEl) renderStructural(structuralEl, findings);
       },
     };
+  }
+
+  /**
+   * A finding is "structural" (missing clause / whole-agreement issue) when:
+   *   - it has no source_text (or a placeholder), OR
+   *   - its location says "Entire agreement — missing" / "missing" etc., OR
+   *   - its markup_type is "insert" AND anchor_text is null
+   */
+  function isStructuralFinding(f) {
+    const loc = (f.location || '').toLowerCase();
+    if (loc.includes('missing') || loc.includes('entire agreement')) return true;
+    if (!f.source_text || f.source_text.trim().length < 4) {
+      if (f.markup_type === 'insert' || f.markup_type === 'annotate') return true;
+    }
+    if (f.markup_type === 'insert' && !f.anchor_text) return true;
+    return false;
+  }
+
+  function renderStructural(sectionEl, allFindings) {
+    const listEl = sectionEl.querySelector('.structural-list');
+    const structural = allFindings.filter(isStructuralFinding);
+    if (!structural.length) {
+      sectionEl.classList.add('hidden');
+      return;
+    }
+    sectionEl.classList.remove('hidden');
+    listEl.innerHTML = '';
+    const sevOrder = { blocker: 0, major: 1, moderate: 2, minor: 3 };
+    const isTier1 = (f) => Array.isArray(f.profile_refs) && f.profile_refs.length > 0;
+    const sorted = [...structural].sort((a, b) => {
+      const ta = isTier1(a) ? 0 : 1;
+      const tb = isTier1(b) ? 0 : 1;
+      if (ta !== tb) return ta - tb;
+      return (sevOrder[(a.severity || '').toLowerCase()] ?? 99) - (sevOrder[(b.severity || '').toLowerCase()] ?? 99);
+    });
+    sorted.forEach((f, i) => listEl.appendChild(renderFindingCard(f, i)));
+  }
+
+  function renderPriorityThree(sectionEl, allFindings, priorityIds) {
+    const section = sectionEl;
+    const listEl = section.querySelector('.priority-three-list');
+    if (!Array.isArray(priorityIds) || priorityIds.length === 0) {
+      section.classList.add('hidden');
+      return;
+    }
+    const resolved = priorityIds.slice(0, 3).map(id => {
+      if (typeof id === 'number') return allFindings[id] || null;
+      return allFindings.find(f => f.id === id) || null;
+    }).filter(Boolean);
+    if (!resolved.length) {
+      section.classList.add('hidden');
+      return;
+    }
+    section.classList.remove('hidden');
+    listEl.innerHTML = '';
+    resolved.forEach((f, i) => {
+      const sev = (f.severity || 'minor').toLowerCase();
+      const card = document.createElement('div');
+      card.className = `priority-card sev-${sev}`;
+      card.innerHTML = `
+        <div class="priority-card-head">
+          <span class="priority-card-num">${i + 1}</span>
+          <span class="finding-sev-tag ${sev}">${escapeHtml(f.severity || 'Minor')}</span>
+          <span class="finding-category">${escapeHtml(f.category || '—')}</span>
+          <span class="finding-preview">${escapeHtml((f.location || '').slice(0, 80))}</span>
+        </div>
+        ${f.materiality_rationale ? `<div class="priority-card-rationale">${escapeHtml(f.materiality_rationale)}</div>` : ''}
+        ${f.position ? `<div class="priority-card-ask"><span class="priority-card-label">Opening ask:</span> ${escapeHtml(f.position)}</div>` : ''}
+      `;
+      listEl.appendChild(card);
+    });
   }
 
   // Single viewer for the Review panel. Archive creates its own per row.
@@ -1047,7 +1329,11 @@ import Consent from '../../partials/consent.astro';
   });
 
   async function loadFindingsInline(findingsUrl) {
-    await reviewFindingsViewer.loadFrom(findingsUrl);
+    await reviewFindingsViewer.loadFrom(
+      findingsUrl,
+      document.getElementById('priority-three-section'),
+      document.getElementById('structural-section'),
+    );
   }
 
   // Click-to-collapse on the Review Findings section header
@@ -1070,7 +1356,7 @@ import Consent from '../../partials/consent.astro';
     const preview = previewSource.split('\n')[0].slice(0, 140);
 
     const tierTag = Array.isArray(f.profile_refs) && f.profile_refs.length > 0
-      ? '<span class="finding-tier tier-playbook" title="Flagged against your playbook">YOUR PLAYBOOK</span>'
+      ? '<span class="finding-tier tier-client-position" title="Driven by the client\'s negotiating position / profile">CLIENT POSITION</span>'
       : '<span class="finding-tier tier-baseline" title="Standard industry-practice check">INDUSTRY BASELINE</span>';
 
     const head = document.createElement('div');
@@ -1089,6 +1375,24 @@ import Consent from '../../partials/consent.astro';
     body.className = 'finding-body';
 
     const blocks = [];
+    if (f.materiality_rationale) {
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Materiality — why this matters for this deal</div>
+          <div class="finding-comment">${escapeHtml(f.materiality_rationale)}</div>
+        </div>`);
+    }
+    if (f.position || f.fallback || f.walkaway) {
+      const rows = [];
+      if (f.position) rows.push(`<div class="neg-row"><span class="neg-label">Opening ask</span><span class="neg-value">${escapeHtml(f.position)}</span></div>`);
+      if (f.fallback) rows.push(`<div class="neg-row"><span class="neg-label">Fallback</span><span class="neg-value">${escapeHtml(f.fallback)}</span></div>`);
+      if (f.walkaway) rows.push(`<div class="neg-row walkaway"><span class="neg-label">Walkaway</span><span class="neg-value">${escapeHtml(f.walkaway)}</span></div>`);
+      blocks.push(`
+        <div class="finding-block">
+          <div class="finding-block-label">Negotiating ladder</div>
+          <div class="neg-ladder">${rows.join('')}</div>
+        </div>`);
+    }
     if (f.external_comment) {
       blocks.push(`
         <div class="finding-block">
@@ -1223,8 +1527,10 @@ import Consent from '../../partials/consent.astro';
 
         const filtersEl = drawer.querySelector('.findings-filters');
         const listEl = drawer.querySelector('.findings-list');
+        const priorityEl = drawer.querySelector('.priority-three-section');
+        const structuralEl = drawer.querySelector('.structural-section');
         const viewer = createFindingsViewer({ filtersEl, listEl });
-        viewer.loadFrom(snap.downloads?.findings_json);
+        viewer.loadFrom(snap.downloads?.findings_json, priorityEl, structuralEl);
 
         // Collapsible body within the drawer (parity with Review panel)
         const collapseBtn = drawer.querySelector('.findings-collapse-btn');
@@ -1264,6 +1570,22 @@ import Consent from '../../partials/consent.astro';
           <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n">${sc.moderate || 0}</div></div>
           <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n">${sc.minor || 0}</div></div>
         </div>
+      </div>
+
+      <div class="priority-three-section hidden">
+        <div class="priority-three-head">
+          <div class="priority-three-title">Top 3 to Raise</div>
+          <div class="priority-three-sub">Partner-level summary — raise these on a call before sending the full redline.</div>
+        </div>
+        <div class="priority-three-list"></div>
+      </div>
+
+      <div class="structural-section hidden">
+        <div class="structural-head">
+          <div class="structural-title">Structural issues / missing clauses</div>
+          <div class="structural-sub">Findings that can't be pinned to a specific line of text.</div>
+        </div>
+        <div class="structural-list"></div>
       </div>
 
       <div class="findings-section">

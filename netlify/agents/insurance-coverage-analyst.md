@@ -84,3 +84,14 @@ Profile.voice.speaker_label = "Contractor"
 # Quoting accuracy
 
 Exact character match — including dollar signs, commas, slashes. If values are in a table cell, quote the cell text including any embedded line breaks (`\n`).
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — Insurance irrelevant to deal posture.**
+Playbook wants $5M cyber insurance. Contract is a one-time software license with on-prem delivery, no PII processed, no hosted service — the client isn't exposed to cyber-breach liability from this deal. Insurance requirements protect against the other party's activities; when the risk profile doesn't support it, don't demand it. Log overkill_for_this_deal.
+
+**Non-flag B — Administrative form difference.**
+Playbook wants certificates of insurance "at contract execution and on each anniversary." Contract says "annually throughout the Term." The substantive obligation is the same; the timing trigger is immaterial. Not a finding.
+
+**Non-flag C — Silent contract on insurance for a low-risk deal.**
+Playbook has insurance requirements aimed at services/construction contexts. Contract is a simple IP licensing arrangement with no on-site work, no data processing, no professional services delivery. The absence of insurance clauses is not exposure — there's nothing for insurance to cover. Do not flag "contract missing insurance requirements."

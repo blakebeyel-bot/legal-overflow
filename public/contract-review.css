@@ -1036,6 +1036,311 @@
   .sev.moderate .sev-l, .sev.moderate .sev-n { color: var(--ink-2); }
   .sev.minor .sev-l, .sev.minor .sev-n { color: var(--ink-3); }
 
+  /* Deal-posture dropdown on the Upload panel */
+  .upload-posture {
+    margin-bottom: 28px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .upload-posture-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 8px;
+  }
+  .upload-posture-label .req { color: var(--warn); }
+  .upload-posture select {
+    width: 100%;
+    font-family: var(--sans);
+    font-size: 15px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 10px 12px;
+    cursor: pointer;
+  }
+  .upload-posture select:focus { outline: none; border-color: var(--ink); }
+  .upload-posture-hint {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    margin-top: 8px;
+    line-height: 1.45;
+  }
+
+  /* Classification confirm panel (between upload and progress) */
+  #review-confirm { padding: 32px 36px; }
+  .confirm-head { margin-bottom: 24px; }
+  .confirm-title {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 500;
+    margin: 10px 0 8px;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .confirm-title em { color: var(--accent-deep); font-style: italic; }
+  .confirm-sub {
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .confirm-confidence {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+  }
+
+  .confirm-governing {
+    margin: 22px 0;
+    padding: 20px 22px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper-2);
+  }
+  .confirm-governing.hidden { display: none; }
+  .confirm-governing-head {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .confirm-governing-sub {
+    font-size: 13px;
+    color: var(--ink-3);
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .confirm-governing-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .cg-tab {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink-2);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .cg-tab.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .cg-panel {
+    width: 100%;
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 10px 12px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .cg-panel.hidden { display: none; }
+  .cg-file-hint {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    margin-top: 6px;
+    line-height: 1.45;
+  }
+
+  .confirm-mode-row {
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .confirm-mode-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .confirm-mode-options { display: flex; gap: 6px; }
+  .confirm-mode-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink-2);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .confirm-mode-btn.active {
+    background: var(--accent-deep);
+    color: var(--paper);
+    border-color: var(--accent-deep);
+  }
+  .confirm-actions {
+    margin-top: 28px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .confirm-countdown {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+    color: inherit;
+    margin-left: 8px;
+    opacity: 0.85;
+  }
+
+  /* Structural issues / missing clauses — first-class section */
+  .structural-section {
+    padding: 26px 36px 22px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: color-mix(in oklab, var(--warn) 4%, var(--paper));
+  }
+  .structural-section.hidden { display: none; }
+  .structural-head { margin-bottom: 16px; }
+  .structural-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .structural-sub {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    margin-top: 4px;
+    line-height: 1.45;
+  }
+  .structural-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Top 3 to Raise — partner-level priority section above findings list */
+  .priority-three-section {
+    padding: 26px 36px 20px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: color-mix(in oklab, var(--accent) 4%, var(--paper));
+  }
+  .priority-three-section.hidden { display: none; }
+  .priority-three-head { margin-bottom: 14px; }
+  .priority-three-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .priority-three-sub {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    margin-top: 4px;
+  }
+  .priority-three-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .priority-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent-deep);
+    border-radius: 4px;
+    padding: 14px 18px;
+  }
+  .priority-card.sev-blocker { border-left-color: var(--warn); }
+  .priority-card.sev-major { border-left-color: var(--accent-deep); }
+  .priority-card.sev-moderate { border-left-color: var(--ink-2); }
+  .priority-card.sev-minor { border-left-color: var(--ink-3); }
+  .priority-card-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .priority-card-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-3);
+    min-width: 18px;
+  }
+  .priority-card-rationale {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .priority-card-ask {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    padding: 8px 12px;
+    background: var(--paper-2);
+    border-radius: 3px;
+  }
+  .priority-card-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-right: 6px;
+  }
+
+  /* Negotiating ladder inside finding cards — position / fallback / walkaway */
+  .neg-ladder {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .neg-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+    padding: 6px 10px;
+    background: var(--paper-2);
+    border-radius: 3px;
+    align-items: start;
+  }
+  .neg-row.walkaway {
+    background: color-mix(in oklab, var(--warn) 8%, var(--paper-2));
+    border-left: 2px solid var(--warn);
+  }
+  .neg-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .neg-value {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  @media (max-width: 680px) {
+    .neg-row { grid-template-columns: 1fr; gap: 3px; }
+  }
+
   /* In-browser findings viewer ---------------------------------------- */
   .findings-section {
     padding: 30px 36px 6px;
@@ -1202,7 +1507,8 @@
     flex-shrink: 0;
     font-weight: 500;
   }
-  .finding-tier.tier-playbook {
+  .finding-tier.tier-client-position,
+  .finding-tier.tier-playbook /* legacy alias */ {
     background: color-mix(in oklab, var(--accent) 18%, transparent);
     color: var(--accent-deep);
     border: 1px solid color-mix(in oklab, var(--accent-deep) 30%, transparent);

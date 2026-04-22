@@ -80,3 +80,14 @@ Profile.company.business_description indicates workflow-automation platform, not
 # Quoting accuracy
 
 Exact character match. Split across page breaks if needed.
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — No personal data, no DPA needed.**
+Playbook requires a Data Processing Agreement and GDPR/CCPA schedule. Contract is a hardware-purchase agreement — the supplier never receives, processes, or handles personal data on behalf of the client. DPA obligations under GDPR/CCPA attach to processors; a hardware seller isn't one. Do not emit "missing DPA." Log overkill_for_this_deal.
+
+**Non-flag B — HIPAA/BAA not triggered by deal scope.**
+Playbook requires a Business Associate Agreement for any vendor touching PHI. Contract is for office-supply procurement; vendor has no access to patient records, operational systems, or facilities where PHI is stored. BAA requirements apply only when PHI flow exists. Don't demand a BAA for a deal that doesn't create PHI exposure.
+
+**Non-flag C — Subprocessor flow-down irrelevant for sole-proprietor counterparties.**
+Playbook requires "all compliance obligations flow down to subprocessors." Contract is with a single-person consulting firm with no stated subprocessors or delegation rights in the SOW. The flow-down requirement exists to control supply chains; where no chain exists, it's ceremonial. Raise only if the contract expressly permits subprocessing without the flow-down.

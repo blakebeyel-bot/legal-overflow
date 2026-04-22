@@ -102,3 +102,14 @@ Profile.voice.speaker_label = "Provider"
   }
 ]
 ```
+
+# Worked non-flags — when silence is correct
+
+**Non-flag A — Client position already met or exceeded.**
+Playbook requires a $2M aggregate liability cap. Contract has a $5M cap. The client's position is met; the generosity is a freebie, not a finding. Do not flag "cap is higher than playbook requires" — that is a checklist reflex, not a review.
+
+**Non-flag B — Deal size makes the concern immaterial.**
+Playbook wants uncapped IP indemnity. Contract caps IP indemnity at 3× fees. The contract's total value is under $50K, so the practical IP exposure (damages + defense) already exceeds what 3× fees could cover for any realistic claim — but the absolute dollar exposure is still small enough that a senior lawyer would not fight this on a sub-$50K deal. Log internally as overkill_for_this_deal.
+
+**Non-flag C — Background law covers the silent absence.**
+Contract is silent on "exclusion of consequential damages." Governing-law state is one where the UCC §2-719 limits consequential damages in B2B sales absent a clear contrary provision, AND the contract is a goods sale. The concern is already covered by background law. Do not emit "contract missing consequential-damages exclusion." In a services-only deal where no such statute applies, the same silence WOULD be a finding.

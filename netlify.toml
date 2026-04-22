@@ -32,6 +32,9 @@
 [functions."get-review"]
   timeout = 10
 
+[functions."confirm-review"]
+  timeout = 15
+
 [functions."save-profile"]
   timeout = 10
 
