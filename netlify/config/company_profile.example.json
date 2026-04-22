@@ -1,0 +1,252 @@
+{
+  "_comment": "EXAMPLE profile for a fictional B2B SaaS company. Use as a reference when writing your own. The workflow-configurator agent can interview you and write this file for you.",
+
+  "company": {
+    "name": "Helix Software Solutions, Inc.",
+    "short_name": "Helix",
+    "address": "100 Congress Avenue, Suite 2200, Austin, TX 78701",
+    "industry": "B2B SaaS / Enterprise Software",
+    "business_description": "Helix provides a cloud-based workflow-automation platform sold on annual and multi-year subscriptions to mid-market and enterprise customers. Helix delivers the platform as a hosted service with standard professional-services add-ons for implementation and training.",
+    "role_in_contracts": "Provider"
+  },
+
+  "jurisdiction": {
+    "primary": "Texas, USA",
+    "secondary": ["Delaware, USA", "New York, USA"],
+    "preferred_statutes": {
+      "ucc_warranty": "Tex. Bus. & Com. Code §§2.314–.316 (UCC Articles 2-314/2-315/2-316)",
+      "prompt_payment": "Tex. Bus. & Com. Code Ch. 56",
+      "trade_secret": "Texas Uniform Trade Secrets Act, Tex. Civ. Prac. & Rem. Code §§134A.001 et seq.",
+      "non_compete": "Tex. Bus. & Com. Code §15.50",
+      "data_breach_notification": "Tex. Bus. & Com. Code §521.053"
+    },
+    "disfavored_venues": ["California (absent mutual waiver)", "Louisiana", "Any state without clear non-compete enforcement"]
+  },
+
+  "positions": {
+    "commercial": {
+      "accepts": [
+        "Net-30 payment terms from invoice date",
+        "Annual pre-paid subscription with 5% discount",
+        "Late fees at 1.5% per month or maximum permitted by law",
+        "Renewal price increases up to CPI + 3% annually"
+      ],
+      "rejects": [
+        "Net-60 or longer without corresponding price premium",
+        "Payment conditioned on customer's receipt of funding from a third party",
+        "Retroactive price freezes beyond the initial subscription term",
+        "Customer unilateral right to suspend subscription fees during disputes"
+      ],
+      "negotiates": [
+        "Multi-year discount structures",
+        "Volume-based pricing tiers",
+        "Milestone-based payment on professional services engagements"
+      ],
+      "preferred_language": [
+        "Fees are non-refundable except as expressly provided for termination for Provider's uncured material breach.",
+        "All fees are exclusive of taxes; Customer is responsible for sales, use, VAT, and similar taxes other than Provider's income taxes."
+      ],
+      "notes": "Subscription is annual-minimum. Pro-rata refunds only on termination-for-convenience-by-Provider or uncured Provider breach."
+    },
+    "risk_allocation": {
+      "accepts": [
+        "IP-infringement indemnity FROM Provider to Customer for third-party claims that the Platform infringes a US patent, copyright, trademark, or trade secret",
+        "Mutual indemnity for death, bodily injury, and tangible property damage caused by the indemnitor's gross negligence or willful misconduct",
+        "Aggregate liability cap at 12 months of fees paid or payable in the 12 months preceding the claim",
+        "Exclusion of consequential, incidental, indirect, special, punitive, and lost-profits damages",
+        "Carve-outs from the liability cap for: confidentiality breach; indemnification obligations; Customer's payment obligations; and gross negligence or willful misconduct"
+      ],
+      "rejects": [
+        "Uncapped liability for any category",
+        "Provider indemnity for Customer's negligence, gross negligence, willful misconduct, or intentional acts",
+        "Liquidated damages tied to availability or SLA that function as penalty clauses",
+        "Data-breach indemnity without mutual gross-negligence carve-out and without a cap",
+        "Super-cap multipliers greater than 2x annual fees"
+      ],
+      "negotiates": [
+        "Special cap of 2x annual fees for data-breach-related losses when Customer's industry requires",
+        "Extended warranty or uptime credits when Customer commits to multi-year"
+      ],
+      "notes": "Standard SaaS industry practice: annual-fees cap, IP-only indemnity FROM Provider, mutual gross-negligence carve-out. Super-caps only on multi-year contracts >$500K ARR."
+    },
+    "insurance": {
+      "accepts": [
+        "Commercial General Liability: $1M per occurrence / $2M aggregate",
+        "Cyber Liability / Technology E&O: $5M per claim / $5M aggregate",
+        "Workers' Compensation: statutory + Employers' Liability $1M/$1M/$1M",
+        "Umbrella/Excess: $5M",
+        "Naming Customer as Additional Insured on CGL and Umbrella by endorsement",
+        "Waiver of subrogation in favor of Customer",
+        "A.M. Best A-VII or better"
+      ],
+      "rejects": [
+        "Builder's Risk (not applicable to SaaS services)",
+        "Marine / Pollution coverage (not applicable)",
+        "Performance or payment bonds",
+        "Additional Insured on Workers' Compensation",
+        "Insurance requirements above $10M without customer-cost reimbursement"
+      ],
+      "negotiates": [
+        "Cyber limits above $5M — feasible via tower",
+        "30-day notice of material change / cancellation"
+      ],
+      "notes": "SaaS context. Cyber/E&O is the primary coverage that matters. Physical-world policies (pollution, builder's risk, marine) are universally waived for software services."
+    },
+    "performance": {
+      "accepts": [
+        "99.9% monthly uptime SLA measured against documented service-impacting outages",
+        "Commercially reasonable efforts standard on professional services",
+        "Scheduled maintenance windows with advance notice"
+      ],
+      "rejects": [
+        "99.99% or higher uptime without corresponding price premium and architectural review",
+        "Time-is-of-the-essence language on professional services",
+        "Customer right to direct Provider's means and methods of service delivery",
+        "Acceptance testing with open-ended rejection criteria"
+      ],
+      "negotiates": [
+        "Uptime SLA credits as sole remedy vs. shared remedy with termination rights",
+        "Milestone acceptance with defined objective criteria and cure periods"
+      ],
+      "notes": "SaaS uptime obligations must be bounded by an exclusions list (scheduled maintenance, force majeure, Customer-caused outages, third-party service failures outside Provider's control)."
+    },
+    "termination": {
+      "accepts": [
+        "Termination for uncured material breach with 30-day written cure period",
+        "Termination for insolvency / bankruptcy upon written notice",
+        "Post-termination data-export window of 30–60 days on Customer request"
+      ],
+      "rejects": [
+        "Termination for convenience by Customer without pro-rata fee forfeiture",
+        "Immediate termination without cure period",
+        "Perpetual post-termination obligations on Provider",
+        "Termination penalties above unpaid subscription fees"
+      ],
+      "negotiates": [
+        "Termination for convenience by either party with 60+ day notice on multi-year deals",
+        "Data-export assistance beyond standard tooling at T&M rates"
+      ],
+      "preferred_language": [
+        "Upon termination, Customer will pay all fees accrued through the effective date of termination. Fees are non-refundable except as expressly provided herein."
+      ]
+    },
+    "protective": {
+      "accepts": [
+        "Mutual confidentiality with 3-year post-disclosure survival",
+        "Standard carve-outs (already known, publicly available, independently developed, legally compelled)",
+        "IP ownership: each party retains its pre-existing IP; customer-specific configurations are Customer's; platform improvements are Provider's",
+        "Non-solicit of each other's employees limited to 12 months post-termination"
+      ],
+      "rejects": [
+        "Assignment of Provider's pre-existing IP or platform improvements to Customer",
+        "Non-compete clauses that restrict Provider from serving other customers",
+        "Exclusivity or most-favored-customer pricing",
+        "Source-code escrow triggers beyond Provider bankruptcy or cessation of operations",
+        "Perpetual confidentiality obligations (hard cap at 5 years for non-trade-secret confidential information)"
+      ],
+      "negotiates": [
+        "Source-code escrow with Iron Mountain or NCC Group for mission-critical deployments",
+        "Residuals clauses on trade-secret information"
+      ],
+      "notes": "Platform IP is the crown jewel. Any 'works made for hire,' 'deliverables assignment,' or 'improvements belong to Customer' language requires carve-outs that exclude platform code and pre-existing IP."
+    },
+    "compliance": {
+      "accepts": [
+        "DPA addendum with GDPR Article 28 terms",
+        "EU Standard Contractual Clauses for cross-border transfers",
+        "Subprocessor notification with 30-day objection right",
+        "SOC 2 Type II annual audit report delivery",
+        "Data-breach notification within 72 hours of confirmed breach"
+      ],
+      "rejects": [
+        "Unilateral customer audit rights more than once per year",
+        "Audit access to other customers' data or commingled logs",
+        "HIPAA BAA when Customer does not actually transmit PHI through the Platform",
+        "Obligations to obtain certifications Provider does not currently hold (FedRAMP, IRAP) without cost reimbursement"
+      ],
+      "negotiates": [
+        "On-site audit rights limited to independent third-party auditors under NDA",
+        "PCI DSS scope attestations where Customer transmits cardholder data",
+        "Industry-specific compliance (HIPAA, CJIS, ITAR) on customer-paid engagements"
+      ],
+      "notes": "DPA is mandatory for any EU/UK customer. HIPAA BAA only if PHI is actually in scope. Audits are paper-only by default."
+    }
+  },
+
+  "red_flags": [
+    { "id": "uncapped_liability_any", "label": "Uncapped liability (any category)", "description": "Any aggregate or per-event liability without a ceiling expressed in dollar or multiple-of-fees terms.", "severity": "Blocker", "auto_escalate": true, "trigger_phrases": ["unlimited liability", "without limitation", "no cap on", "no limit to"] },
+    { "id": "provider_indemnity_customer_negligence", "label": "Provider indemnifies Customer's negligence", "description": "Indemnity clause that would require Provider to indemnify Customer for claims caused by Customer's own acts or omissions.", "severity": "Blocker", "auto_escalate": true, "trigger_phrases": ["regardless of cause", "including customer's own", "including claims arising from Customer"] },
+    { "id": "perpetual_license_to_customer", "label": "Perpetual license of platform to Customer", "description": "License grant that survives termination with no time limit, effectively handing the platform to the customer.", "severity": "Blocker", "auto_escalate": true, "trigger_phrases": ["perpetual license", "irrevocable license", "license in perpetuity"] },
+    { "id": "source_code_escrow_broad_triggers", "label": "Source-code escrow with broad release triggers", "description": "Escrow release on any event other than Provider bankruptcy or cessation of operations (e.g., change-of-control, missed SLA, dispute).", "severity": "Major", "auto_escalate": true, "trigger_phrases": ["escrow release upon", "source code shall be released"] },
+    { "id": "mfn_pricing", "label": "Most-favored-customer pricing", "description": "Clause requiring Provider to pass down best-customer pricing or refund retroactively.", "severity": "Major", "auto_escalate": true, "trigger_phrases": ["most favored", "most-favored-nation", "MFN pricing", "best price"] },
+    { "id": "unilateral_audit_broad", "label": "Unilateral audit rights broader than once/year with paper-only scope", "description": "Audit rights that permit customer or its representatives on-site access, access to source code, or multiple audits per year.", "severity": "Major", "auto_escalate": false, "trigger_phrases": ["audit rights", "right to inspect", "on-site audit"] },
+    { "id": "non_compete_exclusivity", "label": "Non-compete or exclusivity on Provider", "description": "Restriction on Provider selling to competitors or other customers in a defined market.", "severity": "Major", "auto_escalate": true, "trigger_phrases": ["exclusivity", "shall not provide", "non-compete", "restricted market"] },
+    { "id": "uncapped_indemnity", "label": "Uncapped indemnification", "description": "Indemnity obligation that is expressly excluded from the aggregate liability cap without a standalone cap.", "severity": "Blocker", "auto_escalate": true, "trigger_phrases": ["notwithstanding any limitation", "uncapped indemnity", "without regard to the limitation"] },
+    { "id": "ld_uptime", "label": "Liquidated damages on uptime or availability", "description": "SLA credits structured as penalties rather than as Customer's sole and exclusive remedy.", "severity": "Major", "auto_escalate": false, "trigger_phrases": ["liquidated damages", "penalty of", "shall pay as damages"] },
+    { "id": "ip_assignment_broad", "label": "Broad IP assignment of Provider platform", "description": "Work-for-hire or assignment language broad enough to sweep in Provider's pre-existing IP or platform improvements.", "severity": "Blocker", "auto_escalate": true, "trigger_phrases": ["work made for hire", "hereby assigns", "all rights, title and interest", "including all improvements"] },
+    { "id": "auto_renewal_aggressive", "label": "Auto-renewal with long notice window", "description": "Opt-out window longer than 60 days before renewal, or renewal on economic terms disadvantageous to Provider.", "severity": "Moderate", "auto_escalate": false, "trigger_phrases": ["automatically renew", "renewal term", "ninety (90) days"] },
+    { "id": "venue_disfavored", "label": "Governing law or venue in disfavored jurisdiction", "description": "Governing law or venue in a jurisdiction on the disfavored list without mutual jury waiver and damages cap preservation.", "severity": "Major", "auto_escalate": false, "trigger_phrases": ["governing law", "venue shall be", "exclusive jurisdiction"] },
+    { "id": "data_breach_unlimited", "label": "Uncapped data-breach liability", "description": "Data-breach losses carved out of the liability cap with no standalone super-cap.", "severity": "Blocker", "auto_escalate": true, "trigger_phrases": ["data breach", "security incident", "privacy breach"] },
+    { "id": "hipaa_baa_out_of_scope", "label": "HIPAA BAA required where PHI not in scope", "description": "Business Associate Agreement demanded even though the engagement does not contemplate PHI flowing through the Platform.", "severity": "Moderate", "auto_escalate": false, "trigger_phrases": ["HIPAA", "Business Associate Agreement", "BAA", "protected health information"] }
+  ],
+
+  "escalation": {
+    "senior_reviewers": [
+      { "name": "General Counsel", "role": "General Counsel", "email": "legal@example.com" },
+      { "name": "VP Deal Desk", "role": "Deal Desk Lead", "email": "dealdesk@example.com" }
+    ],
+    "escalation_trigger_severity": "Major",
+    "sla_hours": 48
+  },
+
+  "voice": {
+    "tone": "collaborative",
+    "speaker_label": "Provider",
+    "counterparty_label": "Customer",
+    "cite_statutes": true,
+    "cite_industry_standards": true,
+    "cite_case_law": false,
+    "max_comment_length_chars": 800,
+    "forbidden_phrases": [
+      "our playbook",
+      "our baseline",
+      "internal guidance",
+      "our framework",
+      "decision matrix",
+      "standard position"
+    ]
+  },
+
+  "output": {
+    "reviewer_author": "Helix Legal",
+    "reviewer_initials": "HLX",
+    "annotated_file_suffix": "_Annotated",
+    "summary_file_suffix": "_Review_Summary",
+    "review_root": "reviews/"
+  },
+
+  "enabled_modules": {
+    "technology_saas": true,
+    "construction": false,
+    "maritime": false,
+    "healthcare": false
+  },
+
+  "severity_scheme": {
+    "tier_1": "Blocker",
+    "tier_2": "Major",
+    "tier_3": "Moderate",
+    "tier_4": "Minor"
+  },
+
+  "pipeline_mode_defaults": {
+    "nda": "express",
+    "purchase_order": "express",
+    "master_services_agreement": "standard",
+    "subscription_agreement": "standard",
+    "data_processing_agreement": "comprehensive",
+    "enterprise_license": "comprehensive",
+    "professional_services": "standard",
+    "unknown": "standard"
+  }
+}

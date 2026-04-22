@@ -1,0 +1,39 @@
+{
+  "_comment": "Platform-level limits. Enforced by scripts/api_client.py at the backend and by preview/index.html at the UI. Adjust per deployment tier (trial / paid / enterprise).",
+
+  "per_user": {
+    "reviews_per_window": 3,
+    "window_days": 30,
+    "configurator_messages_max": 15,
+    "max_file_size_mb": 50,
+    "max_pages_pdf": 200
+  },
+
+  "per_review": {
+    "max_total_tokens": 500000,
+    "max_specialist_tokens": 40000,
+    "max_duration_seconds": 300,
+    "parallel_specialist_limit": 10
+  },
+
+  "per_api_call": {
+    "sonnet_max_tokens": 4096,
+    "classifier_max_tokens": 1024,
+    "auditor_max_tokens": 4096,
+    "compiler_max_tokens": 6144
+  },
+
+  "caching": {
+    "enabled": true,
+    "cache_profile": true,
+    "cache_contract_text": true,
+    "cache_ttl_minutes": 5,
+    "min_block_tokens": 1024
+  },
+
+  "tiers": {
+    "trial":      { "reviews_per_window": 3,   "window_days": 30, "models_allowed": ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] },
+    "pro":        { "reviews_per_window": 50,  "window_days": 30, "models_allowed": ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"] },
+    "enterprise": { "reviews_per_window": 500, "window_days": 30, "models_allowed": ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5-20251001"] }
+  }
+}

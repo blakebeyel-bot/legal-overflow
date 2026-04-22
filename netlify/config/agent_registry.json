@@ -1,0 +1,78 @@
+{
+  "_comment": "Declares the pipeline modes and which agents run at each stage. Modified by the workflow-configurator when users add/remove specialists or toggle industry modules.",
+
+  "classifier": "document-classifier",
+
+  "pipeline_modes": {
+    "express": {
+      "description": "Fast-track for simple documents (short NDAs, standard POs, order forms). Skips the full specialist fan-out.",
+      "stages": [
+        { "stage": "triage", "agents": ["document-classifier"] },
+        { "stage": "assemble", "agents": ["review-compiler"] }
+      ]
+    },
+
+    "standard": {
+      "description": "Default pipeline for most B2B contracts. Core specialist fan-out plus critical-issues sweep.",
+      "stages": [
+        { "stage": "triage", "agents": ["document-classifier"] },
+        {
+          "stage": "analyze",
+          "parallel": true,
+          "agents": [
+            "commercial-terms-analyst",
+            "risk-allocation-analyst",
+            "insurance-coverage-analyst",
+            "performance-obligations-analyst",
+            "termination-remedies-analyst",
+            "protective-provisions-analyst"
+          ]
+        },
+        { "stage": "audit", "agents": ["critical-issues-auditor"] },
+        { "stage": "assemble", "agents": ["review-compiler"] }
+      ]
+    },
+
+    "comprehensive": {
+      "description": "Deep analysis for high-value, regulated, or complex contracts. Adds compliance-regulatory analyst and any enabled industry modules.",
+      "stages": [
+        { "stage": "triage", "agents": ["document-classifier"] },
+        {
+          "stage": "analyze",
+          "parallel": true,
+          "agents": [
+            "commercial-terms-analyst",
+            "risk-allocation-analyst",
+            "insurance-coverage-analyst",
+            "performance-obligations-analyst",
+            "termination-remedies-analyst",
+            "protective-provisions-analyst",
+            "compliance-regulatory-analyst"
+          ],
+          "plus_enabled_industry_modules": true
+        },
+        { "stage": "audit", "agents": ["critical-issues-auditor"] },
+        { "stage": "assemble", "agents": ["review-compiler"] }
+      ]
+    }
+  },
+
+  "industry_modules": {
+    "technology_saas": {
+      "agent": "industry-saas-analyst",
+      "description": "SaaS-specific concerns: uptime SLA, data processing, subprocessors, API terms, usage-based pricing."
+    },
+    "construction": {
+      "agent": "industry-construction-analyst",
+      "description": "Construction-specific: site conditions, lien rights, change orders, differing site conditions, weather delay. NOT INCLUDED by default — scaffold via workflow-configurator if needed."
+    },
+    "maritime": {
+      "agent": "industry-maritime-analyst",
+      "description": "Marine/vessel-specific: admiralty jurisdiction, Jones Act, general average, salvage. NOT INCLUDED by default — scaffold via workflow-configurator if needed."
+    },
+    "healthcare": {
+      "agent": "industry-healthcare-analyst",
+      "description": "Healthcare: HIPAA, Stark, Anti-Kickback, CMS regs. NOT INCLUDED by default — scaffold via workflow-configurator if needed."
+    }
+  }
+}

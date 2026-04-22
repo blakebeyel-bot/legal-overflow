@@ -1,0 +1,35 @@
+# =====================================================================
+# Netlify build + functions configuration for Legal Overflow
+# =====================================================================
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+# Functions use Node 20 (required by @anthropic-ai/sdk and modern deps).
+# Bundle with esbuild (faster cold start than zisi).
+#
+# Agent prompts + config JSONs get pre-baked into netlify/lib/agents-data.js
+# by scripts/build-agents-bundle.mjs (run as part of npm run build). That
+# avoids the EBUSY race we hit when multiple functions copied the same
+# files into their sandboxes simultaneously on Windows.
+[functions]
+  node_bundler = "esbuild"
+
+# Background function — up to 15 min runtime. Name must end in `-background`.
+[functions."fanout-background"]
+  timeout = 900
+
+# Short-lived synchronous functions (Netlify default 10s is enough)
+[functions."classify"]
+  timeout = 30
+
+[functions."get-review"]
+  timeout = 10
+
+[functions."save-profile"]
+  timeout = 10
+
+[functions."upload-playbook"]
+  timeout = 120

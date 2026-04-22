@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Company Profile",
+  "description": "Runtime configuration that drives every contract review for a given organization. Edited via the workflow-configurator agent (chat interview) or by hand.",
+  "type": "object",
+  "required": ["company", "jurisdiction", "positions", "red_flags", "escalation", "voice", "output"],
+  "properties": {
+    "company": {
+      "type": "object",
+      "required": ["name", "industry", "role_in_contracts"],
+      "properties": {
+        "name": { "type": "string", "description": "Legal entity name as it should appear in the review output." },
+        "short_name": { "type": "string", "description": "Friendly short form used in chat output." },
+        "address": { "type": "string" },
+        "industry": { "type": "string", "description": "Free-text industry description. Drives industry-module selection." },
+        "business_description": { "type": "string", "description": "2-4 sentence description of what the company does, used to contextualize specialists." },
+        "role_in_contracts": {
+          "type": "string",
+          "description": "Typical role the company plays. Used as the speaker label in customer-facing comments.",
+          "examples": ["Vendor", "Service Provider", "Licensor", "Contractor", "Supplier", "Consultant", "Buyer", "Licensee"]
+        }
+      }
+    },
+    "jurisdiction": {
+      "type": "object",
+      "required": ["primary"],
+      "properties": {
+        "primary": { "type": "string", "description": "Primary governing-law jurisdiction (e.g., 'Texas, USA')." },
+        "secondary": { "type": "array", "items": { "type": "string" }, "description": "Other jurisdictions the company operates in and is willing to contract under." },
+        "preferred_statutes": {
+          "type": "object",
+          "description": "Map of topic key → statute citation. Specialists cite these in customer-facing comments so the voice matches the company's home jurisdiction.",
+          "additionalProperties": { "type": "string" }
+        },
+        "disfavored_venues": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Jurisdictions the company refuses to litigate in without negotiation."
+        }
+      }
+    },
+    "positions": {
+      "type": "object",
+      "description": "Negotiating positions, grouped by category. Categories map to specialist domains (commercial, risk_allocation, insurance, performance, termination, protective, compliance). Free-form — add custom categories as needed.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "accepts": { "type": "array", "items": { "type": "string" }, "description": "Clauses the company will sign as drafted." },
+          "rejects": { "type": "array", "items": { "type": "string" }, "description": "Clauses the company will not agree to under any circumstances." },
+          "negotiates": { "type": "array", "items": { "type": "string" }, "description": "Clauses that require counter-proposal." },
+          "preferred_language": { "type": "array", "items": { "type": "string" }, "description": "Template phrases the company prefers to insert." },
+          "notes": { "type": "string", "description": "Free-form context for the specialist." }
+        }
+      }
+    },
+    "red_flags": {
+      "type": "array",
+      "description": "Critical deal-breakers. Scanned for by the critical-issues-auditor.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "severity"],
+        "properties": {
+          "id": { "type": "string", "description": "Stable identifier, e.g. 'uncapped_liability'." },
+          "label": { "type": "string", "description": "Short human-readable name." },
+          "description": { "type": "string", "description": "Full description of what this red flag means and how to spot it." },
+          "severity": { "type": "string", "enum": ["Blocker", "Major", "Moderate", "Minor"] },
+          "auto_escalate": { "type": "boolean", "description": "If true, finding this always sets requires_senior_review=true." },
+          "trigger_phrases": { "type": "array", "items": { "type": "string" }, "description": "Optional hint phrases to help the auditor grep for this flag." }
+        }
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "required": ["senior_reviewers", "escalation_trigger_severity"],
+      "properties": {
+        "senior_reviewers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "role": { "type": "string" },
+              "email": { "type": "string" }
+            }
+          },
+          "description": "People who receive escalation alerts. Surfaced in the internal review summary."
+        },
+        "escalation_trigger_severity": {
+          "type": "string",
+          "enum": ["Blocker", "Major", "Moderate", "Minor"],
+          "description": "Any finding at this severity or above is flagged for senior review."
+        },
+        "sla_hours": { "type": "number", "description": "Target turnaround for escalated items." }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "required": ["tone", "speaker_label", "counterparty_label"],
+      "properties": {
+        "tone": { "type": "string", "enum": ["formal", "collaborative", "firm", "conciliatory"], "description": "Overall register for customer-facing comments." },
+        "speaker_label": { "type": "string", "description": "How to refer to the company in customer-facing comments (e.g., 'Provider', 'Contractor', 'Licensor')." },
+        "counterparty_label": { "type": "string", "description": "Default label for the other party (e.g., 'Customer', 'Client', 'Owner')." },
+        "cite_statutes": { "type": "boolean", "description": "Whether specialists may cite statutes by section in customer-facing comments." },
+        "cite_industry_standards": { "type": "boolean", "description": "Whether specialists may cite standard industry forms (ACORD, ISO CGL, etc.)." },
+        "cite_case_law": { "type": "boolean", "description": "DEFAULT FALSE. Case citations are disabled for hallucination-safety reasons. Override at your own risk." },
+        "max_comment_length_chars": { "type": "number", "description": "Soft cap on margin-comment length. Defaults to 800." },
+        "forbidden_phrases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Phrases that must NEVER appear in customer-facing output. The review-compiler will block the deliverable if these are detected."
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["reviewer_author", "reviewer_initials"],
+      "properties": {
+        "reviewer_author": { "type": "string", "description": "Displayed as author on tracked changes and comments, e.g., 'Helix Legal'." },
+        "reviewer_initials": { "type": "string", "description": "2-4 chars. Shown in Word's comment balloons." },
+        "annotated_file_suffix": { "type": "string", "default": "_Annotated", "description": "Appended to the customer-facing file name." },
+        "summary_file_suffix": { "type": "string", "default": "_Review_Summary", "description": "Appended to the internal summary file name." },
+        "review_root": { "type": "string", "default": "reviews/", "description": "Output directory root (relative to project root)." }
+      }
+    },
+    "enabled_modules": {
+      "type": "object",
+      "description": "Feature toggles for optional industry modules. True = module agent joins the comprehensive-mode fan-out.",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "severity_scheme": {
+      "type": "object",
+      "description": "Labels for the 4-tier severity system. Override if your team uses different terminology (e.g. P0/P1/P2/P3).",
+      "properties": {
+        "tier_1": { "type": "string", "default": "Blocker" },
+        "tier_2": { "type": "string", "default": "Major" },
+        "tier_3": { "type": "string", "default": "Moderate" },
+        "tier_4": { "type": "string", "default": "Minor" }
+      }
+    },
+    "pipeline_mode_defaults": {
+      "type": "object",
+      "description": "Per-contract-type pipeline-mode mapping. Classifier uses this to route.",
+      "additionalProperties": { "type": "string", "enum": ["express", "standard", "comprehensive"] }
+    }
+  }
+}

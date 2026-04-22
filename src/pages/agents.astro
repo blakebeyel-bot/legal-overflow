@@ -1,0 +1,110 @@
+---
+import Consent from '../partials/consent.astro';
+import DownloadGate from '../partials/download-gate.astro';
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Agents — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div id="grain"></div>
+<div id="cursor-dot"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <div class="live-dot"></div>
+    <span class="nav-meta" id="nav-clock">—</span>
+    <a href="/#subscribe" class="nav-sub">Subscribe</a>
+  </div>
+</header>
+
+<div class="about-wrap">
+  <section class="about-hero">
+    <div>
+      <div class="about-kicker">Agentic workflows · In practice</div>
+      <h1 class="about-title">Agents built for<br/>legal <em>practice</em>.</h1>
+    </div>
+  </section>
+
+  <section class="about-bio">
+    <p>An agent is a multi-step AI pipeline that does real work: reads a document, fans out to specialists, assembles a deliverable. Each one listed below has been built, tested, and is running behind sign-in below.</p>
+  </section>
+
+  <section style="max-width: 900px; margin: 30px auto 80px; padding: 0 24px;">
+    <a href="/agents/contract-review/" style="display:block; padding: 36px 30px; border: 1px solid var(--ink); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--paper-2); transition: background .2s ease, transform .2s ease;"
+       onmouseover="this.style.background='var(--paper)'; this.style.transform='translateY(-2px)';"
+       onmouseout="this.style.background='var(--paper-2)'; this.style.transform='translateY(0)';">
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;">Agent 01 · Active</div>
+      <h3 style="font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; letter-spacing: -.01em; margin: 0 0 14px;">Contract review &amp; redline <em>assistant</em></h3>
+      <p style="font-size: 15px; line-height: 1.6; color: var(--ink-2); margin: 0 0 18px;">Upload a contract as .docx or .pdf. The assistant runs your profile against it — seven specialist reviewers in parallel, a critical-issues sweep, then native tracked changes applied to the original file in its original format. Three deliverables: annotated contract, review summary, structured findings.</p>
+      <div style="display:flex; gap:24px; flex-wrap:wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase;">
+        <span>3 trial reviews / 30 days</span>
+        <span>· ~60s turnaround</span>
+        <span>· Format-in, format-out</span>
+      </div>
+      <div style="margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: var(--accent-deep); letter-spacing: .04em; text-transform: uppercase;">
+        Open the assistant →
+      </div>
+    </a>
+
+    <div style="margin-top: 30px; padding: 30px; border: 1px dashed var(--rule-soft); border-radius: 8px; text-align: center; color: var(--ink-3);">
+      <div style="font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px;">More agents in development</div>
+      <p style="margin: 0; font-size: 14px;">Deposition prep agent, motion drafter, and clause-review fan-out are on the roadmap.</p>
+    </div>
+  </section>
+</div>
+
+<footer class="foot">
+  <div class="foot-top">
+    <div class="foot-logo"><span>Legal</span><span class="brand-over">Overflow</span></div>
+    <p class="foot-tag">A field journal on AI and the legal profession. Written in Cocoa, Florida.</p>
+  </div>
+  <div class="foot-cols">
+    <div><h5>Read</h5><a href="/#articles">Resources</a><a href="/#skills">Skills</a><a href="/agents/">Agents</a><a href="/#services">Services</a></div>
+    <div><h5>About</h5><a href="/about/">Author</a><a href="/about/">Standards</a><a href="/about/">Corrections</a></div>
+    <div><h5>Elsewhere</h5><a href="#">Mastodon</a><a href="#">LinkedIn</a><a href="#">RSS</a></div>
+    <div><h5>Fine print</h5><a href="#">Not legal advice</a><a href="#">Privacy</a><a href="#">Colophon</a></div>
+  </div>
+  <p class="foot-disclaimer">Claude™ and Claude Skills are trademarks of Anthropic PBC. GPT is a trademark of OpenAI. Gemini is a trademark of Google LLC. Westlaw is a trademark of Thomson Reuters. Legal Overflow is an independent publication and is not affiliated with, endorsed by, or sponsored by any of these companies.</p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04</span></div>
+</footer>
+
+<script is:inline>
+(function clock() {
+  const el = document.getElementById('nav-clock');
+  if (!el) return;
+  function tick() {
+    const d = new Date();
+    let h = d.getHours();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    el.textContent = `COCOA · ${h}:${mm} ${ampm}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+
+<DownloadGate />
+<Consent />
+</body>
+</html>

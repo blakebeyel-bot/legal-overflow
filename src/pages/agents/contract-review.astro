@@ -1,0 +1,935 @@
+---
+import Consent from '../../partials/consent.astro';
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Contract Review — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/contract-review.css" />
+<style>
+  /* Page-local overrides so the preview's CSS plays with the site nav */
+  .cr-sub-nav {
+    max-width: 1400px; margin: 0 auto; padding: 14px 40px 0;
+    display: flex; gap: 24px; align-items: center;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .cr-sub-nav .tab {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); padding: 10px 0; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .2s ease, border-color .2s ease;
+  }
+  .cr-sub-nav .tab:hover { color: var(--ink); }
+  .cr-sub-nav .tab.active { color: var(--ink); border-bottom-color: var(--accent-deep); }
+  .cr-quota { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+  .cr-quota .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: middle; }
+  /* Hide duplicate elements from the ported preview (its own nav, kickers we don't want) */
+  .view .banner { background: rgba(10,125,87,.06); border: 1px solid var(--rule-soft); padding: 14px 18px; border-radius: 6px; font-size: 13.5px; color: var(--ink-2); display: flex; gap: 14px; align-items: center; margin: 16px 0 24px; }
+  .view .banner-tag { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-deep); color: var(--paper); padding: 3px 8px; border-radius: 999px; }
+  .cr-empty-state { padding: 40px; text-align: center; color: var(--ink-3); font-family: var(--mono); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <span class="nav-meta" id="nav-clock">—</span>
+    <button id="cr-signout" class="nav-sub" style="border:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;">Sign out</button>
+  </div>
+</header>
+
+<!-- Sub-nav — view tabs for Configure | Review | Archive -->
+<div class="cr-sub-nav">
+  <span class="tab active" data-view="configure">Configure</span>
+  <span class="tab" data-view="review">Review</span>
+  <span class="tab" data-view="history">Archive</span>
+  <span class="cr-quota" id="quota-indicator"><span class="dot"></span><span id="quota-text">Loading…</span></span>
+</div>
+
+<main>
+  <!-- ============================================================
+       VIEW: Configure — playbook upload path (MVP)
+       ============================================================ -->
+  <section id="view-configure" class="view active">
+    <div class="kicker">
+      <span class="kicker-dash"></span>
+      <span>Step 1 · Configure</span>
+    </div>
+
+    <h1 class="hero-title">
+      <span class="rise rise-1">The firm is</span>
+      <span class="rise rise-2"><em>learning</em> to</span>
+      <span class="rise rise-3">read its own contracts.</span>
+    </h1>
+
+    <p class="hero-sub rise rise-3">
+      Upload your negotiating playbook once. Every contract you review after that is read in your voice,
+      against your positions, flagging the deal-breakers you've already decided are deal-breakers.
+    </p>
+
+    <!-- Profile status banner -->
+    <div id="profile-status" class="banner" style="display:none;">
+      <span class="banner-tag">Profile</span>
+      <span id="profile-status-text">Profile loaded. Head to Review when ready.</span>
+    </div>
+
+    <!-- Compact fast-track bar: already have a playbook? -->
+    <div class="fast-track fast-track-compact" id="fast-track">
+      <div class="fast-track-copy">
+        <span class="fast-track-title">Already have a <em>playbook</em>?</span>
+        <span class="fast-track-sub">.docx · .pdf · .md · .txt — skip the form and parse your document</span>
+      </div>
+      <button id="playbook-upload-btn" class="btn btn-ghost btn-sm">
+        Upload
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <input type="file" id="playbook-file-input" accept=".docx,.pdf,.md,.txt" style="display:none;" />
+
+    <!-- Main: form + brainstorm-chat helper, side by side -->
+    <div class="configure-grid">
+      <!-- Left: the form (primary path) -->
+      <div class="panel quick-setup-panel">
+        <div class="quick-setup-header">
+          <h2 class="quick-setup-heading">Tell us <em>how you negotiate.</em></h2>
+          <p class="quick-setup-lede">Fill in what you can. Stuck on a field? Ask the brainstorm assistant on the right for suggestions.</p>
+        </div>
+        <div class="quick-setup-body">
+          <div class="qs-grid">
+            <label class="qs-field">
+              <span class="qs-label">Company legal name</span>
+              <input type="text" id="qs-company" placeholder="e.g., Magic Inc." />
+            </label>
+            <label class="qs-field">
+              <span class="qs-label">Primary jurisdiction (state)</span>
+              <input type="text" id="qs-jurisdiction" placeholder="e.g., Florida" />
+            </label>
+            <label class="qs-field">
+              <span class="qs-label">Industry</span>
+              <select id="qs-industry">
+                <option value="">Select…</option>
+                <option>Software / SaaS</option>
+                <option>Professional Services</option>
+                <option>Construction</option>
+                <option>Manufacturing</option>
+                <option>Healthcare</option>
+                <option>Financial Services</option>
+                <option>Retail / Consumer</option>
+                <option>Logistics / Transportation</option>
+                <option>Energy / Utilities</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label class="qs-field">
+              <span class="qs-label">Typical role in contracts</span>
+              <select id="qs-role">
+                <option value="">Select…</option>
+                <option>Vendor / Provider</option>
+                <option>Customer / Buyer</option>
+                <option>Licensor</option>
+                <option>Licensee</option>
+                <option>Contractor</option>
+                <option>Subcontractor</option>
+                <option>Mixed (both sides)</option>
+              </select>
+            </label>
+            <label class="qs-field qs-field-wide">
+              <span class="qs-label-row">
+                <span class="qs-label">What does the company do? (2–3 sentences)</span>
+                <button type="button" class="qs-help-btn" data-help-field="description">Ask for ideas</button>
+              </span>
+              <textarea id="qs-description" rows="2" placeholder="We build marketing-automation software for mid-market e-commerce teams."></textarea>
+            </label>
+            <label class="qs-field">
+              <span class="qs-label">Liability cap preference</span>
+              <select id="qs-liability">
+                <option value="">Select…</option>
+                <option>1× fees (aggressive)</option>
+                <option>2× fees paid</option>
+                <option>Fees paid in prior 12 months</option>
+                <option>Greater of $X or 2× fees</option>
+                <option>No preference yet</option>
+              </select>
+            </label>
+            <label class="qs-field">
+              <span class="qs-label">Payment terms preference</span>
+              <select id="qs-payment">
+                <option value="">Select…</option>
+                <option>Net 15</option>
+                <option>Net 30</option>
+                <option>Net 45</option>
+                <option>Net 60 (reluctantly)</option>
+                <option>Upon receipt</option>
+                <option>No preference yet</option>
+              </select>
+            </label>
+            <label class="qs-field qs-field-wide">
+              <span class="qs-label-row">
+                <span class="qs-label">Deal-breakers / red flags (one per line)</span>
+                <button type="button" class="qs-help-btn" data-help-field="red_flags">Ask for ideas</button>
+              </span>
+              <textarea id="qs-red-flags" rows="5" placeholder="Auto-renewal without written notice&#10;Unlimited indemnification&#10;Waiver of jury trial&#10;Unilateral modification rights"></textarea>
+            </label>
+            <label class="qs-field qs-field-wide">
+              <span class="qs-label-row">
+                <span class="qs-label">Anything else worth knowing? (insurance limits, statutes, tone — optional)</span>
+                <button type="button" class="qs-help-btn" data-help-field="notes">Ask for ideas</button>
+              </span>
+              <textarea id="qs-notes" rows="3" placeholder="We carry $5M cyber. Please cite FL prompt-payment statute where relevant."></textarea>
+            </label>
+          </div>
+          <div style="margin-top: 20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <button class="btn btn-primary" id="qs-submit-btn">
+              Build profile
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+            <span id="qs-status" class="qs-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: brainstorm chat helper -->
+      <div class="panel chat-panel brainstorm-panel">
+        <div class="chat-topbar">
+          <div>
+            <div class="chat-topbar-title">Brainstorm <em>assistant</em></div>
+            <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Stuck? Ask for suggestions — one click pastes into the form.</div>
+          </div>
+          <div class="chat-topbar-status"><span class="live-dot" style="width:6px;height:6px"></span> Ready</div>
+        </div>
+        <div class="chat-scroll" id="chat-scroll"></div>
+        <div class="msg-counter" id="msg-counter" style="display:none;">
+          <span id="msg-counter-label">0 of 15 messages</span>
+          <div class="msg-counter-bar"><div class="msg-counter-fill" id="msg-counter-fill"></div></div>
+          <span>Cap: 15</span>
+        </div>
+        <div class="chat-input-area">
+          <div class="chat-input-row">
+            <textarea class="chat-input" id="chat-input" rows="1" placeholder='e.g., "What red flags should a SaaS vendor watch for?"'></textarea>
+            <button class="btn btn-primary btn-sm" id="send-btn">
+              Send
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parse results — shown after submit -->
+    <div class="playbook-parse hidden" id="playbook-parse">
+      <div class="playbook-parse-title">Your profile is <em>saved</em></div>
+      <div id="playbook-parse-fields"></div>
+      <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="goto-review-btn">
+          Go to Review
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="playbook-reupload-btn">Edit / re-run</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VIEW: Review — upload contract → progress → results
+       ============================================================ -->
+  <section id="view-review" class="view">
+    <div class="kicker">
+      <span class="kicker-dash"></span>
+      <span>Step 2 · Review</span>
+    </div>
+
+    <h1 class="hero-title">
+      <span class="rise rise-1">Upload a contract.</span>
+      <span class="rise rise-2">Get it <em>back</em>, marked up,</span>
+      <span class="rise rise-3">in about sixty seconds.</span>
+    </h1>
+
+    <p class="hero-sub rise rise-3">
+      PDF or Word. The platform classifies the document, fans out to every specialist in your profile,
+      applies native tracked changes, and returns the file in the format you sent it.
+    </p>
+
+    <!-- Quota-exceeded state -->
+    <div id="review-blocked" class="quota-block hidden">
+      <h3>You've used all <em>3</em> trial reviews this window.</h3>
+      <p>Your trial allows three full contract reviews per 30-day window. Your window resets automatically, or upgrade for more capacity.</p>
+    </div>
+
+    <!-- Upload -->
+    <div id="review-upload" class="panel" style="padding:40px;">
+      <div class="dropzone" id="dropzone">
+        <div class="dropzone-title">Drop a contract <em>here</em></div>
+        <div class="dropzone-sub">or click to select a file</div>
+        <div class="format-row">
+          <span>.pdf</span>
+          <span>.docx</span>
+          <span>Up to 50 MB</span>
+        </div>
+      </div>
+      <input type="file" id="contract-file-input" accept=".pdf,.docx,.txt,.md" style="display:none;" />
+    </div>
+
+    <!-- Progress -->
+    <div id="review-progress" class="panel hidden">
+      <div class="progress-file">
+        <div class="progress-file-icon" id="progress-file-icon">DOCX</div>
+        <div>
+          <div class="progress-file-name" id="progress-file-name">file.docx</div>
+          <div class="progress-file-sub" id="progress-file-sub">Uploading…</div>
+        </div>
+      </div>
+      <div class="stage-list">
+        <div class="stage pending" data-stage="extract">
+          <div class="stage-icon"><span>01</span></div>
+          <div class="stage-label">Extract canonical text</div>
+          <div class="stage-detail"></div>
+        </div>
+        <div class="stage pending" data-stage="classify">
+          <div class="stage-icon"><span>02</span></div>
+          <div class="stage-label">Classify document</div>
+          <div class="stage-detail"></div>
+        </div>
+        <div class="stage pending" data-stage="specialists">
+          <div class="stage-icon"><span>03</span></div>
+          <div class="stage-label">Run specialist reviewers</div>
+          <div class="stage-detail"></div>
+        </div>
+        <div class="stage pending" data-stage="audit">
+          <div class="stage-icon"><span>04</span></div>
+          <div class="stage-label">Critical-issues sweep</div>
+          <div class="stage-detail"></div>
+        </div>
+        <div class="stage pending" data-stage="assemble">
+          <div class="stage-icon"><span>05</span></div>
+          <div class="stage-label">Assemble markup &amp; summary</div>
+          <div class="stage-detail"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="review-results" class="panel hidden">
+      <div class="results-head">
+        <div class="kicker results-head-kicker">
+          <span class="kicker-dash"></span>
+          <span id="results-subtitle">Review complete</span>
+        </div>
+        <div class="results-head-title" id="results-title">Review — <em>—</em></div>
+        <div class="results-head-sub" id="results-sub">— findings</div>
+        <div class="results-meta">
+          <div><div class="results-meta-l">Contract type</div><div class="results-meta-v" id="results-ct">—</div></div>
+          <div><div class="results-meta-l">Pipeline</div><div class="results-meta-v" id="results-mode">—</div></div>
+          <div><div class="results-meta-l">Findings</div><div class="results-meta-v" id="results-count">—</div></div>
+          <div><div class="results-meta-l">Tokens</div><div class="results-meta-v" id="results-tokens">—</div></div>
+        </div>
+      </div>
+      <div class="severity-row">
+        <div class="sev blocker"><div class="sev-l">Blocker</div><div class="sev-n" id="sev-blocker">0</div></div>
+        <div class="sev major"><div class="sev-l">Major</div><div class="sev-n" id="sev-major">0</div></div>
+        <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n" id="sev-moderate">0</div></div>
+        <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n" id="sev-minor">0</div></div>
+      </div>
+      <div class="action-row" id="results-actions"></div>
+      <div class="back-row">
+        <button class="btn btn-ghost btn-sm" id="review-another-btn">← Review another contract</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VIEW: Archive
+       ============================================================ -->
+  <section id="view-history" class="view">
+    <div class="kicker">
+      <span class="kicker-dash"></span>
+      <span>Archive</span>
+    </div>
+    <h1 class="hero-title">
+      <span class="rise rise-1">Every contract</span>
+      <span class="rise rise-2">the platform has <em>read</em>.</span>
+    </h1>
+    <p class="hero-sub rise rise-3">Click any row to reopen its outputs.</p>
+
+    <div class="panel history-list" id="history-list">
+      <div class="history-col-head">
+        <div>Contract</div>
+        <div>Type</div>
+        <div>Date</div>
+        <div>Findings</div>
+        <div>Status</div>
+      </div>
+      <div id="history-rows">
+        <div class="cr-empty-state">Loading…</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  import { getSupabase } from '../../lib/supabase';
+  import * as api from '../../lib/client-api';
+
+  const supabase = getSupabase();
+
+  // ---- Auth gate ----
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/agents/contract-review/';
+  }
+
+  // ---- Sign out ----
+  document.getElementById('cr-signout').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    location.href = '/';
+  });
+
+  // ---- Clock ----
+  (function clock() {
+    const el = document.getElementById('nav-clock');
+    if (!el) return;
+    function tick() {
+      const d = new Date();
+      let h = d.getHours();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      el.textContent = `COCOA · ${h}:${mm} ${ampm}`;
+    }
+    tick(); setInterval(tick, 30000);
+  })();
+
+  // ---- View switcher ----
+  const tabs = document.querySelectorAll('.cr-sub-nav .tab');
+  const views = document.querySelectorAll('.view');
+  function switchView(name) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.view === name));
+    views.forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
+    if (name === 'history') loadArchive();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  tabs.forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+  document.getElementById('goto-review-btn')?.addEventListener('click', () => switchView('review'));
+  document.getElementById('review-another-btn')?.addEventListener('click', () => {
+    document.getElementById('review-results').classList.add('hidden');
+    document.getElementById('review-upload').classList.remove('hidden');
+    document.getElementById('review-progress').classList.add('hidden');
+  });
+
+  // Latest-known profile — used by the chat so it layers nuance on top
+  // of whatever the quick-setup form / playbook upload already saved.
+  let currentProfile = null;
+
+  // ---- Profile status / quota ----
+  async function refreshStatus() {
+    try {
+      const profile = await api.getProfile();
+      currentProfile = profile;
+      const banner = document.getElementById('profile-status');
+      const txt = document.getElementById('profile-status-text');
+      if (profile) {
+        banner.style.display = 'flex';
+        txt.textContent = 'Profile loaded. Head to Review when ready.';
+      } else {
+        banner.style.display = 'none';
+      }
+    } catch (e) {
+      console.error('profile status:', e);
+    }
+    try {
+      const reviews = await api.listReviews();
+      const used = reviews.length;
+      const cap = 3; // trial
+      const remaining = Math.max(0, cap - used);
+      const text = document.getElementById('quota-text');
+      text.textContent = `${remaining} of ${cap} reviews left`;
+    } catch (e) {
+      console.error('quota status:', e);
+    }
+  }
+  // First refreshStatus() is awaited by the chat opener below.
+
+  // ---- Playbook upload ----
+  const playbookBtn = document.getElementById('playbook-upload-btn');
+  const playbookInput = document.getElementById('playbook-file-input');
+  const fastTrack = document.getElementById('fast-track');
+  playbookBtn.addEventListener('click', () => playbookInput.click());
+  fastTrack.addEventListener('click', (e) => { if (e.target === fastTrack || e.target.closest('.fast-track-copy')) playbookInput.click(); });
+  document.getElementById('playbook-reupload-btn')?.addEventListener('click', () => playbookInput.click());
+
+  playbookInput.addEventListener('change', async () => {
+    const file = playbookInput.files?.[0];
+    if (!file) return;
+    const fastTrackCopy = fastTrack.querySelector('.fast-track-sub');
+    fastTrackCopy.textContent = 'Parsing…';
+    try {
+      const result = await api.uploadPlaybook(file);
+      fastTrackCopy.textContent = 'Parsed.';
+      const panel = document.getElementById('playbook-parse');
+      const fields = document.getElementById('playbook-parse-fields');
+      fields.innerHTML = renderProfileSummary(result.profile);
+      panel.classList.remove('hidden');
+      currentProfile = result.profile;
+      await refreshStatus();
+    } catch (err) {
+      fastTrackCopy.textContent = 'Error: ' + err.message;
+    }
+  });
+
+  // ---- Quick Setup form — one API call via uploadPlaybook ----
+  const qsSubmit = document.getElementById('qs-submit-btn');
+  const qsStatus = document.getElementById('qs-status');
+  if (qsSubmit) {
+    qsSubmit.addEventListener('click', async () => {
+      const val = (id) => (document.getElementById(id)?.value || '').trim();
+      const company = val('qs-company');
+      const industry = val('qs-industry');
+      const role = val('qs-role');
+      const jurisdiction = val('qs-jurisdiction');
+      const description = val('qs-description');
+      const liability = val('qs-liability');
+      const payment = val('qs-payment');
+      const redFlags = val('qs-red-flags');
+      const notes = val('qs-notes');
+
+      if (!company || !description) {
+        qsStatus.className = 'qs-status err';
+        qsStatus.textContent = 'Please fill in at least company name and description.';
+        return;
+      }
+
+      // Build a structured "playbook" text blob. The workflow-configurator
+      // agent reads this and normalizes it into the profile schema.
+      const blob = [
+        'COMPANY CONTRACT-REVIEW PLAYBOOK',
+        '================================',
+        '',
+        `Company legal name: ${company}`,
+        industry && `Industry: ${industry}`,
+        role && `Typical role in contracts: ${role}`,
+        jurisdiction && `Primary jurisdiction: ${jurisdiction}`,
+        '',
+        'Business description:',
+        description,
+        '',
+        'Commercial positions:',
+        liability && `- Liability cap preference: ${liability}`,
+        payment && `- Payment terms preference: ${payment}`,
+        '',
+        redFlags && 'Red flags / deal-breakers (one per line):',
+        redFlags,
+        '',
+        notes && 'Additional notes and preferences:',
+        notes && notes,
+      ].filter(Boolean).join('\n');
+
+      const file = new File([blob], 'quick-setup.txt', { type: 'text/plain' });
+
+      qsSubmit.disabled = true;
+      qsStatus.className = 'qs-status';
+      qsStatus.textContent = 'Building profile…';
+      try {
+        const result = await api.uploadPlaybook(file);
+        qsStatus.className = 'qs-status ok';
+        qsStatus.textContent = 'Profile saved.';
+        // Reuse the same success panel the playbook-upload path uses
+        const panel = document.getElementById('playbook-parse');
+        const fields = document.getElementById('playbook-parse-fields');
+        fields.innerHTML = renderProfileSummary(result.profile);
+        panel.classList.remove('hidden');
+        // Also update the live side panel + cache for chat layering
+        currentProfile = result.profile;
+        await refreshStatus();
+      } catch (err) {
+        qsStatus.className = 'qs-status err';
+        qsStatus.textContent = 'Error: ' + err.message;
+      } finally {
+        qsSubmit.disabled = false;
+      }
+    });
+  }
+
+  function renderProfileSummary(profile) {
+    const rows = [];
+    const push = (k, v) => rows.push(`<div class="playbook-parse-line"><span class="playbook-parse-k">${k}</span><span class="playbook-parse-v">${v || '—'}</span><span class="playbook-parse-check">✓ ingested</span></div>`);
+    push('Company', profile.company?.name || profile.company_name);
+    push('Industry', profile.industry || profile.sector);
+    push('Role', profile.role || profile.typical_role);
+    push('Jurisdiction', profile.jurisdiction || profile.governing_law);
+    const positions = profile.positions ? Object.keys(profile.positions).length : 0;
+    push('Positions', positions ? `${positions} position group(s)` : '—');
+    const redFlags = Array.isArray(profile.red_flags) ? profile.red_flags.length : (profile.red_flags ? Object.keys(profile.red_flags).length : 0);
+    push('Red flags', redFlags ? `${redFlags} flag(s)` : '—');
+    return rows.join('');
+  }
+
+  // ---- Brainstorm chat (helps the user fill the form) ----
+  const chatScroll = document.getElementById('chat-scroll');
+  const chatInput = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+  const msgCounter = document.getElementById('msg-counter');
+  const msgCounterLabel = document.getElementById('msg-counter-label');
+  const msgCounterFill = document.getElementById('msg-counter-fill');
+  const chatHistory = [];
+
+  // Map of backend suggest-field names to the form input IDs they should
+  // write into. The chat model is told the exact set of allowed names.
+  const FIELD_TO_INPUT_ID = {
+    company: 'qs-company',
+    jurisdiction: 'qs-jurisdiction',
+    industry: 'qs-industry',
+    role: 'qs-role',
+    description: 'qs-description',
+    liability: 'qs-liability',
+    payment: 'qs-payment',
+    red_flags: 'qs-red-flags',
+    notes: 'qs-notes',
+  };
+  const FIELD_LABEL = {
+    company: 'Company', jurisdiction: 'Jurisdiction', industry: 'Industry',
+    role: 'Role', description: 'Description', liability: 'Liability cap',
+    payment: 'Payment terms', red_flags: 'Red flags', notes: 'Notes',
+  };
+
+  // Build a snapshot of current form values (used by the brainstorm chat
+  // so it knows what's filled in and what's still blank).
+  function collectFormState() {
+    const val = (id) => (document.getElementById(id)?.value || '').trim();
+    return {
+      company: val('qs-company'),
+      jurisdiction: val('qs-jurisdiction'),
+      industry: val('qs-industry'),
+      role: val('qs-role'),
+      description: val('qs-description'),
+      liability: val('qs-liability'),
+      payment: val('qs-payment'),
+      red_flags: val('qs-red-flags'),
+      notes: val('qs-notes'),
+    };
+  }
+
+  // Paste a suggestion into a form field. Textareas append (newline-joined),
+  // selects match by option text, inputs replace.
+  function applySuggestionToField(field, text) {
+    const id = FIELD_TO_INPUT_ID[field];
+    if (!id) return false;
+    const el = document.getElementById(id);
+    if (!el) return false;
+    if (el.tagName === 'SELECT') {
+      const match = Array.from(el.options).find(o =>
+        o.value.toLowerCase() === text.toLowerCase() ||
+        o.textContent.trim().toLowerCase() === text.toLowerCase()
+      );
+      if (match) el.value = match.value;
+      else el.value = text; // fall through — may not match, but the model tried
+    } else if (el.tagName === 'TEXTAREA') {
+      const existing = el.value.trim();
+      el.value = existing ? `${existing}\n${text}` : text;
+    } else {
+      el.value = text;
+    }
+    // Brief visual flash so the user sees which field got filled
+    el.style.transition = 'background-color .6s ease';
+    el.style.backgroundColor = 'color-mix(in oklab, var(--accent) 20%, transparent)';
+    setTimeout(() => { el.style.backgroundColor = ''; }, 700);
+    return true;
+  }
+
+  function addChatBubble(role, text) {
+    const row = document.createElement('div');
+    row.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = role === 'user' ? 'YOU' : 'CR';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    let prose = text;
+    const suggestions = []; // [{ field, value }]
+    if (role === 'bot') {
+      // Extract <suggest field="red_flags">...</suggest> tags
+      const suggestRegex = /<suggest(?:\s+field="([^"]*)")?>([\s\S]*?)<\/suggest>/gi;
+      let m;
+      while ((m = suggestRegex.exec(text)) !== null) {
+        suggestions.push({ field: (m[1] || '').trim(), value: m[2].trim() });
+      }
+      prose = text.replace(suggestRegex, '').replace(/\n{3,}/g, '\n\n').trim();
+
+      // Minimal safe markdown: escape then render **bold** and *italic*
+      const escaped = prose
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const rendered = escaped
+        .replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[\s(])\*([^*\n]+?)\*(?=[\s.,!?)]|$)/g, '$1<em>$2</em>');
+      bubble.innerHTML = rendered;
+    } else {
+      bubble.textContent = prose;
+    }
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatScroll.appendChild(row);
+
+    if (suggestions.length) {
+      const pills = document.createElement('div');
+      pills.className = 'suggest-pills';
+      suggestions.forEach(({ field, value }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'suggest-pill';
+        const label = FIELD_LABEL[field] || field || 'Suggestion';
+        btn.innerHTML =
+          `<span class="suggest-plus">+</span>` +
+          `<span class="suggest-text"><span class="suggest-field-tag">Add to ${escapeHtml(label)}</span>${escapeHtml(value)}</span>`;
+        btn.addEventListener('click', () => {
+          if (btn.classList.contains('added')) return;
+          if (applySuggestionToField(field, value)) {
+            btn.classList.add('added');
+            btn.querySelector('.suggest-plus').textContent = '✓';
+          }
+        });
+        pills.appendChild(btn);
+      });
+      chatScroll.appendChild(pills);
+    }
+
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  }
+
+  function updateMsgCounter() {
+    const used = chatHistory.filter(m => m.role === 'user').length;
+    if (used === 0) { msgCounter.style.display = 'none'; return; }
+    msgCounter.style.display = 'flex';
+    msgCounterLabel.textContent = `${used} of 15 messages`;
+    msgCounterFill.style.width = `${Math.min(100, (used / 15) * 100)}%`;
+  }
+
+  async function sendChat(seedMessage = null) {
+    const text = (seedMessage ?? chatInput.value).trim();
+    if (!text) return;
+    chatHistory.push({ role: 'user', content: text });
+    addChatBubble('user', text);
+    chatInput.value = '';
+    updateMsgCounter();
+    sendBtn.disabled = true;
+    sendBtn.textContent = '…';
+    try {
+      // Pass current form state + any saved profile so the model knows
+      // context. Backend handles brainstorm-mode formatting.
+      const resp = await api.configuratorChat(
+        chatHistory,
+        false,
+        { saved_profile: currentProfile, form_state: collectFormState(), mode: 'brainstorm' },
+      );
+      chatHistory.push({ role: 'assistant', content: resp.reply });
+      addChatBubble('bot', resp.reply);
+    } catch (err) {
+      addChatBubble('bot', 'Error: ' + err.message);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
+    }
+  }
+
+  sendBtn.addEventListener('click', () => sendChat());
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  });
+
+  // Per-field "Ask for ideas" buttons — seed the chat with a targeted prompt
+  document.querySelectorAll('.qs-help-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const field = btn.dataset.helpField;
+      const label = FIELD_LABEL[field] || field;
+      // Draft a targeted prompt and fire it; the user can still edit
+      // the textarea before sending (we actually just send directly for
+      // speed — one click = suggestions).
+      const seed = `Suggest 5 good entries for the "${label}" field based on the company context I've filled in so far. Return each as a <suggest field="${field}"> tag.`;
+      sendChat(seed);
+    });
+  });
+
+  // Opening message — depends on whether a profile is already saved
+  (async () => {
+    await refreshStatus();
+    if (currentProfile) {
+      addChatBubble('bot',
+        "Welcome back. Your profile is already saved. I can help refine it — ask for more red flags, voice preferences, or anything else. Click any suggestion I give you to paste it into the form.");
+    } else {
+      addChatBubble('bot',
+        "Hi — I'm here to help you fill the form on the left. Ask me for ideas on any field (red flags, descriptions, payment terms, etc.) or use the *Ask for ideas* buttons next to each field. Every suggestion I give comes with a one-click paste.");
+    }
+  })();
+
+  // ---- Contract upload + progress polling ----
+  const dropzone = document.getElementById('dropzone');
+  const contractInput = document.getElementById('contract-file-input');
+  dropzone.addEventListener('click', () => contractInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragging'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragging'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragging');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleContractUpload(file);
+  });
+  contractInput.addEventListener('change', () => {
+    const file = contractInput.files?.[0];
+    if (file) handleContractUpload(file);
+  });
+
+  const STAGE_MAP = {
+    queued:      'extract',
+    classifying: 'classify',
+    analyzing:   'specialists',
+    auditing:    'audit',
+    compiling:   'assemble',
+    complete:    'assemble',
+  };
+
+  async function handleContractUpload(file) {
+    document.getElementById('review-upload').classList.add('hidden');
+    const progress = document.getElementById('review-progress');
+    progress.classList.remove('hidden');
+    const ext = (file.name.split('.').pop() || '').toUpperCase();
+    document.getElementById('progress-file-icon').textContent = ext;
+    document.getElementById('progress-file-name').textContent = file.name;
+    document.getElementById('progress-file-sub').textContent = `${Math.round(file.size / 1024)} KB · uploading`;
+
+    try {
+      const kickoff = await api.startReview(file);
+      document.getElementById('progress-file-sub').textContent =
+        `${kickoff.contract_type} · ${kickoff.pipeline_mode}`;
+      markStage('extract', 'done');
+      markStage('classify', 'done');
+      const final = await api.pollReview(kickoff.review_id, (snap) => {
+        const stage = STAGE_MAP[snap.review.status] || 'specialists';
+        // Mark everything up to current stage as done/active
+        const order = ['extract','classify','specialists','audit','assemble'];
+        const idx = order.indexOf(stage);
+        order.forEach((s, i) => {
+          markStage(s, i < idx ? 'done' : i === idx && snap.review.status !== 'complete' ? 'active' : i === idx ? 'done' : 'pending');
+        });
+      });
+      if (final.review.status === 'failed') {
+        throw new Error(final.review.error_message || 'Review failed');
+      }
+      showResults(final);
+      await refreshStatus();
+    } catch (err) {
+      document.getElementById('progress-file-sub').textContent = 'Error: ' + err.message;
+    }
+  }
+
+  function markStage(name, state) {
+    const el = document.querySelector(`.stage[data-stage="${name}"]`);
+    if (!el) return;
+    el.classList.remove('pending', 'active', 'done');
+    el.classList.add(state);
+  }
+
+  function showResults(snap) {
+    document.getElementById('review-progress').classList.add('hidden');
+    const r = snap.review;
+    document.getElementById('review-results').classList.remove('hidden');
+    document.getElementById('results-subtitle').textContent = new Date(r.completed_at || r.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    document.getElementById('results-title').innerHTML = `Review — <em>${escapeHtml(r.filename)}</em>`;
+    const totalFindings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
+    document.getElementById('results-sub').textContent = `${totalFindings} finding(s) · ${r.severity_counts?.blocker || 0} blocker(s)`;
+    document.getElementById('results-ct').textContent = r.contract_type || '—';
+    document.getElementById('results-mode').textContent = r.pipeline_mode || '—';
+    document.getElementById('results-count').textContent = String(totalFindings);
+    document.getElementById('results-tokens').textContent = String(r.total_tokens || 0);
+    document.getElementById('sev-blocker').textContent = String(r.severity_counts?.blocker || 0);
+    document.getElementById('sev-major').textContent = String(r.severity_counts?.major || 0);
+    document.getElementById('sev-moderate').textContent = String(r.severity_counts?.moderate || 0);
+    document.getElementById('sev-minor').textContent = String(r.severity_counts?.minor || 0);
+
+    const actions = document.getElementById('results-actions');
+    actions.innerHTML = '';
+    if (snap.downloads?.annotated) {
+      actions.appendChild(btn('Annotated contract', snap.downloads.annotated, true));
+    }
+    if (snap.downloads?.summary) {
+      actions.appendChild(btn('Review summary', snap.downloads.summary, false));
+    }
+    if (snap.downloads?.findings_json) {
+      actions.appendChild(btn('findings.json', snap.downloads.findings_json, false));
+    }
+  }
+
+  function btn(text, href, primary) {
+    const a = document.createElement('a');
+    a.className = 'btn ' + (primary ? 'btn-primary' : 'btn-ghost');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = text;
+    return a;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---- Archive ----
+  async function loadArchive() {
+    const rows = document.getElementById('history-rows');
+    rows.innerHTML = '<div class="cr-empty-state">Loading…</div>';
+    try {
+      const reviews = await api.listReviews();
+      if (!reviews.length) {
+        rows.innerHTML = '<div class="cr-empty-state">No reviews yet. Head to Review and drop a contract in.</div>';
+        return;
+      }
+      rows.innerHTML = reviews.map(r => {
+        const findings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
+        const statusLabel = r.status === 'complete' ? 'Complete' : r.status === 'failed' ? 'Failed' : 'In progress';
+        const statusClass = r.status === 'complete' ? 'complete' : r.status === 'failed' ? 'escalated' : '';
+        return `
+          <div class="history-row" data-review-id="${r.id}">
+            <div class="h-name">${escapeHtml(r.filename)}</div>
+            <div class="h-meta">${escapeHtml(r.contract_type || '—')}</div>
+            <div class="h-meta emph">${new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            <div class="h-meta">${findings} findings</div>
+            <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
+          </div>`;
+      }).join('');
+      rows.querySelectorAll('.history-row').forEach(row => {
+        row.addEventListener('click', async () => {
+          const id = row.dataset.reviewId;
+          const snap = await api.getReview(id);
+          if (snap.review.status === 'complete') {
+            switchView('review');
+            showResults(snap);
+          }
+        });
+      });
+    } catch (err) {
+      rows.innerHTML = `<div class="cr-empty-state">Error: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+</script>
+
+<Consent />
+</body>
+</html>
