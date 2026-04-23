@@ -103,7 +103,8 @@ async function processReview({ userId, reviewId, supabase }) {
   if (!pipeline) throw new Error(`Unknown pipeline mode: ${mode}`);
 
   const analyzeStage = pipeline.stages.find(s => s.stage === 'analyze');
-  const specialists = analyzeStage?.agents || [];
+  const specialists = resolveSpecialists(analyzeStage, registry, profile);
+  console.log(`[fanout-background] resolved specialists (${specialists.length}): ${specialists.join(', ')}`);
 
   await updateProgress(supabase, reviewId, 'analyzing',
     `Running ${specialists.length} specialist${specialists.length === 1 ? '' : 's'} in parallel…`);
@@ -117,36 +118,63 @@ async function processReview({ userId, reviewId, supabase }) {
   let completedCount = 0;
   const allFindings = [];
   const allCoverage = [];
+  const specialistFailures = []; // tracked and surfaced to both findings.json + Review_Summary.docx
 
   const specialistResults = await Promise.allSettled(
     specialists.map(async (agentName) => {
-      const agent = getAgent(agentName);
-      const resp = await callSpecialist({
-        agentName,
-        systemPrompt: agent.systemPrompt,
-        profileJson: profile,
-        contractText,
-        taskPrompt: specialistTaskEnvelope,
-        userId, reviewId,
-        maxTokens: 8192,
-        tokensUsedSoFar: tokensUsed,
-      });
-      tokensUsed += (resp.usage.input_tokens || 0) + (resp.usage.output_tokens || 0);
-
-      let parsed;
-      try { parsed = extractJson(resp.text); } catch (e) {
-        console.error(`${agentName} returned non-JSON:`, e.message);
-        parsed = { coverage_pass: [], findings: [] };
-      }
-      const { findings, coverage } = normalizeSpecialistOutput(parsed, agentName);
-
-      completedCount++;
+      // Always resolve with an outcome envelope so one specialist's failure
+      // can't silently disappear via Promise.allSettled's rejection path.
+      const outcome = { agentName, findings: [], coverage: [], error: null };
       try {
-        await updateProgress(supabase, reviewId, 'analyzing',
-          `Specialists: ${completedCount} of ${specialists.length} complete — just finished ${humanizeAgent(agentName)}…`);
-      } catch {}
-      console.log(`[fanout-background] ${agentName} done: ${findings.length} findings, ${coverage.length} coverage entries`);
-      return { findings, coverage, agentName };
+        const agent = getAgent(agentName);
+        if (!agent || !agent.systemPrompt) {
+          outcome.error = `agent "${agentName}" not found in bundle (agents-data.js) — may be missing from netlify/agents/ or the bundle build`;
+          console.error(`[specialist-failure] ${agentName}: ${outcome.error}`);
+          return outcome;
+        }
+        const resp = await callSpecialist({
+          agentName,
+          systemPrompt: agent.systemPrompt,
+          profileJson: profile,
+          contractText,
+          taskPrompt: specialistTaskEnvelope,
+          userId, reviewId,
+          maxTokens: 8192,
+          tokensUsedSoFar: tokensUsed,
+        });
+        tokensUsed += (resp.usage.input_tokens || 0) + (resp.usage.output_tokens || 0);
+
+        let parsed;
+        try {
+          parsed = extractJson(resp.text);
+        } catch (e) {
+          outcome.error = `non-JSON output from model: ${e.message}`;
+          console.error(`[specialist-failure] ${agentName} returned non-JSON:`, e.message);
+          parsed = { coverage_pass: [], findings: [] };
+        }
+        const { findings, coverage } = normalizeSpecialistOutput(parsed, agentName);
+        outcome.findings = findings;
+        outcome.coverage = coverage;
+
+        // Master template says coverage_pass is EXHAUSTIVE — zero entries is
+        // itself a failure signal, not a clean run.
+        if (coverage.length === 0 && !outcome.error) {
+          outcome.error =
+            'returned empty coverage_pass — the specialist is required by its system prompt to enumerate every hard-requirement item in its domain, so an empty array indicates either model failure or prompt drift';
+          console.warn(`[specialist-failure] ${agentName}: empty coverage_pass`);
+        }
+
+        completedCount++;
+        try {
+          await updateProgress(supabase, reviewId, 'analyzing',
+            `Specialists: ${completedCount} of ${specialists.length} complete — just finished ${humanizeAgent(agentName)}…`);
+        } catch {}
+        console.log(`[fanout-background] ${agentName} done: ${findings.length} findings, ${coverage.length} coverage entries${outcome.error ? ' (flagged: ' + outcome.error + ')' : ''}`);
+      } catch (err) {
+        outcome.error = `invocation failed: ${err.message || String(err)}`;
+        console.error(`[specialist-failure] ${agentName} invocation failed:`, err);
+      }
+      return outcome;
     })
   );
 
@@ -154,8 +182,34 @@ async function processReview({ userId, reviewId, supabase }) {
     if (r.status === 'fulfilled') {
       allFindings.push(...r.value.findings);
       allCoverage.push(...r.value.coverage);
+      if (r.value.error) {
+        specialistFailures.push({ specialist: r.value.agentName, reason: r.value.error });
+      }
     } else {
-      console.error('[fanout-background] specialist rejected:', r.reason);
+      // Shouldn't happen since we catch inside the map, but belt-and-suspenders
+      specialistFailures.push({
+        specialist: '(unknown — Promise.allSettled rejected)',
+        reason: `rejected promise: ${r.reason?.message || String(r.reason)}`,
+      });
+      console.error('[specialist-failure] unexpected rejection:', r.reason);
+    }
+  }
+
+  // Presence assertion: every specialist in the resolved list MUST contribute
+  // at least one coverage entry. Any that didn't get added to specialist_failures
+  // with an explicit reason — the review summary then flags the missing coverage
+  // so the reviewer knows the review is incomplete rather than silently ships it.
+  const contributors = new Set(allCoverage.map(c => c.specialist).filter(Boolean));
+  for (const expected of specialists) {
+    if (!contributors.has(expected)) {
+      const alreadyFlagged = specialistFailures.some(f => f.specialist === expected);
+      if (!alreadyFlagged) {
+        specialistFailures.push({
+          specialist: expected,
+          reason: 'expected specialist did not contribute any coverage entries — review is incomplete in this specialist\'s domain',
+        });
+        console.error(`[specialist-failure] ${expected}: MISSING from coverage_pass`);
+      }
     }
   }
 
@@ -338,6 +392,8 @@ async function processReview({ userId, reviewId, supabase }) {
     priorityThree: priorityFindings,
     coveragePassAggregate,
     rejectedFindings,
+    specialistFailures,
+    expectedSpecialists: specialists,
     unanchored,
     severityCounts,
     reviewedAt: new Date(),
@@ -356,11 +412,14 @@ async function processReview({ userId, reviewId, supabase }) {
     priority_three: priorityFindings.map(f => f.id),
     coverage_pass_aggregate: coveragePassAggregate,
     rejected_findings: rejectedFindings,
+    specialist_failures: specialistFailures,
+    expected_specialists: specialists,
     metrics: {
       ...compilerMetrics,
       ...postureMetrics,
       coherence_findings: coherenceFindings.length,
       restored_findings: restoredFindings.length,
+      specialist_failures_count: specialistFailures.length,
     },
   };
 
@@ -410,6 +469,49 @@ function tallySeverities(findings) {
 
 function humanizeAgent(name) {
   return String(name).replace(/-/g, ' ').replace(/\banalyst\b/, '').trim() || name;
+}
+
+/**
+ * Resolve the full specialist set for an analyze stage. Combines:
+ *   (a) the stage's explicit `agents` array from agent_registry.json
+ *   (b) if the stage has `plus_enabled_industry_modules: true`:
+ *       - every industry module explicitly enabled in profile.enabled_modules
+ *       - technology_saas is auto-enabled when profile.company.industry
+ *         matches SaaS / software-as-a-service / cloud patterns, so users
+ *         with a SaaS industry string get the SaaS specialist without
+ *         having to manually toggle enabled_modules
+ *
+ * Prior to this fix, `plus_enabled_industry_modules` was declared in the
+ * registry but never read — industry-saas-analyst therefore NEVER ran in
+ * production, leaving SaaS-specific clauses unreviewed.
+ */
+function resolveSpecialists(analyzeStage, registry, profile) {
+  const specialists = [...(analyzeStage?.agents || [])];
+  if (!analyzeStage?.plus_enabled_industry_modules) return specialists;
+
+  const industryModules = registry?.industry_modules || {};
+  const enabledFromProfile = (profile?.enabled_modules && typeof profile.enabled_modules === 'object')
+    ? profile.enabled_modules : {};
+
+  // (a) explicitly enabled modules from profile
+  for (const [moduleKey, moduleDef] of Object.entries(industryModules)) {
+    if (enabledFromProfile[moduleKey] === true && moduleDef?.agent && !specialists.includes(moduleDef.agent)) {
+      specialists.push(moduleDef.agent);
+    }
+  }
+
+  // (b) auto-enable technology_saas when industry string indicates SaaS
+  const industryText = String(profile?.company?.industry || '').toLowerCase();
+  const looksLikeSaas = /\b(saas|software[\s-]?as[\s-]?a[\s-]?service|cloud|b2b software|enterprise software|subscription software|hosted (service|software))\b/.test(industryText);
+  if (looksLikeSaas) {
+    const saasAgent = industryModules.technology_saas?.agent;
+    if (saasAgent && !specialists.includes(saasAgent)) {
+      specialists.push(saasAgent);
+      console.log(`[fanout-background] auto-enabled technology_saas module (industry "${profile?.company?.industry}")`);
+    }
+  }
+
+  return specialists;
 }
 
 /**

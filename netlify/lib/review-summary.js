@@ -33,6 +33,8 @@ export async function buildReviewSummaryDocx({
   priorityThree = [],
   coveragePassAggregate = [],
   rejectedFindings = [],
+  specialistFailures = [],
+  expectedSpecialists = [],
   unanchored = [],
   severityCounts,
   reviewedAt,
@@ -75,6 +77,44 @@ export async function buildReviewSummaryDocx({
     ],
   }));
   children.push(new Paragraph({ children: [new TextRun('')] }));
+
+  // Specialist failures — if ANY specialist didn't contribute, the review is
+  // incomplete in that specialist's domain and the reviewer needs to know up
+  // front. Rendered BEFORE Top 3 so it's impossible to miss. Section omitted
+  // entirely when there are no failures.
+  if (specialistFailures && specialistFailures.length > 0) {
+    children.push(new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun({ text: '⚠ Specialist failures — this review is INCOMPLETE', bold: true })],
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({
+        text:
+          'One or more specialists did not contribute coverage to this review. The clauses in their domains have NOT been audited. Do not rely on the rest of this review for those clause types until the failed specialists are rerun. Common causes: the specialist errored, returned non-JSON, or returned an empty coverage_pass (which the master template forbids).',
+        italics: true,
+      })],
+    }));
+    if (expectedSpecialists && expectedSpecialists.length > 0) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: 'Expected specialists for this pipeline: ', bold: true }),
+          new TextRun(expectedSpecialists.join(', ')),
+        ],
+      }));
+      children.push(new Paragraph({ children: [new TextRun('')] }));
+    }
+    for (const f of specialistFailures) {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: '• ' + (f.specialist || '(unknown)'), bold: true }),
+        ],
+      }));
+      children.push(new Paragraph({
+        children: [new TextRun({ text: '   Reason: ' + (f.reason || 'no reason recorded'), italics: true })],
+      }));
+    }
+    children.push(new Paragraph({ children: [new TextRun('')] }));
+  }
 
   // Top 3 to Raise — phone-call-level summary (FIRST section per partner request)
   if (priorityThree && priorityThree.length > 0) {
