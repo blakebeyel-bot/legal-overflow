@@ -250,17 +250,20 @@ export function checkFinding(finding, clientRole) {
  * module stays dependency-light.
  */
 export async function escalateAmbiguous({ finding, clientRole, callModel, userId, reviewId }) {
-  const systemPrompt =
-    `You are a posture-integrity checker. You decide a single question: does the proposed contract edit below move the contract in a direction that FAVORS the named party in their role? Answer strictly with one word: HELPS, HURTS, or NEUTRAL. No explanation.`;
+  const systemPrompt = POSTURE_CLASSIFIER_SYSTEM_PROMPT;
 
+  const proposedText = finding.proposed_text || finding.suggested_text || '[none]';
   const userMessage =
     `CLIENT PARTY ROLE IN CONTRACT: ${clientRole}\n\n` +
     `FINDING CATEGORY: ${finding.category || 'unknown'}\n` +
-    `SEVERITY: ${finding.severity || 'unknown'}\n\n` +
+    `FINDING SEVERITY: ${finding.severity || 'unknown'}\n` +
+    `FINDING SPECIALIST: ${finding.specialist || 'unknown'}\n\n` +
+    `MATERIALITY RATIONALE (the specialist's own articulation of concrete harm to the client if signed as-is — use this to infer who the clause currently benefits):\n${finding.materiality_rationale || '[none]'}\n\n` +
+    `OPENING ASK (the client's negotiating position — what the specialist thinks the client should push for):\n${finding.position || '[none]'}\n\n` +
     `CURRENT LANGUAGE (source_text):\n${finding.source_text || '[none]'}\n\n` +
-    `PROPOSED LANGUAGE (proposed_text):\n${finding.proposed_text || '[none]'}\n\n` +
-    `EXTERNAL COMMENT (for context only):\n${finding.external_comment || ''}\n\n` +
-    `Answer: HELPS / HURTS / NEUTRAL`;
+    `PROPOSED LANGUAGE (proposed_text):\n${proposedText}\n\n` +
+    `EXTERNAL COMMENT (counterparty-facing text, context only):\n${finding.external_comment || '[none]'}\n\n` +
+    `Apply the methodology from your system prompt. Produce a one-sentence beneficiary-first rationale, then on a new line a single word: HELPS, HURTS, or NEUTRAL.`;
 
   try {
     const resp = await callModel({
@@ -269,17 +272,112 @@ export async function escalateAmbiguous({ finding, clientRole, callModel, userId
       userMessage,
       userId,
       reviewId,
-      maxTokens: 8,
+      // Bumped from 8 → 150 so the model can perform the beneficiary
+      // analysis step before answering. Parser pulls the last all-caps
+      // token so reasoning prose doesn't confuse the verdict.
+      maxTokens: 150,
     });
-    const verdict = (resp.text || '').trim().toUpperCase();
-    if (verdict.startsWith('HELPS')) return { verdict: 'pass', reason: 'LLM escalation: edit favors client.' };
-    if (verdict.startsWith('HURTS')) return { verdict: 'fail', reason: 'LLM escalation: edit moves contract against client in role.' };
-    return { verdict: 'pass', reason: 'LLM escalation: neutral or unclear — defaulting to pass.' };
+    const verdict = parseClassifierVerdict(resp.text || '');
+    if (verdict === 'HELPS')   return { verdict: 'pass', reason: 'LLM escalation: edit favors client.' };
+    if (verdict === 'HURTS')   return { verdict: 'fail', reason: 'LLM escalation: edit moves contract against client in role.' };
+    if (verdict === 'NEUTRAL') return { verdict: 'pass', reason: 'LLM escalation: neutral — defaulting to pass.' };
+    return { verdict: 'pass', reason: 'LLM escalation: unclear verdict — defaulting to pass.' };
   } catch (e) {
     console.error('[posture-integrity] LLM escalation failed, defaulting to pass:', e.message);
     return { verdict: 'pass', reason: 'LLM escalation failed; defaulting to pass.' };
   }
 }
+
+/**
+ * Parse the verdict from the classifier's response. The model is instructed
+ * to put a single-word answer on its own line at the end. Walks lines in
+ * reverse and picks the first that is (or contains) HELPS, HURTS, or
+ * NEUTRAL — tolerates trailing punctuation and surrounding prose.
+ */
+function parseClassifierVerdict(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).reverse();
+  for (const line of lines) {
+    // Prefer a bare one-word line
+    const bare = line.toUpperCase().replace(/[^A-Z]/g, '');
+    if (bare === 'HELPS' || bare === 'HURTS' || bare === 'NEUTRAL') return bare;
+  }
+  // Fall back: any occurrence of the verdict anywhere in the text
+  const upper = text.toUpperCase();
+  if (/\bHELPS\b/.test(upper)) return 'HELPS';
+  if (/\bHURTS\b/.test(upper)) return 'HURTS';
+  if (/\bNEUTRAL\b/.test(upper)) return 'NEUTRAL';
+  return null;
+}
+
+/**
+ * System prompt for the posture-integrity classifier.
+ *
+ * The original one-sentence prompt was correctly identifying direction in
+ * simple numeric cases (already caught deterministically) but inverting on
+ * judgment-heavy clause types like MFN / retroactive refund, where the
+ * model needed to reason about "who does this clause currently benefit"
+ * before deciding direction of edit. This expanded prompt forces that
+ * beneficiary-first step, supplies a clause-type reference table with the
+ * answers, and includes worked examples on both sides of the common
+ * direction-flipping clause types.
+ */
+const POSTURE_CLASSIFIER_SYSTEM_PROMPT =
+  `You are a posture-integrity classifier. Your job is to decide whether a proposed contract edit moves the contract in a direction that FAVORS the named client party in their stated role.\n\n` +
+  `METHODOLOGY — apply in this order:\n` +
+  `1. Read the CURRENT LANGUAGE and identify which party the clause currently benefits most. Most one-sided contract clauses favor ONE specific party; mutual clauses are balanced but one side often benefits more in practice.\n` +
+  `2. Read the PROPOSED LANGUAGE and identify which party it would benefit most (or whether it makes the clause mutual / removes the clause entirely).\n` +
+  `3. Compare the two. If the shift moves benefit TOWARD the client's role → HELPS. If AWAY → HURTS. If no material shift → NEUTRAL.\n\n` +
+  `CRITICAL PRINCIPLE: If the clause as currently written benefits the COUNTERPARTY, an edit that reduces, removes, or narrows that clause is PRO-CLIENT (HELPS). Do not assume that "deleting a clause" is automatically bad for the client — direction depends entirely on who the clause was helping before the edit.\n\n` +
+  `Use the MATERIALITY RATIONALE field in the user message as a crucial signal: the specialist already articulated the CONCRETE HARM to the client from the current language. If the rationale describes harm, the current language benefits the counterparty and an edit reducing that language is HELPS for the client.\n\n` +
+  `DIRECTION-CLASSIFICATION REFERENCE — beneficiary of the CURRENT language listed first for each clause type:\n\n` +
+  `• MFN / most-favored-customer / price-protection / retroactive-refund: benefits the party RECEIVING the MFN protection (typically Customer in a vendor contract). Provider-side edits that delete, narrow, or make prospective-only are HELPS for Provider. Customer-side edits that broaden or add retroactive effect are HELPS for Customer.\n\n` +
+  `• Indemnification: benefits the party being INDEMNIFIED. Broadening indemnity scope helps the indemnified party, harms the indemnifying party. Narrowing or adding carve-outs does the reverse. A Provider who is the indemnifying party HELPS when indemnity is narrowed.\n\n` +
+  `• Limitation of liability cap (dollar amount): a LOWER cap HELPS the capped party (typically Provider), HURTS the uncapped counterparty. A HIGHER cap is the reverse. Cap CARVE-OUTS (unlimited for IP, data breach, etc.) help whoever benefits from the uncapped lane.\n\n` +
+  `• Cap look-back (e.g., "fees paid in preceding 3 months"): LONGER look-back = larger effective cap = HURTS the capped party, HELPS the uncapped counterparty.\n\n` +
+  `• Payment terms / Net-days: LONGER Net periods HELP the paying party (typically Customer), HURT the receiving party (typically Provider). Shorter Net periods reverse this.\n\n` +
+  `• Cure periods: LONGER cure periods HELP the party that might breach (the operationally-exposed side). SHORTER cure periods HELP the non-breaching party.\n\n` +
+  `• Non-competes: HELP the party imposing them, HURT the party restricted. Narrowing or shortening a non-compete HELPS the restricted party.\n\n` +
+  `• Confidentiality duration: LONGER duration HELPS the disclosing party (the one with more to protect). In lopsided-disclosure situations, identify who is actually disclosing more sensitive material.\n\n` +
+  `• Audit rights: HELP the auditing party, BURDEN the audited party. Narrowing audit scope / frequency / notice HELPS the audited party.\n\n` +
+  `• Insurance required limits: HIGHER required limits HELP the requiring party (typically Customer), BURDEN the providing party (typically Provider). Additional-insured grants HELP the named additional insured.\n\n` +
+  `• Termination for convenience: HELPS whoever has the right. A one-sided TfC favoring Customer hurts Provider. Adding a mutual TfC benefits whichever side values optionality more (usually Provider on long subscription deals).\n\n` +
+  `• Acceptance criteria / SLA thresholds: TIGHTER thresholds HURT the performing party (typically Provider), HELP the receiving party. Looser thresholds reverse this.\n\n` +
+  `• IP assignment / "work made for hire": ASSIGNMENT of IP to counterparty HURTS the assigning party. Narrowing the scope of assigned IP (to only Customer-specific deliverables, retaining platform/background IP) HELPS the assigning party.\n\n` +
+  `• Means-and-methods control language: HELPS the controlling party, HURTS the performing party (and creates worker-classification risk for Provider).\n\n` +
+  `WORKED EXAMPLES:\n\n` +
+  `Example A — MFN on Provider side:\n` +
+  `CURRENT: "Provider warrants that fees charged to Customer shall be no greater than the lowest fees charged to any similarly-situated customer, and Provider shall refund any difference retroactively."\n` +
+  `PROPOSED: [delete]\n` +
+  `CLIENT_ROLE: Provider\n` +
+  `ANALYSIS: The current clause benefits Customer (Customer receives MFN protection + retroactive refund). Deleting it removes that Provider obligation.\n` +
+  `ANSWER: HELPS\n\n` +
+  `Example B — MFN on Customer side:\n` +
+  `CURRENT: "Provider shall apply the same pricing as offered to other customers during the Term."\n` +
+  `PROPOSED: "Provider shall apply the same pricing as offered to other customers during the Term, and shall refund any difference retroactive to the effective date of this Agreement."\n` +
+  `CLIENT_ROLE: Customer\n` +
+  `ANALYSIS: The edit broadens the MFN from prospective to retroactive — that expands a Customer benefit.\n` +
+  `ANSWER: HELPS\n\n` +
+  `Example C — Indemnity scope on Provider side:\n` +
+  `CURRENT: "Provider shall indemnify Customer from any and all claims arising from or related to this Agreement."\n` +
+  `PROPOSED: "Provider shall indemnify Customer from third-party claims arising from Provider's gross negligence or willful misconduct."\n` +
+  `CLIENT_ROLE: Provider\n` +
+  `ANALYSIS: Current unlimited scope benefits Customer. Edit narrows to third-party + GN/WM only — dramatically reduces Provider exposure.\n` +
+  `ANSWER: HELPS\n\n` +
+  `Example D — Liability cap on Provider side (HURTS direction):\n` +
+  `CURRENT: "Provider's aggregate liability shall not exceed $500,000."\n` +
+  `PROPOSED: "Provider's aggregate liability shall not exceed $2,000,000."\n` +
+  `CLIENT_ROLE: Provider\n` +
+  `ANALYSIS: Lower current cap benefits Provider. Edit raises the cap, increasing Provider exposure.\n` +
+  `ANSWER: HURTS\n\n` +
+  `Example E — Non-compete on restricted party side:\n` +
+  `CURRENT: "For a period of 36 months following termination, Provider shall not provide services to any customer in the financial services industry."\n` +
+  `PROPOSED: "For a period of 12 months following termination, Provider shall not solicit the named employees of Customer identified in Exhibit A."\n` +
+  `CLIENT_ROLE: Provider\n` +
+  `ANALYSIS: The current non-compete heavily restricts Provider. The edit narrows scope (industry-wide → named employees only) and shortens duration (36 → 12 months) — significantly less restrictive on Provider.\n` +
+  `ANSWER: HELPS\n\n` +
+  `OUTPUT FORMAT:\n` +
+  `First, write ONE sentence identifying who the current clause benefits and whether the edit shifts benefit toward the client's role. Then on a NEW LINE, a single word: HELPS, HURTS, or NEUTRAL. No markdown, no bullets, no preamble.`;
+
 
 /**
  * Apply posture-integrity checks to a list of findings. Returns:
