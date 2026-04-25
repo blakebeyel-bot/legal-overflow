@@ -22,6 +22,8 @@ const gridArticles = all.filter(a => a.slug !== featured?.slug);
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
 <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" is:inline></script>
+  <link rel="stylesheet" href="/site-anim.css" />
+  <script src="/site-anim.js" defer></script>
 </head>
 <body>
   <div id="grain"></div>
@@ -1114,8 +1116,12 @@ State X (UPC-based)
   const ctx = canvas.getContext('2d');
   let W, H, DPR = Math.min(window.devicePixelRatio || 1, 2);
   const nodes = [];
-  const N = 44;
+  const pulses = [];
+  const N = 70;
+  const MAX_LINE = 220;
+  const MOUSE_R = 220;
   let mouseX = -9999, mouseY = -9999;
+  let t = 0;
 
   function resize() {
     W = canvas.clientWidth; H = canvas.clientHeight;
@@ -1124,44 +1130,86 @@ State X (UPC-based)
   }
   function init() {
     nodes.length = 0;
+    pulses.length = 0;
     for (let i = 0; i < N; i++) {
       nodes.push({
         x: Math.random() * W,
         y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.18,
-        vy: (Math.random() - 0.5) * 0.18,
-        r: Math.random() * 1.4 + 0.6,
-        hub: Math.random() < 0.12
+        vx: (Math.random() - 0.5) * 0.55,
+        vy: (Math.random() - 0.5) * 0.55,
+        r: Math.random() * 1.6 + 0.6,
+        hub: Math.random() < 0.16,
+        phase: Math.random() * Math.PI * 2,
+        nextFireAt: 60 + Math.random() * 240
+      });
+    }
+  }
+  function maybeFire(idx) {
+    const a = nodes[idx];
+    if (!a.hub) return;
+    if (t < a.nextFireAt) return;
+    a.nextFireAt = t + 90 + Math.random() * 220;
+    // fire to nearest neighbours
+    const targets = [];
+    for (let j = 0; j < nodes.length; j++) {
+      if (j === idx) continue;
+      const b = nodes[j];
+      const dx = a.x - b.x, dy = a.y - b.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < MAX_LINE * MAX_LINE) targets.push({ j, d2 });
+    }
+    targets.sort((p, q) => p.d2 - q.d2);
+    const fan = Math.min(2 + (Math.random() * 2 | 0), targets.length);
+    for (let k = 0; k < fan; k++) {
+      pulses.push({
+        from: idx,
+        to: targets[k].j,
+        p: 0,
+        speed: 0.012 + Math.random() * 0.018
       });
     }
   }
   function draw() {
+    t += 1;
     ctx.clearRect(0, 0, W, H);
-    // lines
+    // motion + mouse repel
     for (let i = 0; i < nodes.length; i++) {
       const a = nodes[i];
       a.x += a.vx; a.y += a.vy;
       if (a.x < 0 || a.x > W) a.vx *= -1;
       if (a.y < 0 || a.y > H) a.vy *= -1;
 
-      // mouse repulsion (very slight)
       const mdx = a.x - mouseX, mdy = a.y - mouseY;
       const md2 = mdx*mdx + mdy*mdy;
-      if (md2 < 140*140) {
-        const f = 0.4 * (1 - Math.sqrt(md2) / 140);
-        a.x += (mdx/Math.sqrt(md2||1)) * f;
-        a.y += (mdy/Math.sqrt(md2||1)) * f;
+      if (md2 < MOUSE_R * MOUSE_R) {
+        const md = Math.sqrt(md2) || 1;
+        const f = 0.9 * (1 - md / MOUSE_R);
+        a.x += (mdx/md) * f;
+        a.y += (mdy/md) * f;
       }
-
+      maybeFire(i);
+    }
+    // lines (with breathing alpha + cursor-tinted RGB)
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
       for (let j = i + 1; j < nodes.length; j++) {
         const b = nodes[j];
         const dx = a.x - b.x, dy = a.y - b.y;
         const d2 = dx*dx + dy*dy;
-        const max = 180;
-        if (d2 < max*max) {
-          const alpha = (1 - Math.sqrt(d2)/max) * 0.22;
-          ctx.strokeStyle = `rgba(14,21,18,${alpha})`;
-          ctx.lineWidth = 0.6;
+        if (d2 < MAX_LINE * MAX_LINE) {
+          const dist = Math.sqrt(d2);
+          const breath = 0.5 + 0.5 * Math.sin(t * 0.018 + a.phase + b.phase * 0.6);
+          let alpha = (1 - dist / MAX_LINE) * 0.4 * (0.55 + 0.45 * breath);
+          // cursor proximity tint toward accent
+          const mx = (a.x + b.x) / 2 - mouseX;
+          const my = (a.y + b.y) / 2 - mouseY;
+          const mdist = Math.sqrt(mx*mx + my*my);
+          const tint = Math.max(0, 1 - mdist / 280);
+          const r = Math.round(14 + (10 - 14) * tint);
+          const g = Math.round(21 + (125 - 21) * tint);
+          const bl = Math.round(18 + (87 - 18) * tint);
+          ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`;
+          ctx.lineWidth = 0.6 + tint * 0.4;
           ctx.beginPath();
           ctx.moveTo(a.x, a.y);
           ctx.lineTo(b.x, b.y);
@@ -1169,17 +1217,37 @@ State X (UPC-based)
         }
       }
     }
+    // travelling pulses
+    for (let k = pulses.length - 1; k >= 0; k--) {
+      const pu = pulses[k];
+      pu.p += pu.speed;
+      if (pu.p >= 1) { pulses.splice(k, 1); continue; }
+      const a = nodes[pu.from], b = nodes[pu.to];
+      if (!a || !b) { pulses.splice(k, 1); continue; }
+      const px = a.x + (b.x - a.x) * pu.p;
+      const py = a.y + (b.y - a.y) * pu.p;
+      const fade = Math.sin(pu.p * Math.PI);
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(16,185,129,${0.12 * fade})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(10,125,87,${0.95 * fade})`;
+      ctx.fill();
+    }
     // nodes
     for (const n of nodes) {
+      const breath = n.hub ? (0.7 + 0.3 * Math.sin(t * 0.04 + n.phase)) : 1;
       ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-      ctx.fillStyle = n.hub ? 'rgba(10,125,87,.85)' : 'rgba(14,21,18,.45)';
+      ctx.arc(n.x, n.y, n.r * breath, 0, Math.PI * 2);
+      ctx.fillStyle = n.hub ? 'rgba(10,125,87,.92)' : 'rgba(14,21,18,.5)';
       ctx.fill();
       if (n.hub) {
         ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r + 3, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(16,185,129,.35)';
-        ctx.lineWidth = 0.6;
+        ctx.arc(n.x, n.y, (n.r + 4) * breath, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(16,185,129,${0.25 + 0.2 * breath})`;
+        ctx.lineWidth = 0.7;
         ctx.stroke();
       }
     }

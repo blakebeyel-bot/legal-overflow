@@ -1,0 +1,778 @@
+/* SANDBOX ANIMATION LAYER
+ * Only loaded inside the design sandbox (port 4322). Targets the existing
+ * class names already on the pages (.hero-title, .pillar-card, .skill-card,
+ * .section-head, etc.) and adds entrance + interaction motion using LO's
+ * existing CSS variables. Nothing here changes content or palette.
+ *
+ * Goal: editorial / publication feel — slow, intentional, hand-crafted.
+ * Avoiding the SaaS-template "everything fades up the same way" look.
+ */
+
+/* ============================================================
+ * 1. Initial page paint — paper sweep
+ *    On load, a paper-colored curtain pulls back to reveal the page.
+ *    Brief (450ms) so it doesn't feel slow.
+ * ============================================================ */
+.sx-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--paper);
+  pointer-events: none;
+  transform: translateY(0);
+  transition: transform 0.55s cubic-bezier(0.7, 0, 0.18, 1);
+}
+.sx-curtain.sx-curtain-lift {
+  transform: translateY(-100%);
+}
+
+/* ============================================================
+ * 2. Reading-progress bar at the top
+ *    Hairline accent-deep bar, scales horizontally with scroll.
+ * ============================================================ */
+.sx-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 998;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--accent-deep) 70%, transparent),
+    var(--accent-deep) 60%,
+    color-mix(in oklab, var(--accent) 80%, transparent));
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.08s linear;
+}
+
+/* ============================================================
+ * 3. Custom cursor accent
+ *    Small dot trailing the cursor. Editorial-tasteful, not gimmicky.
+ *    Disabled on touch devices via media query.
+ * ============================================================ */
+.sx-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-deep);
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: multiply;
+  transform: translate(-50%, -50%);
+  transition: width 0.18s ease, height 0.18s ease, opacity 0.18s ease, background 0.18s ease;
+  opacity: 0.85;
+  will-change: transform;
+}
+.sx-cursor.sx-cursor-hover {
+  width: 36px;
+  height: 36px;
+  background: color-mix(in oklab, var(--accent-deep) 30%, transparent);
+  opacity: 0.55;
+}
+@media (hover: none), (pointer: coarse) {
+  .sx-cursor { display: none; }
+}
+
+/* ============================================================
+ * 4. Hero title — per-line reveal
+ *    Existing markup already wraps each line in <span class="line">.
+ *    Reveal them one after another with a 3D rotate-up.
+ * ============================================================ */
+.hero-title .line {
+  display: block;
+  opacity: 0;
+  transform: translateY(0.4em) rotateX(-30deg);
+  transform-origin: 50% 100%;
+  perspective: 800px;
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hero-title .line.sx-line-in {
+  opacity: 1;
+  transform: translateY(0) rotateX(0);
+}
+.hero-title .line:nth-child(1) { transition-delay: 0.10s; }
+.hero-title .line:nth-child(2) { transition-delay: 0.22s; }
+.hero-title .line:nth-child(3) { transition-delay: 0.34s; }
+
+/* About / Agents page H1 — same per-line cascade as the hero. JS splits
+   the heading on <br> and wraps each line in <span class="sx-line"> so
+   this rule can drive the same staggered reveal. */
+.about-title .sx-line {
+  display: block;
+  opacity: 0;
+  transform: translateY(0.4em) rotateX(-30deg);
+  transform-origin: 50% 100%;
+  perspective: 800px;
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.about-title.sx-title-in .sx-line { opacity: 1; transform: translateY(0) rotateX(0); }
+.about-title.sx-title-in .sx-line:nth-child(1) { transition-delay: 0.10s; }
+.about-title.sx-title-in .sx-line:nth-child(2) { transition-delay: 0.24s; }
+.about-title.sx-title-in .sx-line:nth-child(3) { transition-delay: 0.38s; }
+
+/* Article H1 — single-line fade + soft drift up. Article titles tend to be
+   long single sentences, so per-line cascade reads weird. Use a clean
+   single-element entrance instead. */
+.article-title {
+  opacity: 0;
+  transform: translateY(0.3em);
+  transition:
+    opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.2s,
+    transform 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.2s;
+}
+.article-title.sx-title-in { opacity: 1; transform: translateY(0); }
+.article-dek {
+  opacity: 0;
+  transform: translateY(0.3em);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.55s,
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.55s;
+}
+.article-title.sx-title-in + .article-dek { opacity: 1; transform: translateY(0); }
+/* (and dek inside article-hero alongside title — handled by JS adding sx-title-in to its sibling) */
+.article-dek.sx-title-in { opacity: 1; transform: translateY(0); }
+
+/* ============================================================
+ * 5. Hand-drawn underline on hero <em> accents
+ *    Selector: any <em> inside a hero-title or section-title gets a
+ *    drawn-in underline using inline-svg pseudo-element.
+ * ============================================================ */
+.hero-title em,
+.section-title em,
+.about-title em,
+.article-title em {
+  position: relative;
+  display: inline-block;
+}
+.hero-title em::after,
+.section-title em::after,
+.about-title em::after,
+.article-title em::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.06em;
+  height: 0.18em;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'><path d='M2 8 Q 50 2, 100 7 T 198 5' fill='none' stroke='%230a7d57' stroke-width='2' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  /* The underline is "drawn" by clipping it from left to right */
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.9s cubic-bezier(0.6, 0, 0.2, 1) 0.6s;
+}
+.hero-title.sx-title-in em::after,
+.section-title.sx-title-in em::after,
+.about-title.sx-title-in em::after,
+.article-title.sx-title-in em::after {
+  clip-path: inset(0 0 0 0);
+}
+
+/* ============================================================
+ * 6. Scroll-triggered reveals
+ *    Any element marked with .sx-reveal animates up when it enters
+ *    the viewport. .in-view class gets toggled by sandbox-anim.js.
+ *    Stagger handled via .sx-reveal-stagger > * (each child gets a
+ *    nth-child delay).
+ * ============================================================ */
+.sx-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.sx-reveal.sx-in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sx-reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sx-reveal-stagger.sx-in-view > *:nth-child(1)  { transition-delay: 0.05s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(2)  { transition-delay: 0.12s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(3)  { transition-delay: 0.19s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(4)  { transition-delay: 0.26s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(5)  { transition-delay: 0.33s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(6)  { transition-delay: 0.40s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(7)  { transition-delay: 0.47s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(8)  { transition-delay: 0.54s; opacity: 1; transform: translateY(0); }
+.sx-reveal-stagger.sx-in-view > *:nth-child(n+9){ transition-delay: 0.6s;  opacity: 1; transform: translateY(0); }
+
+/* ============================================================
+ * 7. Magnetic CTA — gentle cursor follow
+ *    Apply to any .btn-primary. Transform is set by JS, transition
+ *    smooths the follow. No transform when JS hasn't set it yet.
+ * ============================================================ */
+.btn-primary.sx-magnetic {
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+}
+.btn-primary.sx-magnetic:hover {
+  box-shadow: 0 14px 32px -16px rgba(14, 21, 18, 0.5);
+}
+
+/* ============================================================
+ * 8. Section number ticker
+ *    The "01" / "02" / etc. numbers in section heads get a subtle
+ *    ascent when their section enters view.
+ * ============================================================ */
+.section-num {
+  display: inline-block;
+  opacity: 0.55;
+  transform: translateY(6px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.sx-in-view .section-num,
+.section-head.sx-in-view .section-num {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================================
+ * 9. Card hover lift — applied via .sx-lift class
+ *    Subtle, slow, no scale (scale always feels gimmicky).
+ * ============================================================ */
+.sx-lift {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.25s ease;
+  will-change: transform;
+}
+.sx-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -22px rgba(14, 21, 18, 0.32);
+}
+
+/* ============================================================
+ * 10. Live dot continuous pulse (already in markup as .live-dot)
+ * ============================================================ */
+.live-dot {
+  animation: sx-pulse 2.4s ease-in-out infinite;
+}
+@keyframes sx-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 50%, transparent); }
+  50%      { box-shadow: 0 0 0 8px color-mix(in oklab, var(--accent) 0%, transparent); }
+}
+
+/* ============================================================
+ * 11. Subtle text shimmer on accent emphasis
+ *    The hero <em> sits with a slow horizontal hue wash. So gentle
+ *    you almost don't notice — just adds life.
+ * ============================================================ */
+.hero-title em,
+.about-title em,
+.article-title em {
+  background-image: linear-gradient(
+    90deg,
+    var(--accent-deep) 0%,
+    color-mix(in oklab, var(--accent-deep) 80%, var(--accent)) 50%,
+    var(--accent-deep) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sx-em-wash 8s ease-in-out infinite;
+}
+@keyframes sx-em-wash {
+  0%, 100% { background-position: 0% 0%; }
+  50%      { background-position: 100% 0%; }
+}
+
+/* ============================================================
+ * 13. Header text hover — marquee swap on top-nav links
+ *     Hover any .nav-links a and its text rolls upward; an accent-deep
+ *     duplicate rolls in from below. Editorial publication feel.
+ *     Applied SELECTIVELY — only to .nav-links a (top nav), not body
+ *     paragraphs, hero headline, buttons, or article titles.
+ *     The link wrapper gets overflow:hidden so the duplicate stays
+ *     parked below until hover.
+ * ============================================================ */
+.nav-links a.sx-marquee-link {
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: bottom;
+  line-height: 1.45;
+}
+.sx-marquee-text {
+  position: relative;
+  display: inline-block;
+  transition: transform 0.42s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.sx-marquee-text::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  color: var(--accent-deep);
+  white-space: nowrap;
+  font-weight: 500;
+}
+.nav-links a.sx-marquee-link:hover .sx-marquee-text {
+  transform: translateY(-100%);
+}
+
+/* ============================================================
+ * 14. Section-title <em> hover — character wave on the italic accent
+ *     Only on the italic-accent words inside .section-title. Each
+ *     character lifts and tilts with stagger when the title is hovered.
+ *     The rest of the title text stays still.
+ * ============================================================ */
+.section-title.sx-title-hover em .sx-char {
+  display: inline-block;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.section-title.sx-title-hover:hover em .sx-char {
+  transform: translateY(-3px) rotate(-1.5deg);
+}
+.section-title.sx-title-hover:hover em .sx-char:nth-child(1)  { transition-delay: 0.00s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(2)  { transition-delay: 0.04s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(3)  { transition-delay: 0.08s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(4)  { transition-delay: 0.12s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(5)  { transition-delay: 0.16s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(6)  { transition-delay: 0.20s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(7)  { transition-delay: 0.24s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(8)  { transition-delay: 0.28s; }
+.section-title.sx-title-hover:hover em .sx-char:nth-child(n+9){ transition-delay: 0.32s; }
+
+/* Section title entrance one-shot — when the section heading enters view,
+   the whole title fades up AND the italic em characters do a one-time
+   wave (same lift+rotate shape as the hover effect). */
+.section-title {
+  opacity: 0;
+  transform: translateY(0.25em);
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.section-title.sx-title-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+@keyframes sx-em-wave-once {
+  0%   { transform: translateY(0)    rotate(0deg); }
+  45%  { transform: translateY(-4px) rotate(-1.5deg); }
+  100% { transform: translateY(0)    rotate(0deg); }
+}
+.section-title.sx-title-in em .sx-char {
+  animation: sx-em-wave-once 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.section-title.sx-title-in em .sx-char:nth-child(1)  { animation-delay: 0.45s; }
+.section-title.sx-title-in em .sx-char:nth-child(2)  { animation-delay: 0.49s; }
+.section-title.sx-title-in em .sx-char:nth-child(3)  { animation-delay: 0.53s; }
+.section-title.sx-title-in em .sx-char:nth-child(4)  { animation-delay: 0.57s; }
+.section-title.sx-title-in em .sx-char:nth-child(5)  { animation-delay: 0.61s; }
+.section-title.sx-title-in em .sx-char:nth-child(6)  { animation-delay: 0.65s; }
+.section-title.sx-title-in em .sx-char:nth-child(7)  { animation-delay: 0.69s; }
+.section-title.sx-title-in em .sx-char:nth-child(8)  { animation-delay: 0.73s; }
+.section-title.sx-title-in em .sx-char:nth-child(9)  { animation-delay: 0.77s; }
+.section-title.sx-title-in em .sx-char:nth-child(10) { animation-delay: 0.81s; }
+.section-title.sx-title-in em .sx-char:nth-child(n+11) { animation-delay: 0.85s; }
+
+/* ============================================================
+ * 15. Hero background — animated layers behind the text + macbook
+ *     Layered inside an injected .sx-hero-bg element that sits at
+ *     z-index 1 (under .hero-grid which is z:2). Each layer animates
+ *     independently:
+ *       a) animated radial mesh (slow drift, blurred)
+ *       b) faint hairline grid (slow horizontal drift)
+ *       c) ambient drifting accent dots
+ *       d) animated SVG ink stroke (slow draw/erase loop)
+ * ============================================================ */
+.hero { isolation: isolate; }
+
+.sx-hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Mesh — soft accent washes drifting */
+.sx-hero-mesh {
+  position: absolute;
+  inset: -8vmin;
+  background:
+    radial-gradient(ellipse 50vmax 35vmax at 18% 28%,
+      color-mix(in oklab, var(--accent) 14%, transparent),
+      transparent 60%),
+    radial-gradient(ellipse 60vmax 40vmax at 82% 70%,
+      color-mix(in oklab, var(--accent-deep) 11%, transparent),
+      transparent 65%),
+    radial-gradient(ellipse 45vmax 30vmax at 50% 90%,
+      color-mix(in oklab, var(--accent-tint) 60%, transparent),
+      transparent 70%);
+  filter: blur(36px);
+  animation: sx-mesh-drift 26s ease-in-out infinite alternate;
+}
+@keyframes sx-mesh-drift {
+  0%   { transform: translate(0%, 0%) scale(1); }
+  50%  { transform: translate(2.5%, -1.5%) scale(1.04); }
+  100% { transform: translate(-1.5%, 2%) scale(1.02); }
+}
+
+/* Hairline grid — paper-2 colored thin grid that drifts horizontally */
+.sx-hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right,
+      color-mix(in oklab, var(--ink) 6%, transparent) 1px,
+      transparent 1px),
+    linear-gradient(to bottom,
+      color-mix(in oklab, var(--ink) 6%, transparent) 1px,
+      transparent 1px);
+  background-size: 88px 88px;
+  background-position: 0 0;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 90%);
+  opacity: 0.55;
+  animation: sx-grid-drift 22s linear infinite;
+}
+@keyframes sx-grid-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 88px 88px; }
+}
+
+/* Drifting accent dots */
+.sx-hero-dots {
+  position: absolute;
+  inset: 0;
+}
+.sx-hero-dots .sx-hd-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--ink) 30%, transparent);
+  filter: blur(0.5px);
+  animation: sx-dot-float 7s ease-in-out infinite;
+}
+.sx-hero-dots .sx-hd-dot.accent {
+  background: color-mix(in oklab, var(--accent-deep) 60%, transparent);
+}
+@keyframes sx-dot-float {
+  0%, 100% { transform: translate(0, 0); opacity: 0.18; }
+  50%      { transform: translate(0, -22px); opacity: 0.55; }
+}
+
+/* Animated ink-stroke — slow loop drawing and erasing a wavy line */
+.sx-hero-stroke {
+  position: absolute;
+  bottom: 18%;
+  left: -5%;
+  width: 110%;
+  height: 80px;
+  pointer-events: none;
+}
+.sx-hero-stroke path {
+  fill: none;
+  stroke: color-mix(in oklab, var(--accent-deep) 55%, transparent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: sx-stroke-draw 14s ease-in-out infinite;
+}
+@keyframes sx-stroke-draw {
+  0%   { stroke-dashoffset: 600; opacity: 0; }
+  20%  { opacity: 1; }
+  60%  { stroke-dashoffset: 0; opacity: 1; }
+  85%  { opacity: 0; }
+  100% { stroke-dashoffset: -600; opacity: 0; }
+}
+
+/* ============================================================
+ * 16. Home: sticky section ticker (top-right, mono caps)
+ *     Shows the section currently in view as you scroll. Tiny —
+ *     editorial cue, not a distraction.
+ * ============================================================ */
+.sx-ticker {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: color-mix(in oklab, var(--paper) 70%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in oklab, var(--ink) 7%, transparent);
+  border-radius: 999px;
+  pointer-events: none;
+  /* Hidden until the user has scrolled away from the very top, via JS-toggled
+     class — but the simple CSS-only fallback shows it always at low opacity. */
+  opacity: 0.85;
+}
+.sx-ticker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  animation: sx-pulse 2s ease-in-out infinite;
+}
+.sx-ticker-label { color: var(--ink-3); }
+.sx-ticker-sep   { color: var(--ink-4); }
+.sx-ticker-name  {
+  color: var(--ink);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  transition: opacity 0.25s ease;
+  display: inline-block;
+  min-width: 60px;
+}
+
+/* Section number bounce on enter (home + anywhere) */
+.section-num.sx-num-bounce {
+  animation: sx-num-bounce 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes sx-num-bounce {
+  0%   { transform: translateY(0) scale(1); }
+  40%  { transform: translateY(-3px) scale(1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* ============================================================
+ * 17. About page motifs
+ *     - Ken Burns slow zoom on portrait when in view
+ *     - Word-by-word reveal of the lead bio paragraph
+ *     - (count-up handled by JS animating textContent)
+ * ============================================================ */
+
+/* Ken Burns — runs ONCE on entering view, slow scale + drift */
+.about-portrait img.sx-kenburns,
+.about-portrait.sx-kenburns img {
+  animation: sx-kenburns 16s ease-out forwards;
+  transform-origin: 50% 30%;
+  will-change: transform;
+}
+@keyframes sx-kenburns {
+  0%   { transform: scale(1)    translate(0, 0); }
+  100% { transform: scale(1.08) translate(-1.5%, -1.5%); }
+}
+
+/* Lead-paragraph word-by-word reveal */
+.about-bio .sx-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.about-bio p.sx-words-in .sx-word {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Stagger via nth-child for the first 30 words; later words coalesce */
+.about-bio p.sx-words-in .sx-word:nth-child(n)   { transition-delay: calc(0.02s * var(--sx-i, 0)); }
+/* Without per-word JS index, use nth-child stepwise */
+.about-bio p.sx-words-in .sx-word:nth-of-type(1)  { transition-delay: 0.02s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(2)  { transition-delay: 0.04s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(3)  { transition-delay: 0.06s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(4)  { transition-delay: 0.08s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(5)  { transition-delay: 0.10s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(6)  { transition-delay: 0.12s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(7)  { transition-delay: 0.14s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(8)  { transition-delay: 0.16s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(9)  { transition-delay: 0.18s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(10) { transition-delay: 0.20s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(11) { transition-delay: 0.22s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(12) { transition-delay: 0.24s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(13) { transition-delay: 0.26s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(14) { transition-delay: 0.28s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(15) { transition-delay: 0.30s; }
+.about-bio p.sx-words-in .sx-word:nth-of-type(n+16) { transition-delay: 0.32s; }
+
+/* ============================================================
+ * 18. Agents page: drop-cap reveal on each bio paragraph
+ *     The first character of each <p> in .about-bio gets a large
+ *     serif drop-cap that draws in (scale + opacity) when entering view.
+ * ============================================================ */
+.about-bio p .sx-dropcap {
+  font-family: var(--serif);
+  font-size: 3.4em;
+  line-height: 0.85;
+  float: left;
+  margin: 0.06em 0.08em 0 0;
+  color: var(--accent-deep);
+  letter-spacing: -0.02em;
+  opacity: 0;
+  transform: scale(0.6) translateY(8px);
+  transform-origin: 0% 100%;
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.about-bio p .sx-dropcap.sx-dropcap-in {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* ============================================================
+ * 19. Articles: side-margin section numerals + blockquote tilt
+ *     Each <h2> in .article-prose gets a faint mono numeral floating
+ *     in the left margin, drawing in as the heading enters view.
+ *     Blockquotes tilt subtly with scroll position (JS-driven).
+ * ============================================================ */
+.article-prose h2 {
+  position: relative;
+}
+.article-prose h2 .sx-h2-num {
+  position: absolute;
+  left: -2.6em;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 0.5em;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.article-prose h2.sx-h2-in .sx-h2-num {
+  opacity: 0.8;
+  transform: translateY(-50%) translateX(0);
+}
+@media (max-width: 980px) {
+  .article-prose h2 .sx-h2-num {
+    position: static;
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.6em;
+    transform: none !important;
+  }
+}
+
+.article-prose blockquote {
+  transition: transform 0.2s linear;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+/* ============================================================
+ * 20. Auth pages: animated mesh behind the form + input focus pulse
+ * ============================================================ */
+.sx-auth-mesh {
+  position: fixed;
+  inset: -10vmin;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 50vmax 35vmax at 22% 30%,
+      color-mix(in oklab, var(--accent) 12%, transparent),
+      transparent 60%),
+    radial-gradient(ellipse 60vmax 40vmax at 78% 70%,
+      color-mix(in oklab, var(--accent-deep) 9%, transparent),
+      transparent 65%),
+    radial-gradient(ellipse 45vmax 30vmax at 50% 95%,
+      color-mix(in oklab, var(--accent-tint) 50%, transparent),
+      transparent 70%),
+    var(--paper);
+  filter: blur(40px);
+  animation: sx-mesh-drift 30s ease-in-out infinite alternate;
+}
+
+.sx-input-pulse {
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.sx-input-pulse:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent),
+    0 0 0 1px var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+
+/* ============================================================
+ * 12. Reduced motion — kill animations, keep layout
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .sx-curtain,
+  .sx-progress,
+  .sx-cursor,
+  .live-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+  .hero-title .line,
+  .sx-reveal,
+  .sx-reveal-stagger > *,
+  .section-num {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .hero-title em::after,
+  .section-title em::after {
+    clip-path: inset(0 0 0 0) !important;
+  }
+  .hero-title em {
+    -webkit-text-fill-color: var(--accent-deep);
+    background-image: none;
+    animation: none;
+  }
+  .sx-hero-mesh,
+  .sx-hero-grid,
+  .sx-hero-dots .sx-hd-dot,
+  .sx-hero-stroke path,
+  .sx-marquee-text {
+    animation: none !important;
+    transition: none !important;
+  }
+  .nav-links a.sx-marquee-link:hover .sx-marquee-text { transform: none; }
+  .section-title.sx-title-hover:hover em .sx-char { transform: none !important; }
+  .about-portrait img.sx-kenburns,
+  .about-portrait.sx-kenburns img,
+  .sx-auth-mesh,
+  .sx-ticker-dot,
+  .section-num.sx-num-bounce {
+    animation: none !important;
+  }
+  .about-bio .sx-word,
+  .about-bio p .sx-dropcap,
+  .article-prose h2 .sx-h2-num {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .article-prose blockquote { transform: none !important; }
+  .about-title .sx-line,
+  .article-title,
+  .article-dek,
+  .section-title,
+  .section-title.sx-title-in em .sx-char {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  .about-title em,
+  .article-title em {
+    -webkit-text-fill-color: var(--accent-deep);
+    background-image: none;
+    animation: none;
+  }
+}
