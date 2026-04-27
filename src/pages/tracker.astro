@@ -1,0 +1,1247 @@
+---
+const SUPABASE_URL = 'https://vgthztpvxvwwfvyretec.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZndGh6dHB2eHZ3d2Z2eXJldGVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MTMyMjgsImV4cCI6MjA5MjM4OTIyOH0.ukEhVKl0JK5cAuvaYAzRgHXpqoqY9siH2Wjmg6kGhNQ';
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mata Tracker — Legal Overflow</title>
+<meta name="description" content="A searchable database of every U.S. case where attorneys were sanctioned for AI hallucinations in court filings. Practitioner analysis, Model Rules breakdown, and prevention tools.">
+<link rel="canonical" href="https://legaloverflow.com/tracker/" />
+<meta property="og:title" content="Mata Tracker — Every AI Sanction, Annotated" />
+<meta property="og:description" content="A searchable database of every U.S. case where attorneys were sanctioned for AI hallucinations in court filings." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://legaloverflow.com/tracker/" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style is:global>
+/* ================================================================
+   DESIGN TOKENS — Legal Overflow Design System
+   ================================================================ */
+:root {
+  --paper:#f3efe6; --paper-2:#ebe6d9;
+  --ink:#0e1512; --ink-2:#2a332d; --ink-3:#5b6760; --ink-4:#8a9690;
+  --rule:#1d2622; --rule-soft:#d9d2c0;
+  --accent:#10b981; --accent-deep:#0a7d57; --accent-tint:#d7ede0;
+  --warn:#b3532f;
+  --serif:'Instrument Serif','Times New Roman',serif;
+  --sans:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  --max-w:1400px;
+  --section-w:1200px;
+  --body-w:900px;
+}
+
+/* ================================================================
+   RESET + BASE
+   ================================================================ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+::selection{background:var(--accent);color:var(--paper)}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:400;letter-spacing:-.02em}
+em{font-style:italic;color:var(--accent-deep)}
+img{display:block;max-width:100%}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input{font-family:inherit}
+
+/* ================================================================
+   GRAIN OVERLAY
+   ================================================================ */
+#grain{
+  position:fixed;inset:0;z-index:9999;pointer-events:none;
+  opacity:.05;mix-blend-mode:multiply;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:180px;
+}
+
+/* ================================================================
+   NAV-LINK MARQUEE SWAP — matches /site-anim.css
+   ================================================================ */
+.nav-links a.sx-marquee-link {
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: bottom;
+  line-height: 1.45;
+}
+.sx-marquee-text {
+  position: relative;
+  display: inline-block;
+  transition: transform 0.42s cubic-bezier(0.65, 0, 0.35, 1);
+}
+.sx-marquee-text::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  color: var(--accent-deep);
+  white-space: nowrap;
+  font-weight: 500;
+}
+.nav-links a.sx-marquee-link:hover .sx-marquee-text {
+  transform: translateY(-100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sx-marquee-text { transition: none !important; }
+  .nav-links a.sx-marquee-link:hover .sx-marquee-text { transform: none; }
+}
+
+/* ================================================================
+   READING-PROGRESS BAR — matches /site-anim.css
+   ================================================================ */
+.sx-progress {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  z-index: 998;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--accent-deep) 70%, transparent),
+    var(--accent-deep) 60%,
+    color-mix(in oklab, var(--accent) 80%, transparent));
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.08s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sx-progress { display: none; }
+}
+
+/* ================================================================
+   UTILITY
+   ================================================================ */
+.mono{
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.wrap{max-width:var(--section-w);margin:0 auto;padding:0 40px}
+.wrap-wide{max-width:var(--max-w);margin:0 auto;padding:0 40px}
+
+/* ================================================================
+   NAV — copied verbatim from /styles.css to match the rest of the site
+   ================================================================ */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 32px;
+  padding: 18px 40px;
+  background: rgba(243,239,230,.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); }
+.brand-mark { width: 28px; height: 28px; color: var(--ink); transition: transform .6s ease; }
+.brand:hover .brand-mark { transform: rotate(180deg); }
+.brand-text { font-family: var(--serif); font-size: 22px; letter-spacing: -.01em; }
+.brand-text .brand-over { font-style: italic; color: var(--accent-deep); margin-left: 2px; }
+.nav-links { display: flex; gap: 28px; justify-self: center; }
+.nav-links a { font-size: 13.5px; color: var(--ink-2); position: relative; padding: 4px 0; }
+.nav-links a::after {
+  content: ''; position: absolute; left: 0; bottom: 0; width: 0; height: 1px;
+  background: var(--accent); transition: width .35s cubic-bezier(.2,.8,.2,1);
+}
+.nav-links a:hover { color: var(--ink); }
+.nav-links a:hover::after { width: 100%; }
+.nav-links a[aria-current="page"] { color: var(--ink); }
+.nav-links a[aria-current="page"]::after { width: 100%; }
+.nav-right { display: flex; align-items: center; gap: 16px; }
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 50%, transparent);
+  animation: pulse 2s infinite;
+}
+.nav-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .05em; }
+.nav-sub {
+  font-size: 13px; padding: 9px 16px; border: 1px solid var(--ink);
+  border-radius: 999px; background: var(--ink); color: var(--paper);
+  transition: all .25s ease;
+}
+.nav-sub:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+/* hero CTA buttons — kept from prototype */
+.btn-primary{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:10px 18px;background:var(--ink);color:var(--paper);
+  border-radius:999px;font-size:13px;font-weight:500;
+  transition:transform .25s ease,background .25s ease;
+}
+.btn-primary:hover{background:var(--accent-deep);transform:translateY(-2px)}
+
+/* ================================================================
+   HERO
+   ================================================================ */
+.hero{
+  padding:80px 40px 0;
+  max-width:var(--section-w);margin:0 auto;
+}
+.hero-kicker{
+  display:flex;align-items:center;gap:14px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-3);
+  letter-spacing:.03em;text-transform:uppercase;
+  margin-bottom:28px;
+  opacity:0;animation:fadeUp .8s .1s forwards;
+}
+.kicker-dash{width:40px;height:1px;background:var(--ink)}
+.hero-title{
+  font-family:var(--serif);font-weight:400;
+  font-size:clamp(38px,7vw,88px);line-height:.94;
+  letter-spacing:-.025em;
+  margin-bottom:24px;
+}
+.hero-title .line{display:block;opacity:0;transform:translateY(20px);animation:riseUp 1.1s cubic-bezier(.2,.8,.2,1) forwards}
+.hero-title .line:nth-child(1){animation-delay:.05s}
+.hero-title .line:nth-child(2){animation-delay:.18s}
+.hero-title .line:nth-child(3){animation-delay:.32s}
+.hero-title em{
+  font-style:italic;color:var(--accent-deep);position:relative;
+}
+.hero-title em::after{
+  content:'';position:absolute;left:0;right:0;bottom:.08em;
+  height:.08em;background:var(--accent);
+  transform:scaleX(0);transform-origin:left;
+  animation:underline 1.6s cubic-bezier(.7,0,.3,1) .7s forwards;
+}
+.hero-sub{
+  font-size:18px;line-height:1.5;color:var(--ink-2);
+  max-width:60ch;margin-bottom:36px;
+  opacity:0;animation:fadeUp .8s .4s forwards;
+}
+.hero-actions{
+  display:flex;gap:14px;flex-wrap:wrap;
+  margin-bottom:60px;
+  opacity:0;animation:fadeUp .8s .5s forwards;
+}
+.btn-ghost{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:12px 20px;border:1px solid var(--ink);
+  border-radius:999px;font-size:14px;font-weight:500;
+  transition:background .25s,color .25s,transform .25s;
+}
+.btn-ghost:hover{background:var(--ink);color:var(--paper);transform:translateY(-2px)}
+
+/* ================================================================
+   STATS BAR
+   ================================================================ */
+.stats{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--rule-soft);
+  border-bottom:1px solid var(--rule-soft);
+  margin-bottom:60px;
+  opacity:0;animation:fadeUp .8s .6s forwards;
+}
+.stat{padding:24px 0;border-right:1px solid var(--rule-soft)}
+.stat:last-child{border-right:none}
+.stat:not(:first-child){padding-left:24px}
+.stat-n{font-family:var(--serif);font-size:44px;line-height:1;margin-bottom:6px;letter-spacing:-.02em}
+.stat-l{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase}
+
+/* ================================================================
+   SEARCH + FILTERS
+   ================================================================ */
+.controls{
+  max-width:var(--section-w);margin:0 auto;
+  padding:0 40px 40px;
+  opacity:0;animation:fadeUp .8s .7s forwards;
+}
+.search-row{
+  display:flex;gap:12px;margin-bottom:20px;
+}
+.search-input{
+  flex:1;padding:14px 18px 14px 44px;
+  background:var(--paper-2);border:1px solid var(--rule-soft);
+  border-radius:999px;font-size:15px;color:var(--ink);
+  outline:none;transition:border-color .2s;
+  background-image:url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%235b6760' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:16px center;
+}
+.search-input::placeholder{color:var(--ink-4)}
+.search-input:focus{border-color:var(--accent)}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filter-label{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase;margin-right:4px}
+.filter-pill{
+  padding:6px 14px;border-radius:999px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.05em;
+  text-transform:uppercase;font-weight:500;
+  border:1px solid var(--rule-soft);color:var(--ink-3);
+  cursor:pointer;transition:all .2s;user-select:none;
+}
+.filter-pill:hover{border-color:var(--ink-3);color:var(--ink-2)}
+.filter-pill.active{
+  background:color-mix(in oklab,var(--accent) 12%,white);
+  border-color:var(--accent);color:var(--accent-deep);
+}
+.filter-sep{width:1px;height:20px;background:var(--rule-soft);margin:0 8px}
+.severity-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.severity-dot.low{background:var(--accent)}
+.severity-dot.moderate{background:#d4a017}
+.severity-dot.high{background:#c45a2d}
+.severity-dot.severe{background:var(--warn)}
+
+/* ================================================================
+   RESULTS META
+   ================================================================ */
+.results-meta{
+  max-width:var(--section-w);margin:0 auto;
+  padding:0 40px 16px;
+  display:flex;justify-content:space-between;align-items:baseline;
+}
+.results-count{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase}
+.sort-control{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em}
+.sort-control select{
+  font-family:var(--mono);font-size:11px;
+  background:transparent;border:none;color:var(--ink-2);
+  cursor:pointer;text-transform:uppercase;letter-spacing:.04em;
+}
+
+/* ================================================================
+   CASE LIST
+   ================================================================ */
+.case-list{
+  max-width:var(--section-w);margin:0 auto;
+  padding:0 40px 40px;
+}
+.case-card{
+  border:1px solid var(--rule-soft);
+  border-radius:6px;
+  margin-bottom:16px;
+  overflow:hidden;
+  transition:border-color .2s;
+  background:var(--paper);
+}
+.case-card:hover{border-color:var(--ink-4)}
+.case-header{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:20px;
+  padding:24px 28px;
+  cursor:pointer;
+  user-select:none;
+}
+.case-meta-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.case-severity{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:999px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;
+  text-transform:uppercase;font-weight:600;
+}
+.case-severity.low{background:color-mix(in oklab,var(--accent) 12%,white);color:var(--accent-deep)}
+.case-severity.moderate{background:color-mix(in oklab,#d4a017 12%,white);color:#7a5c00}
+.case-severity.high{background:color-mix(in oklab,#c45a2d 12%,white);color:#8b3318}
+.case-severity.severe{background:color-mix(in oklab,var(--warn) 12%,white);color:var(--warn)}
+.case-court{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.04em}
+.case-date{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);letter-spacing:.04em}
+.case-name{
+  font-family:var(--serif);font-size:22px;line-height:1.2;
+  letter-spacing:-.015em;margin-bottom:6px;
+}
+.case-one-line{font-size:15px;color:var(--ink-2);line-height:1.45;max-width:70ch}
+.case-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.case-tag{
+  font-family:var(--mono);font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;padding:3px 9px;border-radius:999px;
+  border:1px solid var(--rule-soft);color:var(--ink-3);
+}
+.case-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:120px}
+.case-penalty{font-family:var(--serif);font-size:24px;line-height:1;color:var(--warn)}
+.case-penalty-mono{font-family:var(--mono);font-size:14px;letter-spacing:.03em;color:var(--warn)}
+.case-penalty-mono.small{font-size:12px}
+.case-penalty-mono.muted{color:var(--ink-4)}
+.case-penalty-label{font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase}
+.case-toggle{
+  width:32px;height:32px;border-radius:50%;
+  border:1px solid var(--rule-soft);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .3s cubic-bezier(.2,.8,.2,1),background .2s;
+  margin-top:auto;
+  background:transparent;
+}
+.case-card.open .case-toggle{transform:rotate(180deg);background:var(--paper-2)}
+
+/* ================================================================
+   CASE DETAIL (expanded)
+   ================================================================ */
+.case-detail{
+  max-height:0;overflow:hidden;
+  transition:max-height .5s cubic-bezier(.2,.8,.2,1);
+}
+.case-card.open .case-detail{max-height:8000px}
+.case-detail-inner{
+  padding:0 28px 28px;
+  border-top:1px solid var(--rule-soft);
+}
+.detail-section{margin-top:28px}
+.detail-section-title{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);
+  letter-spacing:.06em;text-transform:uppercase;
+  margin-bottom:12px;padding-bottom:8px;
+  border-bottom:1px solid var(--rule-soft);
+}
+.detail-narrative{font-size:15px;line-height:1.6;color:var(--ink-2);max-width:72ch}
+.detail-narrative p{margin-bottom:12px}
+.detail-narrative p:last-child{margin-bottom:0}
+
+/* Rules grid */
+.rules-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.rule-card{
+  padding:16px;border:1px solid var(--rule-soft);border-radius:6px;
+}
+.rule-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+.rule-label{font-family:var(--mono);font-size:11px;letter-spacing:.04em;font-weight:500}
+.rule-badge{
+  font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;font-weight:600;flex-shrink:0;
+}
+.rule-badge.applies{background:color-mix(in oklab,var(--warn) 10%,white);color:var(--warn)}
+.rule-badge.clear{background:color-mix(in oklab,var(--accent) 10%,white);color:var(--accent-deep)}
+.rule-risk{
+  font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-4);margin-bottom:6px;
+}
+.rule-analysis{font-size:14px;line-height:1.5;color:var(--ink-2)}
+
+/* Practice impact section */
+.impact-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.impact-block{padding:16px;background:var(--paper-2);border-radius:6px}
+.impact-block-title{
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:8px;
+}
+.impact-block-text{font-size:14px;line-height:1.5;color:var(--ink-2)}
+
+/* Skill links */
+.skill-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+.skill-link{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 16px;border:1px solid var(--accent);
+  border-radius:999px;font-size:13px;font-weight:500;
+  color:var(--accent-deep);
+  transition:background .2s,transform .2s;
+}
+.skill-link:hover{background:color-mix(in oklab,var(--accent) 8%,white);transform:translateY(-1px)}
+.skill-link-note{
+  font-size:13px;color:var(--ink-3);line-height:1.4;
+  margin-top:6px;padding-left:28px;
+}
+.skill-link-empty{font-family:var(--mono);font-size:11px;color:var(--ink-4)}
+
+/* Reviewed footer line */
+.case-source-row{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:24px;padding-top:14px;
+  border-top:1px dashed var(--rule-soft);
+  flex-wrap:wrap;gap:10px;
+}
+.case-reviewed{font-family:var(--mono);font-size:10px;color:var(--ink-4);letter-spacing:.04em}
+
+/* Load more */
+.load-more-row{
+  max-width:var(--section-w);margin:0 auto;
+  padding:0 40px 80px;
+  text-align:center;
+}
+.load-more-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:12px 28px;border:1px solid var(--ink);
+  border-radius:999px;font-size:13px;font-weight:500;
+  font-family:var(--sans);
+  background:transparent;color:var(--ink);
+  transition:background .25s,color .25s,transform .25s;
+}
+.load-more-btn:hover{background:var(--ink);color:var(--paper);transform:translateY(-2px)}
+
+.list-empty{
+  text-align:center;padding:60px 20px;
+  font-family:var(--serif);font-style:italic;font-size:18px;color:var(--ink-3);
+}
+.list-error{
+  margin:0 auto 40px;max-width:var(--section-w);
+  padding:18px 24px;
+  border:1px solid var(--warn);border-radius:6px;
+  background:color-mix(in oklab,var(--warn) 8%,white);
+  color:var(--warn);font-family:var(--mono);font-size:13px;
+}
+
+/* ================================================================
+   METHODOLOGY FOOTER
+   ================================================================ */
+.methodology{
+  max-width:var(--section-w);margin:0 auto;
+  padding:60px 40px 80px;
+  border-top:1px solid var(--rule-soft);
+}
+.methodology-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px}
+.methodology h3{font-family:var(--serif);font-size:24px;margin-bottom:32px;grid-column:1/-1;font-weight:400}
+.methodology h3 em{font-style:italic;color:var(--accent-deep)}
+.meth-block-title{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.meth-block-text{font-size:14px;line-height:1.55;color:var(--ink-2)}
+.meth-block-text a{color:var(--accent-deep);border-bottom:1px solid var(--accent)}
+
+/* ================================================================
+   SITE FOOTER — copied verbatim from /styles.css
+   ================================================================ */
+.foot { padding: 80px 40px 40px; max-width: 1400px; margin: 0 auto; }
+.foot-top { padding-bottom: 48px; border-bottom: 1px solid var(--rule-soft); }
+.foot-logo { font-family: var(--serif); font-size: clamp(60px, 10vw, 160px); line-height: .9; letter-spacing: -.03em; }
+.foot-logo .brand-over { font-style: italic; color: var(--accent-deep); }
+.foot-tag { font-size: 15px; color: var(--ink-3); margin: 18px 0 0; max-width: 50ch; }
+.foot-cols {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px;
+  padding: 40px 0; border-bottom: 1px solid var(--rule-soft);
+}
+.foot-cols h5 { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; margin: 0 0 16px; font-weight: 500; }
+.foot-cols a { display: block; padding: 6px 0; font-size: 14.5px; color: var(--ink); transition: color .25s ease, padding .25s ease; }
+.foot-cols a:hover { color: var(--accent-deep); padding-left: 6px; }
+.foot-bot { display: flex; justify-content: space-between; padding-top: 24px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+.foot-disclaimer { font-family: var(--mono); font-size: 10.5px; line-height: 1.6; color: var(--ink-4); letter-spacing: .01em; margin: 20px 0 0; padding-top: 18px; border-top: 1px solid var(--rule-soft); max-width: 92ch; }
+
+/* ================================================================
+   ANIMATIONS
+   ================================================================ */
+@keyframes riseUp{to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{to{opacity:1}}
+@keyframes underline{to{transform:scaleX(1)}}
+@keyframes pulse{
+  0%,100%{box-shadow:0 0 0 0 color-mix(in oklab,var(--accent) 60%,transparent)}
+  50%{box-shadow:0 0 0 8px color-mix(in oklab,var(--accent) 0%,transparent)}
+}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;display:inline-block}
+
+@media(prefers-reduced-motion:reduce){
+  .hero-title .line{opacity:1;transform:none;animation:none}
+  .hero-title em::after{transform:scaleX(1);animation:none}
+  .hero-kicker,.hero-sub,.hero-actions,.stats,.controls{opacity:1;animation:none}
+  .live-dot{animation:none}
+}
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+@media(max-width:960px){
+  .nav { grid-template-columns: auto auto; gap: 14px; padding: 14px 20px; }
+  .nav-links { display: none; }
+  .foot { padding-left: 20px; padding-right: 20px; }
+  .foot-cols { grid-template-columns: repeat(2, 1fr); }
+}
+@media(max-width:900px){
+  .hero{padding:48px 20px 0}
+  .wrap,.wrap-wide,.controls,.case-list,.results-meta,.methodology,.load-more-row{padding-left:20px;padding-right:20px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .stat:nth-child(2){border-right:none}
+  .stat:nth-child(3),.stat:nth-child(4){border-top:1px solid var(--rule-soft)}
+  .rules-grid{grid-template-columns:1fr}
+  .impact-grid{grid-template-columns:1fr}
+  .methodology-grid{grid-template-columns:1fr}
+  .case-header{grid-template-columns:1fr}
+  .case-right{flex-direction:row;align-items:center;margin-top:12px}
+  .case-toggle{margin-top:0}
+}
+@media(max-width:600px){
+  .hero-title{font-size:clamp(32px,9vw,52px)}
+  .stat-n{font-size:32px}
+  .search-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<!-- Grain overlay -->
+<div id="grain"></div>
+
+<!-- ============================================================
+     NAV — matches the rest of the site
+     ============================================================ -->
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/tracker/" aria-current="page">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <div class="live-dot"></div>
+    <span class="nav-meta" id="nav-clock">—</span>
+    <a href="/#subscribe" class="nav-sub">Subscribe</a>
+  </div>
+</header>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="hero-kicker">
+    <span class="kicker-dash"></span>
+    <span id="hero-kicker-text">Mata Tracker · Loading…</span>
+  </div>
+
+  <h1 class="hero-title">
+    <span class="line">Every sanction.</span>
+    <span class="line">Every <em>hallucination</em>.</span>
+    <span class="line">Annotated.</span>
+  </h1>
+
+  <p class="hero-sub">
+    A searchable database of every U.S. case where attorneys, experts, or judges were sanctioned, referred, or reprimanded for AI-generated hallucinations in court filings. Each case gets a structured practitioner analysis: Model Rules breakdown, bar referral risk, malpractice exposure, and the specific workflow that would have prevented the failure.
+  </p>
+
+  <div class="hero-actions">
+    <a href="#cases" class="btn-primary">
+      Browse all cases
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </a>
+    <a href="#methodology" class="btn-ghost">
+      Methodology
+    </a>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-n" id="stat-cases">—</div>
+      <div class="stat-l">U.S. Cases</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n" id="stat-penalty">—</div>
+      <div class="stat-l">Total Penalties</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n" id="stat-bar">—</div>
+      <div class="stat-l">Bar Referrals</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n" id="stat-lawyers">—</div>
+      <div class="stat-l">Lawyer Cases</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SEARCH + FILTERS
+     ============================================================ -->
+<div class="controls" id="cases">
+  <div class="search-row">
+    <input type="text" class="search-input" placeholder="Search by case name, court, attorney, or keyword..." id="searchInput" autocomplete="off">
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Severity</span>
+    <button class="filter-pill active" data-filter="all">All</button>
+    <button class="filter-pill" data-filter="severe"><span class="severity-dot severe"></span>Severe</button>
+    <button class="filter-pill" data-filter="high"><span class="severity-dot high"></span>High</button>
+    <button class="filter-pill" data-filter="moderate"><span class="severity-dot moderate"></span>Moderate</button>
+    <button class="filter-pill" data-filter="low"><span class="severity-dot low"></span>Low</button>
+    <span class="filter-sep"></span>
+    <span class="filter-label">Party</span>
+    <button class="filter-pill active" data-party="all">All</button>
+    <button class="filter-pill" data-party="Lawyer">Lawyer</button>
+    <button class="filter-pill" data-party="Pro Se">Pro Se</button>
+    <button class="filter-pill" data-party="Expert">Expert</button>
+    <span class="filter-sep"></span>
+    <span class="filter-label">Sanction</span>
+    <button class="filter-pill" data-sanction="monetary">Monetary</button>
+    <button class="filter-pill" data-sanction="bar-referral">Bar Referral</button>
+  </div>
+</div>
+
+<!-- Results meta -->
+<div class="results-meta">
+  <span class="results-count">Loading…</span>
+  <span class="sort-control">Sort by
+    <select id="sort-select">
+      <option value="date_desc">Date (newest)</option>
+      <option value="date_asc">Date (oldest)</option>
+      <option value="severity">Severity</option>
+      <option value="penalty">Penalty amount</option>
+    </select>
+  </span>
+</div>
+
+<div id="list-error" class="list-error" style="display:none">The tracker database is temporarily unavailable. Please try again in a few minutes.</div>
+
+<!-- ============================================================
+     CASE LIST
+     ============================================================ -->
+<div class="case-list" id="case-list">
+  <div class="list-empty">Loading cases…</div>
+</div>
+
+<div class="load-more-row">
+  <button class="load-more-btn" id="load-more" style="display:none">
+    Load more
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+</div>
+
+<!-- ============================================================
+     METHODOLOGY
+     ============================================================ -->
+<section class="methodology" id="methodology">
+  <h3>How the <em>tracker</em> works.</h3>
+  <div class="methodology-grid">
+    <div>
+      <div class="meth-block-title">Sourcing</div>
+      <div class="meth-block-text">Cases are initially identified through Damien Charlotin's <a href="https://damiencharlotin.com/hallucinations" target="_blank" rel="noopener">AI Hallucination Cases database</a> as a research index. Primary-source opinions are independently retrieved from CourtListener and the RECAP archive on Internet Archive. We index only U.S. cases involving sanctions, referrals, or formal reprimands.</div>
+    </div>
+    <div>
+      <div class="meth-block-title">Annotation</div>
+      <div class="meth-block-text">Each case receives a structured practitioner overlay generated by a Claude Skill from the actual judicial opinion text and reviewed by a licensed attorney before publication. The annotation covers Model Rules 1.1, 1.4, 1.6, 3.3, 5.1, 5.3, and 8.4, plus insurance exposure, bar referral risk, and recommended firm policy language.</div>
+    </div>
+    <div>
+      <div class="meth-block-title">Editorial Standard</div>
+      <div class="meth-block-text">The AI does the research at scale. A human does the judgment. Every annotation is reviewed by Blake Beyel (Florida Bar, JD/MBA/MAcc) before publication. No annotation goes live without a manual review pass. Corrections at <a href="mailto:corrections@legaloverflow.com">corrections@legaloverflow.com</a>.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FOOTER — matches the rest of the site
+     ============================================================ -->
+<footer class="foot">
+  <div class="foot-top">
+    <div class="foot-logo"><span>Legal</span><span class="brand-over">Overflow</span></div>
+    <p class="foot-tag">A field journal on AI and the legal profession. Written in Cocoa, Florida.</p>
+  </div>
+  <div class="foot-cols">
+    <div><h5>Read</h5><a href="/#articles">Resources</a><a href="/#skills">Skills</a><a href="/tracker/">Tracker</a></div>
+    <div><h5>About</h5><a href="/about/">Author</a><a href="/about/">Standards</a><a href="/about/">Corrections</a></div>
+    <div><h5>Elsewhere</h5><a href="#">Mastodon</a><a href="#">LinkedIn</a><a href="#">RSS</a></div>
+    <div><h5>Fine print</h5><a href="#">Not legal advice</a><a href="#">Privacy</a><a href="#">Colophon</a></div>
+  </div>
+  <p class="foot-disclaimer">Claude™ and Claude Skills are trademarks of Anthropic PBC. GPT is a trademark of OpenAI. Gemini is a trademark of Google LLC. Westlaw is a trademark of Thomson Reuters. Legal Overflow is an independent publication and is not affiliated with, endorsed by, or sponsored by any of these companies.</p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04</span></div>
+</footer>
+
+<!-- ============================================================
+     Supabase JS client
+     ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+
+<!-- ============================================================
+     JS — boot, data, expand/collapse, filter, search, sort
+     ============================================================ -->
+<script is:inline define:vars={{ SUPABASE_URL, SUPABASE_ANON_KEY }}>
+(function ready() {
+  if (!window.supabase || !window.supabase.createClient) return setTimeout(ready, 30);
+  boot();
+})();
+
+async function boot() {
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const PAGE = 50;
+
+  const state = {
+    severity: 'all',
+    party: 'all',
+    sanctions: new Set(),
+    sort: 'date_desc',
+    q: '',
+    rendered: 0,
+    all: [],
+    filtered: [],
+  };
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    list:        $('case-list'),
+    loadMore:    $('load-more'),
+    err:         $('list-error'),
+    q:           $('searchInput'),
+    sort:        $('sort-select'),
+    statCases:   $('stat-cases'),
+    statPenalty: $('stat-penalty'),
+    statBar:     $('stat-bar'),
+    statLawyers: $('stat-lawyers'),
+    navClock:    $('nav-clock'),
+    heroKicker:  $('hero-kicker-text'),
+    countLabel:  document.querySelector('.results-count'),
+  };
+
+  /* nav clock — same format as the rest of the site: "COCOA · h:mm AM/PM" */
+  function tickClock() {
+    if (!els.navClock) return;
+    const d = new Date();
+    let h = d.getHours();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    els.navClock.textContent = `COCOA · ${h}:${mm} ${ampm}`;
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  /* nav-link marquee swap — same as /site-anim.js */
+  (function installNavMarquee() {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) return;
+    try {
+      document.querySelectorAll('.nav-links a').forEach(link => {
+        // Skip links with non-text children (icons, etc.) so we don't break them
+        const hasOnlyText = !link.children.length || (link.children.length === 0);
+        if (link.children.length > 0) return;
+        const text = link.textContent.trim();
+        if (!text) return;
+        link.classList.add('sx-marquee-link');
+        link.innerHTML = '';
+        const span = document.createElement('span');
+        span.className = 'sx-marquee-text';
+        span.setAttribute('data-text', text);
+        span.textContent = text;
+        link.appendChild(span);
+      });
+    } catch (e) { /* noop */ }
+  })();
+
+  /* reading-progress bar — same as /site-anim.js */
+  (function installProgressBar() {
+    try {
+      const bar = document.createElement('div');
+      bar.className = 'sx-progress';
+      document.body.appendChild(bar);
+      let rafId = 0, lastY = -1;
+      function tick() {
+        rafId = 0;
+        const doc = document.documentElement;
+        const max = doc.scrollHeight - window.innerHeight;
+        const y = window.scrollY || doc.scrollTop;
+        if (y === lastY) return;
+        lastY = y;
+        const p = max > 0 ? y / max : 0;
+        bar.style.transform = 'scaleX(' + Math.max(0, Math.min(1, p)).toFixed(4) + ')';
+      }
+      function onScroll() { if (!rafId) rafId = requestAnimationFrame(tick); }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      tick();
+    } catch (e) { /* noop */ }
+  })();
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+  function formatDate(d) {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (Number.isNaN(+dt)) return d;
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function paragraphs(txt) {
+    if (!txt) return '';
+    return txt.split(/\n\n+/).map(p => `<p>${escapeHtml(p)}</p>`).join('');
+  }
+  function compactCurrency(n) {
+    if (!n) return '$0';
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 1 : 1).replace(/\.?0+$/, '')}M`;
+    if (n >= 1_000)     return `$${Math.round(n / 1_000)}K`;
+    return `$${Math.round(n).toLocaleString()}`;
+  }
+
+  /* ---------- count-up tween (matches index.astro [data-count] animation) ---------- */
+  function tweenNumber(el, target, formatter) {
+    if (!el) return;
+    const dur = 1400;
+    const start = performance.now();
+    function tick(t) {
+      const p = Math.min(1, (t - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = formatter(Math.round(target * eased));
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function armStatAnimation() {
+    const stats = document.querySelector('.stats');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!stats || reduced) {
+      // skip the tween, just paint the final value
+      return (el, target, formatter) => { if (el) el.textContent = formatter(target); };
+    }
+    let armed = false;
+    const queue = [];
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting || armed) return;
+        armed = true;
+        queue.forEach(fn => fn());
+        io.disconnect();
+      });
+    }, { threshold: 0.4 });
+    io.observe(stats);
+    return (el, target, formatter) => {
+      const run = () => tweenNumber(el, target, formatter);
+      const r = stats.getBoundingClientRect();
+      const onscreen = r.top < window.innerHeight * 0.6 && r.bottom > 0;
+      if (armed || onscreen) { armed = true; run(); } else { queue.push(run); }
+    };
+  }
+
+  /* ---------- stats ---------- */
+  async function loadStats() {
+    const animate  = armStatAnimation();
+    const intFmt    = n => n.toLocaleString();
+    const dollarFmt = n => compactCurrency(n);
+
+    try {
+      const [pub, indexed, lawyer] = await Promise.all([
+        sb.from('cases').select('id', { count: 'exact', head: true }).eq('status', 'published'),
+        sb.from('cases').select('id', { count: 'exact', head: true }),
+        sb.from('cases').select('id', { count: 'exact', head: true }).eq('party_type', 'Lawyer'),
+      ]);
+      const [pen, bar] = await Promise.all([
+        sb.from('annotations').select('monetary_penalty_usd').eq('status', 'published'),
+        sb.from('annotations').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('professional_sanction', true),
+      ]);
+      const total = (pen.data || []).reduce((s, r) => s + (Number(r.monetary_penalty_usd) || 0), 0);
+      const indexedCount = indexed.count || 0;
+
+      animate(els.statCases,   indexedCount,        intFmt);
+      animate(els.statPenalty, total,                dollarFmt);
+      animate(els.statBar,     bar.count || 0,       intFmt);
+      animate(els.statLawyers, lawyer.count || 0,    intFmt);
+
+      const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      els.heroKicker.textContent = `Mata Tracker · Updated ${today} · ${indexedCount.toLocaleString()} U.S. cases indexed`;
+    } catch (e) { console.warn('stats failed', e); }
+  }
+
+  /* ---------- load all published ---------- */
+  async function loadAll() {
+    try {
+      const all = [];
+      let from = 0;
+      const batch = 1000;
+      while (true) {
+        const { data, error } = await sb
+          .from('v_tracker_cases')
+          .select('*')
+          .not('annotation_id', 'is', null)
+          .order('decision_date', { ascending: false })
+          .range(from, from + batch - 1);
+        if (error) throw error;
+        if (!data || !data.length) break;
+        all.push(...data);
+        if (data.length < batch) break;
+        from += batch;
+      }
+      state.all = all;
+      applyFilters();
+    } catch (e) {
+      console.error(e);
+      els.err.style.display = 'block';
+      els.list.innerHTML = '';
+    }
+  }
+
+  const SEVERITY_ORDER = { severe: 4, high: 3, moderate: 2, low: 1 };
+
+  function applyFilters() {
+    const q = state.q.toLowerCase();
+    const partyKey = state.party;
+    const sevKey = state.severity;
+    const wantMonetary = state.sanctions.has('monetary');
+    const wantBar      = state.sanctions.has('bar-referral');
+
+    let rows = state.all.filter(r => {
+      if (sevKey !== 'all' && r.severity !== sevKey) return false;
+      if (partyKey === 'Pro Se') {
+        if (!(r.party_type || '').toLowerCase().includes('pro se')) return false;
+      } else if (partyKey !== 'all') {
+        if (r.party_type !== partyKey) return false;
+      }
+      if (wantMonetary && !(Number(r.monetary_penalty_usd) > 0)) return false;
+      if (wantBar && !r.professional_sanction) return false;
+      if (q) {
+        const blob = `${r.case_name} ${r.court} ${r.judge || ''} ${r.one_line || ''} ${r.ai_tool || ''} ${r.outcome_summary || ''}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+
+    switch (state.sort) {
+      case 'date_asc':
+        rows.sort((a, b) => (a.decision_date || '').localeCompare(b.decision_date || ''));
+        break;
+      case 'severity':
+        rows.sort((a, b) =>
+          (SEVERITY_ORDER[b.severity] || 0) - (SEVERITY_ORDER[a.severity] || 0)
+          || (b.decision_date || '').localeCompare(a.decision_date || '')
+        );
+        break;
+      case 'penalty':
+        rows.sort((a, b) => (Number(b.monetary_penalty_usd) || 0) - (Number(a.monetary_penalty_usd) || 0));
+        break;
+      default:
+        rows.sort((a, b) => (b.decision_date || '').localeCompare(a.decision_date || ''));
+    }
+
+    state.filtered = rows;
+    state.rendered = 0;
+    els.list.innerHTML = '';
+    renderNextPage();
+  }
+
+  function renderNextPage() {
+    const slice = state.filtered.slice(state.rendered, state.rendered + PAGE);
+    if (state.rendered === 0 && slice.length === 0) {
+      els.list.innerHTML = '<div class="list-empty">No cases match these filters.</div>';
+      els.countLabel.textContent = `Showing 0 of ${state.all.length.toLocaleString()} cases`;
+      els.loadMore.style.display = 'none';
+      return;
+    }
+    els.list.insertAdjacentHTML('beforeend', slice.map(renderCard).join(''));
+    state.rendered += slice.length;
+    els.countLabel.textContent = `Showing ${state.rendered.toLocaleString()} of ${state.filtered.length.toLocaleString()} cases`;
+    els.loadMore.style.display = state.rendered < state.filtered.length ? 'inline-flex' : 'none';
+
+    if (location.hash) {
+      const slug = location.hash.slice(1);
+      const el = document.getElementById(slug);
+      if (el && el.classList.contains('case-card') && !el.classList.contains('open')) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        toggleCard(el);
+      }
+    }
+  }
+
+  function renderCard(r) {
+    const sev = (r.severity || 'low').toLowerCase();
+    const sevLabel = sev[0].toUpperCase() + sev.slice(1);
+    const tags = [];
+    if (r.ai_tool) tags.push(r.ai_tool);
+    if (r.outcome_summary) tags.push(r.outcome_summary);
+    if (r.party_type && r.party_type !== 'Unknown') tags.push(r.party_type);
+
+    let penaltyHTML = '';
+    const m = Number(r.monetary_penalty_usd) || 0;
+    if (m > 0) {
+      penaltyHTML = `
+        <div class="case-penalty">${compactCurrency(m)}</div>
+        <div class="case-penalty-label">Monetary fine</div>`;
+    } else if (r.professional_sanction) {
+      const label = (r.outcome_summary || 'Bar Referral').toUpperCase();
+      const small = label.length > 14 ? ' small' : '';
+      penaltyHTML = `
+        <div class="case-penalty-mono${small}">${escapeHtml(label)}</div>
+        <div class="case-penalty-label">Professional sanction</div>`;
+    } else if (r.outcome_summary) {
+      const label = r.outcome_summary.toUpperCase();
+      const small = label.length > 14 ? ' small' : '';
+      penaltyHTML = `
+        <div class="case-penalty-mono muted${small}">${escapeHtml(label)}</div>
+        <div class="case-penalty-label">No monetary penalty</div>`;
+    } else {
+      penaltyHTML = `
+        <div class="case-penalty-mono muted">—</div>
+        <div class="case-penalty-label">No outcome</div>`;
+    }
+
+    return `
+      <div class="case-card" data-severity="${sev}" data-cid="${r.case_id}" data-aid="${r.annotation_id || ''}" id="${escapeHtml(r.slug || '')}">
+        <div class="case-header">
+          <div>
+            <div class="case-meta-top">
+              <span class="case-severity ${sev}"><span class="severity-dot ${sev}"></span>${sevLabel}</span>
+              <span class="case-court">${escapeHtml(r.court || '')}</span>
+              <span class="case-date">&middot; ${formatDate(r.decision_date)}</span>
+            </div>
+            <div class="case-name">${escapeHtml(r.case_name || '')}</div>
+            <div class="case-one-line">${escapeHtml(r.one_line || '')}</div>
+            <div class="case-tags">
+              ${tags.map(t => `<span class="case-tag">${escapeHtml(t)}</span>`).join('')}
+            </div>
+          </div>
+          <div class="case-right">
+            ${penaltyHTML}
+            <div class="case-toggle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="case-detail">
+          <div class="case-detail-inner" data-loaded="0"></div>
+        </div>
+      </div>`;
+  }
+
+  /* ---------- expand / collapse ---------- */
+  els.list.addEventListener('click', e => {
+    const header = e.target.closest('.case-header');
+    if (!header) return;
+    const card = header.closest('.case-card');
+    if (card) toggleCard(card);
+  });
+
+  function toggleCard(card) {
+    const willOpen = !card.classList.contains('open');
+    card.classList.toggle('open', willOpen);
+    if (willOpen) {
+      const inner = card.querySelector('.case-detail-inner');
+      if (inner.getAttribute('data-loaded') === '0') {
+        const cid = card.dataset.cid;
+        const r = state.all.find(x => x.case_id === cid);
+        inner.innerHTML = renderDetail(r);
+        inner.setAttribute('data-loaded', '1');
+        loadSkillLinks(card.dataset.aid, inner);
+      }
+    }
+  }
+
+  function renderDetail(r) {
+    if (!r) return '<div class="detail-section"><div class="detail-narrative"><p>Annotation not available.</p></div></div>';
+
+    const ruleEntry = (num, name, j) => {
+      if (!j) return '';
+      const applies = !!j.applies;
+      const risk = (j.risk_level || 'none')[0].toUpperCase() + (j.risk_level || 'none').slice(1);
+      return `
+        <div class="rule-card">
+          <div class="rule-card-header">
+            <span class="rule-label">Rule ${num} ${escapeHtml(name)}</span>
+            <span class="rule-badge ${applies ? 'applies' : 'clear'}">${applies ? 'Implicated' : 'Not Implicated'}</span>
+          </div>
+          <div class="rule-risk">Risk level: ${escapeHtml(risk)}</div>
+          ${j.analysis ? `<div class="rule-analysis">${escapeHtml(j.analysis)}</div>` : ''}
+        </div>`;
+    };
+
+    const rulesHTML = [
+      ruleEntry('1.1', 'Competence',           r.rule_1_1_competence),
+      ruleEntry('1.4', 'Communication',        r.rule_1_4_communication),
+      ruleEntry('1.6', 'Confidentiality',      r.rule_1_6_confidentiality),
+      ruleEntry('3.3', 'Candor',               r.rule_3_3_candor),
+      ruleEntry('5.1', 'Supervisory',          r.rule_5_1_supervisory),
+      ruleEntry('5.3', 'Nonlawyer Assistance', r.rule_5_3_nonlawyer),
+    ].filter(Boolean).join('');
+
+    const impactCells = [
+      ['Insurance Exposure',              r.insurance_exposure],
+      ['Bar Referral Risk',               r.bar_referral_risk],
+      ['Recommended Firm Policy',         r.firm_policy_takeaway],
+      ['What Would Have Prevented This',  r.prevention_notes],
+    ].filter(([, body]) => body && body.trim()).map(([title, body]) => `
+      <div class="impact-block">
+        <div class="impact-block-title">${escapeHtml(title)}</div>
+        <div class="impact-block-text">${escapeHtml(body)}</div>
+      </div>
+    `).join('');
+
+    return `
+      ${r.what_happened ? `<div class="detail-section">
+        <div class="detail-section-title">What Happened</div>
+        <div class="detail-narrative">${paragraphs(r.what_happened)}</div>
+      </div>` : ''}
+
+      ${r.what_went_wrong ? `<div class="detail-section">
+        <div class="detail-section-title">What Went Wrong</div>
+        <div class="detail-narrative">${paragraphs(r.what_went_wrong)}</div>
+      </div>` : ''}
+
+      ${rulesHTML ? `<div class="detail-section">
+        <div class="detail-section-title">Model Rules Analysis</div>
+        <div class="rules-grid">${rulesHTML}</div>
+      </div>` : ''}
+
+      ${impactCells ? `<div class="detail-section">
+        <div class="detail-section-title">Practice Impact</div>
+        <div class="impact-grid">${impactCells}</div>
+      </div>` : ''}
+
+      <div class="detail-section">
+        <div class="detail-section-title">Relevant Skills</div>
+        <div class="skill-links" data-skills><span class="skill-link-empty">Loading…</span></div>
+        <div class="skill-link-note" data-skill-note></div>
+      </div>
+
+      ${r.reviewed_by ? `<div class="case-source-row">
+        <span></span>
+        <span class="case-reviewed">Reviewed by ${escapeHtml(r.reviewed_by)} &middot; ${formatDate(r.reviewed_at)}</span>
+      </div>` : ''}
+    `;
+  }
+
+  async function loadSkillLinks(aid, inner) {
+    const slot = inner.querySelector('[data-skills]');
+    const note = inner.querySelector('[data-skill-note]');
+    if (!aid || !slot) return;
+    try {
+      const { data } = await sb.from('skill_links').select('*').eq('annotation_id', aid).order('display_order');
+      if (data && data.length) {
+        slot.innerHTML = data.map(s => `
+          <a class="skill-link" href="${escapeHtml(s.skill_url)}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
+            ${escapeHtml(s.skill_name)}
+          </a>`).join('');
+        if (note) note.textContent = data.map(s => s.relevance_note).filter(Boolean).join(' ');
+      } else {
+        slot.innerHTML = '<span class="skill-link-empty">No matching Skills flagged for this case.</span>';
+        if (note) note.textContent = '';
+      }
+    } catch (_) {
+      slot.innerHTML = '<span class="skill-link-empty">Could not load Skills.</span>';
+    }
+  }
+
+  /* ---------- filter / sort / search wiring ---------- */
+  document.querySelectorAll('.filter-pill[data-filter]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill[data-filter]').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.severity = pill.dataset.filter;
+      applyFilters();
+    });
+  });
+  document.querySelectorAll('.filter-pill[data-party]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill[data-party]').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.party = pill.dataset.party;
+      applyFilters();
+    });
+  });
+  document.querySelectorAll('.filter-pill[data-sanction]').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const v = pill.dataset.sanction;
+      if (state.sanctions.has(v)) {
+        state.sanctions.delete(v);
+        pill.classList.remove('active');
+      } else {
+        state.sanctions.add(v);
+        pill.classList.add('active');
+      }
+      applyFilters();
+    });
+  });
+
+  let qTimer;
+  els.q.addEventListener('input', () => {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { state.q = els.q.value.trim(); applyFilters(); }, 200);
+  });
+  els.sort.addEventListener('change', () => { state.sort = els.sort.value; applyFilters(); });
+  els.loadMore.addEventListener('click', () => renderNextPage());
+
+  /* ---------- boot ---------- */
+  loadStats();
+  loadAll();
+}
+</script>
+
+</body>
+</html>
