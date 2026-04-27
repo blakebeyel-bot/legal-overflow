@@ -749,11 +749,131 @@
     } catch (e) { console.warn('[sandbox-anim] auth motif failed:', e); }
   }
 
+  // ----------------------------------------------------------
+  // Mobile nav — hamburger button + slide-in overlay menu.
+  //   Injects markup once per page so all 7 .astro files don't
+  //   each need to declare their own. Reads the existing
+  //   .nav-links to mirror exactly what desktop sees, plus the
+  //   Subscribe CTA from .nav-sub.
+  // ----------------------------------------------------------
+  function installMobileNav() {
+    try {
+      var nav = document.querySelector('header.nav, .nav');
+      if (!nav) return;
+      // Idempotent — don't add twice.
+      if (nav.querySelector('.nav-toggle')) return;
+
+      // Build hamburger button.
+      var btn = document.createElement('button');
+      btn.className = 'nav-toggle';
+      btn.type = 'button';
+      btn.setAttribute('aria-label', 'Open menu');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.setAttribute('aria-controls', 'nav-mobile');
+      btn.innerHTML = '<span class="nav-toggle-bars" aria-hidden="true"><span></span></span>';
+
+      var navRight = nav.querySelector('.nav-right');
+      if (navRight) {
+        navRight.appendChild(btn);
+      } else {
+        nav.appendChild(btn);
+      }
+
+      // Build mobile menu overlay. Mirror the desktop nav-links + a Subscribe CTA.
+      var overlay = document.createElement('nav');
+      overlay.className = 'nav-mobile';
+      overlay.id = 'nav-mobile';
+      overlay.setAttribute('aria-label', 'Mobile navigation');
+      var sourceLinks = nav.querySelectorAll('.nav-links a');
+      sourceLinks.forEach(function (a) {
+        var clone = document.createElement('a');
+        // Strip marquee wrapping so the mobile menu shows plain text.
+        clone.textContent = a.textContent.trim();
+        clone.href = a.getAttribute('href') || '#';
+        if (a.hasAttribute('aria-current')) clone.setAttribute('aria-current', a.getAttribute('aria-current'));
+        overlay.appendChild(clone);
+      });
+      // Footer block: live dot + clock + Subscribe CTA.
+      var liveDot = nav.querySelector('.live-dot');
+      var navMeta = nav.querySelector('.nav-meta');
+      if (liveDot || navMeta) {
+        var meta = document.createElement('div');
+        meta.className = 'nav-mobile-meta';
+        if (liveDot) {
+          var dot = document.createElement('span');
+          dot.className = 'live-dot';
+          meta.appendChild(dot);
+        }
+        if (navMeta) {
+          var metaText = document.createElement('span');
+          metaText.id = 'nav-mobile-clock';
+          metaText.textContent = navMeta.textContent;
+          meta.appendChild(metaText);
+        }
+        overlay.appendChild(meta);
+      }
+      var navSub = nav.querySelector('.nav-sub');
+      if (navSub) {
+        var cta = document.createElement('a');
+        cta.className = 'nav-mobile-cta';
+        cta.href = navSub.getAttribute('href') || '#subscribe';
+        cta.textContent = navSub.textContent.trim() || 'Subscribe';
+        overlay.appendChild(cta);
+      }
+      document.body.appendChild(overlay);
+
+      function closeMenu() {
+        document.body.classList.remove('nav-open');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-label', 'Open menu');
+      }
+      function openMenu() {
+        document.body.classList.add('nav-open');
+        btn.setAttribute('aria-expanded', 'true');
+        btn.setAttribute('aria-label', 'Close menu');
+      }
+
+      btn.addEventListener('click', function () {
+        if (document.body.classList.contains('nav-open')) closeMenu();
+        else openMenu();
+      });
+
+      // Click any link in the overlay → close
+      overlay.addEventListener('click', function (e) {
+        var t = e.target;
+        if (t && t.tagName === 'A') closeMenu();
+      });
+
+      // Esc key closes
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.body.classList.contains('nav-open')) closeMenu();
+      });
+
+      // If viewport widens past breakpoint, close the overlay so we don't get
+      // stuck with a blocked scroll on desktop.
+      var mq = window.matchMedia('(min-width: 961px)');
+      var handler = function (e) { if (e.matches) closeMenu(); };
+      if (mq.addEventListener) mq.addEventListener('change', handler);
+      else mq.addListener(handler);
+
+      // Mirror the desktop clock into the mobile menu's meta text
+      var srcClock = document.getElementById('nav-clock');
+      var dstClock = document.getElementById('nav-mobile-clock');
+      if (srcClock && dstClock) {
+        var observer = new MutationObserver(function () {
+          dstClock.textContent = srcClock.textContent;
+        });
+        observer.observe(srcClock, { characterData: true, childList: true, subtree: true });
+      }
+    } catch (e) { console.warn('[sandbox-anim] mobile nav failed:', e); }
+  }
+
   function boot() {
     installCurtain();
     installProgressBar();
     installCursor();
     installNavMarquee();
+    installMobileNav();
     installSectionTitleHover();
     installHeroBackground();
     revealHero();
