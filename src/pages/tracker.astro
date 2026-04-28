@@ -309,6 +309,202 @@ input{font-family:inherit}
 /* ================================================================
    CASE LIST
    ================================================================ */
+/* ============================================================
+   TAB STRIP — switch between Cases and Rules & Orders
+   ============================================================ */
+.tk-tabs {
+  max-width: 1200px; margin: 0 auto 12px;
+  padding: 0 40px;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.tk-tab {
+  font-family: var(--serif);
+  font-size: 22px;
+  letter-spacing: -.01em;
+  color: var(--ink-3);
+  background: transparent;
+  border: 0;
+  padding: 14px 24px 16px;
+  cursor: pointer;
+  position: relative;
+  transition: color .2s;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.tk-tab:hover { color: var(--ink-2); }
+.tk-tab.active { color: var(--ink); }
+.tk-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 24px; right: 24px; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+.tk-tab-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: .04em;
+  font-style: normal;
+}
+.tk-tab.active .tk-tab-count { color: var(--accent-deep); }
+.tk-tab-new {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: 4px;
+  font-style: normal;
+}
+
+.tk-pane { }
+.tk-pane.hidden { display: none; }
+
+.tk-preview-banner {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+  padding: 14px 22px;
+  border: 1px dashed var(--accent);
+  border-radius: 6px;
+  background: var(--accent-tint);
+  font-family: var(--mono); font-size: 12px;
+  letter-spacing: .04em;
+  color: var(--accent-deep);
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.tk-preview-banner strong { font-weight: 600; }
+
+/* rules cards — mostly mirror case cards but with rule-specific bits */
+.rule-card {
+  border: 1px solid var(--rule-soft); border-radius: 6px;
+  margin-bottom: 16px; overflow: hidden;
+  transition: border-color .2s; background: var(--paper);
+}
+.rule-card:hover { border-color: var(--ink-4); }
+.rule-card-header {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 20px; padding: 24px 28px;
+  cursor: pointer; user-select: none;
+}
+.rule-meta-top {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 8px; flex-wrap: wrap;
+}
+.rule-juris-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em;
+  text-transform: uppercase; font-weight: 600;
+}
+.rule-juris-pill.aba     { background: color-mix(in oklab, #3b6db5 12%, white); color: #1d3a6b; }
+.rule-juris-pill.federal { background: color-mix(in oklab, var(--accent-deep) 12%, white); color: var(--accent-deep); }
+.rule-juris-pill.state   { background: color-mix(in oklab, #6e5b1c 12%, white); color: #6e5b1c; }
+.rule-type-pill {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--ink-3);
+}
+.rule-date {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); letter-spacing: .04em;
+}
+.rule-title {
+  font-family: var(--serif); font-size: 22px; line-height: 1.2;
+  letter-spacing: -.015em; margin-bottom: 4px; color: var(--ink);
+}
+.rule-subtitle {
+  font-family: var(--sans); font-size: 14px; color: var(--ink-3);
+  font-style: italic; margin-bottom: 8px;
+}
+.rule-summary {
+  font-family: var(--sans); font-size: 15px; color: var(--ink-2);
+  line-height: 1.45; max-width: 70ch;
+}
+.rule-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.rule-tag {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .06em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--rule-soft); color: var(--ink-3);
+}
+.rule-tag.disclosure   { background: color-mix(in oklab, var(--accent) 8%, white); color: var(--accent-deep); border-color: var(--accent); }
+.rule-tag.verification { background: color-mix(in oklab, #c45a2d 8%, white); color: #8b3318; border-color: color-mix(in oklab, #c45a2d 35%, transparent); }
+.rule-card-right {
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 8px; min-width: 160px;
+}
+.rule-rules-implicated {
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+  letter-spacing: .04em; text-align: right; line-height: 1.4;
+}
+.rule-rules-implicated strong {
+  display: block; font-size: 13px; color: var(--ink);
+  font-family: var(--serif); font-weight: 400; letter-spacing: -.01em;
+  margin-bottom: 4px;
+}
+.rule-toggle {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--rule-soft);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), background .2s;
+  background: transparent;
+}
+.rule-card.open .rule-toggle { transform: rotate(180deg); background: var(--paper-2); }
+.rule-detail { max-height: 0; overflow: hidden; transition: max-height .55s cubic-bezier(.2,.8,.2,1); }
+.rule-card.open .rule-detail { max-height: 6000px; }
+.rule-detail-inner { padding: 0 28px 28px; border-top: 1px solid var(--rule-soft); }
+.rule-section { margin-top: 28px; }
+.rule-section-title {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  letter-spacing: .06em; text-transform: uppercase;
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.rule-section-body {
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  color: var(--ink-2); max-width: 72ch;
+}
+.rule-section-body p { margin-bottom: 12px; }
+.rule-takeaways { list-style: none; margin: 0; padding: 0; }
+.rule-takeaways li {
+  font-family: var(--sans); font-size: 14.5px; line-height: 1.55;
+  color: var(--ink-2); padding: 10px 0 10px 28px; position: relative;
+  border-bottom: 1px dashed var(--rule-soft);
+}
+.rule-takeaways li:last-child { border-bottom: 0; }
+.rule-takeaways li::before {
+  content: ''; position: absolute; left: 0; top: 18px;
+  width: 14px; height: 1px; background: var(--accent-deep);
+}
+.rule-footer-row {
+  display: flex; flex-wrap: wrap; gap: 18px;
+  margin-top: 24px; padding-top: 14px;
+  border-top: 1px dashed var(--rule-soft);
+  align-items: center;
+}
+.rule-source {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  letter-spacing: .04em;
+  border-bottom: 1px dashed var(--rule-soft); padding-bottom: 1px;
+  text-decoration: none;
+}
+.rule-source:hover { color: var(--accent-deep); border-color: var(--accent); }
+.rule-citation {
+  font-family: var(--mono); font-size: 10px; color: var(--ink-4);
+  letter-spacing: .03em; margin-left: auto;
+}
+@media (max-width: 900px) {
+  .tk-tabs { padding: 0 20px; }
+  .tk-tab { font-size: 18px; padding: 10px 14px 12px; }
+  .tk-tab.active::after { left: 14px; right: 14px; }
+  .rule-card-header { grid-template-columns: 1fr; }
+  .rule-card-right { flex-direction: row; align-items: center; min-width: 0; }
+}
+
 .case-list{
   max-width:var(--section-w);margin:0 auto;
   padding:0 40px 40px;
@@ -634,9 +830,26 @@ input{font-family:inherit}
 </section>
 
 <!-- ============================================================
+     TAB STRIP — Cases vs. Rules & Orders
+     ============================================================ -->
+<div class="tk-tabs" id="cases">
+  <button class="tk-tab active" data-tab="cases" type="button">
+    Cases <span class="tk-tab-count" id="tab-cases-count">—</span>
+  </button>
+  <button class="tk-tab" data-tab="rules" type="button">
+    Rules &amp; Orders <span class="tk-tab-count">8</span><span class="tk-tab-new">Preview</span>
+  </button>
+</div>
+
+<!-- ============================================================
+     PANE: CASES (existing v_tracker_cases UI)
+     ============================================================ -->
+<div class="tk-pane" data-pane="cases">
+
+<!-- ============================================================
      SEARCH + FILTERS
      ============================================================ -->
-<div class="controls" id="cases">
+<div class="controls">
   <div class="search-row">
     <input type="text" class="search-input" placeholder="Search by case name, court, attorney, or keyword..." id="searchInput" autocomplete="off">
   </div>
@@ -688,6 +901,52 @@ input{font-family:inherit}
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
   </button>
 </div>
+
+</div><!-- /tk-pane[cases] -->
+
+<!-- ============================================================
+     PANE: RULES & ORDERS (Phase 1 sample — static data)
+     ============================================================ -->
+<div class="tk-pane hidden" data-pane="rules">
+
+  <div class="controls">
+    <div class="tk-preview-banner">
+      <strong>SAMPLE</strong>
+      <span>Phase 1 design preview. The eight rules below are real and verifiable. Final version will be Supabase-backed with Claude annotation, mirroring the Cases tab.</span>
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">Jurisdiction</span>
+      <button class="filter-pill active" data-rule-juris="all" type="button">All</button>
+      <button class="filter-pill" data-rule-juris="aba" type="button">ABA</button>
+      <button class="filter-pill" data-rule-juris="federal" type="button">Federal</button>
+      <button class="filter-pill" data-rule-juris="state" type="button">State</button>
+      <span class="filter-sep"></span>
+      <span class="filter-label">Type</span>
+      <button class="filter-pill active" data-rule-type="all" type="button">All</button>
+      <button class="filter-pill" data-rule-type="ethics_opinion" type="button">Ethics Opinion</button>
+      <button class="filter-pill" data-rule-type="standing_order" type="button">Standing Order</button>
+      <button class="filter-pill" data-rule-type="aba_opinion" type="button">ABA Opinion</button>
+      <button class="filter-pill" data-rule-type="task_force_report" type="button">Task Force</button>
+      <button class="filter-pill" data-rule-type="proposed_rule" type="button">Proposed Rule</button>
+    </div>
+  </div>
+
+  <div class="results-meta">
+    <span class="results-count" id="rule-count">Showing 8 rules</span>
+    <span class="sort-control">Sort by
+      <select id="rule-sort">
+        <option value="date_desc">Date (newest)</option>
+        <option value="date_asc">Date (oldest)</option>
+        <option value="rules">Most Model Rules touched</option>
+      </select>
+    </span>
+  </div>
+
+  <div class="case-list" id="rule-list">
+    <div class="list-empty">Loading rules…</div>
+  </div>
+
+</div><!-- /tk-pane[rules] -->
 
 <!-- ============================================================
      METHODOLOGY
@@ -1240,6 +1499,173 @@ async function boot() {
   /* ---------- boot ---------- */
   loadStats();
   loadAll();
+
+  /* ---------- TAB STRIP ---------- */
+  document.querySelectorAll('.tk-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.tk-tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.tk-pane').forEach(p => {
+        p.classList.toggle('hidden', p.dataset.pane !== target);
+      });
+      // Update the URL hash so deep links work
+      history.replaceState(null, '', '#' + target);
+      window.scrollTo({ top: document.querySelector('.tk-tabs').offsetTop - 20, behavior: 'smooth' });
+    });
+  });
+  // Honour deep-link to #rules
+  if (location.hash === '#rules') {
+    document.querySelector('.tk-tab[data-tab="rules"]').click();
+  }
+
+  /* ---------- update Cases tab count after stats load ---------- */
+  setTimeout(() => {
+    const pubEl = document.getElementById('stat-cases');
+    const tabCount = document.getElementById('tab-cases-count');
+    if (pubEl && tabCount && pubEl.textContent !== '—') {
+      tabCount.textContent = pubEl.textContent;
+    }
+  }, 1800);
+
+  /* ---------- RULES PANE — live from Supabase ---------- */
+  let RULES = [];
+  try {
+    const { data, error } = await sb
+      .from('v_tracker_rules')
+      .select('*')
+      .order('effective_date', { ascending: false });
+    if (error) throw error;
+    RULES = (data || []).map(r => ({
+      ...r,
+      // Aliases so renderRuleCard can use either snake_case (Supabase)
+      // or camelCase (legacy) keys interchangeably.
+      jurisLabel: r.jurisdiction_label,
+      typeLabel: r.type_label,
+    }));
+  } catch (e) {
+    console.warn('rules fetch failed', e);
+    RULES = [];
+  }
+
+  const ruleState = { juris: 'all', type: 'all', sort: 'date_desc' };
+
+  function ruleEscape(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+  function ruleDate(d) {
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function renderRuleCard(r) {
+    return `
+      <article class="rule-card" data-juris="${r.jurisdiction}" data-type="${r.type}" id="${r.slug}">
+        <div class="rule-card-header">
+          <div>
+            <div class="rule-meta-top">
+              <span class="rule-juris-pill ${r.jurisdiction}">${ruleEscape(r.jurisLabel)}</span>
+              <span class="rule-type-pill">${ruleEscape(r.typeLabel)}</span>
+              <span class="rule-date">· ${ruleDate(r.effective_date)}</span>
+            </div>
+            <div class="rule-title">${ruleEscape(r.title)}</div>
+            <div class="rule-subtitle">${ruleEscape(r.subtitle)}</div>
+            <p class="rule-summary">${ruleEscape(r.summary.length > 220 ? r.summary.slice(0, 220) + '…' : r.summary)}</p>
+            <div class="rule-tags">
+              ${r.requires_disclosure ? '<span class="rule-tag disclosure">Requires Disclosure</span>' : ''}
+              ${r.requires_verification ? '<span class="rule-tag verification">Verification Required</span>' : ''}
+            </div>
+          </div>
+          <div class="rule-card-right">
+            <div class="rule-rules-implicated">
+              <strong>${r.rules_implicated.length}</strong>
+              Rule${r.rules_implicated.length === 1 ? '' : 's'}<br/>
+              implicated
+            </div>
+            <div class="rule-toggle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="rule-detail">
+          <div class="rule-detail-inner">
+            <div class="rule-section">
+              <div class="rule-section-title">Summary</div>
+              <div class="rule-section-body"><p>${ruleEscape(r.summary)}</p></div>
+            </div>
+            <div class="rule-section">
+              <div class="rule-section-title">Practitioner Takeaways</div>
+              <ul class="rule-takeaways">
+                ${r.takeaways.map(t => `<li>${ruleEscape(t)}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="rule-section">
+              <div class="rule-section-title">Practitioner Take</div>
+              <div class="rule-section-body"><p>${ruleEscape(r.practitioner_take)}</p></div>
+            </div>
+            <div class="rule-section">
+              <div class="rule-section-title">Penalties / Enforcement</div>
+              <div class="rule-section-body"><p>${ruleEscape(r.penalties)}</p></div>
+            </div>
+            <div class="rule-section">
+              <div class="rule-section-title">Model Rules Implicated</div>
+              <div class="rule-tags" style="margin-top:0">
+                ${r.rules_implicated.map(rl => `<span class="rule-tag">Rule ${ruleEscape(rl)}</span>`).join('')}
+              </div>
+            </div>
+            <div class="rule-footer-row">
+              <a class="rule-source" href="${ruleEscape(r.source_url)}" target="_blank" rel="noopener">View source ↗</a>
+              <span class="rule-citation">${ruleEscape(r.citation)}</span>
+            </div>
+          </div>
+        </div>
+      </article>`;
+  }
+
+  function applyRuleFilters() {
+    let rows = RULES.filter(r =>
+      (ruleState.juris === 'all' || r.jurisdiction === ruleState.juris) &&
+      (ruleState.type  === 'all' || r.type         === ruleState.type)
+    );
+    if (ruleState.sort === 'date_asc')  rows.sort((a,b) => a.effective_date.localeCompare(b.effective_date));
+    else if (ruleState.sort === 'rules') rows.sort((a,b) => b.rules_implicated.length - a.rules_implicated.length);
+    else                                  rows.sort((a,b) => b.effective_date.localeCompare(a.effective_date));
+    document.getElementById('rule-list').innerHTML = rows.length
+      ? rows.map(renderRuleCard).join('')
+      : '<div class="list-empty">No rules match these filters.</div>';
+    document.getElementById('rule-count').textContent =
+      `Showing ${rows.length} of ${RULES.length} rule${RULES.length === 1 ? '' : 's'}`;
+  }
+
+  // initial render
+  applyRuleFilters();
+
+  // expand / collapse rule cards
+  document.getElementById('rule-list').addEventListener('click', e => {
+    const header = e.target.closest('.rule-card-header');
+    if (!header) return;
+    header.closest('.rule-card').classList.toggle('open');
+  });
+
+  // rule filters
+  document.querySelectorAll('[data-rule-juris]').forEach(p => {
+    p.addEventListener('click', () => {
+      document.querySelectorAll('[data-rule-juris]').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      ruleState.juris = p.dataset.ruleJuris;
+      applyRuleFilters();
+    });
+  });
+  document.querySelectorAll('[data-rule-type]').forEach(p => {
+    p.addEventListener('click', () => {
+      document.querySelectorAll('[data-rule-type]').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      ruleState.type = p.dataset.ruleType;
+      applyRuleFilters();
+    });
+  });
+  document.getElementById('rule-sort').addEventListener('change', e => {
+    ruleState.sort = e.target.value;
+    applyRuleFilters();
+  });
 }
 </script>
 
