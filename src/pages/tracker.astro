@@ -235,7 +235,7 @@ input{font-family:inherit}
    STATS BAR
    ================================================================ */
 .stats{
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-template-columns:repeat(5,1fr);
   border-top:1px solid var(--rule-soft);
   border-bottom:1px solid var(--rule-soft);
   margin-bottom:60px;
@@ -246,6 +246,7 @@ input{font-family:inherit}
 .stat:not(:first-child){padding-left:24px}
 .stat-n{font-family:var(--serif);font-size:44px;line-height:1;margin-bottom:6px;letter-spacing:-.02em}
 .stat-l{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase}
+.stat-sub{font-family:var(--mono);font-size:10px;color:var(--ink-4);letter-spacing:.04em;margin-top:4px;text-transform:uppercase}
 
 /* ================================================================
    SEARCH + FILTERS
@@ -381,6 +382,26 @@ input{font-family:inherit}
   display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
 }
 .tk-preview-banner strong { font-weight: 600; }
+
+.rule-state-select {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+  padding: 7px 32px 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--rule-soft);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%235b6760' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: border-color .2s, color .2s;
+}
+.rule-state-select:hover { border-color: var(--ink-3); color: var(--ink); }
+.rule-state-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* rules cards — mostly mirror case cards but with rule-specific bits */
 .rule-card {
@@ -735,8 +756,10 @@ input{font-family:inherit}
   .hero{padding:48px 20px 0}
   .wrap,.wrap-wide,.controls,.case-list,.results-meta,.methodology,.load-more-row{padding-left:20px;padding-right:20px}
   .stats{grid-template-columns:repeat(2,1fr)}
-  .stat:nth-child(2){border-right:none}
-  .stat:nth-child(3),.stat:nth-child(4){border-top:1px solid var(--rule-soft)}
+  .stat{border-right:1px solid var(--rule-soft)!important}
+  .stat:nth-child(2n){border-right:none!important}
+  .stat:not(:nth-child(-n+2)){border-top:1px solid var(--rule-soft)}
+  .stat:last-child:nth-child(odd){grid-column:1/-1;border-right:none!important}
   .rules-grid{grid-template-columns:1fr}
   .impact-grid{grid-template-columns:1fr}
   .methodology-grid{grid-template-columns:1fr}
@@ -812,7 +835,8 @@ input{font-family:inherit}
   <div class="stats">
     <div class="stat">
       <div class="stat-n" id="stat-cases">—</div>
-      <div class="stat-l">U.S. Cases</div>
+      <div class="stat-l">Published Cases</div>
+      <div class="stat-sub" id="stat-cases-sub">— indexed</div>
     </div>
     <div class="stat">
       <div class="stat-n" id="stat-penalty">—</div>
@@ -826,6 +850,10 @@ input{font-family:inherit}
       <div class="stat-n" id="stat-lawyers">—</div>
       <div class="stat-l">Lawyer Cases</div>
     </div>
+    <div class="stat">
+      <div class="stat-n" id="stat-rules">—</div>
+      <div class="stat-l">Rules &amp; Orders</div>
+    </div>
   </div>
 </section>
 
@@ -837,7 +865,7 @@ input{font-family:inherit}
     Cases <span class="tk-tab-count" id="tab-cases-count">—</span>
   </button>
   <button class="tk-tab" data-tab="rules" type="button">
-    Rules &amp; Orders <span class="tk-tab-count">8</span><span class="tk-tab-new">Preview</span>
+    Rules &amp; Orders <span class="tk-tab-count" id="tab-rules-count">—</span>
   </button>
 </div>
 
@@ -870,6 +898,12 @@ input{font-family:inherit}
     <span class="filter-label">Sanction</span>
     <button class="filter-pill" data-sanction="monetary">Monetary</button>
     <button class="filter-pill" data-sanction="bar-referral">Bar Referral</button>
+  </div>
+  <div class="filter-row" style="margin-top:12px;">
+    <span class="filter-label">State / Court</span>
+    <select id="case-court-select" class="rule-state-select">
+      <option value="all">All states &amp; courts</option>
+    </select>
   </div>
 </div>
 
@@ -910,10 +944,6 @@ input{font-family:inherit}
 <div class="tk-pane hidden" data-pane="rules">
 
   <div class="controls">
-    <div class="tk-preview-banner">
-      <strong>SAMPLE</strong>
-      <span>Phase 1 design preview. The eight rules below are real and verifiable. Final version will be Supabase-backed with Claude annotation, mirroring the Cases tab.</span>
-    </div>
     <div class="filter-row">
       <span class="filter-label">Jurisdiction</span>
       <button class="filter-pill active" data-rule-juris="all" type="button">All</button>
@@ -926,8 +956,16 @@ input{font-family:inherit}
       <button class="filter-pill" data-rule-type="ethics_opinion" type="button">Ethics Opinion</button>
       <button class="filter-pill" data-rule-type="standing_order" type="button">Standing Order</button>
       <button class="filter-pill" data-rule-type="aba_opinion" type="button">ABA Opinion</button>
+      <button class="filter-pill" data-rule-type="court_rule" type="button">Court Rule</button>
+      <button class="filter-pill" data-rule-type="local_rule" type="button">Local Rule</button>
       <button class="filter-pill" data-rule-type="task_force_report" type="button">Task Force</button>
       <button class="filter-pill" data-rule-type="proposed_rule" type="button">Proposed Rule</button>
+    </div>
+    <div class="filter-row" style="margin-top:12px;">
+      <span class="filter-label">State / Court</span>
+      <select id="rule-state-select" class="rule-state-select">
+        <option value="all">All states &amp; courts</option>
+      </select>
     </div>
   </div>
 
@@ -1009,6 +1047,7 @@ async function boot() {
     severity: 'all',
     party: 'all',
     sanctions: new Set(),
+    court: 'all',
     sort: 'date_desc',
     q: '',
     rendered: 0,
@@ -1024,9 +1063,11 @@ async function boot() {
     q:           $('searchInput'),
     sort:        $('sort-select'),
     statCases:   $('stat-cases'),
+    statCasesSub: $('stat-cases-sub'),
     statPenalty: $('stat-penalty'),
     statBar:     $('stat-bar'),
     statLawyers: $('stat-lawyers'),
+    statRules:   $('stat-rules'),
     navClock:    $('nav-clock'),
     heroKicker:  $('hero-kicker-text'),
     countLabel:  document.querySelector('.results-count'),
@@ -1168,12 +1209,22 @@ async function boot() {
         sb.from('annotations').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('professional_sanction', true),
       ]);
       const total = (pen.data || []).reduce((s, r) => s + (Number(r.monetary_penalty_usd) || 0), 0);
-      const indexedCount = indexed.count || 0;
+      const publishedCount = pub.count || 0;
+      const indexedCount   = indexed.count || 0;
 
-      animate(els.statCases,   indexedCount,        intFmt);
+      // hero stat reflects what's actually annotated + published, with the
+      // larger "of N indexed" living in the sub-line for context
+      animate(els.statCases,   publishedCount,      intFmt);
       animate(els.statPenalty, total,                dollarFmt);
       animate(els.statBar,     bar.count || 0,       intFmt);
       animate(els.statLawyers, lawyer.count || 0,    intFmt);
+      if (els.statCasesSub) {
+        els.statCasesSub.textContent = `of ${indexedCount.toLocaleString()} indexed`;
+      }
+      // Set the Cases tab count directly from the data — avoids reading
+      // the stat element while it's still tweening from 0 -> publishedCount.
+      const tabCases = document.getElementById('tab-cases-count');
+      if (tabCases) tabCases.textContent = publishedCount.toLocaleString();
 
       const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       els.heroKicker.textContent = `Mata Tracker · Updated ${today} · ${indexedCount.toLocaleString()} U.S. cases indexed`;
@@ -1200,12 +1251,50 @@ async function boot() {
         from += batch;
       }
       state.all = all;
+      populateCourtSelect();
       applyFilters();
     } catch (e) {
       console.error(e);
       els.err.style.display = 'block';
       els.list.innerHTML = '';
     }
+  }
+
+  /* ---------- Cases State/Court dropdown ---------- */
+  // Federal-court heuristic: matches "S.D. New York", "D. Arizona",
+  // "Cir.", "BAP", "JPML", "Tax Court", "Bankr", etc. Anything else
+  // (e.g., "CA Texas", "SC Connecticut") falls into the State group.
+  const FEDERAL_COURT_RE = /^(D\.|S\.D\.|N\.D\.|E\.D\.|W\.D\.|M\.D\.|C\.D\.|D\.D\.|U\.S\.|USDC)\s|\b(Cir\.|Circuit|BAP|JPML|ASBCA|GAO|Tax Court|Bankr|Bankruptcy|U\.S\.D\.C|J\.P\.M\.L)\b/i;
+
+  function populateCourtSelect() {
+    const sel = document.getElementById('case-court-select');
+    if (!sel) return;
+    // Reset to just the "All" option in case loadAll runs twice.
+    while (sel.options.length > 1) sel.remove(1);
+
+    const counts = new Map(); // court → count
+    state.all.forEach(c => {
+      if (!c.court) return;
+      counts.set(c.court, (counts.get(c.court) || 0) + 1);
+    });
+    const courts = [...counts.keys()].sort((a, b) => a.localeCompare(b));
+    const federal = courts.filter(c => FEDERAL_COURT_RE.test(c));
+    const stateCourts = courts.filter(c => !FEDERAL_COURT_RE.test(c));
+
+    function appendGroup(label, entries) {
+      if (!entries.length) return;
+      const group = document.createElement('optgroup');
+      group.label = label;
+      entries.forEach(value => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = `${value} (${counts.get(value).toLocaleString()})`;
+        group.appendChild(opt);
+      });
+      sel.appendChild(group);
+    }
+    appendGroup('Federal Courts', federal);
+    appendGroup('State Courts',   stateCourts);
   }
 
   const SEVERITY_ORDER = { severe: 4, high: 3, moderate: 2, low: 1 };
@@ -1226,6 +1315,7 @@ async function boot() {
       }
       if (wantMonetary && !(Number(r.monetary_penalty_usd) > 0)) return false;
       if (wantBar && !r.professional_sanction) return false;
+      if (state.court !== 'all' && r.court !== state.court) return false;
       if (q) {
         const blob = `${r.case_name} ${r.court} ${r.judge || ''} ${r.one_line || ''} ${r.ai_tool || ''} ${r.outcome_summary || ''}`.toLowerCase();
         if (!blob.includes(q)) return false;
@@ -1494,6 +1584,10 @@ async function boot() {
     qTimer = setTimeout(() => { state.q = els.q.value.trim(); applyFilters(); }, 200);
   });
   els.sort.addEventListener('change', () => { state.sort = els.sort.value; applyFilters(); });
+  const caseCourtSel = document.getElementById('case-court-select');
+  if (caseCourtSel) {
+    caseCourtSel.addEventListener('change', e => { state.court = e.target.value; applyFilters(); });
+  }
   els.loadMore.addEventListener('click', () => renderNextPage());
 
   /* ---------- boot ---------- */
@@ -1518,15 +1612,6 @@ async function boot() {
     document.querySelector('.tk-tab[data-tab="rules"]').click();
   }
 
-  /* ---------- update Cases tab count after stats load ---------- */
-  setTimeout(() => {
-    const pubEl = document.getElementById('stat-cases');
-    const tabCount = document.getElementById('tab-cases-count');
-    if (pubEl && tabCount && pubEl.textContent !== '—') {
-      tabCount.textContent = pubEl.textContent;
-    }
-  }, 1800);
-
   /* ---------- RULES PANE — live from Supabase ---------- */
   let RULES = [];
   try {
@@ -1546,8 +1631,55 @@ async function boot() {
     console.warn('rules fetch failed', e);
     RULES = [];
   }
+  // Tab count goes live as soon as RULES has resolved (avoids TDZ + race
+  // with the stat tween).
+  const tabRules = document.getElementById('tab-rules-count');
+  if (tabRules) tabRules.textContent = RULES.length.toLocaleString();
 
-  const ruleState = { juris: 'all', type: 'all', sort: 'date_desc' };
+  // Hero stat for Rules & Orders — same count-up tween as the case stats.
+  if (els.statRules) {
+    const animateRules = armStatAnimation();
+    animateRules(els.statRules, RULES.length, n => n.toLocaleString());
+  }
+
+  const ruleState = { juris: 'all', type: 'all', state: 'all', sort: 'date_desc' };
+
+  /* Populate the state dropdown from RULES (alphabetical by label) */
+  (function populateStateSelect() {
+    const sel = document.getElementById('rule-state-select');
+    if (!sel || !Array.isArray(RULES)) return;
+    const buckets = new Map(); // value -> label
+    RULES.forEach(r => {
+      if (r.jurisdiction === 'state' && r.state) {
+        buckets.set('state:' + r.state, r.jurisdiction_label || r.state);
+      } else if (r.jurisdiction === 'federal') {
+        const label = r.court || r.jurisdiction_label || 'Federal';
+        buckets.set('court:' + label, label);
+      } else if (r.jurisdiction === 'aba') {
+        buckets.set('juris:aba', 'ABA');
+      }
+    });
+    // group: ABA → state alphabetical → federal court alphabetical
+    const items = [...buckets.entries()];
+    const aba = items.filter(([k]) => k.startsWith('juris:'));
+    const states = items.filter(([k]) => k.startsWith('state:')).sort((a, b) => a[1].localeCompare(b[1]));
+    const courts = items.filter(([k]) => k.startsWith('court:')).sort((a, b) => a[1].localeCompare(b[1]));
+    function appendGroup(label, entries) {
+      if (!entries.length) return;
+      const group = document.createElement('optgroup');
+      group.label = label;
+      entries.forEach(([value, text]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = text;
+        group.appendChild(opt);
+      });
+      sel.appendChild(group);
+    }
+    appendGroup('ABA',     aba);
+    appendGroup('States',  states);
+    appendGroup('Federal Courts', courts);
+  })();
 
   function ruleEscape(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -1621,10 +1753,23 @@ async function boot() {
   }
 
   function applyRuleFilters() {
-    let rows = RULES.filter(r =>
-      (ruleState.juris === 'all' || r.jurisdiction === ruleState.juris) &&
-      (ruleState.type  === 'all' || r.type         === ruleState.type)
-    );
+    let rows = RULES.filter(r => {
+      if (ruleState.juris !== 'all' && r.jurisdiction !== ruleState.juris) return false;
+      if (ruleState.type  !== 'all' && r.type         !== ruleState.type)  return false;
+      if (ruleState.state !== 'all') {
+        const sel = ruleState.state;
+        if (sel.startsWith('state:')) {
+          if (r.jurisdiction !== 'state' || r.state !== sel.slice(6)) return false;
+        } else if (sel.startsWith('court:')) {
+          const label = sel.slice(6);
+          if (r.jurisdiction !== 'federal') return false;
+          if ((r.court || r.jurisdiction_label || '') !== label) return false;
+        } else if (sel.startsWith('juris:')) {
+          if (r.jurisdiction !== sel.slice(6)) return false;
+        }
+      }
+      return true;
+    });
     if (ruleState.sort === 'date_asc')  rows.sort((a,b) => a.effective_date.localeCompare(b.effective_date));
     else if (ruleState.sort === 'rules') rows.sort((a,b) => b.rules_implicated.length - a.rules_implicated.length);
     else                                  rows.sort((a,b) => b.effective_date.localeCompare(a.effective_date));
@@ -1666,6 +1811,13 @@ async function boot() {
     ruleState.sort = e.target.value;
     applyRuleFilters();
   });
+  const stateSel = document.getElementById('rule-state-select');
+  if (stateSel) {
+    stateSel.addEventListener('change', e => {
+      ruleState.state = e.target.value;
+      applyRuleFilters();
+    });
+  }
 }
 </script>
 
