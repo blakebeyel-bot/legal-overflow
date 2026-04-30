@@ -58,6 +58,13 @@
       "rule": "R. 10.2.2",
       "anchor_substrings": ["Bell Atlantic Corp.", "Bell Atlantic Corp. v. Twombly"],
       "keywords": ["Atl.", "Atlantic", "T6", "10.2.2"]
+    },
+    {
+      "id": "id_at_555_56_hyphen_b7",
+      "description": "Id. at 555-56: hyphen in pin range should be en dash per R. 3.2(a)",
+      "rule": "R. 3.2(a)",
+      "anchor_substrings": ["Id. at 555-56", "Id."],
+      "keywords": ["en dash", "endash", "hyphen", "3.2(a)", "555"]
     }
   ],
   "controls": [
@@ -92,9 +99,9 @@
       "note": "Proper bare Id. immediately after a single antecedent (Twombly)"
     },
     {
-      "id": "id_at_555_56",
+      "id": "id_at_555_56_paired_with_seeded_error_b7",
       "anchor_substrings": ["Id. at 555-56"],
-      "note": "Proper Id. with new pinpoint, single antecedent"
+      "note": "Pre-Round-23, this was marked as a 'proper Id. with new pinpoint' control, but the hyphen in 555-56 is itself an R. 3.2(a) violation now seeded as id_at_555_56_hyphen_b7. Kept as a comment-resistance hint that ID-form is correct apart from the dash."
     },
     {
       "id": "iqbal_short_678",

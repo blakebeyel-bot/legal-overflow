@@ -591,30 +591,65 @@ export function validateCitationForm(candidateText) {
   //      Be careful NOT to flag hyphens inside section numbers (e.g.,
   //      "240.10b-5") or year ranges in parentheticals.
   // ---------------------------------------------------------------------
-  // Pattern: page number followed by ", <pin1>-<pin2>" — the comma
-  // before the pin range is the disambiguating signal that this is
-  // a pin range, not a section subdivision.
-  const pinRangeMatch = candidateText.match(/,\s*(\d{1,5})-(\d{1,5})\b/);
+  // Round 23 — extended to also catch:
+  //   • em dashes (U+2014) — Word auto-correct produces "—" from "--";
+  //     Bluebook requires en dash (U+2013).
+  //   • "id. at N-M" / "id. at N—M" short-form pin ranges
+  //   • paragraph-range citations "¶¶ N-M" / "¶¶ N—M"
+  //
+  // Three patterns. Each captures a hyphen-or-em-dash range and emits a
+  // single flag with a complete suggested-fix substitution.
+
+  // Pattern 1: page-pin range "<page>, <pin1>[-—]<pin2>"
+  const pinRangeMatch = candidateText.match(/,\s*(\d{1,5})([-—])(\d{1,5})\b/);
   if (pinRangeMatch) {
-    // Round 16 — skip date ranges. "1978-2005" is a year range describing
-    // the span of cases studied (Beebe's empirical-study article title),
-    // not a pin-cite. Heuristic: both sides are 4-digit years AND the
-    // delta is small (a span of years, not a span of pages).
     const a = parseInt(pinRangeMatch[1], 10);
-    const b = parseInt(pinRangeMatch[2], 10);
+    const b = parseInt(pinRangeMatch[3], 10);
     const isYearRange =
-      pinRangeMatch[1].length === 4 && pinRangeMatch[2].length === 4 &&
+      pinRangeMatch[1].length === 4 && pinRangeMatch[3].length === 4 &&
       a >= 1700 && a <= 2200 && b >= 1700 && b <= 2200;
     if (!isYearRange) {
+      const dashChar = pinRangeMatch[2];
+      const dashName = dashChar === '—' ? 'em dash (—)' : 'hyphen';
       flags.push({
         severity: 'non_conforming',
         category: 'form_components',
         rule_cite: 'BB R. 3.2(a)',
         table_cite: null,
-        message: `Pin-cite range "${pinRangeMatch[1]}-${pinRangeMatch[2]}" must use an en dash (–), not a hyphen: "${pinRangeMatch[1]}–${pinRangeMatch[2]}" (R. 3.2(a)).`,
-        suggested_fix: candidateText.replace(/,(\s*)(\d{1,5})-(\d{1,5})\b/, ',$1$2–$3'),
+        message: `Pin-cite range "${pinRangeMatch[1]}${dashChar}${pinRangeMatch[3]}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${pinRangeMatch[1]}–${pinRangeMatch[3]}".`,
+        suggested_fix: candidateText.replace(/,(\s*)(\d{1,5})([-—])(\d{1,5})\b/, ',$1$2–$4'),
       });
     }
+  }
+
+  // Pattern 2: id. short-form pin range "id. at N-M" or "Id. at N—M"
+  const idPinMatch = candidateText.match(/\b(?:id\.|Id\.)\s+at\s+(\d{1,5})([-—])(\d{1,5})\b/);
+  if (idPinMatch) {
+    const dashChar = idPinMatch[2];
+    const dashName = dashChar === '—' ? 'em dash (—)' : 'hyphen';
+    flags.push({
+      severity: 'non_conforming',
+      category: 'form_components',
+      rule_cite: 'BB R. 3.2(a)',
+      table_cite: null,
+      message: `Id. short-form pin range "${idPinMatch[1]}${dashChar}${idPinMatch[3]}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${idPinMatch[1]}–${idPinMatch[3]}".`,
+      suggested_fix: candidateText.replace(/\b((?:id|Id)\.\s+at\s+)(\d{1,5})[-—](\d{1,5})\b/, '$1$2–$3'),
+    });
+  }
+
+  // Pattern 3: paragraph-range record citation "¶¶ N-M" or "¶ N—M"
+  const paraRangeMatch = candidateText.match(/¶{1,2}\s*(\d{1,5})([-—])(\d{1,5})\b/);
+  if (paraRangeMatch) {
+    const dashChar = paraRangeMatch[2];
+    const dashName = dashChar === '—' ? 'em dash (—)' : 'hyphen';
+    flags.push({
+      severity: 'non_conforming',
+      category: 'form_components',
+      rule_cite: 'BB R. 3.2(a)',
+      table_cite: null,
+      message: `Paragraph range "${paraRangeMatch[1]}${dashChar}${paraRangeMatch[3]}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${paraRangeMatch[1]}–${paraRangeMatch[3]}".`,
+      suggested_fix: candidateText.replace(/(¶{1,2}\s*)(\d{1,5})[-—](\d{1,5})\b/, '$1$2–$3'),
+    });
   }
 
   return flags;
@@ -2458,7 +2493,14 @@ export function runAllValidators(citation) {
       flags.push(...validateReporterCurrency(components.reporter, components.year));
     }
     if (components.reporter) {
-      flags.push(...validateCourtParenthetical(components.reporter, components.court_parenthetical || null));
+      // Round 23 — short-form case citations inherit the court designator
+      // from their full-cite antecedent per R. 10.9. Don't require the
+      // parenthetical on short forms (e.g., "Bosch, 659 F.3d at 1153"
+      // when the full cite was "Robert Bosch LLC v. Pylon Mfg. Corp.,
+      // 659 F.3d 1142 (Fed. Cir. 2011)" earlier).
+      if (c.citation_type !== 'short_form_case' && c.provisional_type !== 'short_form_case') {
+        flags.push(...validateCourtParenthetical(components.reporter, components.court_parenthetical || null));
+      }
     }
   }
 
