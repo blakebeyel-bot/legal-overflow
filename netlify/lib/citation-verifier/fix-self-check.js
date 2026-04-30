@@ -56,6 +56,11 @@ export function validateSuggestedFix(citation, suggestedFix) {
     /§\d/,                                                  // section symbol no space
     /\bFRCP\b|\bFRCrP\b|\bFRAP\b|\bFRE\b/,                // Fed-rules shorthands
     /\bFl\.(?![A-Za-z])/,                                  // "Fl." instead of "Fla."
+    // Round 21 — double-period detection. A fix that produces "Tenn.." or
+    // "Cal.." is its own Bluebook violation. The negative lookbehind
+    // and lookahead exclude the legitimate three-period typographic
+    // ellipsis (`...`); only EXACTLY two consecutive periods trigger.
+    /(?<!\.)\.\.(?!\.)/,
   ];
   for (const re of persistingErrors) {
     if (re.test(reapplied)) {

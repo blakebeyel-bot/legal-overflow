@@ -280,8 +280,15 @@ export function validateGeographicalAbbreviations(text) {
   const misuses = t10.common_misuses || {};
 
   for (const [bad, good] of Object.entries(misuses)) {
-    // Word-boundary match so "Calif." doesn't false-match inside "California"
-    const re = new RegExp(`\\b${escapeRegex(bad)}(?![A-Za-z])`, 'g');
+    // Word-boundary match so "Calif." doesn't false-match inside "California".
+    //
+    // Round 21 — also exclude `.` from the negative lookahead. Without this,
+    // T10 entries like "Tenn" → "Tenn." fire on text that ALREADY has the
+    // period, e.g., "(Tenn. 1992)" — match consumes "Tenn", lookahead sees
+    // "." (not in [A-Za-z]) → succeeds → flag fires → suggested fix
+    // produces "(Tenn.. 1992)" (double period). The fix is to widen the
+    // lookahead to reject period as well, so "Tenn." doesn't match.
+    const re = new RegExp(`\\b${escapeRegex(bad)}(?![A-Za-z.])`, 'g');
     if (re.test(text)) {
       flags.push({
         severity: 'non_conforming',
