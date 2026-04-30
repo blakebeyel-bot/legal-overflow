@@ -50,7 +50,57 @@ export function scanDocumentIssues(text) {
   out.push(...scanR8Capitalization(text));
   // Round 19 — R. 4.2(b) hereinafter undeclared.
   out.push(...scanHereinafterUndeclared(text));
+  // Round 24 — R. 3.2(a) paragraph-range pin (¶¶ N-M / ¶¶ N—M).
+  // Record citations like "Compl. ¶¶ 31-38" don't pass through the case
+  // extractor; they're emitted as synthetic candidates with pre-attached
+  // R. 3.2(a) flags.
+  out.push(...scanParagraphRange(text));
   return out;
+}
+
+/**
+ * R. 3.2(a) — Paragraph range with hyphen or em dash where en dash is required.
+ *
+ * Detects "¶ N-M" / "¶¶ N-M" / "¶¶ N—M" patterns in document text. These
+ * appear in record citations (Compl., Mot., Pet'n, etc.) and aren't
+ * captured by the case extractor.
+ */
+function scanParagraphRange(text) {
+  const flags = [];
+  const re = /¶{1,2}\s*(\d{1,5})([-—])(\d{1,5})\b/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const span = m[0];
+    const start = m.index;
+    const end = start + span.length;
+    const dashChar = m[2];
+    const dashName = dashChar === '—' ? 'em dash (—)' : 'hyphen';
+    const fixed = span.replace(/([-—])/, '–');
+    flags.push({
+      pattern_name: 'doc-issue-paragraph-range',
+      provisional_type: 'document_annotation',
+      citation_type: 'document_annotation',
+      candidate_text: span,
+      char_start: start,
+      char_end: end,
+      pre_context: text.slice(Math.max(0, start - 200), start),
+      post_context: text.slice(end, Math.min(text.length, end + 200)),
+      in_footnote: false,
+      footnote_num: null,
+      components: {},
+      existence: { status: 'not_applicable' },
+      flags: [{
+        severity: 'non_conforming',
+        category: 'form_components',
+        rule_cite: 'BB R. 3.2(a)',
+        table_cite: null,
+        message: `Paragraph range "${m[1]}${dashChar}${m[3]}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${m[1]}–${m[3]}".`,
+        suggested_fix: fixed,
+      }],
+      candidate_text_hash: 'doc-issue:' + sha256Hex(Buffer.from(span + '|' + start, 'utf8')).slice(0, 16),
+    });
+  }
+  return flags;
 }
 
 /**

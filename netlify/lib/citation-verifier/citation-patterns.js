@@ -114,8 +114,13 @@ const REPORTERS_ALT = REPORTERS.join('|');
 // the trailing repeat, REPORTER_PATTERN truncated "317, 322-23" at "317, 322"
 // (the "-23" was left out of candidate_text), causing R. 3.2(a) en-dash
 // validator to silently miss the hyphen.
+// Round 24 — accept em dash (U+2014) in addition to hyphen and en dash.
+// Word auto-correct produces em dash from "--", and real briefs frequently
+// contain em-dash pin ranges where en dashes belong. Without em dash in
+// the page-pin character class, Pass 1 truncated candidates at the em
+// dash and the R. 3.2(a) validator never saw the violation.
 export const REPORTER_PATTERN = new RegExp(
-  `\\b(\\d{1,4})\\s+(${REPORTERS_ALT})\\s+(\\d{1,5}(?:[\\-\\u2013,]\\s*\\d{1,5})*)`,
+  `\\b(\\d{1,4})\\s+(${REPORTERS_ALT})\\s+(\\d{1,5}(?:[\\-\\u2013\\u2014,]\\s*\\d{1,5})*)`,
   'g'
 );
 
@@ -174,7 +179,10 @@ export const CONST_PATTERN = new RegExp(
 // Matches:   Id.    Id. at 123    Id. at 456-57
 // We do NOT match lower-case "id" — that's not a Bluebook short form.
 // ---------------------------------------------------------------------------
-export const ID_PATTERN = /\bId\.(?: +at +\d{1,5}(?:[\-,]\s*\d{1,5})?)?/g;
+// Round 24 — accept en dash (U+2013) and em dash (U+2014) in addition to
+// ASCII hyphen, so "Id. at 49—50" / "Id. at 740-41" candidates capture the
+// full pin range and the R. 3.2(a) validator can flag the dash variant.
+export const ID_PATTERN = /\bId\.(?: +at +\d{1,5}(?:[\-–—,]\s*\d{1,5})?)?/g;
 
 // ---------------------------------------------------------------------------
 // PATTERN 6 — Short form: supra

@@ -75,8 +75,25 @@ export function validateCaseAbbreviations(caseName, fullCandidateText = null) {
       const trailingPunct = word.match(/[.,;]+$/)?.[0] || '';
       const bareWord = trailingPunct ? word.slice(0, -trailingPunct.length) : word;
 
-      // R. 10.2.1(c) — skip the first word of each party.
-      if (wordIndex === 0) return;
+      // R. 10.2.1(c) — skip the first word of each party,
+      // EXCEPT a small set of entity-prefix words that are universally
+      // abbreviated even when they begin a party's name (Department,
+      // Bureau, Office, Commission, Authority, Government, Administration,
+      // Federation). For these, the Bluebook treats the abbreviation as
+      // the canonical form regardless of position.
+      //
+      // Round 24 — added this carve-out after the user reported that
+      // "Department of Homeland Security" was producing only the
+      // Security→Sec. flag, not Department→Dep't. The first-word skip
+      // is correct for words like "International" (International Shoe)
+      // or "Bell" (Bell Atlantic) but wrong for entity-prefix words.
+      const ALWAYS_ABBREV_FIRST_WORD = new Set([
+        'Department', 'Departments', 'Bureau', 'Bureaus',
+        'Commission', 'Commissions', 'Authority', 'Authorities',
+        'Government', 'Governments', 'Administration', 'Administrations',
+        'Federation', 'Federations', 'Office', 'Offices',
+      ]);
+      if (wordIndex === 0 && !ALWAYS_ABBREV_FIRST_WORD.has(bareWord)) return;
 
       // Direct lookup
       const expected = lookupT6(bareWord, abbreviations);
