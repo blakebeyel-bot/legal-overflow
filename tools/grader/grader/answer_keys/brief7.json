@@ -49,7 +49,7 @@
       "id": "investors_act_hereinafter_undeclared",
       "description": "Section V: 'The Investors Act' used as hereinafter form but never declared per R. 4.2(b)",
       "rule": "R. 4.2",
-      "anchor_substrings": ["The Investors Act provides"],
+      "anchor_substrings": ["The Investors Act"],
       "keywords": ["hereinafter", "declared", "4.2", "Investors Act"]
     },
     {

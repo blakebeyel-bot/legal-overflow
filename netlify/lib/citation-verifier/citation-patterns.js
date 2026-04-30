@@ -352,6 +352,26 @@ const ABBREV_WORDS = new Set([
   // Reporters / cite-internal abbreviations
   'F', 'Supp', 'Ct', 'Ed', 'Wheat', 'Cranch', 'Pet', 'Dall',
   'How', 'Black', 'Wall', 'Cl', 'Cls',
+  // Round 22 — additional T6 case-name abbreviations whose terminating
+  // period was being treated as a sentence boundary. Specifically `Ry.`
+  // (Railway) caused "Burlington N. & Santa Fe Ry. Co. v. White" to lose
+  // its plaintiff portion in suggested-fix output. Rather than handle
+  // each as it surfaces, enumerate the full T6 abbreviation set.
+  'Acad', 'Accid', 'Acct', 'Acquis', 'Actuar', 'Adjust', 'Admin', 'Adver',
+  'Agric', 'Alt', 'Am', 'Assoc', 'Atl', 'Auth', 'Auto', 'Ave',
+  'Bankr', 'Bhd', 'Bus', 'Cas', 'Cent', 'Chem', 'Cmty', 'Coal',
+  'Coll', 'Comm', 'Comp', 'Condo', 'Consol', 'Constr', 'Coop', 'Cos',
+  'Ctr', 'Def', 'Det', 'Dev', 'Dir', 'Disc', 'Dist', 'Distrib', 'Div',
+  'Econ', 'Elec', 'Emp', 'Enter', 'Envtl', 'Equal', 'Equip', 'Equit',
+  'Equiv', 'Exch', 'Exec', 'Fed', 'Fid', 'Fin', 'Found', 'Gen',
+  'Grad', 'Grp', 'Guar', 'Hous', 'Imp', 'Info', 'Inst',
+  'Liab', 'Litig', 'Mag', 'Maint', 'Mech', 'Merch', 'Metro', 'Mgmt',
+  'Mkt', 'Mktg', 'Mortg', 'Mut', 'Nat', 'Ne', 'Nw', 'Org', 'Pac',
+  'Pers', 'Petrol', 'Pl', 'Pro', 'Prob', 'Proc', 'Prod', 'Prop',
+  'Prot', 'Pub', 'Rd', 'Reins', 'Reprod', 'Res', 'Reserv', 'Rest',
+  'Ret', 'Ry', 'Sav', 'Sch', 'Sci', 'Se', 'Soc', 'Subcomm', 'Sur',
+  'Sw', 'Sys', 'Tel', 'Tele', 'Telecomm', 'Transcon', 'Transp',
+  'Twp', 'Util', 'Vill', 'Broad',
 ]);
 
 /**

@@ -366,10 +366,109 @@ function buildMarkupXml({ markupType, sourceText, suggestedText, commentId, orig
       `<w:ins w:id="${commentId + 2000}" w:author="${AUTHOR}" w:date="${ts}"><w:r>${rPr}<w:t xml:space="preserve">${encodeXml(suggestedText)}</w:t></w:r></w:ins>`;
     return commentStart + body + commentEnd;
   } else {
+    // annotate — comment-only, no document-body modification.
+    //
+    // Round 22 — split the run when the citation is a SUBSTRING of the
+    // run's text. Without this split, the comment range wrapped the
+    // entire run including prose AFTER the citation (e.g., comment on
+    // "Westmoreland v. ..., 924 F.3d 718, 725-26 (4th Cir. 2019)" extended
+    // through ". At a minimum, those statements...").
+    const split = splitRunForAnnotation(originalRunXml, sourceText);
+    if (split) {
+      // Three runs: before (no comment), middle (wrapped in commentRange),
+      // after (no comment).
+      return split.before + commentStart + split.middle + commentEnd + split.after;
+    }
+    // Fall back to wrapping the entire run if we can't cleanly split.
     body = originalRunXml;
   }
 
   return commentStart + body + commentEnd;
+}
+
+/**
+ * Split a `<w:r>` run into [before][needle][after] sub-runs based on the
+ * needle's position within the run's text content. Returns null if the
+ * needle isn't found in the run's text or if the run lacks a `<w:t>` element.
+ *
+ * The before/after sub-runs preserve the original run's properties (rPr,
+ * attributes); the middle sub-run is the same shape but contains only the
+ * needle text.
+ */
+function splitRunForAnnotation(originalRunXml, needle) {
+  if (!needle) return null;
+  // Extract the run's opening tag (preserving any attributes), the rPr if
+  // present, and the <w:t>...</w:t> content.
+  const openMatch = originalRunXml.match(/^(<w:r(?:\s[^>]*)?>)/);
+  if (!openMatch) return null;
+  const runOpen = openMatch[1];
+  const rPrMatch = originalRunXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+  const rPrXml = rPrMatch ? rPrMatch[0] : '';
+  const tMatch = originalRunXml.match(/(<w:t(?:\s[^>]*)?>)([\s\S]*?)(<\/w:t>)/);
+  if (!tMatch) return null;
+  const tOpen = tMatch[1];
+  const tCloseTag = tMatch[3];
+  const rawTextEncoded = tMatch[2];
+  const rawText = decodeXml(rawTextEncoded);
+
+  // Try to locate the needle in the run's raw text. First try direct
+  // substring match. If that fails, try a normalized-equivalent match
+  // and translate back via offset counting.
+  let needleStart = rawText.indexOf(needle);
+  let needleLen = needle.length;
+  if (needleStart < 0) {
+    const rawNorm = normalizeForCompare(rawText);
+    const needleNorm = normalizeForCompare(needle);
+    const normIdx = rawNorm.indexOf(needleNorm);
+    if (normIdx < 0) return null;
+    // Walk through rawText counting normalized characters until we reach normIdx.
+    let raw = 0, norm = 0;
+    while (raw < rawText.length && norm < normIdx) {
+      const ch = rawText[raw];
+      const isWS = /\s/.test(ch);
+      // Whitespace runs collapse to one space in normalize.
+      if (isWS) {
+        // Only count this whitespace if the previous normalized char wasn't whitespace.
+        if (norm === 0 || normalizeForCompare(rawText.slice(0, raw + 1)).length > norm) norm++;
+      } else {
+        norm++;
+      }
+      raw++;
+    }
+    needleStart = raw;
+    // Find the end the same way.
+    let endRaw = raw, endNorm = norm;
+    while (endRaw < rawText.length && endNorm < normIdx + needleNorm.length) {
+      const ch = rawText[endRaw];
+      const isWS = /\s/.test(ch);
+      if (isWS) {
+        if (endNorm === 0 || normalizeForCompare(rawText.slice(0, endRaw + 1)).length > endNorm) endNorm++;
+      } else {
+        endNorm++;
+      }
+      endRaw++;
+    }
+    needleLen = endRaw - raw;
+  }
+
+  const before = rawText.slice(0, needleStart);
+  const middle = rawText.slice(needleStart, needleStart + needleLen);
+  const after = rawText.slice(needleStart + needleLen);
+
+  // If the needle covers the entire run, no split needed — fall through to
+  // the whole-run wrap.
+  if (!before && !after) return null;
+
+  function makeRun(text) {
+    if (!text) return '';
+    return `${runOpen}${rPrXml}${tOpen}${encodeXml(text)}${tCloseTag}</w:r>`;
+  }
+
+  return {
+    before: makeRun(before),
+    middle: makeRun(middle),
+    after: makeRun(after),
+  };
 }
 
 /**

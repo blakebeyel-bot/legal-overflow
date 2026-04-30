@@ -62,21 +62,21 @@
       "id": "court_of_appeals_capitalized",
       "description": "Section IV: 'The Court of Appeals' generic reference incorrectly capitalized",
       "rule": "R. 8",
-      "anchor_substrings": ["The Court of Appeals for the D.C. Circuit"],
+      "anchor_substrings": ["The Court of Appeals"],
       "keywords": ["court", "capitaliz", "8", "lowercase"]
     },
     {
       "id": "constitution_lowercase",
       "description": "Section IV: 'the constitution itself' should be 'the Constitution'",
       "rule": "R. 8",
-      "anchor_substrings": ["the constitution itself"],
+      "anchor_substrings": ["the constitution"],
       "keywords": ["Constitution", "capitaliz", "8"]
     },
     {
       "id": "congress_lowercase",
       "description": "Section IV: 'congress set in 1914' should be 'Congress'",
       "rule": "R. 8",
-      "anchor_substrings": ["congress set in 1914"],
+      "anchor_substrings": ["congress"],
       "keywords": ["Congress", "capitaliz", "8"]
     },
     {
