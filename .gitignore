@@ -22,3 +22,11 @@ __pycache__/
 scripts/mata/logs/
 scripts/mata/missing_report.md
 scripts/mata/missing_report.csv
+
+# Citation verifier — generated artifacts (reproducible from briefs)
+tools/grader/grader/inputs/*.docx
+tools/grader/grader/grader_output/
+tools/grader/grader/last_run/
+
+# Local debug + dry-run output
+tmp/

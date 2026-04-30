@@ -1,0 +1,16 @@
+CORPUS FIXTURE 1 — clean brief, all citations should pass form checks.
+
+The Supreme Court has held that schools cannot segregate by race.
+Brown v. Bd. of Educ., 347 U.S. 483, 495 (1954). The Court reaffirmed
+that principle in Loving v. Virginia, 388 U.S. 1 (1967).
+
+The cause of action arises under 42 U.S.C. § 1983. The implementing
+regulations at 29 C.F.R. § 1630.2(g) define the relevant terms.
+
+The Constitution itself addresses this directly. U.S. Const. art. I,
+§ 8, cl. 3. The Fourteenth Amendment, of course, applies to the states.
+U.S. Const. amend. XIV.
+
+Lower courts have followed suit. See Smith v. Acme Corp., 100 F.3d
+456, 460 (2d Cir. 2015). The Second Circuit reiterated this rule in
+Smith, 100 F.3d at 460.

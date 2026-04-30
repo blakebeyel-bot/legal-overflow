@@ -25,9 +25,30 @@
 [functions."fanout-background"]
   timeout = 900
 
+# Citation Verifier pipeline — up to 15 min runtime (Pass 1-5). Same
+# `-background` naming convention as the contract reviewer fanout.
+#
+# included_files: esbuild bundles JS imports but NOT runtime readFileSync
+# targets. The Bluebook JSON tables and SKILL.md are loaded that way, so
+# they need to ship explicitly with the function bundle. Without this
+# the function silently dies at cold start with ENOENT before it can
+# even update the verification_runs row to "failed".
+[functions."verify-citations-pipeline-background"]
+  timeout = 900
+  included_files = [
+    "netlify/lib/citation-verifier/tables/*.json",
+    "netlify/lib/citation-verifier/*.md"
+  ]
+
 # Short-lived synchronous functions (Netlify default 10s is enough)
 [functions."classify"]
   timeout = 30
+
+[functions."verify-citations-start"]
+  timeout = 60
+
+[functions."verify-citations-status"]
+  timeout = 10
 
 [functions."get-review"]
   timeout = 10

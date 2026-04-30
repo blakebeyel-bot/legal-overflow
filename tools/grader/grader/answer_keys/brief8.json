@@ -1,0 +1,162 @@
+{
+  "brief_name": "Okonkwo v. Horizon Global Industries (S.D.N.Y.)",
+  "brief_path": "test_brief_8.docx",
+  "errors": [
+    {
+      "id": "caparo_missing_court_designator",
+      "description": "Section I: Caparo Industries plc v. Dickman [1990] 2 AC 605 — missing UK court designator (HL) and jurisdiction tag (Eng.)",
+      "rule": "R. 20",
+      "anchor_substrings": ["Caparo Industries", "[1990] 2 AC 605"],
+      "keywords": ["court designator", "(HL)", "jurisdiction", "20", "T2.42", "Eng."]
+    },
+    {
+      "id": "cassation_missing_jurisdiction",
+      "description": "Section I: Cass. civ. 1re French Cour de Cassation case missing jurisdiction parenthetical (Fr.)",
+      "rule": "R. 20",
+      "anchor_substrings": ["Cass. civ. 1re", "Bull. civ. I, No. 91"],
+      "keywords": ["(Fr.)", "France", "jurisdiction", "20", "T2.16", "foreign"]
+    },
+    {
+      "id": "vienna_missing_date",
+      "description": "Section II: Vienna Convention treaty missing signing date — should include 'May 23, 1969' before U.N.T.S. cite",
+      "rule": "R. 21.4",
+      "anchor_substrings": ["Vienna Convention on the Law of Treaties", "1155 U.N.T.S. 331"],
+      "keywords": ["date", "signing", "21.4", "treaty", "May 23"]
+    },
+    {
+      "id": "italy_treaty_missing_tias",
+      "description": "Section II: U.S.-Italy Treaty of Friendship missing T.I.A.S. or Stat. citation after the date",
+      "rule": "R. 21.4",
+      "anchor_substrings": ["Treaty of Friendship, Commerce and Navigation, U.S.-Italy", "Feb. 2, 1948"],
+      "keywords": ["T.I.A.S.", "Stat.", "treaty series", "21.4", "U.S.T."]
+    },
+    {
+      "id": "icj_jurisdictional_immunities_missing_date",
+      "description": "Section III: Jurisdictional Immunities of the State (Ger. v. It.) ICJ case missing decision-date parenthetical (Feb. 3)",
+      "rule": "R. 21",
+      "anchor_substrings": ["Jurisdictional Immunities of the State", "2012 I.C.J. 99"],
+      "keywords": ["date", "(Feb. 3)", "21", "I.C.J.", "decision-date"]
+    },
+    {
+      "id": "saadi_missing_app_no",
+      "description": "Section III: Saadi v. Italy ECHR case missing App. No. (37201/06)",
+      "rule": "R. 21",
+      "anchor_substrings": ["Saadi v. Italy", "49 Eur. H.R. Rep. 30"],
+      "keywords": ["App. No.", "application", "21", "ECHR", "Eur. H.R."]
+    },
+    {
+      "id": "tcm_missing_publisher",
+      "description": "Section IV: Henderson v. Comm'r T.C.M. 2015-145 missing publisher tag (CCH or RIA)",
+      "rule": "R. 10",
+      "anchor_substrings": ["Henderson v. Comm'r", "T.C.M. 2015-145"],
+      "keywords": ["(CCH)", "(RIA)", "publisher", "10", "T1", "Tax Court Memorandum"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "donoghue_intro",
+      "anchor_substrings": ["Donoghue v. Stevenson", "[1932] AC 562 (HL)"],
+      "note": "Properly formatted UK case with brackets year, AC reporter, HL court, jurisdiction tag"
+    },
+    {
+      "id": "icpr_treaty",
+      "anchor_substrings": ["International Covenant on Civil and Political Rights", "Dec. 16, 1966", "999 U.N.T.S."],
+      "note": "Properly formatted multilateral treaty"
+    },
+    {
+      "id": "anns_uk",
+      "anchor_substrings": ["Anns v. Merton London Borough Council", "[1978] AC 728"],
+      "note": "Properly formatted UK case with all required parentheticals"
+    },
+    {
+      "id": "sullivan_australia",
+      "anchor_substrings": ["Sullivan v. Moody", "(2001) 207 CLR 562", "(Austl.)"],
+      "note": "Australian case with parens-year convention (distinct from UK brackets) — must NOT be flagged as a UK formatting error"
+    },
+    {
+      "id": "german_bgh",
+      "anchor_substrings": ["Bundesgerichtshof", "[BGH]", "[BGHZ]", "(Ger.)"],
+      "note": "Most complex foreign case in corpus. Multi-bracket German format — must NOT be flagged"
+    },
+    {
+      "id": "cat_full",
+      "anchor_substrings": ["Convention against Torture", "Dec. 10, 1984", "1465 U.N.T.S. 85", "hereinafter CAT"],
+      "note": "Treaty with proper [hereinafter CAT] declaration"
+    },
+    {
+      "id": "cat_supra_section_ii",
+      "anchor_substrings": ["CAT, supra"],
+      "note": "Proper subsequent supra use — state-tracker hereinafter_registry must recognize"
+    },
+    {
+      "id": "uk_gb_treaty",
+      "anchor_substrings": ["Treaty of Amity, Commerce and Navigation", "U.S.-Gr. Brit.", "Nov. 19, 1794", "8 Stat. 116"],
+      "note": "Properly formatted bilateral treaty with Stat. citation"
+    },
+    {
+      "id": "barcelona_traction",
+      "anchor_substrings": ["Barcelona Traction", "1970 I.C.J. 3", "(Feb. 5)"],
+      "note": "ICJ case with decision-date parenthetical"
+    },
+    {
+      "id": "tadic_icty",
+      "anchor_substrings": ["Prosecutor v. Tadi", "Case No. IT-94-1-A", "Int'l Crim. Trib."],
+      "note": "ICTY case with case number, document type, tribunal, date"
+    },
+    {
+      "id": "soering_echr",
+      "anchor_substrings": ["Soering v. United Kingdom", "App. No. 14038/88", "Eur. Ct. H.R."],
+      "note": "ECHR case with App. No. and series designation"
+    },
+    {
+      "id": "westwood_tax_court",
+      "anchor_substrings": ["Westwood Pharms.", "142 T.C. 244"],
+      "note": "Tax Court regular reports — properly formatted"
+    },
+    {
+      "id": "adelphia_bankruptcy",
+      "anchor_substrings": ["In re Adelphia Commc'ns", "359 B.R. 54", "Bankr. S.D.N.Y."],
+      "note": "Bankruptcy court — properly formatted"
+    },
+    {
+      "id": "anderson_caaf",
+      "anchor_substrings": ["United States v. Anderson", "79 M.J. 200", "C.A.A.F."],
+      "note": "Court of Appeals for the Armed Forces — properly formatted"
+    },
+    {
+      "id": "aerolineas_fed_cl",
+      "anchor_substrings": ["Aerolineas Argentinas", "(Fed. Cl. 1996)"],
+      "note": "Federal Claims — properly formatted"
+    },
+    {
+      "id": "frcp_12_b6",
+      "anchor_substrings": ["Fed. R. Civ. P. 12(b)(6)"],
+      "note": "Properly formatted federal rule"
+    },
+    {
+      "id": "iqbal_full_b8",
+      "anchor_substrings": ["Ashcroft v. Iqbal", "556 U.S. 662, 678"],
+      "note": "Full citation"
+    },
+    {
+      "id": "twombly_full_b8",
+      "anchor_substrings": ["Bell Atl. Corp. v. Twombly"],
+      "note": "Full citation with T6 'Atl.' applied. Tool must NOT flag the abbreviation as missing."
+    },
+    {
+      "id": "iqbal_short_b8",
+      "anchor_substrings": ["Iqbal, 556 U.S. at 678"],
+      "note": "Short form within general discussion"
+    },
+    {
+      "id": "usc_1331_b8",
+      "anchor_substrings": ["28 U.S.C. § 1331"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "cat_supra_concl",
+      "anchor_substrings": ["CAT, supra, art. 14"],
+      "note": "Conclusion supra to declared CAT — second paragraph use of hereinafter form"
+    }
+  ]
+}

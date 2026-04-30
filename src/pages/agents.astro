@@ -68,6 +68,22 @@ import DownloadGate from '../partials/download-gate.astro';
       </div>
     </a>
 
+    <a href="/agents/citation-verifier/" style="display:block; margin-top: 30px; padding: 36px 30px; border: 1px solid var(--ink); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--paper-2); transition: background .2s ease, transform .2s ease;"
+       onmouseover="this.style.background='var(--paper)'; this.style.transform='translateY(-2px)';"
+       onmouseout="this.style.background='var(--paper-2)'; this.style.transform='translateY(0)';">
+      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;">Agent 02 · Active</div>
+      <h3 style="font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; letter-spacing: -.01em; margin: 0 0 14px;">Citation form-check &amp; verification <em>assistant</em></h3>
+      <p style="font-size: 15px; line-height: 1.6; color: var(--ink-2); margin: 0 0 18px;">Upload a brief, motion, or memorandum as .docx or .pdf. The assistant extracts every citation, classifies it under Bluebook 22e, runs table validators, checks each case against CourtListener, and emits a tracked-changes redline plus a sign-off-ready form-check report. Two deliverables: marked-up source, form-check report.</p>
+      <div style="display:flex; gap:24px; flex-wrap:wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase;">
+        <span>Bluebook 22e</span>
+        <span>· CourtListener existence-check</span>
+        <span>· Format-in, format-out</span>
+      </div>
+      <div style="margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: var(--accent-deep); letter-spacing: .04em; text-transform: uppercase;">
+        Open the assistant →
+      </div>
+    </a>
+
     <div style="margin-top: 30px; padding: 30px; border: 1px dashed var(--rule-soft); border-radius: 8px; text-align: center; color: var(--ink-3);">
       <div style="font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px;">More agents in development</div>
       <p style="margin: 0; font-size: 14px;">Deposition prep agent, motion drafter, and clause-review fan-out are on the roadmap.</p>

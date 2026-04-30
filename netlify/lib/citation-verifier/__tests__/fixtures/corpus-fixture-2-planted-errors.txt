@@ -1,0 +1,20 @@
+CORPUS FIXTURE 2 — planted errors, every category covered.
+
+T6 abbreviations — should be flagged:
+  Smith v. Acme Corporation, 100 F.3d 200 (2d Cir. 2015).
+  Doe v. Board of Education, 200 F.3d 300 (2d Cir. 2018).
+  Roe v. National Industries, 300 F.3d 400 (2d Cir. 2019).
+
+Reporter currency — should be flagged (F.3d ended 2021):
+  Acme v. Beta, 100 F.3d 200 (2d Cir. 2022).
+
+T7 court abbreviations — should be flagged:
+  Foo v. Bar, 200 F.3d 100 (2nd Cir. 2018).
+  Baz v. Qux, 300 F.3d 100 (DC Cir. 2010).
+
+T10 geographical — should be flagged:
+  Plaintiff v. Calif. State Univ., 400 F.3d 100 (9th Cir. 2017).
+
+Conforming control — should NOT be flagged:
+  Brown v. Bd. of Educ., 347 U.S. 483 (1954).
+  Smith v. Acme Corp., 100 F.3d 456 (2d Cir. 2015).

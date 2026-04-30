@@ -1,0 +1,152 @@
+{
+  "brief_name": "Acme Logistics v. Coastal Freight (S.D. Fla.)",
+  "brief_path": "test_brief.docx",
+  "errors": [
+    {
+      "id": "iqbal_v_period",
+      "description": "Iqbal: missing period after v.",
+      "rule": "R. 10.2.1",
+      "anchor_substrings": ["Ashcroft v Iqbal", "Iqbal"],
+      "keywords": ["v.", "period", "10.2.1"]
+    },
+    {
+      "id": "iqbal_us_periods",
+      "description": "Iqbal: 556 US missing U.S. periods",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["Ashcroft v Iqbal", "Iqbal"],
+      "keywords": ["U.S.", "6.1", "T1.1"]
+    },
+    {
+      "id": "reyes_so_spacing",
+      "description": "Reyes: 'So.3d' missing space → 'So. 3d'",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["Reyes", "Gulfstream"],
+      "keywords": ["So. 3d", "So.3d", "spac"]
+    },
+    {
+      "id": "reyes_court_paren_comma",
+      "description": "Reyes: stray comma before year in '(Fla. 4th DCA, 2021)'",
+      "rule": "R. 10.5",
+      "anchor_substrings": ["Reyes", "Gulfstream"],
+      "keywords": ["comma", "court parenthetical", "10.5", "(Fla. 4th DCA 2021)"]
+    },
+    {
+      "id": "twombly_v_period",
+      "description": "Twombly: missing period after v.",
+      "rule": "R. 10.2.1",
+      "anchor_substrings": ["Bell Atlantic Corp. v Twombly", "Twombly"],
+      "keywords": ["v.", "period", "10.2.1"]
+    },
+    {
+      "id": "restatement_section_space",
+      "description": "Restatement 2d Contracts §351: missing space after § symbol",
+      "rule": "R. 6.2",
+      "anchor_substrings": ["Restatement", "§351"],
+      "keywords": ["§", "section symbol", "space", "6.2"]
+    },
+    {
+      "id": "restatement_series",
+      "description": "Restatement 2d Contracts: should be 'Restatement (Second) of Contracts'",
+      "rule": "R. 12.9.5",
+      "anchor_substrings": ["Restatement", "2d Contracts"],
+      "keywords": ["Second", "series", "(Second)", "12.9.5"]
+    },
+    {
+      "id": "restatement_publisher_year",
+      "description": "Restatement: missing publisher/year parenthetical (Am. L. Inst. 1981)",
+      "rule": "R. 12.9.5",
+      "anchor_substrings": ["Restatement", "2d Contracts"],
+      "keywords": ["Am. L. Inst", "publisher", "12.9.5"]
+    },
+    {
+      "id": "marbury_cranch",
+      "description": "Marbury: missing (1 Cranch) nominative reporter",
+      "rule": "R. 10.3.2",
+      "anchor_substrings": ["Marbury", "Madison", "Restatement"],
+      "keywords": ["Cranch", "1 Cranch", "10.3.2", "nominative"]
+    },
+    {
+      "id": "whitfield_vs_to_v",
+      "description": "Whitfield: 'vs.' should be 'v.'",
+      "rule": "R. 10.2.1",
+      "anchor_substrings": ["Whitfield"],
+      "keywords": ["vs.", "v.", "10.2.1"]
+    },
+    {
+      "id": "whitfield_inc_comma",
+      "description": "Whitfield: missing comma before 'Inc.'",
+      "rule": "R. 10.2.1(c)",
+      "anchor_substrings": ["Whitfield"],
+      "keywords": ["Inc.", "comma", "10.2.1(c)", "registered name"]
+    },
+    {
+      "id": "whitfield_fla_abbr",
+      "description": "Whitfield: 'S.D. Fl.' should be 'S.D. Fla.'",
+      "rule": "T10",
+      "anchor_substrings": ["Whitfield"],
+      "keywords": ["Fla.", "T10", "geographical", "Fl."]
+    },
+    {
+      "id": "whitfield_pinpoint",
+      "description": "Whitfield: unreported case missing pinpoint (e.g., ', at *4')",
+      "rule": "R. 10.8.1",
+      "anchor_substrings": ["Whitfield"],
+      "keywords": ["pinpoint", "star", "*4", "10.8.1", "Westlaw"]
+    },
+    {
+      "id": "whitfield_decision_date",
+      "description": "Whitfield: unreported case missing exact decision date",
+      "rule": "R. 10.8.1",
+      "anchor_substrings": ["Whitfield"],
+      "keywords": ["decision date", "exact", "10.8.1", "Sept", "Aug", "month"]
+    },
+    {
+      "id": "frcp_periods",
+      "description": "FRCP 12(b)(6): should be 'Fed. R. Civ. P. 12(b)(6)'",
+      "rule": "R. 12.9.3",
+      "anchor_substrings": ["FRCP", "Defendant respectfully"],
+      "keywords": ["Fed. R. Civ. P.", "FRCP", "12.9.3"]
+    },
+    {
+      "id": "usc_periods_section",
+      "description": "28 USC 1331: should be '28 U.S.C. § 1331'",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["28 USC", "USC 1331"],
+      "keywords": ["U.S.C.", "USC", "§", "6.1", "6.2"]
+    },
+    {
+      "id": "bell_atl_t6_full_form",
+      "description": "Bell Atlantic Corp.: T6 'Atlantic' → 'Atl.'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Bell Atlantic Corp. v Twombly", "Bell Atlantic Corp."],
+      "keywords": ["Atl.", "Atlantic", "T6", "10.2.2"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "intl_shoe_control",
+      "anchor_substrings": ["International Shoe", "326 U.S. 310"],
+      "note": "Properly formatted full citation; should not be flagged"
+    },
+    {
+      "id": "burger_king_control",
+      "anchor_substrings": ["Burger King Corp. v. Rudzewicz", "471 U.S. 462"],
+      "note": "Properly formatted; should not be flagged"
+    },
+    {
+      "id": "j_mcintyre_control",
+      "anchor_substrings": ["J. McIntyre", "564 U.S. 873"],
+      "note": "Properly formatted; should not be flagged"
+    },
+    {
+      "id": "henderson_fictional_control",
+      "anchor_substrings": ["Henderson v. Coastal Maritime", "612 F.3d 489"],
+      "note": "Fictional case but format is correct; should not be flagged for format. CourtListener NAME_MISMATCH is informational and acceptable."
+    },
+    {
+      "id": "hadley_control",
+      "anchor_substrings": ["Hadley v. Baxendale", "9 Ex. 341"],
+      "note": "Real English case; format correct; should not be flagged"
+    }
+  ]
+}

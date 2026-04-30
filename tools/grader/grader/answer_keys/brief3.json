@@ -1,0 +1,162 @@
+{
+  "brief_name": "Meridian Biotech v. Crestwood Pharma (D. Del.)",
+  "brief_path": "test_brief_3.docx",
+  "errors": [
+    {
+      "id": "communications_t6",
+      "description": "In re Charter Communications: T6 'Communications' → 'Commc'ns'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Charter Communications"],
+      "keywords": ["Commc'ns", "Communications", "T6", "10.2.2"]
+    },
+    {
+      "id": "cert_denied_period",
+      "description": "Marshall ... 'cert denied' missing period → 'cert. denied'",
+      "rule": "R. 10.7",
+      "anchor_substrings": ["Marshall", "cert denied"],
+      "keywords": ["cert. denied", "10.7", "T8", "subsequent history"]
+    },
+    {
+      "id": "celotex_hyphen_endash",
+      "description": "Celotex 322-23: hyphen should be en dash → 322–23",
+      "rule": "R. 3.2(a)",
+      "anchor_substrings": ["Celotex"],
+      "keywords": ["en dash", "endash", "hyphen", "3.2(a)", "322"]
+    },
+    {
+      "id": "bell_atl_short_period",
+      "description": "Cf. Bell Atl: short-form abbreviation 'Atl' missing period → 'Atl.'",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["Bell Atl"],
+      "keywords": ["Atl.", "period", "abbreviation", "T6", "6.1"]
+    },
+    {
+      "id": "supra_for_case",
+      "description": "Iqbal, supra, at 679: misuse of supra for case",
+      "rule": "R. 4.2",
+      "anchor_substrings": ["Iqbal", "supra"],
+      "keywords": ["supra", "4.2", "case", "id."]
+    },
+    {
+      "id": "group_grp_t6",
+      "description": "Janus Capital Group: T6 'Group' → 'Grp.'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Janus Capital Group", "564 U.S. 135"],
+      "keywords": ["Grp.", "Group", "T6", "10.2.2"]
+    },
+    {
+      "id": "bell_atl_t6_full_form",
+      "description": "Bell Atlantic Corp. (full-form Twombly intro): T6 'Atlantic' → 'Atl.'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Bell Atlantic Corp. v. Twombly", "Bell Atlantic Corp."],
+      "keywords": ["Atl.", "Atlantic", "T6", "10.2.2"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "twombly_intro_full",
+      "anchor_substrings": ["Bell Atlantic Corp. v. Twombly", "550 U.S. 544, 555"],
+      "note": "Full citation with proper en-dash pin range"
+    },
+    {
+      "id": "iqbal_intro_full",
+      "anchor_substrings": ["Ashcroft v. Iqbal", "556 U.S. 662, 678"],
+      "note": "Full citation with proper format"
+    },
+    {
+      "id": "id_short_form_1",
+      "anchor_substrings": ["See id. at 570"],
+      "note": "Short form 'id.' — should NOT be flagged as malformed"
+    },
+    {
+      "id": "iqbal_short_form_1",
+      "anchor_substrings": ["Iqbal, 556 U.S. at 678"],
+      "note": "Short form per R. 10.9 — should NOT be flagged"
+    },
+    {
+      "id": "id_short_form_2",
+      "anchor_substrings": ["Id."],
+      "note": "Bare Id. — should NOT be flagged"
+    },
+    {
+      "id": "twombly_short_form",
+      "anchor_substrings": ["Twombly, 550 U.S. at 555"],
+      "note": "Short form per R. 10.9 — should NOT be flagged"
+    },
+    {
+      "id": "fowler_control",
+      "anchor_substrings": ["Fowler v. UPMC Shadyside", "578 F.3d 203, 210"],
+      "note": "Properly formatted with en-dash pin range"
+    },
+    {
+      "id": "phillips_see_also",
+      "anchor_substrings": ["Phillips v. County of Allegheny"],
+      "note": "Lowercase 'see also' after semicolon in string-cite is correct per R. 1.2"
+    },
+    {
+      "id": "stoneridge_control_b3",
+      "anchor_substrings": ["Stoneridge Inv. Partners", "552 U.S. 148, 160"],
+      "note": "Properly formatted with T6 abbreviation Inv."
+    },
+    {
+      "id": "cent_bank_control",
+      "anchor_substrings": ["Cent. Bank of Denver"],
+      "note": "Properly abbreviated"
+    },
+    {
+      "id": "aff_d_sub_nom_control",
+      "anchor_substrings": ["aff'd sub nom. Stoneridge"],
+      "note": "Subsequent history with sub nom. is correct"
+    },
+    {
+      "id": "but_see_signal",
+      "anchor_substrings": ["But see Affiliated Ute"],
+      "note": "Capital 'But see' starts new citation sentence — correct"
+    },
+    {
+      "id": "smith_atlas_revd",
+      "anchor_substrings": ["Smith v. Atlas Corp", "rev'd"],
+      "note": "rev'd subsequent history correctly italicized"
+    },
+    {
+      "id": "eldridge_abrogated",
+      "anchor_substrings": ["Eldridge v. Tymshare", "abrogated on other grounds"],
+      "note": "Subsequent history phrase correct"
+    },
+    {
+      "id": "anderson_holding_paren",
+      "anchor_substrings": ["Anderson v. Liberty Lobby", "holding that"],
+      "note": "Explanatory parenthetical with 'holding that' is correct"
+    },
+    {
+      "id": "iqbal_iqm_omitted",
+      "anchor_substrings": ["Iqbal, 556 U.S. at 678", "internal quotation marks omitted"],
+      "note": "Short form with parenthetical — correct"
+    },
+    {
+      "id": "frcp_clean_v",
+      "anchor_substrings": ["Fed. R. Civ. P. 12(b)(6)"],
+      "note": "Properly formatted FRCP — should NOT fire FRCP rule"
+    },
+    {
+      "id": "conley_control_b3",
+      "anchor_substrings": ["Conley v. Gibson", "355 U.S. 41, 47"],
+      "note": "Properly formatted"
+    },
+    {
+      "id": "scheuer_control",
+      "anchor_substrings": ["Scheuer v. Rhodes", "416 U.S. 232"],
+      "note": "Properly formatted"
+    },
+    {
+      "id": "erickson_per_curiam",
+      "anchor_substrings": ["Erickson v. Pardus", "per curiam"],
+      "note": "Properly formatted with weight-of-authority parenthetical"
+    },
+    {
+      "id": "usc_clean_b3",
+      "anchor_substrings": ["28 U.S.C. § 1331"],
+      "note": "Properly formatted statute — should NOT fire USC rule"
+    }
+  ]
+}

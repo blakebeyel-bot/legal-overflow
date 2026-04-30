@@ -1,0 +1,146 @@
+{
+  "brief_name": "Titan Aerospace v. Northwind Defense (D. Mass.)",
+  "brief_path": "test_brief_2.docx",
+  "errors": [
+    {
+      "id": "frcp_periods",
+      "description": "Fed R Civ P: missing periods → 'Fed. R. Civ. P.'",
+      "rule": "R. 12.9.3",
+      "anchor_substrings": ["Fed R Civ P", "short and plain statement"],
+      "keywords": ["Fed. R. Civ. P.", "12.9.3"]
+    },
+    {
+      "id": "skinner_v_period",
+      "description": "Skinner v Switzer: missing period after v.",
+      "rule": "R. 10.2.1",
+      "anchor_substrings": ["Skinner", "Switzer"],
+      "keywords": ["v.", "period", "10.2.1"]
+    },
+    {
+      "id": "skinner_us_periods",
+      "description": "Skinner: 562 US missing U.S. periods",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["Skinner", "Switzer"],
+      "keywords": ["U.S.", "6.1", "T1.1"]
+    },
+    {
+      "id": "helicopteros_us_period",
+      "description": "Helicopteros: 466 U.S 408 missing period after second U.S",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["Helicopteros", "Hall"],
+      "keywords": ["U.S.", "6.1", "T1.1", "period"]
+    },
+    {
+      "id": "crestwood_t6_industries",
+      "description": "Crestwood Industries: T6 'Industries' → 'Indus.'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Crestwood Industries", "Pinnacle"],
+      "keywords": ["Indus.", "T6", "Industries", "10.2.2"]
+    },
+    {
+      "id": "crestwood_inc_comma",
+      "description": "Crestwood Industries Inc.: missing comma before Inc.",
+      "rule": "R. 10.2.1(c)",
+      "anchor_substrings": ["Crestwood", "Pinnacle"],
+      "keywords": ["Inc.", "comma", "10.2.1(c)", "registered name"]
+    },
+    {
+      "id": "cohens_wheaton",
+      "description": "Cohens v. Virginia: missing (6 Wheat.) nominative reporter",
+      "rule": "R. 10.3.2",
+      "anchor_substrings": ["Cohens", "Virginia"],
+      "keywords": ["Wheat.", "6 Wheat", "nominative", "10.3.2"]
+    },
+    {
+      "id": "stoneridge_t6_investment",
+      "description": "Stoneridge Investment: T6 'Investment' → 'Inv.'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Stoneridge", "Scientific-Atlanta"],
+      "keywords": ["Inv.", "T6", "Investment", "10.2.2"]
+    },
+    {
+      "id": "stoneridge_us_periods",
+      "description": "Stoneridge: 552 US missing U.S. periods",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["Stoneridge", "Scientific-Atlanta"],
+      "keywords": ["U.S.", "6.1", "T1.1"]
+    },
+    {
+      "id": "stoneridge_inc_comma",
+      "description": "Stoneridge ... Scientific-Atlanta Inc.: missing comma before Inc.",
+      "rule": "R. 10.2.1(c)",
+      "anchor_substrings": ["Stoneridge", "Scientific-Atlanta"],
+      "keywords": ["Inc.", "comma", "10.2.1(c)", "registered name"]
+    },
+    {
+      "id": "murphy_vs_to_v",
+      "description": "Murphy vs. Smith: 'vs.' should be 'v.'",
+      "rule": "R. 10.2.1",
+      "anchor_substrings": ["Murphy", "Smith"],
+      "keywords": ["vs.", "v.", "10.2.1"]
+    },
+    {
+      "id": "restatement_third_series",
+      "description": "Restatement of Restitution: missing (Third) series designation",
+      "rule": "R. 12.9.5",
+      "anchor_substrings": ["Restatement of Restitution", "Restitution and Unjust Enrichment"],
+      "keywords": ["Third", "series", "(Third)", "12.9.5"]
+    },
+    {
+      "id": "usc_periods_section",
+      "description": "15 USC 78j(b): should be '15 U.S.C. § 78j(b)'",
+      "rule": "R. 6.1",
+      "anchor_substrings": ["15 USC", "USC 78j"],
+      "keywords": ["U.S.C.", "USC", "§", "6.1", "6.2"]
+    },
+    {
+      "id": "conley_pin_endash",
+      "description": "Conley v. Gibson, 355 U.S. 41, 45-46: hyphen pin range should be en dash → 45–46",
+      "rule": "R. 3.2(a)",
+      "anchor_substrings": ["Conley v. Gibson", "355 U.S. 41"],
+      "keywords": ["en dash", "endash", "hyphen", "3.2(a)", "45"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "wwvw_control",
+      "anchor_substrings": ["World-Wide Volkswagen", "444 U.S. 286"],
+      "note": "Properly formatted; should not be flagged"
+    },
+    {
+      "id": "basic_control",
+      "anchor_substrings": ["Basic Inc. v. Levinson", "485 U.S. 224"],
+      "note": "No comma before Inc. matches official caption; should not be flagged"
+    },
+    {
+      "id": "erickson_control",
+      "anchor_substrings": ["Erickson v. Pardus", "551 U.S. 89"],
+      "note": "Properly formatted"
+    },
+    {
+      "id": "mcculloch_control",
+      "anchor_substrings": ["McCulloch v. Maryland", "17 U.S. (4 Wheat.)"],
+      "note": "Wheaton parenthetical correctly placed; should not be flagged"
+    },
+    {
+      "id": "halliburton_control",
+      "anchor_substrings": ["Halliburton Co. v. Erica P. John Fund", "573 U.S. 258"],
+      "note": "Properly formatted; CourtListener UNRESOLVED noise on this one is acceptable"
+    },
+    {
+      "id": "globe_refining_control",
+      "anchor_substrings": ["Globe Refining", "190 U.S. 540"],
+      "note": "Properly formatted; should not be flagged"
+    },
+    {
+      "id": "restatement_second_control",
+      "anchor_substrings": ["Restatement (Second) of Contracts", "(Am. L. Inst. 1981)"],
+      "note": "Properly formatted Restatement; should not be flagged"
+    },
+    {
+      "id": "cfr_control",
+      "anchor_substrings": ["17 C.F.R. § 240.10b-5"],
+      "note": "Properly formatted CFR; should not be flagged"
+    }
+  ]
+}

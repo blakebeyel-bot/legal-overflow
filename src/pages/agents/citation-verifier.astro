@@ -1,0 +1,476 @@
+---
+import Consent from '../../partials/consent.astro';
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Citation Verifier — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/site-anim.css" />
+<script src="/site-anim.js" defer></script>
+<style>
+  /* Layout */
+  .cv-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 40px 80px; }
+  .cv-kicker { font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
+  .cv-title { font-family: var(--serif); font-weight: 400; font-size: 44px; line-height: 1.05; letter-spacing: -.012em; margin: 0 0 18px; }
+  .cv-sub { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 780px; margin: 0 0 40px; }
+
+  /* Steps */
+  .cv-step { border: 1px solid var(--rule-soft); border-radius: 8px; padding: 28px 30px; background: var(--paper-2); margin-bottom: 24px; }
+  .cv-step.is-active { border-color: var(--ink); background: var(--paper); }
+  .cv-step.is-done { border-style: dashed; opacity: .85; }
+  .cv-step-label { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .cv-step h2 { font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.1; letter-spacing: -.005em; margin: 0 0 14px; }
+  .cv-step p { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); margin: 0 0 16px; }
+
+  /* Form bits */
+  .cv-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: end; margin-bottom: 18px; }
+  .cv-field { flex: 1; min-width: 180px; }
+  .cv-field label { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+  .cv-field select, .cv-field input[type="file"] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: 4px;
+    font-family: var(--sans); font-size: 14px; color: var(--ink); background: var(--paper);
+  }
+  .cv-checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; color: var(--ink-2); margin-bottom: 14px; }
+  .cv-checkbox input { margin-top: 3px; }
+
+  .cv-btn { display: inline-block; padding: 11px 26px; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: background .2s ease, color .2s ease; }
+  .cv-btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .cv-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .cv-btn-secondary { background: var(--paper-2); color: var(--ink); }
+
+  /* Progress */
+  .cv-progress { margin-top: 14px; padding: 16px 20px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); }
+  .cv-progress-bar { height: 4px; background: var(--rule-soft); border-radius: 2px; overflow: hidden; margin: 12px 0; }
+  .cv-progress-fill { height: 100%; background: var(--accent-deep); width: 0%; transition: width .4s ease; }
+  .cv-progress-status { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  .cv-progress-status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-deep); margin-right: 8px; vertical-align: middle; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* Results */
+  .cv-summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 14px 0 26px; }
+  .cv-stat { padding: 16px 14px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); text-align: center; }
+  .cv-stat-num { font-family: var(--serif); font-size: 30px; color: var(--ink); line-height: 1; }
+  .cv-stat-label { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
+  .cv-stat.tier-conforming .cv-stat-num { color: var(--accent-deep); }
+  .cv-stat.tier-review .cv-stat-num     { color: #b87f00; }
+  .cv-stat.tier-nonconforming .cv-stat-num { color: #b22222; }
+
+  .cv-downloads { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
+  .cv-download { padding: 14px 22px; border: 1px solid var(--ink); border-radius: 4px; text-decoration: none; color: var(--ink); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; transition: background .2s ease; }
+  .cv-download:hover { background: var(--paper); }
+
+  .cv-citations table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cv-citations th, .cv-citations td { padding: 10px 8px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; text-align: left; }
+  .cv-citations th { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
+  .cv-tier { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .cv-tier.t-conforming    { background: rgba(10,125,87,.12); color: #0a7d57; }
+  .cv-tier.t-review        { background: rgba(184,127,0,.14);  color: #b87f00; }
+  .cv-tier.t-nonconforming { background: rgba(178,34,34,.14);  color: #b22222; }
+
+  .cv-error { padding: 16px 20px; border: 1px solid #b22222; background: rgba(178,34,34,.06); border-radius: 6px; color: #722; font-size: 14px; }
+
+  @media (max-width: 700px) {
+    .cv-wrap { padding: 24px 18px 60px; }
+    .cv-title { font-size: 32px; }
+    .cv-summary { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <span class="nav-meta" id="nav-clock">—</span>
+    <button id="cv-signout" class="nav-sub" style="border:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;">Sign out</button>
+  </div>
+</header>
+
+<main class="cv-wrap">
+  <div class="cv-kicker">Agent 02 · Citation Verifier</div>
+  <h1 class="cv-title">Bluebook 22e citation form-check &amp; <em>verification</em>.</h1>
+  <p class="cv-sub">
+    Upload a brief, motion, or memorandum. The assistant extracts every citation, classifies each one against
+    the Bluebook 22nd Edition, runs the table validators, checks each case against CourtListener, and emits
+    a tracked-changes redline plus a sign-off-ready form-check report.
+    <a href="/agents/citation-verifier/methodology/" style="color: var(--accent-deep);">See the methodology →</a>
+  </p>
+
+  <!-- ============================================================
+       STEP 1 — Upload + options
+       ============================================================ -->
+  <section id="cv-step-upload" class="cv-step is-active">
+    <div class="cv-step-label">Step 1 · Upload</div>
+    <h2>Pick a draft to verify</h2>
+    <p>.docx or .pdf, up to 50 MB. Format in = format out — your draft is returned as the same file type with tracked changes (DOCX) or sticky-note annotations (PDF).</p>
+
+    <div class="cv-row">
+      <div class="cv-field">
+        <label for="cv-file">Document</label>
+        <input type="file" id="cv-file" accept=".docx,.pdf" />
+      </div>
+      <div class="cv-field" style="max-width:200px;">
+        <label for="cv-style">Style</label>
+        <select id="cv-style">
+          <option value="bluepages" selected>Bluepages (practitioner)</option>
+          <option value="whitepages">White-pages (scholarly)</option>
+        </select>
+      </div>
+      <div class="cv-field" style="max-width:200px;">
+        <label for="cv-ruleset">Ruleset</label>
+        <select id="cv-ruleset">
+          <option value="federal" selected>Federal</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="cv-checkbox">
+      <input type="checkbox" id="cv-retain-text" />
+      <label for="cv-retain-text">
+        Retain citation text in the database. <strong>Default: off.</strong> When off, only a SHA-256 hash of each
+        citation is persisted; the document text is never stored. Turn on only if you need full citation strings
+        in your run history.
+      </label>
+    </div>
+
+    <div class="cv-checkbox">
+      <input type="checkbox" id="cv-disclaimer" />
+      <label for="cv-disclaimer">
+        I understand this report records form-checking against Bluebook 22e <strong>only</strong>. It does NOT attest
+        to the substantive accuracy of any cited authority. Existence checks use CourtListener, which does not
+        include every state opinion, recent unpublished disposition, or sealed matter. I will independently verify
+        every citation before filing. <em>(disclaimer v1.0)</em>
+      </label>
+    </div>
+
+    <button id="cv-start-btn" class="cv-btn" disabled>Start verification</button>
+    <div id="cv-error" class="cv-error" style="display:none; margin-top:14px;"></div>
+  </section>
+
+  <!-- ============================================================
+       STEP 2 — Progress
+       ============================================================ -->
+  <section id="cv-step-progress" class="cv-step" style="display:none;">
+    <div class="cv-step-label">Step 2 · In progress</div>
+    <h2 id="cv-progress-headline">Verifying citations…</h2>
+    <p>Pipeline runs in the background; this page polls every two seconds. You can leave and come back — your run history is on the agents archive.</p>
+    <div class="cv-progress">
+      <div class="cv-progress-bar"><div class="cv-progress-fill" id="cv-progress-fill"></div></div>
+      <div class="cv-progress-status"><span class="dot"></span><span id="cv-progress-status">Queued…</span></div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       STEP 3 — Results
+       ============================================================ -->
+  <section id="cv-step-results" class="cv-step" style="display:none;">
+    <div class="cv-step-label">Step 3 · Results</div>
+    <h2 id="cv-results-headline">Verification complete</h2>
+
+    <div class="cv-summary" id="cv-summary"></div>
+
+    <div class="cv-downloads" id="cv-downloads"></div>
+
+    <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin:24px 0 12px;">Per-citation findings</h3>
+    <div class="cv-citations" id="cv-citations"></div>
+
+    <div style="margin-top:30px;">
+      <button id="cv-restart-btn" class="cv-btn cv-btn-secondary">Verify another draft</button>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04</span></div>
+</footer>
+
+<Consent />
+
+<script>
+  import { getSupabase } from '../../lib/supabase';
+
+  const supabase = getSupabase();
+
+  // ---- Auth gate ----
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/agents/citation-verifier/';
+    throw new Error('Not signed in — redirecting');
+  }
+
+  // ---- Element refs ----
+  const fileInput   = document.getElementById('cv-file');
+  const styleSel    = document.getElementById('cv-style');
+  const rulesetSel  = document.getElementById('cv-ruleset');
+  const retainCb    = document.getElementById('cv-retain-text');
+  const disclaimCb  = document.getElementById('cv-disclaimer');
+  const startBtn    = document.getElementById('cv-start-btn');
+  const errorBox    = document.getElementById('cv-error');
+  const progressFill = document.getElementById('cv-progress-fill');
+  const progressStatus = document.getElementById('cv-progress-status');
+  const summaryEl   = document.getElementById('cv-summary');
+  const downloadsEl = document.getElementById('cv-downloads');
+  const citationsEl = document.getElementById('cv-citations');
+
+  function gate() {
+    startBtn.disabled = !(fileInput.files?.length && disclaimCb.checked);
+  }
+  fileInput.addEventListener('change', gate);
+  disclaimCb.addEventListener('change', gate);
+
+  startBtn.addEventListener('click', startRun);
+
+  document.getElementById('cv-restart-btn')?.addEventListener('click', () => {
+    location.reload();
+  });
+
+  document.getElementById('cv-signout')?.addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    location.href = '/';
+  });
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+  function clearError() { errorBox.style.display = 'none'; errorBox.textContent = ''; }
+
+  function showStep(step) {
+    document.getElementById('cv-step-upload').style.display    = step === 'upload' ? '' : 'none';
+    document.getElementById('cv-step-progress').style.display  = step === 'progress' ? '' : 'none';
+    document.getElementById('cv-step-results').style.display   = step === 'results' ? '' : 'none';
+  }
+
+  async function startRun() {
+    clearError();
+    if (!fileInput.files?.length) return showError('Please pick a file first.');
+    if (!disclaimCb.checked) return showError('Please acknowledge the disclaimer.');
+
+    startBtn.disabled = true;
+    showStep('progress');
+
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('style', styleSel.value);
+    fd.append('ruleset', rulesetSel.value);
+    fd.append('retain_text', retainCb.checked ? 'true' : 'false');
+    fd.append('disclaimer_version', '1.0');
+
+    let res;
+    try {
+      res = await fetch('/.netlify/functions/verify-citations-start', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      });
+    } catch (e) {
+      showStep('upload');
+      showError('Upload failed: ' + e.message);
+      startBtn.disabled = false;
+      return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      showStep('upload');
+      showError(data.error || `Server returned ${res.status}`);
+      startBtn.disabled = false;
+      return;
+    }
+
+    pollStatus(data.run_id);
+  }
+
+  async function pollStatus(runId) {
+    const POLL_MS = 2000;
+    const STATUS_LABELS = {
+      queued: 'Queued…',
+      extracting: 'Extracting citations from your document…',
+      classifying: 'Classifying each citation against Bluebook 22e…',
+      checking_existence: 'Checking each case against CourtListener…',
+      validating: 'Running Bluebook table validators…',
+      judging: 'Reviewing cross-citation issues…',
+      building_outputs: 'Building report and marking up your document…',
+      complete: 'Complete.',
+      failed: 'Failed.',
+    };
+
+    const tick = async () => {
+      try {
+        const r = await fetch(
+          `/.netlify/functions/verify-citations-status?run_id=${runId}&include_citations=1`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        );
+        if (!r.ok) {
+          progressStatus.textContent = `Status check returned ${r.status}; retrying…`;
+          setTimeout(tick, POLL_MS * 2);
+          return;
+        }
+        const data = await r.json();
+        if (!data.ok || !data.run) {
+          progressStatus.textContent = data.error || 'Unknown error';
+          setTimeout(tick, POLL_MS * 2);
+          return;
+        }
+        const run = data.run;
+        progressFill.style.width = `${Math.max(2, Math.min(100, run.status_progress || 0))}%`;
+        progressStatus.textContent = STATUS_LABELS[run.status] || run.status;
+
+        if (run.status === 'complete') {
+          renderResults(run, data.citations || []);
+          return;
+        }
+        if (run.status === 'failed') {
+          showStep('upload');
+          showError(run.error_message || 'The pipeline reported a failure. Please try again.');
+          startBtn.disabled = false;
+          return;
+        }
+        setTimeout(tick, POLL_MS);
+      } catch (e) {
+        progressStatus.textContent = `Network error; retrying…`;
+        setTimeout(tick, POLL_MS * 2);
+      }
+    };
+
+    tick();
+  }
+
+  function renderResults(run, citations) {
+    showStep('results');
+
+    const total = run.citation_count || citations.length || 0;
+    const review = run.flag_count_review || 0;
+    const nonConforming = run.flag_count_nonconforming || 0;
+    const conforming = Math.max(0, total - review - nonConforming);
+    const notFound = run.existence_not_found_count || 0;
+
+    summaryEl.innerHTML = `
+      <div class="cv-stat tier-conforming">
+        <div class="cv-stat-num">${conforming}</div>
+        <div class="cv-stat-label">✓ Conforming</div>
+      </div>
+      <div class="cv-stat tier-review">
+        <div class="cv-stat-num">${review}</div>
+        <div class="cv-stat-label">▲ Needs correction</div>
+      </div>
+      <div class="cv-stat tier-nonconforming">
+        <div class="cv-stat-num">${nonConforming}</div>
+        <div class="cv-stat-label">✗ Non-conforming</div>
+      </div>
+      <div class="cv-stat">
+        <div class="cv-stat-num">${notFound}</div>
+        <div class="cv-stat-label">CourtListener not found</div>
+      </div>
+      <div class="cv-stat">
+        <div class="cv-stat-num">${total}</div>
+        <div class="cv-stat-label">Total citations</div>
+      </div>
+    `;
+
+    downloadsEl.innerHTML = '';
+    if (run.form_report_url) {
+      const a = document.createElement('a');
+      a.href = run.form_report_url;
+      a.className = 'cv-download';
+      a.download = 'form-check-report.docx';
+      a.textContent = '↓ Form-check report (.docx)';
+      downloadsEl.appendChild(a);
+    }
+    if (run.marked_source_url) {
+      const a = document.createElement('a');
+      a.href = run.marked_source_url;
+      a.className = 'cv-download';
+      a.download = `marked-source.${run.file_format}`;
+      a.textContent = `↓ Marked source (.${run.file_format})`;
+      downloadsEl.appendChild(a);
+    }
+
+    if (!citations.length) {
+      citationsEl.innerHTML = '<p style="color:var(--ink-3);">No citations were extracted from this document.</p>';
+      return;
+    }
+
+    const rows = citations.map((c, i) => {
+      const flags = c.flags || [];
+      let tier = 'conforming';
+      let label = '✓';
+      if (flags.some((f) => f.severity === 'non_conforming')) { tier = 'nonconforming'; label = '✗'; }
+      else if (flags.some((f) => f.severity === 'review'))    { tier = 'review';        label = '▲'; }
+
+      const findings = flags.length === 0
+        ? '<em style="color:var(--ink-3);">passes all applicable form tests</em>'
+        : flags.map((f) =>
+            `<div style="margin-bottom:4px;"><span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);">${escapeHtml(f.rule_cite || '')}</span> — ${escapeHtml(f.message)}</div>`
+          ).join('');
+
+      const exists = c.existence_status && c.existence_status !== 'not_applicable'
+        ? `<div style="margin-top:6px; font-family:var(--mono); font-size:11px; color:${c.existence_status === 'existence_verified' ? '#0a7d57' : '#b87f00'};">${c.existence_status.replace('existence_', '').replace('_', ' ')}</div>`
+        : '';
+
+      return `<tr>
+        <td>${i + 1}</td>
+        <td><span class="cv-tier t-${tier}">${label}</span></td>
+        <td>${escapeHtml(c.display_text || c.candidate_text || '(text not retained)')}${exists}</td>
+        <td>${c.citation_type || '—'}</td>
+        <td>${findings}</td>
+      </tr>`;
+    }).join('');
+
+    citationsEl.innerHTML = `
+      <table>
+        <thead><tr>
+          <th style="width:32px;">#</th>
+          <th style="width:40px;">Tier</th>
+          <th>Citation</th>
+          <th style="width:130px;">Type</th>
+          <th>Findings</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+</script>
+
+<script is:inline>
+(function clock() {
+  const el = document.getElementById('nav-clock');
+  if (!el) return;
+  function tick() {
+    const d = new Date();
+    let h = d.getHours();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    el.textContent = `COCOA · ${h}:${mm} ${ampm}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

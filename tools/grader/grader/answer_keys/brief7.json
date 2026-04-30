@@ -1,0 +1,155 @@
+{
+  "brief_name": "Sterling Capital Partners v. Vanguard Holdings (N.D. Ill.)",
+  "brief_path": "test_brief_7.docx",
+  "_note": "Answer key rewritten to match the actual brief 7 content (Twombly/Iqbal/Tamayo cases) per the test_brief_7_answer_key.docx specification. The original brief7.json was prepared for a different draft with Greenfield/Mahoney/Donaldson cases that don't appear in the delivered .docx.",
+  "errors": [
+    {
+      "id": "id_after_intervening_tamayo",
+      "description": "Section II: 'Id. at 685' used after Tamayo intervened between Iqbal and the Id. — invalid antecedent per R. 4.1",
+      "rule": "R. 4.1",
+      "anchor_substrings": ["Id. at 685", "Id."],
+      "keywords": ["Tamayo", "Blagojevich", "intervening", "antecedent", "Iqbal"]
+    },
+    {
+      "id": "id_after_multi_source_am_dental_speaker",
+      "description": "Section II: 'Id. at 1289' used after multi-source string cite (Am. Dental + Speaker) — Id. requires single antecedent per R. 4.1",
+      "rule": "R. 4.1",
+      "anchor_substrings": ["Id. at 1289", "Id."],
+      "keywords": ["Speaker", "string cite", "Servs"]
+    },
+    {
+      "id": "id_after_multi_source_fowler_mayfield_hensley",
+      "description": "Section II para 2: bare 'Id.' after string cite to Fowler + Mayfield + Hensley — invalid per R. 4.1",
+      "rule": "R. 4.1",
+      "anchor_substrings": ["Hensley Mfg. v. ProPride", "Id."],
+      "keywords": ["Hensley", "Mfg", "ProPride", "string cite"]
+    },
+    {
+      "id": "supra_for_case_twombly",
+      "description": "Section III: 'Twombly, supra, at 557' — supra forbidden for cases per R. 4.2(a)",
+      "rule": "R. 4.2",
+      "anchor_substrings": ["Twombly, supra", "Twombly"],
+      "keywords": ["supra", "case", "4.2", "10.9"]
+    },
+    {
+      "id": "supra_for_case_iqbal",
+      "description": "Section III: 'Iqbal, supra, at 680' — supra forbidden for cases per R. 4.2(a)",
+      "rule": "R. 4.2",
+      "anchor_substrings": ["Iqbal, supra", "Iqbal"],
+      "keywords": ["supra", "case", "4.2", "10.9"]
+    },
+    {
+      "id": "tamayo_short_form_after_8_intervening",
+      "description": "Section IV: 'Tamayo, 526 F.3d at 1081' short form after 8+ intervening citations to other cases per R. 10.9(c)",
+      "rule": "R. 10.9",
+      "anchor_substrings": ["Tamayo, 526 F.3d at 1081", "Tamayo"],
+      "keywords": ["short form", "intervening", "10.9", "full citation"]
+    },
+    {
+      "id": "investors_act_hereinafter_undeclared",
+      "description": "Section V: 'The Investors Act' used as hereinafter form but never declared per R. 4.2(b)",
+      "rule": "R. 4.2",
+      "anchor_substrings": ["The Investors Act provides"],
+      "keywords": ["hereinafter", "declared", "4.2", "Investors Act"]
+    },
+    {
+      "id": "bell_atl_t6_full_form_b7",
+      "description": "Bell Atlantic Corp. (full-form Twombly intro): T6 'Atlantic' → 'Atl.'",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Bell Atlantic Corp.", "Bell Atlantic Corp. v. Twombly"],
+      "keywords": ["Atl.", "Atlantic", "T6", "10.2.2"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "twombly_intro_full_b7",
+      "anchor_substrings": ["Bell Atlantic Corp. v. Twombly", "550 U.S. 544 (2007)"],
+      "note": "Full citation in Introduction"
+    },
+    {
+      "id": "iqbal_intro_full_b7",
+      "anchor_substrings": ["Ashcroft v. Iqbal", "556 U.S. 662 (2009)"],
+      "note": "Full citation in Introduction"
+    },
+    {
+      "id": "wright_miller_full_b7",
+      "anchor_substrings": ["5B Charles Alan Wright", "Federal Practice and Procedure"],
+      "note": "Properly formatted multi-volume treatise"
+    },
+    {
+      "id": "burbank_full_b7",
+      "anchor_substrings": ["Stephen B. Burbank", "Judicature"],
+      "note": "Properly formatted law-review article"
+    },
+    {
+      "id": "twombly_short_555",
+      "anchor_substrings": ["Twombly, 550 U.S. at 555"],
+      "note": "Short form to Twombly within general discussion (control)"
+    },
+    {
+      "id": "id_bare_after_twombly",
+      "anchor_substrings": ["a formulaic recitation of the elements of a cause of action will not do.\" Id."],
+      "note": "Proper bare Id. immediately after a single antecedent (Twombly)"
+    },
+    {
+      "id": "id_at_555_56",
+      "anchor_substrings": ["Id. at 555-56"],
+      "note": "Proper Id. with new pinpoint, single antecedent"
+    },
+    {
+      "id": "iqbal_short_678",
+      "anchor_substrings": ["556 U.S. at 678"],
+      "note": "Short form to Iqbal within general discussion (control)"
+    },
+    {
+      "id": "wright_miller_supra_section_i",
+      "anchor_substrings": ["5B Wright & Miller, supra, § 1357"],
+      "note": "Proper supra for treatise (R. 4.2(b) — non-case authority, REQUIRED form). Tool must NOT flag."
+    },
+    {
+      "id": "wright_miller_supra_section_iii",
+      "anchor_substrings": ["Wright & Miller, supra, § 1357, at 712"],
+      "note": "Proper supra for treatise. Tool must NOT flag."
+    },
+    {
+      "id": "burbank_supra",
+      "anchor_substrings": ["Burbank, supra, at 115"],
+      "note": "Proper supra for law-review article. Tool must NOT flag."
+    },
+    {
+      "id": "tamayo_full_section_ii",
+      "anchor_substrings": ["Tamayo v. Blagojevich", "526 F.3d 1074, 1081"],
+      "note": "Full first cite to Tamayo in Section II"
+    },
+    {
+      "id": "exchange_act_hereinafter",
+      "anchor_substrings": ["[hereinafter Exchange Act]"],
+      "note": "Proper hereinafter declaration on first use"
+    },
+    {
+      "id": "exchange_act_subsequent",
+      "anchor_substrings": ["The Exchange Act establishes"],
+      "note": "Proper subsequent use of declared hereinafter form. Tool must NOT flag."
+    },
+    {
+      "id": "see_infra_part_vi",
+      "anchor_substrings": ["See infra Part VI"],
+      "note": "Proper internal cross-reference (R. 3.6)"
+    },
+    {
+      "id": "see_supra_part_ii",
+      "anchor_substrings": ["see supra Part II"],
+      "note": "Proper internal cross-reference"
+    },
+    {
+      "id": "frcp_12_b6",
+      "anchor_substrings": ["Fed. R. Civ. P. 12(b)(6)"],
+      "note": "Properly formatted federal rule"
+    },
+    {
+      "id": "wright_miller_supra_section_vi",
+      "anchor_substrings": ["5B Wright & Miller, supra, § 1357, at 715"],
+      "note": "Proper supra for treatise"
+    }
+  ]
+}

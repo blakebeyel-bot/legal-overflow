@@ -1,0 +1,257 @@
+{
+  "brief_name": "Halverson Pharmaceuticals v. FTC (D.D.C.)",
+  "brief_path": "test_brief_6.docx",
+  "errors": [
+    {
+      "id": "amend_arabic_numeral",
+      "description": "Section I: U.S. Const. amend. 14 — amendment number must be Roman numeral (XIV)",
+      "rule": "R. 11",
+      "anchor_substrings": ["U.S. Const. amend. 14"],
+      "keywords": ["XIV", "Roman", "amendment", "11", "numeral"]
+    },
+    {
+      "id": "art_missing_period",
+      "description": "Section I: 'art III' missing period — should be 'art. III'",
+      "rule": "R. 11",
+      "anchor_substrings": ["U.S. Const. art III"],
+      "keywords": ["art.", "period", "11", "abbreviation"]
+    },
+    {
+      "id": "state_const_lowercase",
+      "description": "Section I: 'Cal. const.' should have capitalized 'Const.'",
+      "rule": "R. 11",
+      "anchor_substrings": ["Cal. const."],
+      "keywords": ["Const.", "capitaliz", "11", "constitution"]
+    },
+    {
+      "id": "bill_missing_cong_session",
+      "description": "Section II: 'S. 510 (2009)' missing congressional session number",
+      "rule": "R. 13.2",
+      "anchor_substrings": ["S. 510 (2009)"],
+      "keywords": ["Cong.", "congressional session", "13.2", "111th"]
+    },
+    {
+      "id": "house_report_missing_cong_prefix",
+      "description": "Section II: 'H.R. Rep. No. 1234' missing congressional session prefix (e.g., 105-1234)",
+      "rule": "R. 13.4",
+      "anchor_substrings": ["H.R. Rep. No. 1234"],
+      "keywords": ["Cong.", "congressional", "13.4", "prefix", "105-"]
+    },
+    {
+      "id": "cong_rec_missing_comma",
+      "description": "Section II: '165 Cong. Rec. 23456' missing comma in 5-digit page number",
+      "rule": "R. 6.2",
+      "anchor_substrings": ["165 Cong. Rec. 23456"],
+      "keywords": ["comma", "23,456", "6.2", "page"]
+    },
+    {
+      "id": "fed_reg_page_no_comma",
+      "description": "Section III: '86 Fed. Reg. 35421' missing comma in 5-digit page number",
+      "rule": "R. 6.2",
+      "anchor_substrings": ["86 Fed. Reg. 35421"],
+      "keywords": ["comma", "35,421", "6.2", "page"]
+    },
+    {
+      "id": "fed_reg_missing_volume",
+      "description": "Section III: 'Fed. Reg. 8,234' missing volume number",
+      "rule": "R. 14.2",
+      "anchor_substrings": ["Fed. Reg. 8,234"],
+      "keywords": ["volume", "14.2", "Federal Register"]
+    },
+    {
+      "id": "court_of_appeals_capitalized",
+      "description": "Section IV: 'The Court of Appeals' generic reference incorrectly capitalized",
+      "rule": "R. 8",
+      "anchor_substrings": ["The Court of Appeals for the D.C. Circuit"],
+      "keywords": ["court", "capitaliz", "8", "lowercase"]
+    },
+    {
+      "id": "constitution_lowercase",
+      "description": "Section IV: 'the constitution itself' should be 'the Constitution'",
+      "rule": "R. 8",
+      "anchor_substrings": ["the constitution itself"],
+      "keywords": ["Constitution", "capitaliz", "8"]
+    },
+    {
+      "id": "congress_lowercase",
+      "description": "Section IV: 'congress set in 1914' should be 'Congress'",
+      "rule": "R. 8",
+      "anchor_substrings": ["congress set in 1914"],
+      "keywords": ["Congress", "capitaliz", "8"]
+    },
+    {
+      "id": "bill_of_rights_lowercase",
+      "description": "Section IV: 'the bill of rights' should be 'the Bill of Rights'",
+      "rule": "R. 8",
+      "anchor_substrings": ["the bill of rights"],
+      "keywords": ["Bill of Rights", "capitaliz", "8"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "const_art_i_8_3_intro",
+      "anchor_substrings": ["U.S. Const. art. I, § 1"],
+      "note": "Properly formatted constitutional citation with article, section, clause"
+    },
+    {
+      "id": "const_art_ii_intro",
+      "anchor_substrings": ["U.S. Const. art. II, § 1, cl. 1"],
+      "note": "Properly formatted Article II citation"
+    },
+    {
+      "id": "const_art_i_8_3",
+      "anchor_substrings": ["U.S. Const. art. I, § 8, cl. 3"],
+      "note": "Properly formatted Commerce Clause cite"
+    },
+    {
+      "id": "const_amend_v",
+      "anchor_substrings": ["U.S. Const. amend. V"],
+      "note": "Properly formatted Fifth Amendment"
+    },
+    {
+      "id": "const_amend_xiv",
+      "anchor_substrings": ["U.S. Const. amend. XIV, § 1"],
+      "note": "Properly formatted Fourteenth Amendment"
+    },
+    {
+      "id": "hr_rep_117_456",
+      "anchor_substrings": ["H.R. Rep. No. 117-456"],
+      "note": "Properly formatted House Report with congressional prefix"
+    },
+    {
+      "id": "s_rep_116_89",
+      "anchor_substrings": ["S. Rep. No. 116-89"],
+      "note": "Properly formatted Senate Report"
+    },
+    {
+      "id": "hr_4173",
+      "anchor_substrings": ["H.R. 4173, 111th Cong."],
+      "note": "Properly formatted bill citation with congressional session"
+    },
+    {
+      "id": "cong_rec_163",
+      "anchor_substrings": ["163 Cong. Rec. 12,345"],
+      "note": "Congressional Record with proper comma in page number"
+    },
+    {
+      "id": "ftc_hearing",
+      "anchor_substrings": ["Reform of the Federal Trade Commission", "117th Cong. 45"],
+      "note": "Properly formatted committee hearing"
+    },
+    {
+      "id": "fed_reg_88",
+      "anchor_substrings": ["88 Fed. Reg. 56,789"],
+      "note": "Properly formatted Federal Register final rule with codification parenthetical"
+    },
+    {
+      "id": "fed_reg_87_proposed",
+      "anchor_substrings": ["87 Fed. Reg. 76,732"],
+      "note": "Properly formatted proposed rule"
+    },
+    {
+      "id": "exec_order_14028",
+      "anchor_substrings": ["Exec. Order No. 14,028"],
+      "note": "Properly formatted Executive Order"
+    },
+    {
+      "id": "cfr_910",
+      "anchor_substrings": ["16 C.F.R. § 910.3(a)"],
+      "note": "Properly formatted CFR with subsection and year"
+    },
+    {
+      "id": "congress_capitalized_correctly",
+      "anchor_substrings": ["Congress has not authorized the agency"],
+      "note": "R. 8 — 'Congress' referring to U.S. Congress is properly capitalized. Tool must NOT flag this."
+    },
+    {
+      "id": "constitution_capitalized_correctly",
+      "anchor_substrings": ["The Constitution's nondelegation principles"],
+      "note": "R. 8 — 'The Constitution' referring to U.S. Constitution is properly capitalized. Tool must NOT flag this."
+    },
+    {
+      "id": "this_court_capitalized_correctly",
+      "anchor_substrings": ["This Court has previously addressed"],
+      "note": "R. 8 — 'This Court' referring to receiving court is properly capitalized. Tool must NOT flag this."
+    },
+    {
+      "id": "supreme_court_capitalized_correctly",
+      "anchor_substrings": ["The Supreme Court has been emphatic"],
+      "note": "R. 8 — 'The Supreme Court' referring to U.S. Supreme Court is always capitalized. Tool must NOT flag this."
+    },
+    {
+      "id": "defendant_referring_to_party_b6",
+      "anchor_substrings": ["Defendant's enforcement decisions"],
+      "note": "R. 8 — 'Defendant' capitalized when referring to actual case party (FTC). Tool must NOT flag this. Critical FP-resistance test."
+    },
+    {
+      "id": "federal_courts_lowercase",
+      "anchor_substrings": ["Federal courts have repeatedly invalidated"],
+      "note": "R. 8 — 'Federal courts' generic plural, lowercase 'courts' is correct. Tool must NOT flag."
+    },
+    {
+      "id": "article_i_capitalized",
+      "anchor_substrings": ["must derive from Article I"],
+      "note": "R. 8 — 'Article I' with Roman numeral is properly capitalized. Tool must NOT flag."
+    },
+    {
+      "id": "gundy_control",
+      "anchor_substrings": ["Gundy v. United States", "588 U.S. 128, 135"],
+      "note": "Properly cited Supreme Court case"
+    },
+    {
+      "id": "am_hosp_assn_control",
+      "anchor_substrings": ["Am. Hosp. Ass'n v. Becerra"],
+      "note": "Properly cited with T6 abbreviations"
+    },
+    {
+      "id": "wv_v_epa_control",
+      "anchor_substrings": ["West Virginia v. EPA"],
+      "note": "Properly cited"
+    },
+    {
+      "id": "loper_bright_control",
+      "anchor_substrings": ["Loper Bright Enters. v. Raimondo"],
+      "note": "Properly cited with T6 abbreviation"
+    },
+    {
+      "id": "winter_control",
+      "anchor_substrings": ["Winter v. Nat. Res. Def. Council"],
+      "note": "Properly cited"
+    },
+    {
+      "id": "frcp_65_b6",
+      "anchor_substrings": ["Fed. R. Civ. P. 65"],
+      "note": "Properly formatted federal rule"
+    },
+    {
+      "id": "usc_706",
+      "anchor_substrings": ["5 U.S.C. § 706(2)(A)"],
+      "note": "Properly formatted statute with subsection"
+    },
+    {
+      "id": "usc_45",
+      "anchor_substrings": ["15 U.S.C. § 45(a)(1)"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "usc_1331_b6",
+      "anchor_substrings": ["28 U.S.C. § 1331"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "const_art_iii_v",
+      "anchor_substrings": ["U.S. Const. art. III, § 2, cl. 1"],
+      "note": "Properly formatted Article III citation"
+    },
+    {
+      "id": "const_art_ii_v",
+      "anchor_substrings": ["U.S. Const. art. II, § 1, cl. 1"],
+      "note": "Properly formatted Article II citation in Section V"
+    },
+    {
+      "id": "const_art_i_7_v",
+      "anchor_substrings": ["U.S. Const. art. I, § 7, cl. 2"],
+      "note": "Properly formatted Article I, Section 7 citation"
+    }
+  ]
+}

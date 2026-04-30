@@ -1,0 +1,256 @@
+{
+  "brief_name": "Harbor Energy v. Cascade Grid (W.D. Wash.)",
+  "brief_path": "test_brief_4.docx",
+  "errors": [
+    {
+      "id": "see_signal_lowercase_at_sentence_start",
+      "description": "Section I: 'see Anderson' starts a citation sentence after a period — should be capitalized 'See'",
+      "rule": "R. 1.2",
+      "anchor_substrings": ["see Anderson, 477 U.S. at 248", "see Anderson"],
+      "keywords": ["See", "1.2", "capitaliz", "signal", "sentence"]
+    },
+    {
+      "id": "cf_signal_capitalized_midstring",
+      "description": "Section I: 'Cf. Scott v. Harris' appears mid-string-cite after a semicolon — should be lowercase 'cf.'",
+      "rule": "R. 1.2",
+      "anchor_substrings": ["Cf. Scott", "Cf. Scott v. Harris"],
+      "keywords": ["cf.", "1.2", "capitaliz", "signal", "lowercase"]
+    },
+    {
+      "id": "with_signal_invalid_capitalization",
+      "description": "Section I: 'With Saucier' — capitalized 'With' is invalid; the Compare/with construction uses lowercase 'with'",
+      "rule": "R. 1.2",
+      "anchor_substrings": ["With Saucier"],
+      "keywords": ["with", "1.2", "Compare", "lowercase"]
+    },
+    {
+      "id": "but_cf_capitalization",
+      "description": "Section I: 'but Cf. United States Department of Justice' — should be 'but cf.' (both lowercase mid-string-cite)",
+      "rule": "R. 1.2",
+      "anchor_substrings": ["but Cf.", "but Cf. United States"],
+      "keywords": ["but cf.", "1.2", "lowercase", "signal"]
+    },
+    {
+      "id": "contra_capitalization",
+      "description": "Section I: 'contra Smith' starts a new citation sentence — should be capitalized 'Contra'",
+      "rule": "R. 1.2",
+      "anchor_substrings": ["contra Smith"],
+      "keywords": ["Contra", "1.2", "capitaliz", "signal"]
+    },
+    {
+      "id": "department_t6",
+      "description": "Section IV / Section I: 'Department' must be abbreviated 'Dep't' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Department of Transportation", "Department of Justice", "Department of Treasury"],
+      "keywords": ["Dep't", "Department", "T6", "10.2.2"]
+    },
+    {
+      "id": "national_t6",
+      "description": "Section IV: 'National' must be abbreviated 'Nat'l' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["National Federation"],
+      "keywords": ["Nat'l", "National", "T6", "10.2.2"]
+    },
+    {
+      "id": "federation_t6",
+      "description": "Section IV: 'Federation' must be abbreviated 'Fed'n' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["National Federation"],
+      "keywords": ["Fed'n", "Federation", "T6", "10.2.2"]
+    },
+    {
+      "id": "independent_t6",
+      "description": "Section IV: 'Independent' must be abbreviated 'Indep.' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Independent Business"],
+      "keywords": ["Indep.", "Independent", "T6", "10.2.2"]
+    },
+    {
+      "id": "government_t6",
+      "description": "Section IV: 'Government' must be abbreviated 'Gov't' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Government Accountability"],
+      "keywords": ["Gov't", "Government", "T6", "10.2.2"]
+    },
+    {
+      "id": "authority_t6",
+      "description": "Section IV: 'Authority' must be abbreviated 'Auth.' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Tennessee Valley Authority"],
+      "keywords": ["Auth.", "Authority", "T6", "10.2.2"]
+    },
+    {
+      "id": "public_t6",
+      "description": "Section IV: 'Public Citizen' — 'Public' should be abbreviated 'Pub.' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Public Citizen"],
+      "keywords": ["Pub.", "Public", "T6", "10.2.2"]
+    },
+    {
+      "id": "short_quote_as_block",
+      "description": "Section II: a 12-word quotation is wrongly formatted as a block quote — block format requires 50+ words per R. 5.1",
+      "rule": "R. 5.1",
+      "anchor_substrings": ["plaintiff's burden at this stage is well-defined"],
+      "keywords": ["block", "5.1", "50 words", "inline", "quotation"]
+    },
+    {
+      "id": "ellipsis_no_spaces",
+      "description": "Section II: ellipsis 'statements...are' lacks proper spacing — should be 'statements . . . are' per R. 5.3",
+      "rule": "R. 5.3",
+      "anchor_substrings": ["statements...are"],
+      "keywords": ["ellipsis", "5.3", "space", ". . ."]
+    },
+    {
+      "id": "transportation_t6",
+      "description": "Section IV: 'Transportation' must be abbreviated 'Transp.' per T6",
+      "rule": "R. 10.2.2",
+      "anchor_substrings": ["Department of Transportation"],
+      "keywords": ["Transp.", "Transportation", "T6", "10.2.2"]
+    },
+    {
+      "id": "ellipsis_no_spaces_facts",
+      "description": "Section II: second ellipsis 'facts...the' lacks proper spacing per R. 5.3",
+      "rule": "R. 5.3",
+      "anchor_substrings": ["facts...the"],
+      "keywords": ["ellipsis", "5.3", "space", ". . ."]
+    },
+    {
+      "id": "court_of_appeals_capitalized_b4",
+      "description": "Section III: 'The Court of Appeals for the Ninth Circuit' generic capitalization — should be lowercase 'court of appeals' per R. 8 unless preceded by 'United States'",
+      "rule": "R. 8",
+      "anchor_substrings": ["Court of Appeals for the Ninth Circuit", "The Court of Appeals"],
+      "keywords": ["court", "capitaliz", "8", "lowercase"]
+    },
+    {
+      "id": "anderson_short_form_gap_b4",
+      "description": "Anderson short forms past the 5-citation gap from last full cite (R. 10.9 advisory)",
+      "rule": "R. 10.9",
+      "anchor_substrings": ["Anderson"],
+      "keywords": ["intervening", "short form", "10.9"]
+    },
+    {
+      "id": "soremekun_short_form_gap_b4",
+      "description": "Soremekun short form past the 5-citation gap from last full cite (R. 10.9 advisory)",
+      "rule": "R. 10.9",
+      "anchor_substrings": ["Soremekun"],
+      "keywords": ["intervening", "short form", "10.9"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "anderson_full_intro",
+      "anchor_substrings": ["Anderson v. Liberty Lobby, Inc.", "477 U.S. 242, 248"],
+      "note": "Properly formatted full citation with comma before Inc."
+    },
+    {
+      "id": "celotex_full_intro",
+      "anchor_substrings": ["Celotex Corp. v. Catrett", "477 U.S. 317"],
+      "note": "Properly formatted with en-dash pin range"
+    },
+    {
+      "id": "matsushita_full_intro",
+      "anchor_substrings": ["Matsushita Elec. Indus. Co.", "475 U.S. 574"],
+      "note": "Multiple T6 abbreviations applied correctly"
+    },
+    {
+      "id": "tolan_per_curiam",
+      "anchor_substrings": ["Tolan v. Cotton", "(per curiam)"],
+      "note": "Per curiam parenthetical correct"
+    },
+    {
+      "id": "block_quote_50plus_words",
+      "anchor_substrings": ["duty of the trial judge to ascertain"],
+      "note": "Block quote of 70+ words is correctly formatted (no quotation marks, indented). Tool must NOT flag this."
+    },
+    {
+      "id": "quoting_parenthetical",
+      "anchor_substrings": ["(quoting Matsushita"],
+      "note": "Quoting parenthetical with internal short-form. R. 1.5(b)."
+    },
+    {
+      "id": "alterations_omission_paren",
+      "anchor_substrings": ["alterations and omission in original"],
+      "note": "Properly noted alterations parenthetical"
+    },
+    {
+      "id": "ferc_control",
+      "anchor_substrings": ["FERC v. Elec. Power Supply Ass'n"],
+      "note": "T6 'Elec.' and 'Ass'n' correctly applied; FERC as widely-known acronym"
+    },
+    {
+      "id": "anderson_short",
+      "anchor_substrings": ["Anderson, 477 U.S. at 248"],
+      "note": "Short form per R. 10.9 — must NOT be flagged as malformed"
+    },
+    {
+      "id": "celotex_short",
+      "anchor_substrings": ["Celotex, 477 U.S. at 322"],
+      "note": "Short form with en-dash pin range — must NOT be flagged"
+    },
+    {
+      "id": "matsushita_short",
+      "anchor_substrings": ["Matsushita, 475 U.S. at 586", "Matsushita, 475 U.S. at 587"],
+      "note": "Short form — must NOT be flagged"
+    },
+    {
+      "id": "soremekun_short",
+      "anchor_substrings": ["Soremekun, 509 F.3d at 984"],
+      "note": "Short form — must NOT be flagged"
+    },
+    {
+      "id": "frcp_56_a",
+      "anchor_substrings": ["Fed. R. Civ. P. 56(a)"],
+      "note": "Properly formatted federal rule"
+    },
+    {
+      "id": "mims_control",
+      "anchor_substrings": ["Mims v. Arrow Fin. Servs., LLC"],
+      "note": "T6 'Fin.' and 'Servs.' correct"
+    },
+    {
+      "id": "usc_1331",
+      "anchor_substrings": ["28 U.S.C. § 1331"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "usc_824",
+      "anchor_substrings": ["16 U.S.C. § 824"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "usc_2601",
+      "anchor_substrings": ["16 U.S.C. § 2601"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "accord_apple",
+      "anchor_substrings": ["Accord In re Apple Inc. Sec. Litig.", "416 F. Supp. 3d 738"],
+      "note": "'Accord' capitalized at sentence start is correct (R. 1.2). 'In re' format correct. T6 'Sec.', 'Litig.' applied."
+    },
+    {
+      "id": "but_see_lowercase_citi",
+      "anchor_substrings": ["but see In re Citigroup", "753 F. Supp. 2d 206"],
+      "note": "'but see' lowercased mid-string-cite after semicolon is correct (R. 1.2). Tool must NOT flag for capitalization."
+    },
+    {
+      "id": "defendant_referring_to_party",
+      "anchor_substrings": ["Defendant's reliance on state-law preemption"],
+      "note": "Test of R. 8(b): 'Defendant' capitalized when referring to actual case party is correct. Tool must NOT flag this as a capitalization error."
+    },
+    {
+      "id": "scott_v_harris_format",
+      "anchor_substrings": ["Scott v. Harris", "550 U.S. 372, 378"],
+      "note": "Format itself is correct; only the signal capitalization (Cf. → cf.) is flagged."
+    },
+    {
+      "id": "saucier_format",
+      "anchor_substrings": ["Saucier v. Katz", "533 U.S. 194, 201"],
+      "note": "Citation itself is correct; only the 'With' → 'with' is flagged."
+    },
+    {
+      "id": "reeves_format",
+      "anchor_substrings": ["Reeves v. Sanderson Plumbing Prods., Inc.", "530 U.S. 133"],
+      "note": "Citation itself is correct; the issue with #4 is signal ordering."
+    }
+  ]
+}

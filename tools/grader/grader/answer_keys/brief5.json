@@ -1,0 +1,182 @@
+{
+  "brief_name": "Westbrook Publishing v. Atlas Digital Media (S.D.N.Y.)",
+  "brief_path": "test_brief_5.docx",
+  "errors": [
+    {
+      "id": "goldstein_title_italics",
+      "description": "Section I: Paul Goldstein's 'Goldstein on Copyright' book title not italicized",
+      "rule": "R. 15.3",
+      "anchor_substrings": ["Paul Goldstein", "Goldstein on Copyright"],
+      "keywords": ["italic", "italicize", "title", "15.3", "15"]
+    },
+    {
+      "id": "merges_missing_edition",
+      "description": "Section I: Merges/Menell/Lemley treatise missing edition designation (e.g., '(8th ed. 2022)')",
+      "rule": "R. 15.4",
+      "anchor_substrings": ["Robert P. Merges", "Intellectual Property in the New Technological Age"],
+      "keywords": ["edition", "ed.", "15.4", "15"]
+    },
+    {
+      "id": "patry_missing_volume",
+      "description": "Section I: Patry on Copyright missing volume number (multi-volume work)",
+      "rule": "R. 15.1",
+      "anchor_substrings": ["William F. Patry", "Patry on Copyright"],
+      "keywords": ["volume", "multi-volume", "15.1", "3.5"]
+    },
+    {
+      "id": "ginsburg_article_italics",
+      "description": "Section II: Ginsburg article title 'A Tale of Two Copyrights...' not italicized",
+      "rule": "R. 16.4",
+      "anchor_substrings": ["Jane C. Ginsburg", "Tale of Two Copyrights"],
+      "keywords": ["italic", "italicize", "title", "16.4", "16"]
+    },
+    {
+      "id": "beebe_journal_unabbreviated",
+      "description": "Section II: 'University of Pennsylvania Law Review' must be abbreviated 'U. Pa. L. Rev.' per T13",
+      "rule": "R. 16.4",
+      "anchor_substrings": ["Barton Beebe", "University of Pennsylvania"],
+      "keywords": ["U. Pa.", "abbreviat", "T13", "journal", "16.4"]
+    },
+    {
+      "id": "mitchell_missing_volume",
+      "description": "Section II: Mitchell Note missing volume number for Columbia Law Review",
+      "rule": "R. 16.4",
+      "anchor_substrings": ["Sarah Mitchell", "Algorithmic Copyright"],
+      "keywords": ["volume", "16.4", "Colum. L. Rev."]
+    },
+    {
+      "id": "reyes_missing_note_designation",
+      "description": "Section II: Reyes student Note missing 'Note,' designation between author and title",
+      "rule": "R. 16.6.1",
+      "anchor_substrings": ["Daniel Reyes", "Fair Use After Warhol"],
+      "keywords": ["Note,", "student", "16.6", "comment"]
+    },
+    {
+      "id": "sanchez_missing_unpublished_paren",
+      "description": "Section III: Sanchez manuscript missing '(unpublished manuscript)' parenthetical before '(on file...)' tag",
+      "rule": "R. 17.1",
+      "anchor_substrings": ["Maria Sanchez", "Section 107 in Practice"],
+      "keywords": ["unpublished", "manuscript", "17.1", "parenthetical"]
+    },
+    {
+      "id": "tutt_forthcoming_no_volume",
+      "description": "Section III: Tutt forthcoming article missing volume number",
+      "rule": "R. 17.2",
+      "anchor_substrings": ["Andrew Tutt", "Copyright Damages Reform"],
+      "keywords": ["volume", "forthcoming", "17.2", "16.4"]
+    },
+    {
+      "id": "cullins_missing_url",
+      "description": "Section IV: Cullins news article missing URL",
+      "rule": "R. 18.2",
+      "anchor_substrings": ["Ashley Cullins", "Studios Press Their Case"],
+      "keywords": ["URL", "https", "http", "18.2", "internet"]
+    },
+    {
+      "id": "copyright_office_no_last_visited",
+      "description": "Section IV: U.S. Copyright Office dynamic-content URL missing '(last visited [date])' parenthetical",
+      "rule": "R. 18.2.3",
+      "anchor_substrings": ["U.S. Copyright Office", "Copyright Registration Guidance"],
+      "keywords": ["last visited", "18.2.3", "dynamic", "date"]
+    },
+    {
+      "id": "riaa_http_not_https",
+      "description": "Section IV: RIAA URL uses 'http://' but site supports HTTPS — should prefer https",
+      "rule": "R. 18.2.1",
+      "anchor_substrings": ["Recording Indus.", "Position on AI Training"],
+      "keywords": ["https", "http", "18.2.1", "URL"]
+    }
+  ],
+  "controls": [
+    {
+      "id": "nimmer_intro",
+      "anchor_substrings": ["4 Melville B. Nimmer", "Nimmer on Copyright"],
+      "note": "Properly formatted multi-volume treatise with volume number first"
+    },
+    {
+      "id": "nimmer_section_i",
+      "anchor_substrings": ["Nimmer on Copyright § 13.05[A]"],
+      "note": "Same Nimmer treatise repeated in Section I — properly formatted"
+    },
+    {
+      "id": "wright_miller_kane",
+      "anchor_substrings": ["11A Charles Alan Wright", "Federal Practice and Procedure"],
+      "note": "Multi-volume Federal Practice treatise with three authors, properly formatted"
+    },
+    {
+      "id": "samuelson_intro",
+      "anchor_substrings": ["Pamela Samuelson", "Fair Use Defenses in Disruptive"],
+      "note": "Properly formatted law review article in introduction"
+    },
+    {
+      "id": "restatement_third_uc",
+      "anchor_substrings": ["Restatement (Third) of Unfair Competition", "Am. L. Inst. 1995"],
+      "note": "Properly formatted Restatement"
+    },
+    {
+      "id": "leval_control",
+      "anchor_substrings": ["Pierre N. Leval", "Toward a Fair Use Standard"],
+      "note": "Textbook properly formatted law review citation"
+    },
+    {
+      "id": "sunstein_control",
+      "anchor_substrings": ["Cass R. Sunstein", "Beyond the Republican Revival"],
+      "note": "Properly formatted Yale L.J. citation"
+    },
+    {
+      "id": "chen_comment_control",
+      "anchor_substrings": ["Marcus Chen, Comment", "Transformative Use After Campbell"],
+      "note": "Student Comment properly designated with 'Comment,' between author and title"
+    },
+    {
+      "id": "tushnet_forthcoming",
+      "anchor_substrings": ["Rebecca Tushnet", "Generative AI and the Fair Use"],
+      "note": "Properly formatted forthcoming article with manuscript-page pinpoint"
+    },
+    {
+      "id": "wright_unpublished",
+      "anchor_substrings": ["James L. Wright", "Reproduction Rights in the Digital"],
+      "note": "Properly formatted unpublished manuscript with on-file tag"
+    },
+    {
+      "id": "liptak_nyt",
+      "anchor_substrings": ["Adam Liptak", "Supreme Court Hears Arguments"],
+      "note": "Properly formatted internet news article with date and URL"
+    },
+    {
+      "id": "stone_bloomberg",
+      "anchor_substrings": ["Brad Stone", "AI Companies Confront"],
+      "note": "Properly formatted internet news article"
+    },
+    {
+      "id": "usc_107",
+      "anchor_substrings": ["17 U.S.C. § 107"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "usc_501",
+      "anchor_substrings": ["17 U.S.C. § 501"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "cfr_201",
+      "anchor_substrings": ["37 C.F.R. § 201.10"],
+      "note": "Properly formatted CFR"
+    },
+    {
+      "id": "hr_rep",
+      "anchor_substrings": ["H.R. Rep. No. 94-1476", "U.S.C.C.A.N."],
+      "note": "Properly formatted House Report with parallel cite"
+    },
+    {
+      "id": "usc_502",
+      "anchor_substrings": ["17 U.S.C. § 502"],
+      "note": "Properly formatted statute"
+    },
+    {
+      "id": "frcp_65",
+      "anchor_substrings": ["Fed. R. Civ. P. 65"],
+      "note": "Properly formatted federal rule"
+    }
+  ]
+}

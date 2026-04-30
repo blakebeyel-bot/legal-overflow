@@ -1,0 +1,158 @@
+/**
+ * AUTO-GENERATED from T1.json — do not edit by hand.
+ *
+ * Inlined as a JS module so esbuild bundles it into the Netlify
+ * function output. Direct .json imports require import attributes
+ * (with { type: "json" }) on Node 22+ and a flag on Node 20, so we
+ * sidestep both by exporting the parsed object as default.
+ */
+export default {
+  "_meta": {
+    "table": "T1",
+    "rule": "BB R. 10.4 / R. 10.4.1",
+    "title": "United States jurisdictions",
+    "edition": "22e",
+    "scope": "Maps each jurisdiction (federal + 50 states + DC + territories) to its current and historical reporters, and the parenthetical court abbreviation expected for each. Used by validateCourtParenthetical and validateReporterCurrency.",
+    "source": "Bluebook 22e Tables T1.1 (federal) + T1.3 (state)"
+  },
+  "federal": {
+    "Supreme Court": {
+      "official_reporter": "U.S.",
+      "parallel_reporters": [
+        "S. Ct.",
+        "L. Ed.",
+        "L. Ed. 2d"
+      ],
+      "court_parenthetical": null,
+      "_note": "When citing to U.S., NO court parenthetical is required (the reporter is jurisdiction-defining). Year only."
+    },
+    "Courts of Appeals": {
+      "current_reporter": "F.4th",
+      "historical_reporters": [
+        "F.",
+        "F.2d",
+        "F.3d"
+      ],
+      "court_parenthetical": "<n>th Cir.|D.C. Cir.|Fed. Cir.",
+      "_note": "Examples: '(2d Cir. 2019)', '(D.C. Cir. 1999)', '(Fed. Cir. 2003)'."
+    },
+    "District Courts": {
+      "current_reporter": "F. Supp. 3d",
+      "historical_reporters": [
+        "F. Supp.",
+        "F. Supp. 2d"
+      ],
+      "court_parenthetical": "(D|N|S|E|W|M)\\.[A-Z][\\.A-Z]*\\.",
+      "_note": "Examples: '(S.D.N.Y. 2015)', '(D. Del. 2010)', '(N.D. Cal. 2018)'."
+    },
+    "Bankruptcy Courts": {
+      "current_reporter": "B.R.",
+      "historical_reporters": [],
+      "court_parenthetical": "Bankr\\.\\s+(D|N|S|E|W|M)\\.[A-Z][\\.A-Z]*\\.",
+      "_note": "Example: '(Bankr. S.D.N.Y. 2008)'."
+    },
+    "Tax Court": {
+      "current_reporter": "T.C.",
+      "historical_reporters": [],
+      "court_parenthetical": null,
+      "_note": "Year only — the reporter is jurisdiction-defining."
+    }
+  },
+  "states": {
+    "California": {
+      "high_court_reporter": "Cal. 5th",
+      "high_court_historical": [
+        "Cal.",
+        "Cal. 2d",
+        "Cal. 3d",
+        "Cal. 4th"
+      ],
+      "intermediate_reporter": "Cal. App. 5th",
+      "intermediate_historical": [
+        "Cal. App.",
+        "Cal. App. 2d",
+        "Cal. App. 3d",
+        "Cal. App. 4th"
+      ],
+      "regional_reporter": "P.3d",
+      "court_parenthetical_for_high_court": null,
+      "court_parenthetical_for_intermediate": "Cal. Ct. App."
+    },
+    "New York": {
+      "high_court_reporter": "N.Y.3d",
+      "high_court_historical": [
+        "N.Y.",
+        "N.Y.2d"
+      ],
+      "intermediate_reporter": "A.D.3d",
+      "intermediate_historical": [
+        "A.D.",
+        "A.D.2d"
+      ],
+      "regional_reporter": "N.E.3d",
+      "court_parenthetical_for_high_court": null,
+      "court_parenthetical_for_intermediate": "N.Y. App. Div."
+    },
+    "Texas": {
+      "high_court_reporter": "S.W.3d",
+      "high_court_historical": [
+        "S.W.",
+        "S.W.2d"
+      ],
+      "intermediate_reporter": "S.W.3d",
+      "intermediate_historical": [
+        "S.W.",
+        "S.W.2d"
+      ],
+      "regional_reporter": "S.W.3d",
+      "court_parenthetical_for_high_court": "Tex.",
+      "court_parenthetical_for_intermediate": "Tex. App."
+    },
+    "Florida": {
+      "high_court_reporter": "So. 3d",
+      "high_court_historical": [
+        "So.",
+        "So. 2d"
+      ],
+      "intermediate_reporter": "So. 3d",
+      "intermediate_historical": [
+        "So.",
+        "So. 2d"
+      ],
+      "regional_reporter": "So. 3d",
+      "court_parenthetical_for_high_court": "Fla.",
+      "court_parenthetical_for_intermediate": "Fla. Dist. Ct. App."
+    },
+    "Illinois": {
+      "high_court_reporter": "N.E.3d",
+      "high_court_historical": [
+        "N.E.",
+        "N.E.2d",
+        "Ill. 2d"
+      ],
+      "intermediate_reporter": "N.E.3d",
+      "intermediate_historical": [
+        "Ill. App. 3d"
+      ],
+      "regional_reporter": "N.E.3d",
+      "court_parenthetical_for_high_court": "Ill.",
+      "court_parenthetical_for_intermediate": "Ill. App. Ct."
+    },
+    "Massachusetts": {
+      "high_court_reporter": "N.E.3d",
+      "high_court_historical": [
+        "Mass.",
+        "N.E.",
+        "N.E.2d"
+      ],
+      "intermediate_reporter": "N.E.3d",
+      "intermediate_historical": [
+        "Mass. App. Ct."
+      ],
+      "regional_reporter": "N.E.3d",
+      "court_parenthetical_for_high_court": "Mass.",
+      "court_parenthetical_for_intermediate": "Mass. App. Ct."
+    }
+  },
+  "_states_pending": "Remaining 44 jurisdictions and DC follow the same shape; seed entries above cover the highest-volume jurisdictions in U.S. legal practice. Add as the test corpus grows."
+};
