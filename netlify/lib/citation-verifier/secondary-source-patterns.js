@@ -337,12 +337,51 @@ function makeCandidate({ text, start, end, provisional_type, pattern_name }) {
   };
 }
 
+/**
+ * Round 26 — corporate-suffix exclusion list. Real book authors do NOT
+ * have a corporate-entity suffix in the author-name position; case parties
+ * almost always do. When the book extractor's walk-back stops at a token
+ * like "Council, Inc." (the second corporate party in a case caption),
+ * looksLikeAuthorTitleStart was happily accepting it because the author-
+ * shape regex reads "I" of "Inc." as the start of the book title. The
+ * head then matches even though "Council, Inc." is actually a case-party
+ * fragment, not "<author>, <title>".
+ *
+ * The user-visible bug this fixes: Chevron's case citation
+ * "Chevron U.S.A., Inc. v. Nat. Res. Def. Council, Inc., 467 U.S. 837..."
+ * was producing a duplicate R. 3.2(a) comment with a truncated suggested
+ * fix starting at "Council, Inc." — because the book extractor walked
+ * back only to the second "Inc." and the validator then ran on that
+ * truncated span. The cross-extractor span dedup in the orchestrator is
+ * the primary fix; this is a belt-and-suspenders rejection at the source.
+ *
+ * The pattern matches a corporate suffix anywhere in the first ~60
+ * characters of the head (the author/title prefix region). Both
+ * punctuated and unpunctuated forms are covered so "LLC", "L.L.C.",
+ * "Inc", "Inc." all hit.
+ */
+const CORPORATE_SUFFIX_RE =
+  /\b(?:Inc|Corp|Co|LLC|L\.L\.C|Ltd|LLP|L\.L\.P|N\.A|P\.C|P\.A)\.?(?:,|$|\s)/;
+
 function looksLikeAuthorTitleStart(text) {
   // Drop optional leading volume-number prefix.
   const stripped = text.replace(/^\s*\d{1,4}[A-Z]?\s+/, '');
   // Author shape: capitalized first name (or initial), optional middle,
   // surname — with optional comma-separated co-authors. Then comma + title.
-  return /^([A-Z][\w'\.\-]*(?:\s+[A-Z][\w'\.\-]*){0,4})(?:\s*[,&]\s*[A-Z][\w'\.\-]*(?:\s+[A-Z][\w'\.\-]*){0,4}){0,3}\s*,\s*[A-Z]/.test(stripped);
+  if (
+    !/^([A-Z][\w'\.\-]*(?:\s+[A-Z][\w'\.\-]*){0,4})(?:\s*[,&]\s*[A-Z][\w'\.\-]*(?:\s+[A-Z][\w'\.\-]*){0,4}){0,3}\s*,\s*[A-Z]/.test(stripped)
+  ) {
+    return false;
+  }
+  // Round 26 — reject heads whose author/title prefix region contains a
+  // corporate-entity suffix token. The first 60 chars cover the author
+  // line + the start of the title, which is more than enough to catch
+  // case-party fragments like "Council, Inc., 467 U.S. 837..." while
+  // leaving real book heads untouched (real authors don't carry Inc./
+  // Corp./LLC in the author position).
+  const head = stripped.slice(0, 60);
+  if (CORPORATE_SUFFIX_RE.test(head)) return false;
+  return true;
 }
 
 function overlapsExisting(existing, start, end) {

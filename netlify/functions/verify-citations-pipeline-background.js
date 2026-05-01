@@ -47,6 +47,7 @@ import { scanDocumentIssues } from '../lib/citation-verifier/scan-document-issue
 import { findSecondarySourceCandidates } from '../lib/citation-verifier/secondary-source-patterns.js';
 import { findOfficialSourceCandidates } from '../lib/citation-verifier/official-source-patterns.js';
 import { findForeignSourceCandidates } from '../lib/citation-verifier/foreign-source-patterns.js';
+import { filterCrossExtractorOverlap } from '../lib/citation-verifier/cross-extractor-dedup.js';
 import { attachCitationState } from '../lib/citation-verifier/citation-state-tracker.js';
 
 const INCOMING_BUCKET = 'citation-verifier-incoming';
@@ -134,7 +135,7 @@ async function runPipeline({ supabase, userId, run }) {
   // forthcoming, internet, news_article). Adds candidates that case extractor
   // can't see (no " v. " marker). Pass 2 classification IS NOT applied to
   // these — their citation_type comes straight from provisional_type.
-  const secondaryCandidates = findSecondarySourceCandidates(pass1.text || '').map((c) => ({
+  let secondaryCandidates = findSecondarySourceCandidates(pass1.text || '').map((c) => ({
     ...c,
     citation_type: c.provisional_type,
     components: {},
@@ -154,7 +155,7 @@ async function runPipeline({ supabase, userId, run }) {
   }
 
   // Round 17 — official sources (constitutional, legislative, administrative).
-  const officialCandidates = findOfficialSourceCandidates(pass1.text || '').map((c) => ({
+  let officialCandidates = findOfficialSourceCandidates(pass1.text || '').map((c) => ({
     ...c,
     citation_type: c.provisional_type,
     components: {},
@@ -177,7 +178,7 @@ async function runPipeline({ supabase, userId, run }) {
 
   // Round 20 — foreign cases, treaties, international tribunals, specialty
   // federal courts (R. 20, R. 21, R. 21.4, R. 10/T1).
-  const foreignCandidates = findForeignSourceCandidates(pass1.text || '').map((c) => ({
+  let foreignCandidates = findForeignSourceCandidates(pass1.text || '').map((c) => ({
     ...c,
     citation_type: c.provisional_type,
     components: {},
@@ -197,6 +198,54 @@ async function runPipeline({ supabase, userId, run }) {
       console.log(`[orchestrator/foreign] ${fc.provisional_type}: "${(fc.candidate_text || '').slice(0, 100)}"`);
     }
   }
+
+  // Round 26 — cross-extractor span dedup. Drops secondary/official/foreign
+  // candidates whose span is fully contained within a higher-priority
+  // extractor's candidate (priority: case > foreign > official > secondary).
+  // Fixes the user-reported Chevron duplicate where the secondary "book"
+  // extractor was producing a truncated "Council, Inc., 467 U.S. 837..."
+  // candidate that overlapped with the case extractor's full Chevron span;
+  // both flowed through Pass 3 and the validator emitted R. 3.2(a) twice
+  // with different suggested fixes.
+  const dedup = filterCrossExtractorOverlap({
+    caseCands: pass1.candidates,
+    foreignCands: foreignCandidates,
+    officialCands: officialCandidates,
+    secondaryCands: secondaryCandidates,
+  });
+  const beforeCounts = {
+    foreign: foreignCandidates.length,
+    official: officialCandidates.length,
+    secondary: secondaryCandidates.length,
+  };
+  foreignCandidates  = dedup.foreignCands;
+  officialCandidates = dedup.officialCands;
+  secondaryCandidates = dedup.secondaryCands;
+  const droppedCounts = {
+    foreign: beforeCounts.foreign - foreignCandidates.length,
+    official: beforeCounts.official - officialCandidates.length,
+    secondary: beforeCounts.secondary - secondaryCandidates.length,
+  };
+  if (droppedCounts.foreign + droppedCounts.official + droppedCounts.secondary > 0) {
+    console.log(
+      `[orchestrator/cross-extractor-dedup] dropped ` +
+      `foreign=${droppedCounts.foreign} ` +
+      `official=${droppedCounts.official} ` +
+      `secondary=${droppedCounts.secondary} ` +
+      `(contained in higher-priority extractor span)`
+    );
+  }
+  // Partial overlaps "shouldn't happen" — log them so we notice if a new
+  // extractor gets boundary logic that disagrees with the case extractor.
+  for (const po of dedup.partialOverlaps) {
+    console.warn(
+      `[orchestrator/cross-extractor-dedup] PARTIAL OVERLAP ` +
+      `lower=${po.lower_extractor} (${po.lower.char_start}-${po.lower.char_end}) ` +
+      `higher=${po.higher_extractor} (${po.higher.char_start}-${po.higher.char_end}) ` +
+      `lower_text=${JSON.stringify(po.lower.candidate_text.slice(0, 100))}`
+    );
+  }
+
   // Round 9 — defensive instrumentation. Log every Pass 1 candidate
   // verbatim so we can diagnose the live pipeline without re-running
   // through a debugger. Also lets us pinpoint which citation lost which
