@@ -1,0 +1,86 @@
+{
+  "company": {
+    "name": "Apex Buyer Co.",
+    "industry": "software/SaaS",
+    "role_in_contracts": "customer_side",
+    "size": "mid-market"
+  },
+  "tier": "standard",
+  "enabled_modules": {
+    "technology_saas": true,
+    "compliance_data_privacy": true,
+    "construction": false,
+    "healthcare": false,
+    "maritime": false
+  },
+  "pipeline_mode_defaults": {
+    "default": "standard"
+  },
+  "playbook": {
+    "payment_terms": {
+      "position": "Net-30 from receipt of invoice",
+      "rationale": "Aligns with our AP cycle and standard buyer-side practice. Net-60 strains working capital and is unusual for SaaS subscriptions in our size range.",
+      "fallback": "Net-45 acceptable if vendor offers a meaningful discount or if the subscription is critical-path"
+    },
+    "late_fees": {
+      "position": "1% per month maximum if any late fee is included",
+      "rationale": "1.5% is above market for buyer-side terms. We prefer no late fee but will accept a token rate."
+    },
+    "liability_cap": {
+      "position": "1x fees paid in the 12 months preceding the claim",
+      "rationale": "Mutual cap at 1x fees is our standard floor for SaaS. Caps tied to 'fees paid' (vs. fees payable) reduce vendor exposure beyond what we view as proportionate.",
+      "carve_outs_required": [
+        "Confidentiality breach (uncapped or supercap)",
+        "IP indemnity (uncapped)",
+        "Data breach involving personal data (supercap of 3x or insurance coverage limits)",
+        "Gross negligence / willful misconduct"
+      ]
+    },
+    "indemnification": {
+      "position": "Mutual indemnity for IP infringement and confidentiality breach",
+      "rationale": "We expect symmetry on indemnities of equal weight. Vendor IP indemnity should be matched by customer indemnity for IP claims arising from our data and any customizations we provide."
+    },
+    "auto_renewal": {
+      "position": "No auto-renewal preferred; if accepted, 30-day cancellation notice maximum",
+      "rationale": "Evergreen with long notice windows traps customers in unwanted renewals. Our procurement cycle typically catches 30-day notices; 60+ days creates calendar risk.",
+      "deal_breaker": "Evergreen with notice period >90 days"
+    },
+    "subcontracting": {
+      "position": "Notice required + customer approval for material subcontractors (defined as those processing customer data or providing >25% of services)",
+      "rationale": "We need visibility into the data-handling supply chain for compliance and security reviews. Vendor flowdown of obligations is required."
+    },
+    "termination_for_breach": {
+      "position": "Symmetric cure periods (30/30 or 60/60); customer should not face longer cure than vendor",
+      "rationale": "Asymmetric cure periods favor vendor and limit customer remedies. We require parity."
+    },
+    "dispute_resolution": {
+      "position": "Arbitration acceptable in customer's home state OR mutually agreed neutral location",
+      "rationale": "Vendor-home-state arbitration imposes travel cost on us in any dispute. We prefer neutral or customer-state forum."
+    },
+    "data_security": {
+      "position": "SOC 2 Type II minimum, breach notification within 24-72 hours, annual penetration test reports available, customer audit rights for material incidents",
+      "rationale": "Standard floor for any SaaS vendor handling our operational data."
+    },
+    "insurance": {
+      "position": "Cyber/E&O minimum $5M, GL $2M, certificate of insurance on request, customer named as additional insured for E&O",
+      "rationale": "Coverage levels must match the data-handling risk profile."
+    },
+    "ip": {
+      "position": "Vendor retains platform IP (acceptable). Customer owns Customer Data (acceptable). Customer outputs and derived analytics generated for Customer should be Customer-owned or jointly owned.",
+      "rationale": "Vendor platform IP retention is standard. The treatment of customer-specific outputs and analytics is often glossed over and we want it clear."
+    },
+    "confidentiality": {
+      "position": "Mutual; minimum 5-year tail for non-trade-secret confidential information",
+      "rationale": "3-year tails are short relative to the lifecycle of competitive information. 5 years is our floor."
+    }
+  },
+  "deal_breakers": [
+    "Vendor unilateral audit rights against customer",
+    "Broad customer indemnity (e.g., for any third-party claim arising from use of the service)",
+    "Evergreen renewal with notice period > 90 days",
+    "Liability cap below 1x fees paid",
+    "No data-breach notification timeline"
+  ],
+  "negotiation_style": "We negotiate but pick our battles. We push hard on liability cap, indemnity symmetry, and data-security floors. We are flexible on payment terms and renewal mechanics if the deal is otherwise strong.",
+  "version": "round-1-test"
+}

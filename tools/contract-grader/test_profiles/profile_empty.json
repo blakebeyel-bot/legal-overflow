@@ -1,0 +1,23 @@
+{
+  "company": {
+    "name": "Default Buyer (no profile)",
+    "industry": null,
+    "role_in_contracts": "unknown",
+    "size": null
+  },
+  "tier": "default",
+  "enabled_modules": {
+    "technology_saas": false,
+    "compliance_data_privacy": false,
+    "construction": false,
+    "healthcare": false,
+    "maritime": false
+  },
+  "pipeline_mode_defaults": {
+    "default": "standard"
+  },
+  "playbook": {},
+  "deal_breakers": [],
+  "negotiation_style": null,
+  "version": "round-1-test-empty"
+}
