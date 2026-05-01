@@ -411,6 +411,13 @@ function findLatestSentenceBoundary(window) {
     const wordMatch = before.match(/([A-Za-z][A-Za-z']*)$/);
     const word = wordMatch ? wordMatch[1] : '';
     if (word && ABBREV_WORDS.has(word)) continue;
+    // Round 27 — dotted multi-letter abbreviations (d.b.a., f.k.a.,
+    // n.k.a., a.k.a., and similar). The trailing `.` looks like a
+    // sentence boundary but it's actually the last dot of a multi-dot
+    // case-name marker. If the 12-char lookback ends with a
+    // letter-dot-letter-dot-letter pattern, the period is part of an
+    // abbreviation, not a sentence terminator.
+    if (/[A-Za-z]\.[A-Za-z]\.[A-Za-z]$/i.test(before)) continue;
     lastEnd = m.index + m[0].length;
   }
   return lastEnd;
@@ -503,6 +510,21 @@ function refineCaseNameStartFromV(remaining, vIdx) {
 
   const CONNECTORS = new Set(['of', 'the', 'and', '&', 'in', 'for', 'to', 'on', 'by', 'de', 'la', 'el', 'du', 'des']);
 
+  // Round 27 — case-name internal markers that legitimately appear between
+  // two capitalized party names. Walk-back must not stop on these even
+  // though they're lowercase. The classic failure case is the d/b/a
+  // ("doing business as") form: "Robertson, Inc., d/b/a Robertson
+  // Industries v. Cromwell" — without this set, the walk stops at the
+  // lowercase "d/b/a" and the candidate text is truncated to "Robertson
+  // Industries v. Cromwell". Includes other commonly-used name aliases
+  // (f/k/a, n/k/a, a/k/a) and their dotted/dotless variants.
+  const PARTY_INTERNAL_MARKERS = new Set([
+    'd/b/a', 'd.b.a.', 'd.b.a', 'dba',
+    'f/k/a', 'f.k.a.', 'f.k.a', 'fka',
+    'n/k/a', 'n.k.a.', 'n.k.a', 'nka',
+    'a/k/a', 'a.k.a.', 'a.k.a', 'aka',
+  ]);
+
   let nameStartIdx = tokens.length; // "no case-name word found" sentinel
 
   // Round 14 — sentence-end punctuation that's NOT followed by case-name
@@ -548,6 +570,14 @@ function refineCaseNameStartFromV(remaining, vIdx) {
       }
       // Connector but not between cap words — stop here.
       break;
+    }
+    // Round 27 — party-internal name markers (d/b/a, f/k/a, n/k/a, a/k/a).
+    // These ALWAYS appear between two capitalized party names in a case
+    // caption. Don't update nameStartIdx (the marker itself isn't where the
+    // case name begins) — just walk past it so the loop can include the
+    // capitalized predecessor on the next iteration.
+    if (PARTY_INTERNAL_MARKERS.has(stripped.toLowerCase())) {
+      continue;
     }
     // Non-connector lowercase word — stop.
     break;

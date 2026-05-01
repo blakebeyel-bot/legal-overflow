@@ -86,6 +86,22 @@ export class CourtListenerClient {
     if (!c || c.citation_type !== 'case') {
       return { status: 'not_applicable' };
     }
+    // Round 27 — per-citation call counter. Snapshot the call count
+    // before this citation runs so the result can report exactly how
+    // many CL API calls it consumed. Used to confirm parallel-reporter
+    // citations (Plessy 163 U.S. 537, 16 S. Ct. 1138, 41 L. Ed. 256)
+    // are queried as a SINGLE unit, not once per parallel reporter.
+    const callsBefore = this.callCount;
+    const result = await this._checkExistenceCore(c);
+    // Only stamp the call count on a NEW result; cached results keep
+    // their original count from the first lookup.
+    if (result && typeof result === 'object' && result._calls_for_citation === undefined) {
+      result._calls_for_citation = this.callCount - callsBefore;
+    }
+    return result;
+  }
+
+  async _checkExistenceCore(c) {
     const comp = c.components || {};
     const { volume, reporter, first_page } = comp;
     if (!volume || !reporter || !first_page) {

@@ -295,6 +295,14 @@ async function runPipeline({ supabase, userId, run }) {
       const result = existenceResults[caseCursor++];
       existenceByIndex.set(i, result);
       const c = allClassifications[i];
+      // Round 27 — log per-citation CL call count. Confirms parallel-
+      // reporter citations (e.g. Plessy 163 U.S. 537, 16 S. Ct. 1138,
+      // 41 L. Ed. 256) make a SINGLE API call (one classification ->
+      // one Pass 2.5 lookup), not three.
+      if (typeof result?._calls_for_citation === 'number') {
+        const text = (c.candidate_text || '').replace(/\s+/g, ' ').slice(0, 80);
+        console.log(`[orchestrator/cl-calls #${i}] ${result._calls_for_citation} call(s) — "${text}"`);
+      }
       if (
         result?.status === 'existence_verified' &&
         result.case_name &&

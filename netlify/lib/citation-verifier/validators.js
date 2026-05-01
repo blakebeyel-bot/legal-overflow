@@ -564,13 +564,27 @@ export function validateCitationForm(candidateText) {
   // "App.", "DCA", "D.", "S.D.", "N.D." or a state abbreviation. Without
   // this guard, internet citations like "(Mar. 14, 2024)" trip the regex
   // (Mar.+digit+", year") and fire a spurious R. 10.5 flag on news cites.
+  //
+  // Round 27 — slip-opinion / unreported-decision date guard. Per R. 10.8.1
+  // the canonical form is "(Court Mon. Day, Year)" — e.g.,
+  // "(D.C. Cir. Mar. 4, 2024)". The comma between Day and Year is the
+  // standard date-format comma and MUST NOT be flagged as stray. The
+  // earlier `isMonthDate` check required the WHOLE pre-comma token to be a
+  // month-day fragment, but for slip opinions the token is a court+date
+  // composite ("D.C. Cir. Mar. 4"). We now check whether the token ENDS
+  // with "<Mon.> <Day>" — if it does, the comma is date-internal and the
+  // validator silently skips this citation.
   const cpMatch = candidateText.match(/\(([A-Z][A-Za-z.\s\d]+),\s*(\d{4})\)/);
   if (cpMatch) {
     const courtToken = cpMatch[1];
     const looksLikeCourt =
       /\b(?:Cir\.|Ct\.|App\.|DCA|App'x|Tex\.|N\.D\.|S\.D\.|E\.D\.|W\.D\.|D\.|Bankr\.|Fla\.|Cal\.|N\.Y\.|Tex\.|Mass\.|Mich\.|Ill\.|Pa\.|Va\.|Ohio|Ga\.|N\.C\.|N\.J\.|Conn\.|Md\.|Wash\.|Or\.|Colo\.|Ariz\.|Ind\.|Tenn\.|Mo\.|Wis\.|Minn\.|U\.S\.)\b/.test(courtToken);
-    const isMonthDate = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\.\s+\d{1,2}$/.test(courtToken);
-    if (looksLikeCourt && !isMonthDate) {
+    // Round 27 — accept whole-token month-day OR token ENDING in month-day.
+    // "Mar. 4" → date-only (news cite). "D.C. Cir. Mar. 4" → court + date
+    // composite (slip opinion). Both must skip the stray-comma flag.
+    const MONTH_DAY_TAIL_RE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\.?\s+\d{1,2}$/;
+    const endsWithMonthDay = MONTH_DAY_TAIL_RE.test(courtToken);
+    if (looksLikeCourt && !endsWithMonthDay) {
       flags.push({
         severity: 'non_conforming',
         category: 'form_components',
