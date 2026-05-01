@@ -36,7 +36,7 @@ import { extractForCitations } from '../lib/citation-verifier/extract.js';
 import { classifyCitationBatch, BATCH_SIZE } from '../lib/citation-verifier/classify-citation.js';
 import { runAllValidators } from '../lib/citation-verifier/validators.js';
 import { CourtListenerClient, existenceResultToFlag } from '../lib/citation-verifier/court-listener.js';
-import { judgeEdgeCases } from '../lib/citation-verifier/judge-edge-cases.js';
+import { judgeEdgeCases, filterPass4Territory } from '../lib/citation-verifier/judge-edge-cases.js';
 import { buildFormReport } from '../lib/citation-verifier/form-report.js';
 import { applyCitationMarkupDocx } from '../lib/citation-verifier/markup-docx-citations.js';
 import { applyCitationMarkupPdf } from '../lib/citation-verifier/markup-pdf-citations.js';
@@ -385,7 +385,24 @@ async function runPipeline({ supabase, userId, run }) {
 
   // Distribute Pass 4 flags onto their target citations (citation_index
   // points at the index in the input array).
-  for (const f of docFlags) {
+  //
+  // Round 25 — drop Pass 4 emissions that duplicate Pass 3 territory.
+  // Pass 4's prompt explicitly forbids duplicating Pass 3 findings, but
+  // Sonnet occasionally emits one anyway — especially form-component rules
+  // (R. 3.2(a), R. 6.1, R. 10.2.2/T6, R. 10.4) that Pass 3 owns
+  // deterministically. The user-visible symptom is a duplicate comment
+  // with TRUNCATED suggested_fix (the LLM uses components.case_name
+  // instead of the candidate's full text), e.g. "Council, Inc., 467 U.S.
+  // 837..." shadowing Pass 3's correct full Chevron emission.
+  //
+  // The dedup helper (a) blocklists rule_cites in Pass 3 territory and
+  // (b) drops Pass 4 emissions that duplicate a Pass 3 flag already on
+  // the target citation. Tested in __tests__/round-25-fixes.test.mjs.
+  const { kept: keptPass4, dropped: droppedPass4 } = filterPass4Territory(docFlags, enriched);
+  for (const { flag: f, reason } of droppedPass4) {
+    console.log(`[orchestrator/pass4] DROP rule=${f.rule_cite} reason=${reason} on cite #${f.citation_index}`);
+  }
+  for (const f of keptPass4) {
     const target = enriched[f.citation_index];
     if (target) {
       target.flags.push({
@@ -397,6 +414,9 @@ async function runPipeline({ supabase, userId, run }) {
         suggested_fix: f.suggested_fix,
       });
     }
+  }
+  if (droppedPass4.length > 0) {
+    console.log(`[orchestrator/pass4] dropped ${droppedPass4.length} Pass-3-territory flag(s)`);
   }
 
   // ---- Pass 5: Output generation ----------------------------------------

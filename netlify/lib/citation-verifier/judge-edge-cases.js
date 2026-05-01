@@ -152,6 +152,69 @@ export async function judgeEdgeCases({ citations, style = 'bluepages', userId, r
 }
 
 /**
+ * Round 25 — Pass-4 territory dedup.
+ *
+ * Pass 4 (LLM) occasionally emits flags whose rule_cite belongs to Pass 3's
+ * deterministic territory (R. 3.2(a) en-dash, R. 6.1 missing periods,
+ * R. 10.2.2 / T6 abbreviations, R. 10.4 court parenthetical, etc.). These
+ * cause user-visible duplicates with TRUNCATED suggested-fix text — the
+ * LLM uses `components.case_name` (which Pass 2 sometimes extracts shorter
+ * than the full case name) instead of the candidate's full text.
+ *
+ * Two-layer drop:
+ *   (a) Hard blocklist by rule_cite — any Pass 4 emission whose rule is in
+ *       PASS3_TERRITORY is dropped unconditionally.
+ *   (b) Per-citation dedup — if the target citation already carries a
+ *       flag with the same rule_cite (from Pass 3), drop the Pass 4
+ *       emission to avoid double-comments.
+ *
+ * @param {Array<JudgmentFlag>} pass4Flags — flags from judgeEdgeCases()
+ * @param {Array<EnrichedCitation>} citations — the array Pass 4 keys into
+ *   via citation_index. Each citation must have a `flags` array (Pass 3's
+ *   prior emissions).
+ * @returns {{ kept: Array<JudgmentFlag>, dropped: Array<{flag, reason}> }}
+ *   Kept flags are safe to merge onto target citations. Dropped is for
+ *   logging / diagnostics only.
+ */
+export const PASS3_TERRITORY = new Set([
+  'BB R. 3.2(a)',          // pin-cite ranges, em dash → en dash
+  'BB R. 3.3',             // section symbol spacing
+  'BB R. 6.1',             // missing periods on T6 abbreviations
+  'BB R. 10.2.1',          // case-name geographic / first-word
+  'BB R. 10.2.2',          // case-name T6 abbreviations
+  'BB R. 10.4',            // court parenthetical
+  'BB R. 10.5',            // year parenthetical formatting
+  'BB R. 10.7',            // subsequent history (cert. denied, etc.)
+  'BB R. 8',               // R. 8 capitalization (Pass 3 / scanner)
+]);
+
+export function filterPass4Territory(pass4Flags, citations) {
+  if (!Array.isArray(pass4Flags) || pass4Flags.length === 0) {
+    return { kept: [], dropped: [] };
+  }
+  const kept = [];
+  const dropped = [];
+  for (const f of pass4Flags) {
+    if (PASS3_TERRITORY.has(f.rule_cite)) {
+      dropped.push({ flag: f, reason: 'pass3_territory_blocklist' });
+      continue;
+    }
+    const target = citations[f.citation_index];
+    if (!target) {
+      dropped.push({ flag: f, reason: 'no_target_citation' });
+      continue;
+    }
+    const dupOfPass3 = (target.flags || []).some((existing) => existing.rule_cite === f.rule_cite);
+    if (dupOfPass3) {
+      dropped.push({ flag: f, reason: 'duplicates_pass3_emission' });
+      continue;
+    }
+    kept.push(f);
+  }
+  return { kept, dropped };
+}
+
+/**
  * Strip internal-index leakage from Pass 4 messages.
  *
  * Sonnet occasionally includes phrases like "citation_index 7" or
@@ -240,9 +303,13 @@ C. Signal usage (R. 1.2): "See" is correct when the cited authority
 D. NEVER duplicate Pass 3 findings (case-name abbrev, reporter currency,
    court parenthetical formatting, geographical abbreviations, missing
    periods including missing periods on T6 abbreviations like "Atl"/"Atl."
-   or "Co"/"Co.", section symbol spacing, reporter spacing, stray commas).
-   These are Pass 3's job — even if you spot them, do NOT emit them as
-   Pass 4 flags. Their correct rule cite is R. 6.1 / T6, NOT R. 10.9(a).
+   or "Co"/"Co.", section symbol spacing, reporter spacing, stray commas,
+   pin-cite range hyphens/em-dashes that should be en dashes (R. 3.2(a)),
+   id. short-form pin range dashes (R. 3.2(a)), paragraph range dashes
+   (R. 3.2(a))). These are Pass 3's job — even if you spot them, do NOT
+   emit them as Pass 4 flags. Their correct rule cite is R. 6.1 / T6 /
+   R. 3.2(a), NOT R. 10.9(a). The orchestrator drops any Pass 4 flag
+   whose rule_cite is in this set, so emitting one wastes tokens.
 
 E. NEVER use the words "fake", "hallucinated", "fictitious", "incorrect",
    or "wrong" in any output.
