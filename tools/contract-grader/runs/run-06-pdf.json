@@ -1,0 +1,60 @@
+{
+  "run_label": "run-06-pdf",
+  "contract_path": "tools/contract-grader/test_contracts/msa_reasoning_test.pdf",
+  "contract_format": "pdf",
+  "contract_word_count": 4436,
+  "profile_used": "Default Buyer (no profile)",
+  "deal_posture": "their_paper_high_leverage",
+  "client_role": "unknown",
+  "specialists": [
+    "commercial-terms-analyst",
+    "risk-allocation-analyst",
+    "insurance-coverage-analyst",
+    "performance-obligations-analyst",
+    "termination-remedies-analyst",
+    "protective-provisions-analyst"
+  ],
+  "specialist_failures": [
+    {
+      "specialist": "commercial-terms-analyst",
+      "reason": "invocation failed: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CacT3iiESrjcKUfYDznCp\"}"
+    },
+    {
+      "specialist": "risk-allocation-analyst",
+      "reason": "invocation failed: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CacT3ieGGpFpr3YdUoqKH\"}"
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "reason": "invocation failed: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CacT3if1Uj1FeAo4tNVow\"}"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "reason": "invocation failed: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CacT3if1MjiGptnwk2g3n\"}"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "reason": "invocation failed: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CacT3ihVAKus7hUu7g6EE\"}"
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "reason": "invocation failed: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CacT3imTMGFLcKfim5AVb\"}"
+    }
+  ],
+  "accepted_findings": [],
+  "rejected_findings": [],
+  "auditor_findings": [],
+  "coherence_findings": [],
+  "restored_findings": [],
+  "coverage_pass_aggregate": [],
+  "priority_three": [],
+  "compiler_metrics": {},
+  "posture_metrics": {
+    "deterministic_pass": 0,
+    "deterministic_fail": 0,
+    "escalated": 0,
+    "escalation_fail": 0
+  },
+  "tokens_used": 0,
+  "elapsed_seconds": 0.6,
+  "timestamp": "2026-05-01T20:05:29.609Z"
+}
