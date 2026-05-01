@@ -86,6 +86,22 @@ export class CourtListenerClient {
     if (!c || c.citation_type !== 'case') {
       return { status: 'not_applicable' };
     }
+    // Round 30 — short-form case citations are NEVER looked up. The full
+    // citation already verified the case earlier in the document; the
+    // short form's role is to refer back to that antecedent, not to
+    // re-verify. Running CL on every short-form occurrence wasted API
+    // calls AND produced UNRESOLVED comments on Tellabs/Anderson short
+    // forms in the long-document brief (because CL's lookup endpoint
+    // expects the full citation context, not "Tellabs, 551 U.S. at
+    // 322"). Defense-in-depth check: citation_type OR provisional_type
+    // OR pattern_name. The orchestrator's caseCitations filter at the
+    // pipeline level applies the same gate; this is the second layer.
+    if (
+      c.provisional_type === 'short_form_case' ||
+      c.pattern_name === 'short_case'
+    ) {
+      return { status: 'not_applicable', _silent_reason: 'short_form_case' };
+    }
     // Round 27 — per-citation call counter. Snapshot the call count
     // before this citation runs so the result can report exactly how
     // many CL API calls it consumed. Used to confirm parallel-reporter

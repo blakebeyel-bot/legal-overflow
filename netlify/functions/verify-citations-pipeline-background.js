@@ -279,7 +279,19 @@ async function runPipeline({ supabase, userId, run }) {
   await setStatus('checking_existence', 55);
 
   const courtListener = new CourtListenerClient();
-  const caseCitations = allClassifications.filter((c) => c.citation_type === 'case');
+  // Round 30 — exclude short-form case citations from CL verification.
+  // The full citation earlier in the document is what verifies the
+  // case; the short form is a back-reference. Pass 2's LLM occasionally
+  // misclassifies short forms as 'case' — particularly when a leading
+  // signal like "See" is present — so the filter checks pattern_name
+  // (deterministic from Pass 1) and provisional_type as fallbacks.
+  // checkExistence inside court-listener.js applies the same guard
+  // (defense in depth).
+  const caseCitations = allClassifications.filter((c) =>
+    c.citation_type === 'case' &&
+    c.provisional_type !== 'short_form_case' &&
+    c.pattern_name !== 'short_case'
+  );
   const existenceResults = await courtListener.checkAll(caseCitations);
 
   // Map existence results back onto every classification (case-typed
@@ -291,24 +303,28 @@ async function runPipeline({ supabase, userId, run }) {
   const existenceByIndex = new Map();
   let caseCursor = 0;
   for (let i = 0; i < allClassifications.length; i++) {
-    if (allClassifications[i].citation_type === 'case') {
+    const cl = allClassifications[i];
+    const isFullCase =
+      cl.citation_type === 'case' &&
+      cl.provisional_type !== 'short_form_case' &&
+      cl.pattern_name !== 'short_case';
+    if (isFullCase) {
       const result = existenceResults[caseCursor++];
       existenceByIndex.set(i, result);
-      const c = allClassifications[i];
       // Round 27 — log per-citation CL call count. Confirms parallel-
       // reporter citations (e.g. Plessy 163 U.S. 537, 16 S. Ct. 1138,
       // 41 L. Ed. 256) make a SINGLE API call (one classification ->
       // one Pass 2.5 lookup), not three.
       if (typeof result?._calls_for_citation === 'number') {
-        const text = (c.candidate_text || '').replace(/\s+/g, ' ').slice(0, 80);
+        const text = (cl.candidate_text || '').replace(/\s+/g, ' ').slice(0, 80);
         console.log(`[orchestrator/cl-calls #${i}] ${result._calls_for_citation} call(s) — "${text}"`);
       }
       if (
         result?.status === 'existence_verified' &&
         result.case_name &&
-        (!c.components?.case_name || String(c.components.case_name).trim() === '')
+        (!cl.components?.case_name || String(cl.components.case_name).trim() === '')
       ) {
-        c.components = { ...(c.components || {}), case_name: result.case_name };
+        cl.components = { ...(cl.components || {}), case_name: result.case_name };
       }
     } else {
       existenceByIndex.set(i, { status: 'not_applicable' });

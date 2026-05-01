@@ -157,6 +157,14 @@ export async function classifyCitationBatch({
     return {
       // Stable identity from Pass 1 — present for every candidate.
       pattern_name: orig.pattern_name,
+      // Round 30 — propagate provisional_type alongside citation_type so
+      // downstream short-form gates have a deterministic Pass-1 signal to
+      // fall back on when Pass 2's LLM misclassifies (e.g., classifying
+      // "Vivendi, 838 F.3d at 247" as 'case' instead of 'short_form_case'
+      // when the LLM lost short-form context). Validators use the helper
+      // isShortFormCaseCitation() which checks citation_type OR
+      // provisional_type OR pattern_name === 'short_case'.
+      provisional_type: orig.provisional_type,
       candidate_text: orig.candidate_text,
       candidate_text_hash: orig.candidate_text_hash,
       char_start: orig.char_start,

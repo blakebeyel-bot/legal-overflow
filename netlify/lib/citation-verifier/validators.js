@@ -683,6 +683,28 @@ export function validateCitationForm(candidateText) {
     });
   }
 
+  // Round 30 — Pattern 4: case short-form pin range "<reporter> at N-M".
+  // Per the user's audit table, R. 3.2(a) MUST fire on short-form pin
+  // ranges like "Anderson, 477 U.S. at 248-49" — short forms have pin
+  // ranges too. Pattern 1 (page-pin "<page>, <pin1>-<pin2>") only matches
+  // the full-form layout where the pin range follows a comma. The
+  // short-form layout has "at" between the reporter and the pin range
+  // and no comma immediately before the range, so Pattern 1 missed it.
+  // Negative lookbehind on "Id." avoids double-firing with Pattern 2.
+  const shortPinMatch = candidateText.match(/(?<!\b(?:[Ii]d|Id)\.)\s+at\s+(\d{1,5})([-—])(\d{1,5})\b/);
+  if (shortPinMatch) {
+    const dashChar = shortPinMatch[2];
+    const dashName = dashChar === '—' ? 'em dash (—)' : 'hyphen';
+    flags.push({
+      severity: 'non_conforming',
+      category: 'form_components',
+      rule_cite: 'BB R. 3.2(a)',
+      table_cite: null,
+      message: `Short-form pin range "${shortPinMatch[1]}${dashChar}${shortPinMatch[3]}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${shortPinMatch[1]}–${shortPinMatch[3]}".`,
+      suggested_fix: candidateText.replace(/(\s+at\s+)(\d{1,5})[-—](\d{1,5})\b/, '$1$2–$3'),
+    });
+  }
+
   return flags;
 }
 
@@ -2532,18 +2554,51 @@ export function validateTcmCase(citation) {
 //    flag list from every applicable validator. Citation type drives
 //    which validators run — short forms skip reporter/court checks, etc.
 // ---------------------------------------------------------------------------
+/**
+ * Round 30 — short-form case citation detector. Single source of truth
+ * for "this citation is a short form, validators that operate on the
+ * full case-name format must not fire on it."
+ *
+ * Defense in depth: checks Pass 2's citation_type, the propagated
+ * provisional_type (Round 30 — added to classify-citation.js output),
+ * AND Pass 1's pattern_name. Any one of these signals means the
+ * citation is a short form. This survives Pass 2 LLM misclassification —
+ * we observed the LLM tagging "Vivendi, 838 F.3d at 247" as 'case' and
+ * "See Anderson, 477 U.S. at 255" as 'case' (the leading "See" signal
+ * confused the classifier), which silently bypassed the existing
+ * R. 10.4 short-form gate.
+ */
+export function isShortFormCaseCitation(c) {
+  if (!c) return false;
+  if (c.citation_type === 'short_form_case') return true;
+  if (c.provisional_type === 'short_form_case') return true;
+  if (c.pattern_name === 'short_case') return true;
+  return false;
+}
+
 export function runAllValidators(citation) {
   const flags = [];
   const c = citation || {};
   const components = c.components || {};
+  const isShortForm = isShortFormCaseCitation(c);
 
   if (c.citation_type === 'case' || c.citation_type === 'short_form_case') {
     if (components.case_name) {
-      // Pass the full candidate_text so the validator's suggested_fix
-      // covers the whole citation span — prevents the markup pipeline
-      // from replacing the entire span with just the corrected case
-      // name and nuking the volume/reporter/page in the process.
-      flags.push(...validateCaseAbbreviations(components.case_name, c.candidate_text));
+      // Round 30 — gate T6 abbreviation check on full forms only. T6
+      // applies to the FULL case name (R. 10.2.2). Short forms reference
+      // the case name with abbreviation already implied by the
+      // antecedent; firing T6 on a short form produces a comment whose
+      // "suggested fix" can't be applied (the abbreviated word isn't in
+      // the short-form text). The Goldman Sachs FP in the long-document
+      // brief — three T6 catches firing on "Goldman Sachs, 594 U.S. at
+      // 124" — is the canonical example of this misfire.
+      if (!isShortForm) {
+        // Pass the full candidate_text so the validator's suggested_fix
+        // covers the whole citation span — prevents the markup pipeline
+        // from replacing the entire span with just the corrected case
+        // name and nuking the volume/reporter/page in the process.
+        flags.push(...validateCaseAbbreviations(components.case_name, c.candidate_text));
+      }
     }
     if (components.reporter && components.year) {
       flags.push(...validateReporterCurrency(components.reporter, components.year));
@@ -2554,7 +2609,11 @@ export function runAllValidators(citation) {
       // parenthetical on short forms (e.g., "Bosch, 659 F.3d at 1153"
       // when the full cite was "Robert Bosch LLC v. Pylon Mfg. Corp.,
       // 659 F.3d 1142 (Fed. Cir. 2011)" earlier).
-      if (c.citation_type !== 'short_form_case' && c.provisional_type !== 'short_form_case') {
+      // Round 30 — use the isShortFormCaseCitation helper instead of
+      // the inline citation_type/provisional_type check. The previous
+      // gate failed when Pass 2 misclassified short forms as 'case'
+      // and provisional_type wasn't being propagated through Pass 2.
+      if (!isShortForm) {
         flags.push(...validateCourtParenthetical(components.reporter, components.court_parenthetical || null));
       }
     }
