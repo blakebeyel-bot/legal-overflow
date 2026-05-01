@@ -273,12 +273,47 @@ export const RULES_PATTERN = new RegExp(
 //     catch the user flagged as regressed.
 //   • § may be preceded by zero spaces (`\s*§` instead of `\s+§`)
 //     in case the subject group consumed all trailing whitespace.
+// Round 28 — anchor the Restatement extractor on one of THREE structural
+// markers so prose / news headlines containing the word "Restatement"
+// don't produce bogus candidates:
+//
+//   (A) canonical series designator:    "Restatement (First|Second|Third|Fourth)"
+//   (B) short-form series:              "Restatement 2d|3d|4th"
+//   (C) "of <Subject> § <num>" form:    "Restatement of Restitution § 1"
+//                                       (preserves the legitimate R. 12.9.5
+//                                        catch on series-LACKING Restatement
+//                                        citations that include § + subject)
+//
+// Without any of these anchors the candidate is just a bare-word match
+// and we silently skip it. This eliminates the WSJ-headline false
+// positive ("Reserve Restatement, Wall St. J.") while keeping every
+// legitimate Restatement citation form — including the non-conforming
+// ones (anchor C) that the validator must still flag.
+//
+// Round 28 — also extend the post-section tail to consume comment/
+// illustration/note pinpoints AND the publisher parenthetical. The old
+// pattern stopped at the subject's first non-`\w&` character (e.g., the
+// `:` in "Restatement (Third) of Torts: Liab. for Econ. Harm § 9 cmt. b
+// (Am. L. Inst. 2020)"), which truncated candidate_text to 28 chars and
+// hid the (Am. L. Inst. 2020) parenthetical from validateRestatementForm
+// — causing the validator to falsely flag a properly-formatted citation
+// as missing its publisher.
 export const RESTATEMENT_PATTERN = new RegExp(
-  '\\bRestatement\\b' +
-  '(?:\\s+(?:\\((?:First|Second|Third|Fourth)\\)|2d|3d|4th))?' +     // optional series
-  '(?:\\s+(?:of\\s+)?[A-Z]\\w+(?:\\s+(?:\\w+|&))*)?' +                 // subject; "of" is now OPTIONAL
-  '(?:\\s*§{1,2}\\s?\\d+(?:[a-z]|\\.\\d+)?)?' +                       // "§ 351" or "§351"
-  '(?:\\s+\\([^)]{0,80}\\))?',                                          // "(Am. L. Inst. 1981)"
+  '\\bRestatement\\s+(?:' +
+    // Anchor A: canonical "(First|Second|Third|Fourth)"
+    '\\((?:First|Second|Third|Fourth)\\)' +
+    // OR Anchor B: short series "2d|3d|4th"
+    '|(?:2d|3d|4th)\\b' +
+    // OR Anchor C: "of <Subject> § <num>" without series — the
+    // subject+section combination is structural enough to confirm a
+    // real Restatement citation (and the validator will fire R. 12.9.5
+    // for the missing series).
+    '|of\\s+[A-Z][\\w&\\-]*(?:\\s+[\\w&.\\-]+)*?\\s*§{1,2}\\s?\\d' +
+  ')' +
+  '(?:\\s+(?:of\\s+)?[A-Z][\\w&\\-]*(?:[:,]?\\s+[\\w&.\\-]+)*)?' +    // subject incl. ":Liab. for Econ. Harm"
+  '(?:\\s*§{1,2}\\s?\\d+(?:[a-z]|\\.\\d+)?)?' +                       // "§ 351" / "§351" / "§ 9.04"
+  '(?:\\s+(?:cmt\\.?|illus\\.?|n\\.|note)\\s+[a-z\\d]+)?' +            // "cmt. b" / "illus. 4" / "n. 12"
+  '(?:\\s+\\([^)]{0,80}\\))?',                                         // "(Am. L. Inst. 2020)"
   'g'
 );
 
@@ -343,6 +378,12 @@ const PATTERN_REGISTRY = [
 const ABBREV_WORDS = new Set([
   // Versus + initials
   'v', 'vs',
+  // Round 28 — relator markers. "Starr ex rel. Estate of Sampson v.
+  // Georgeson Shareholder, Inc." — the period after "rel." is NOT a
+  // sentence boundary; it's the abbreviation of "relatione". Without
+  // this entry, findLatestSentenceBoundary skipped past "ex rel. " and
+  // the case-name walk-back lost "Starr ex rel." from the candidate.
+  'rel', 'ex',
   'A','B','C','D','E','F','G','H','I','J','K','L','M',
   'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
   // Common entity-name abbreviations (Bluebook T6)
@@ -523,6 +564,14 @@ function refineCaseNameStartFromV(remaining, vIdx) {
     'f/k/a', 'f.k.a.', 'f.k.a', 'fka',
     'n/k/a', 'n.k.a.', 'n.k.a', 'nka',
     'a/k/a', 'a.k.a.', 'a.k.a', 'aka',
+    // Round 28 — relator / on-behalf-of / petitioner forms. These are
+    // standard caption phrases that appear as a lowercase pair between
+    // two capitalized parties: "Starr ex rel. Estate of Sampson v.
+    // Georgeson Shareholder, Inc.". Walk-back must not stop at "ex rel."
+    // or it truncates the case name to "Estate of Sampson v. Georgeson
+    // Shareholder, Inc." and downstream validators emit suggested fixes
+    // missing the relator's name.
+    'ex', 'rel.', 'rel', 'parte',
   ]);
 
   let nameStartIdx = tokens.length; // "no case-name word found" sentinel
@@ -595,12 +644,19 @@ function refineCaseNameStartFromV(remaining, vIdx) {
  * Returns expanded char_end, or original if no parenthetical follows.
  */
 function reachForwardForParenthetical(text, charEnd) {
-  const LOOKAHEAD = 80;
+  const LOOKAHEAD = 100;
   const window = text.slice(charEnd, charEnd + LOOKAHEAD);
 
   // Match a parenthetical that starts within whitespace of charEnd and
   // contains at least a 4-digit year somewhere inside.
-  const parenMatch = window.match(/^\s*\([^)]{0,80}\d{4}[^)]{0,40}\)/);
+  //
+  // Round 28 — also accept an OPTIONAL footnote pinpoint between the
+  // page and the year-parenthetical: "412 F.3d 103, 109 n.5 (2d Cir.
+  // 2005)". Without this, candidate text terminated at "109" and the
+  // court parenthetical was lost — downstream validators then misfired
+  // on what looked like a missing court parenthetical, and Pass 2's
+  // year extraction silently lost the decision year.
+  const parenMatch = window.match(/^(?:\s+n\.\s*\d+[a-z]?)?\s*\([^)]{0,80}\d{4}[^)]{0,40}\)/);
   if (!parenMatch) return charEnd;
   return charEnd + parenMatch[0].length;
 }

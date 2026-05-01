@@ -776,17 +776,32 @@ export function validateRestatementForm(candidateText) {
   if (!candidateText || typeof candidateText !== 'string') return [];
   if (!/\bRestatement\b/.test(candidateText)) return [];
 
-  // Round 16 — only fire on text that looks like an actual Restatement
-  // CITATION, not prose mentioning "the Restatement". A real citation
-  // includes either a section symbol, a series designation in parens,
-  // an "of <subject>" phrase, or a year-parenthetical. Without these,
-  // the candidate is just narrative reference.
+  // Round 16/28 — only fire on text that looks like an actual Restatement
+  // CITATION, not prose mentioning "the Restatement" or news-article titles
+  // that contain the word in a non-legal sense (e.g., "Reserve Restatement"
+  // in a WSJ headline). The previous heuristic also accepted "of <Subject>"
+  // or any year-parenthetical, which over-fired on the WSJ headline.
+  //
+  // Three structural anchors confirm a Restatement CITATION (matching the
+  // RESTATEMENT_PATTERN extractor):
+  //
+  //   (A) canonical series:        "Restatement (First|Second|Third|Fourth)"
+  //   (B) short series:            "Restatement 2d|3d|4th"
+  //   (C) "of <Subj> § <n>" + ALI: series-less but anchored on subject +
+  //       section symbol + (Am. L. Inst. YYYY) publisher parenthetical.
+  //       This preserves the legitimate R. 12.9.5 missing-series catch
+  //       (e.g., Titan's "Restatement of Restitution and Unjust Enrichment
+  //       § 1 (Am. L. Inst. 2011)" — needs (Third)).
+  const hasCanonicalSeriesCheck =
+    /\bRestatement\s+\((?:First|Second|Third|Fourth)\)/.test(candidateText);
+  const hasShortSeriesCheck =
+    /\bRestatement\s+(?:2d|3d|4th)\b/.test(candidateText);
+  const hasSubjectSectionAndPublisher =
+    /\bRestatement\s+of\s+[A-Z]/.test(candidateText) &&
+    /§\s*\d/.test(candidateText) &&
+    /\(\s*(?:Am\.?\s*L\.?\s*Inst\.?|American\s+Law\s+Institute)/.test(candidateText);
   const looksLikeCitation =
-    /§\s*\d/.test(candidateText) ||
-    /\bRestatement\s+\((?:First|Second|Third|Fourth)\)/.test(candidateText) ||
-    /\bRestatement\s+(?:2d|3d|4th)\s/.test(candidateText) ||
-    /\bRestatement\s+of\s+[A-Z]/.test(candidateText) ||
-    /\([^)]*\d{4}\)/.test(candidateText);
+    hasCanonicalSeriesCheck || hasShortSeriesCheck || hasSubjectSectionAndPublisher;
   if (!looksLikeCitation) return [];
 
   const flags = [];
@@ -1877,6 +1892,16 @@ export function scanHereinafterUndeclared(text) {
   while ((m = refRe.exec(text)) !== null) {
     const ref = `The ${m[1]} Act`;
     const refKey = `${m[1]} Act`;
+
+    // Round 28 — skip when the captured name is 3+ words. Hereinafter
+    // shortenings are typically 1-2 words ("Investors Act", "Exchange
+    // Act"); 3+-word names are full statutory titles, not abbreviations.
+    // Concretely: "The Private Securities Litigation Reform Act" is the
+    // CANONICAL FULL NAME (4 words before "Act"), not a hereinafter
+    // shortening. Treating it as undeclared produced a false positive on
+    // the long-document brief.
+    const refWordCount = m[1].split(/\s+/).filter(Boolean).length;
+    if (refWordCount >= 3) continue;
 
     // If "The <X> Act" is registered as a hereinafter form, skip.
     if (registry[refKey] || registry[ref]) continue;
