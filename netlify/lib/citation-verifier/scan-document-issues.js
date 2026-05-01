@@ -64,43 +64,156 @@ export function scanDocumentIssues(text) {
  * Detects "¶ N-M" / "¶¶ N-M" / "¶¶ N—M" patterns in document text. These
  * appear in record citations (Compl., Mot., Pet'n, etc.) and aren't
  * captured by the case extractor.
+ *
+ * Round 29 — consolidation. The long-document stress test produced 52
+ * paragraph-range comments (out of 81 total), burying substantive catches
+ * (T6 advisories, R. 10.9 gaps, CourtListener mismatches) in format noise.
+ * Per user product decision: when the document contains 5+ HYPHEN ¶¶
+ * ranges, emit ONE consolidated advisory anchored at the first occurrence
+ * with the count + 2-3 examples + a find-and-replace recommendation.
+ *
+ * Consolidation only applies to:
+ *   • HYPHEN ¶¶ ranges (em-dash ranges fire individually — em dashes
+ *     come from Word auto-correct of "--", a separate semantic intent
+ *     and rare enough that per-occurrence comments aren't noisy).
+ *   • PARAGRAPH ranges in record citations. Pin-cite ranges in case
+ *     citations (validators.js Pattern 1) and Id. short-form ranges
+ *     (validators.js Pattern 2) fire per occurrence regardless — those
+ *     have higher per-instance importance and are caught by a different
+ *     code path.
+ *
+ * Below the threshold (4 or fewer), behavior is unchanged: per-occurrence
+ * emission. The 8-brief corpus has no brief with 5+ ¶¶ hyphens so the
+ * regression suite is unaffected.
  */
+const PARAGRAPH_RANGE_CONSOLIDATION_THRESHOLD = 5;
+
 function scanParagraphRange(text) {
-  const flags = [];
+  if (!text) return [];
   const re = /¶{1,2}\s*(\d{1,5})([-—])(\d{1,5})\b/g;
+  const matches = [];
   let m;
   while ((m = re.exec(text)) !== null) {
-    const span = m[0];
-    const start = m.index;
-    const end = start + span.length;
-    const dashChar = m[2];
-    const dashName = dashChar === '—' ? 'em dash (—)' : 'hyphen';
-    const fixed = span.replace(/([-—])/, '–');
-    flags.push({
-      pattern_name: 'doc-issue-paragraph-range',
-      provisional_type: 'document_annotation',
-      citation_type: 'document_annotation',
-      candidate_text: span,
-      char_start: start,
-      char_end: end,
-      pre_context: text.slice(Math.max(0, start - 200), start),
-      post_context: text.slice(end, Math.min(text.length, end + 200)),
-      in_footnote: false,
-      footnote_num: null,
-      components: {},
-      existence: { status: 'not_applicable' },
-      flags: [{
-        severity: 'non_conforming',
-        category: 'form_components',
-        rule_cite: 'BB R. 3.2(a)',
-        table_cite: null,
-        message: `Paragraph range "${m[1]}${dashChar}${m[3]}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${m[1]}–${m[3]}".`,
-        suggested_fix: fixed,
-      }],
-      candidate_text_hash: 'doc-issue:' + sha256Hex(Buffer.from(span + '|' + start, 'utf8')).slice(0, 16),
+    matches.push({
+      raw: m[0],
+      a: m[1],
+      dash: m[2],
+      b: m[3],
+      index: m.index,
     });
   }
-  return flags;
+  if (matches.length === 0) return [];
+
+  const hyphenMatches = matches.filter((mm) => mm.dash === '-');
+  const emDashMatches = matches.filter((mm) => mm.dash === '—');
+
+  const out = [];
+
+  // Em-dash matches always fire individually (per Round 29 spec).
+  for (const mm of emDashMatches) {
+    out.push(makeIndividualParagraphRangeFlag(text, mm));
+  }
+
+  // Hyphen matches: consolidate at threshold.
+  if (hyphenMatches.length >= PARAGRAPH_RANGE_CONSOLIDATION_THRESHOLD) {
+    out.push(makeConsolidatedParagraphRangeFlag(text, hyphenMatches));
+  } else {
+    for (const mm of hyphenMatches) {
+      out.push(makeIndividualParagraphRangeFlag(text, mm));
+    }
+  }
+
+  return out;
+}
+
+function makeIndividualParagraphRangeFlag(text, m) {
+  const span = m.raw;
+  const start = m.index;
+  const end = start + span.length;
+  const dashName = m.dash === '—' ? 'em dash (—)' : 'hyphen';
+  const fixed = span.replace(/([-—])/, '–');
+  return {
+    pattern_name: 'doc-issue-paragraph-range',
+    provisional_type: 'document_annotation',
+    citation_type: 'document_annotation',
+    candidate_text: span,
+    char_start: start,
+    char_end: end,
+    pre_context: text.slice(Math.max(0, start - 200), start),
+    post_context: text.slice(end, Math.min(text.length, end + 200)),
+    in_footnote: false,
+    footnote_num: null,
+    components: {},
+    existence: { status: 'not_applicable' },
+    flags: [{
+      severity: 'non_conforming',
+      category: 'form_components',
+      rule_cite: 'BB R. 3.2(a)',
+      table_cite: null,
+      message: `Paragraph range "${m.a}${m.dash}${m.b}" uses ${dashName}; R. 3.2(a) requires an en dash (–): "${m.a}–${m.b}".`,
+      suggested_fix: fixed,
+    }],
+    candidate_text_hash: 'doc-issue:' + sha256Hex(Buffer.from(span + '|' + start, 'utf8')).slice(0, 16),
+  };
+}
+
+function makeConsolidatedParagraphRangeFlag(text, matches) {
+  // Anchor on the first occurrence in document order so the comment lands
+  // at the top of the cluster. Markup-shared finds the candidate_text
+  // verbatim in the source XML — the first occurrence is the most
+  // reliable anchor (later duplicates would also match but the first
+  // gets the comment in the natural reading position).
+  const first = matches[0];
+  const span = first.raw;
+  const start = first.index;
+  const end = start + span.length;
+
+  // Build 2-3 distinct examples. Prefer the first three matches' textual
+  // forms; the user said "list 2-3 example ranges" so 3 is the cap.
+  const seen = new Set();
+  const examples = [];
+  for (const mm of matches) {
+    const key = `¶¶ ${mm.a}-${mm.b}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    examples.push(key);
+    if (examples.length >= 3) break;
+  }
+  const exampleList = examples.join(', ');
+  const total = matches.length;
+
+  return {
+    pattern_name: 'doc-issue-paragraph-range-consolidated',
+    provisional_type: 'document_annotation',
+    citation_type: 'document_annotation',
+    candidate_text: span,
+    char_start: start,
+    char_end: end,
+    pre_context: text.slice(Math.max(0, start - 200), start),
+    post_context: text.slice(end, Math.min(text.length, end + 200)),
+    in_footnote: false,
+    footnote_num: null,
+    components: {},
+    existence: { status: 'not_applicable' },
+    flags: [{
+      severity: 'non_conforming',
+      category: 'form_components',
+      rule_cite: 'BB R. 3.2(a)',
+      table_cite: null,
+      message:
+        `This document contains ${total} paragraph ranges in record citations ` +
+        `(e.g., ${exampleList}) that use a hyphen where R. 3.2(a) requires an ` +
+        `en dash (–). Each is a real R. 3.2(a) violation; consolidating into ` +
+        `one advisory because of volume. Recommended: a document-wide ` +
+        `find-and-replace on "¶¶ <N>-<N>" patterns, replacing the hyphen ` +
+        `with an en dash (–). (R. 3.2(a))`,
+      // No single-span suggested_fix — this is a doc-wide issue; per-line
+      // surgery is in markup-shared territory and would mismatch the
+      // anchor's narrow span.
+      suggested_fix: null,
+    }],
+    candidate_text_hash: 'doc-issue:' + sha256Hex(Buffer.from('consolidated|' + total + '|' + span + '|' + start, 'utf8')).slice(0, 16),
+  };
 }
 
 /**
