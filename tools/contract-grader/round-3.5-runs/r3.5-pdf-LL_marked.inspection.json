@@ -1,0 +1,121 @@
+{
+  "file": "tools/contract-grader/round-3.5-runs/r3.5-pdf-LL_marked.pdf",
+  "total_findings": 22,
+  "markup_types": {
+    "annotate": 7,
+    "insert": 6,
+    "replace": 9
+  },
+  "total_annotations": 7,
+  "annotations_by_subtype": {
+    "Text": 7
+  },
+  "unanchored_count": 15,
+  "unanchored": [
+    {
+      "id": "critical-issues-auditor-003",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 8.6: 'EXCEPT FOR (A) AMOUNTS OWED UNDER ANY ORDER FORM, (B) A PARTY'S BREACH OF SECTION 7 (C"
+    },
+    {
+      "id": "critical-issues-auditor-001",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 4.4(b): 'if Customer terminates this Agreement other than for Lattice's uncured material bre"
+    },
+    {
+      "id": "critical-issues-auditor-002",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 9.1: 'Lattice may engage third parties to perform any of its obligations under this Agreemen"
+    },
+    {
+      "id": "protective-provisions-analyst-002",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "risk-allocation-analyst-003",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "insurance-coverage-analyst-001",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "risk-allocation-analyst-006",
+      "markup_type": "replace",
+      "source_text_preview": "Section 5.3, first sentence: 'Lattice will notify Customer in writing without undue delay, and in an"
+    },
+    {
+      "id": "insurance-coverage-analyst-004",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "insurance-coverage-analyst-002",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "termination-remedies-analyst-005",
+      "markup_type": "replace",
+      "source_text_preview": "for thirty (30) days following termination, Lattice will, upon Customer's written request and at Cus"
+    },
+    {
+      "id": "coherence-checker-001",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 8.6 exceptions: '(A) AMOUNTS OWED UNDER ANY ORDER FORM, (B) A PARTY'S BREACH OF SECTION 7 (C"
+    },
+    {
+      "id": "coherence-checker-002",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 9.2(b) as proposed to be amended: 'errors and omissions / professional liability insurance w"
+    },
+    {
+      "id": "coherence-checker-003",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 5.5 as proposed to be amended: 'Lattice will treat aggregated Usage Data that, despite anony"
+    },
+    {
+      "id": "coherence-checker-004",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 6.1: 'Lattice and its licensors own and shall retain all right, title, and interest in and t"
+    },
+    {
+      "id": "risk-allocation-analyst-001",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    }
+  ],
+  "sample_annotations": [
+    {
+      "subtype": "Text",
+      "contents": "/A#2060-day#20non-renewal#20notice#20window#20materially#20increases#20the#20risk#20that#20we#20will"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/The#20current#20provision#20grants#20us#2030#20days#20to#20cure#20a#20material#20breach#20while#20g"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/We#20request#20clarifying#20the#20anonymization#20standard#20for#20Usage#20Data#20and#20confirming#"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/We#20request#20a#20five-year#20confidentiality#20tail#20for#20non-trade-secret#20Confidential#20Inf"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/We#20request#20narrowing#20the#20Feedback#20license#20to#20focus#20on#20product#20improvement#20rat"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/Requiring#20us#20to#20arbitrate#20exclusively#20in#20San#20Francisco#20imposes#20travel#20and#20log"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/The#20Services#20involve#20hosting#20and#20processing#20Customer#20Data,#20creating#20cyber-specifi"
+    }
+  ]
+}

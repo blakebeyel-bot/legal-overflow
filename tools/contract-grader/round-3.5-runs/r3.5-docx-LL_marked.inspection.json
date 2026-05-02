@@ -1,0 +1,266 @@
+{
+  "file": "tools/contract-grader/round-3.5-runs/r3.5-docx-LL_marked.docx",
+  "total_findings": 18,
+  "markup_types": {
+    "annotate": 4,
+    "replace": 10,
+    "insert": 4
+  },
+  "unanchored_count": 10,
+  "unanchored": [
+    {
+      "id": "critical-issues-auditor-002",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 9.1 SUBCONTRACTORS: 'Lattice may engage third parties to perform any of its obligations unde"
+    },
+    {
+      "id": "protective-provisions-analyst-001",
+      "markup_type": "replace",
+      "source_text_preview": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription"
+    },
+    {
+      "id": "protective-provisions-analyst-002",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "insurance-coverage-analyst-001",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "performance-obligations-analyst-003",
+      "markup_type": "replace",
+      "source_text_preview": "Lattice may terminate this Agreement or any Order Form upon written notice to Customer if Customer m"
+    },
+    {
+      "id": "protective-provisions-analyst-003",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "termination-remedies-analyst-005",
+      "markup_type": "insert",
+      "source_text_preview": ""
+    },
+    {
+      "id": "coherence-checker-001",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 4.4(b): 'if Customer terminates this Agreement other than for Lattice's uncured material bre"
+    },
+    {
+      "id": "coherence-checker-002",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 2.3: 'Lattice's sole obligations and Customer's sole and exclusive remedies for failures to "
+    },
+    {
+      "id": "coherence-checker-003",
+      "markup_type": "annotate",
+      "source_text_preview": "Section 5.3: 'Lattice will notify Customer in writing without undue delay, and in any event within s"
+    }
+  ],
+  "correctly_applied": 6,
+  "per_finding": [
+    {
+      "id": "critical-issues-auditor-002",
+      "markup_type": "annotate",
+      "severity": "blocker",
+      "specialist": "critical-issues-auditor",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "termination-remedies-analyst-002",
+      "markup_type": "replace",
+      "severity": "major",
+      "specialist": "termination-remedies-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "commercial-terms-analyst-002",
+      "markup_type": "replace",
+      "severity": "minor",
+      "specialist": "commercial-terms-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "termination-remedies-analyst-001",
+      "markup_type": "replace",
+      "severity": "moderate",
+      "specialist": "termination-remedies-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "termination-remedies-analyst-003",
+      "markup_type": "replace",
+      "severity": "moderate",
+      "specialist": "termination-remedies-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": false,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "termination-remedies-analyst-004",
+      "markup_type": "replace",
+      "severity": "moderate",
+      "specialist": "termination-remedies-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "protective-provisions-analyst-001",
+      "markup_type": "replace",
+      "severity": "moderate",
+      "specialist": "protective-provisions-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "protective-provisions-analyst-002",
+      "markup_type": "insert",
+      "severity": "major",
+      "specialist": "protective-provisions-analyst",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "insurance-coverage-analyst-001",
+      "markup_type": "insert",
+      "severity": "moderate",
+      "specialist": "insurance-coverage-analyst",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "commercial-terms-analyst-004",
+      "markup_type": "replace",
+      "severity": "moderate",
+      "specialist": "commercial-terms-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "commercial-terms-analyst-005",
+      "markup_type": "replace",
+      "severity": "moderate",
+      "specialist": "commercial-terms-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "performance-obligations-analyst-003",
+      "markup_type": "replace",
+      "severity": "major",
+      "specialist": "performance-obligations-analyst",
+      "source_in_doc": true,
+      "suggested_in_doc": true,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "protective-provisions-analyst-003",
+      "markup_type": "insert",
+      "severity": "major",
+      "specialist": "protective-provisions-analyst",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "termination-remedies-analyst-005",
+      "markup_type": "insert",
+      "severity": "moderate",
+      "specialist": "termination-remedies-analyst",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "performance-obligations-analyst-001",
+      "markup_type": "replace",
+      "severity": "major",
+      "specialist": "performance-obligations-analyst",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": true,
+      "comment_text_match": true,
+      "unanchored": false
+    },
+    {
+      "id": "coherence-checker-001",
+      "markup_type": "annotate",
+      "severity": "major",
+      "specialist": "coherence-checker",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "coherence-checker-002",
+      "markup_type": "annotate",
+      "severity": "moderate",
+      "specialist": "coherence-checker",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    },
+    {
+      "id": "coherence-checker-003",
+      "markup_type": "annotate",
+      "severity": "moderate",
+      "specialist": "coherence-checker",
+      "source_in_doc": false,
+      "suggested_in_doc": false,
+      "has_comment": false,
+      "comment_text_match": false,
+      "unanchored": true
+    }
+  ],
+  "comment_count": 8,
+  "del_marker_count": 8,
+  "ins_marker_count": 8
+}

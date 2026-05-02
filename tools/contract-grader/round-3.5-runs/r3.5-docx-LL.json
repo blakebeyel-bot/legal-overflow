@@ -1,0 +1,1398 @@
+{
+  "run_label": "r3.5-docx-LL",
+  "contract_path": "tools/contract-grader/test_contracts/msa_reasoning_test.docx",
+  "contract_format": "docx",
+  "contract_word_count": 4436,
+  "profile_used": "Apex Buyer Co.",
+  "deal_posture": "their_paper_low_leverage",
+  "client_role": "customer_side",
+  "specialists": [
+    "commercial-terms-analyst",
+    "risk-allocation-analyst",
+    "insurance-coverage-analyst",
+    "performance-obligations-analyst",
+    "termination-remedies-analyst",
+    "protective-provisions-analyst"
+  ],
+  "specialist_failures": [
+    {
+      "specialist": "risk-allocation-analyst",
+      "reason": "non-JSON: JSON parse failed even after repair: Expected ',' or '}' after property value in JSON at position 17942 (line 251 column 96)"
+    }
+  ],
+  "accepted_findings": [
+    {
+      "id": "critical-issues-auditor-002",
+      "specialist": "critical-issues-auditor",
+      "tier": 1,
+      "category": "cross_section_hazard",
+      "severity": "blocker",
+      "existential": true,
+      "markup_type": "annotate",
+      "source_text": "Section 9.1 SUBCONTRACTORS: 'Lattice may engage third parties to perform any of its obligations under this Agreement, including without limitation hosting, content delivery, support, and processing of Customer Data. Lattice will remain responsible for the performance of any such subcontractors and for compliance by such subcontractors with the applicable terms of this Agreement. Lattice is not required to provide advance notice to Customer of, or obtain Customer's consent to, the engagement, replacement, or termination of any subcontractor.' + Section 5.1 CUSTOMER DATA LICENSE: 'Customer hereby grants Lattice a non-exclusive, worldwide, royalty-free license to host, copy, transmit, display, and otherwise process Customer Data solely as necessary for Lattice to provide and support the Subscription Services' + PROFILE REQUIREMENT: 'Notice required + customer approval for material subcontractors (defined as those processing customer data or providing >25% of services)'",
+      "proposed_text": null,
+      "external_comment": "The Agreement grants Lattice unlimited subcontracting rights for all obligations including processing of Customer Data, with no notice or consent requirement. This creates supply-chain visibility and control gaps that prevent us from satisfying our own compliance obligations to downstream customers. We need advance notice and approval rights for any subcontractor who will process Customer Data or provide more than 25% of the Services, with mandatory flowdown of the data security and confidentiality obligations in Sections 5 and 7. This is essential for our vendor management and due diligence obligations, particularly given that you handle our operational data and we have downstream commitments to our own customers regarding data-handling practices.",
+      "materiality_rationale": "Customer is in software/SaaS and likely has contractual obligations to its own customers regarding data handling, typically requiring Customer to vet and approve third parties who access customer data. Lattice's unilateral right to subcontract data processing without notice eliminates Customer's ability to perform supply-chain due diligence, creates undetectable risk if subcontractors lack adequate security controls, and may place Customer in breach of its own downstream obligations. The Profile explicitly requires notice and approval for material subcontractors processing customer data.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.subcontracting.position",
+        "playbook.subcontracting.rationale",
+        "playbook.data_security.position"
+      ],
+      "position": "Amend Section 9.1 to require: (a) Lattice to provide written notice to Customer at least thirty (30) days in advance of engaging any subcontractor who will process Customer Data or provide more than 25% of the Subscription Services by volume or criticality; (b) Customer to have the right to review the subcontractor's security and privacy practices and to withhold consent if the subcontractor does not meet Customer's reasonable security standards (consistent with Section 5.2's SOC 2 requirement); (c) Lattice to include in all subcontracts flowdown provisions requiring subcontractors to comply with Sections 5 (Customer Data; Data Security; Privacy), 7 (Confidentiality), and any applicable Data Processing Addendum; and (d) Lattice to remain primarily liable for subcontractor performance and breaches.",
+      "fallback": "Notice required for all subcontractors processing Customer Data, with consent required only for subcontractors located outside the United States or processing more than 50% of Customer Data by volume. Flowdown of Sections 5 and 7 mandatory for all subcontractors processing Customer Data.",
+      "walkaway": "If Lattice refuses any notice or consent requirement for subcontractors processing Customer Data, and refuses to commit to flowdown of data-security and confidentiality obligations, Customer should walk.",
+      "jurisdiction_assumed": "Delaware (per Section 10.1)."
+    },
+    {
+      "id": "termination-remedies-analyst-002",
+      "specialist": "termination-remedies-analyst",
+      "tier": 1,
+      "category": "termination for breach",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "Lattice may terminate this Agreement or any Order Form upon written notice to Customer if Customer materially breaches this Agreement and fails to cure such breach within thirty (30) days after receipt of written notice describing the breach in reasonable detail. Customer may terminate this Agreement or any Order Form upon written notice to Lattice if Lattice materially breaches this Agreement and fails to cure such breach within sixty (60) days after receipt of written notice describing the breach in reasonable detail.",
+      "proposed_text": "Either Party may terminate this Agreement or any Order Form upon written notice to the other Party if such other Party materially breaches this Agreement and fails to cure such breach within thirty (30) days after receipt of written notice describing the breach in reasonable detail.",
+      "external_comment": "We'd like to equalize the cure periods at 30 days for both parties. The current structure requires us to wait 60 days to terminate for your material breach while you can terminate for ours in half that time. Symmetric cure periods are standard in commercial SaaS agreements and provide both parties with adequate remedy time while maintaining parity.",
+      "materiality_rationale": "Under current language, if Lattice commits a material breach such as a prolonged service outage, data loss, or security incident, Customer must wait 60 days before terminating, during which Customer remains bound and must continue paying Fees. This asymmetry allows Lattice an additional 30 days to remedy failures while exposing Customer to faster termination. The Profile explicitly requires parity in cure periods.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.termination_for_breach"
+      ],
+      "position": "Symmetric 30-day cure period for both parties.",
+      "fallback": "Symmetric 45-day cure period for both parties, OR maintain 60-day cure for Lattice but extend Customer cure to 60 days to achieve parity.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "suggested_text": "Either Party may terminate this Agreement or any Order Form upon written notice to the other Party if such other Party materially breaches this Agreement and fails to cure such breach within thirty (30) days after receipt of written notice describing the breach in reasonable detail."
+    },
+    {
+      "id": "commercial-terms-analyst-002",
+      "specialist": "commercial-terms-analyst",
+      "tier": 1,
+      "category": "late_fees",
+      "severity": "minor",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "Any amounts not paid when due will accrue interest at the rate of one and one-half percent (1.5%) per month, or the maximum rate permitted by applicable law, whichever is lower, calculated from the date such payment was due until the date paid.",
+      "proposed_text": "Any amounts not paid when due will accrue interest at the rate of one percent (1.0%) per month, or the maximum rate permitted by applicable law, whichever is lower, calculated from the date such payment was due until the date paid.",
+      "external_comment": "We propose a 1% monthly late-fee rate, which aligns with market practice and provides a reasonable incentive for timely payment while remaining proportionate to the underlying commercial terms.",
+      "materiality_rationale": "1.5% per month equates to 18% annual interest, which is above market for commercial contracts and disproportionate to the cost of capital in the current rate environment. The 50-basis-point reduction to 1% monthly (12% annually) remains a meaningful incentive while reducing the punitive character of the clause.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.late_fees.position"
+      ],
+      "position": "1% per month maximum.",
+      "fallback": null,
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (assumed from choice-of-law clause in §10.1)",
+      "suggested_text": "Any amounts not paid when due will accrue interest at the rate of one percent (1.0%) per month, or the maximum rate permitted by applicable law, whichever is lower, calculated from the date such payment was due until the date paid."
+    },
+    {
+      "id": "termination-remedies-analyst-001",
+      "specialist": "termination-remedies-analyst",
+      "tier": 1,
+      "category": "auto-renewal",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "unless either Party provides written notice of non-renewal to the other Party at least sixty (60) days prior to the end of the then-current Subscription Term",
+      "proposed_text": "unless either Party provides written notice of non-renewal to the other Party at least thirty (30) days prior to the end of the then-current Subscription Term",
+      "external_comment": "A 60-day non-renewal notice period creates calendar risk and may result in unintended renewal if our procurement cycle does not flag the deadline in sufficient time. A 30-day notice is consistent with industry practice for SaaS subscriptions in this segment and provides adequate time for orderly wind-down.",
+      "materiality_rationale": "If Customer misses the 60-day window by even one day, Customer is locked into an additional one-year term at then-current pricing (which may reflect increases under Section 3.5). In a mid-market deal with annual renewals, missing the notice window by a single day represents an unintended annual commitment and lost flexibility to move to an alternative provider.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.auto_renewal"
+      ],
+      "position": "30-day non-renewal notice period.",
+      "fallback": "45-day notice acceptable with a requirement that Lattice send a reminder notice to Customer at 90 days and again at 60 days prior to renewal.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "suggested_text": "unless either Party provides written notice of non-renewal to the other Party at least thirty (30) days prior to the end of the then-current Subscription Term"
+    },
+    {
+      "id": "termination-remedies-analyst-003",
+      "specialist": "termination-remedies-analyst",
+      "tier": 1,
+      "category": "dispute resolution",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "The arbitration will be conducted in San Francisco, California by a single arbitrator selected in accordance with such rules.",
+      "proposed_text": "The arbitration will be conducted in [Customer's home state or mutually agreed neutral location] by a single arbitrator selected in accordance with such rules.",
+      "external_comment": "Mandatory arbitration in San Francisco imposes travel and logistical costs on us for any dispute. A forum in our home state or a mutually agreed neutral location reduces these costs and ensures neither party has a home-field advantage.",
+      "materiality_rationale": "For a mid-market Customer, mandatory travel to San Francisco for arbitration imposes counsel travel costs, witness travel costs, and logistical friction that may run $10K–$50K+ depending on the complexity and duration of the dispute. In low-value disputes, these costs may exceed the amount in controversy, effectively stripping Customer of a meaningful remedy. The Profile explicitly requires arbitration in Customer's home state or mutually agreed neutral location.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.dispute_resolution"
+      ],
+      "position": "Arbitration conducted in Customer's home state.",
+      "fallback": "Arbitration conducted in a mutually agreed neutral location within the United States, or via virtual arbitration proceedings by mutual consent.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "suggested_text": "The arbitration will be conducted in [Customer's home state or mutually agreed neutral location] by a single arbitrator selected in accordance with such rules."
+    },
+    {
+      "id": "termination-remedies-analyst-004",
+      "specialist": "termination-remedies-analyst",
+      "tier": 1,
+      "category": "confidentiality",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of three (3) years thereafter, except that with respect to trade secrets such obligations will continue for as long as the information qualifies as a trade secret under applicable law.",
+      "proposed_text": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of five (5) years thereafter, except that with respect to trade secrets such obligations will continue for as long as the information qualifies as a trade secret under applicable law.",
+      "external_comment": "A three-year confidentiality tail is shorter than the typical lifecycle of competitive business information in the software industry. Five years is a more appropriate duration to protect confidential business strategies, product roadmaps, pricing models, and customer information disclosed during the relationship.",
+      "materiality_rationale": "Customer will disclose to Lattice confidential business information including integration requirements, internal workflows, user adoption data, and potentially pricing structures negotiated with other vendors. A three-year tail means this information becomes unprotected while it is still competitively sensitive and could be used by Lattice in competing for other customers or developing competing features. The Profile requires a minimum five-year tail for non-trade-secret confidential information.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.confidentiality"
+      ],
+      "position": "Five-year confidentiality tail for non-trade-secret Confidential Information.",
+      "fallback": "Four-year confidentiality tail, provided that pricing and financial information remains protected for five years.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "suggested_text": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of five (5) years thereafter, except that with respect to trade secrets such obligations will continue for as long as the information qualifies as a trade secret under applicable law."
+    },
+    {
+      "id": "protective-provisions-analyst-001",
+      "specialist": "protective-provisions-analyst",
+      "tier": 1,
+      "category": "Confidentiality duration",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of three (3) years thereafter",
+      "proposed_text": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of five (5) years thereafter",
+      "external_comment": "Three years is short relative to the typical lifecycle of competitive and operational information in SaaS relationships. Five years is more appropriate for information that retains competitive value.",
+      "materiality_rationale": "Customer's operational data, integration patterns, and business processes disclosed to Lattice retain competitive value beyond three years. A three-year tail exposes Customer to earlier-than-appropriate disclosure or use by Lattice in competitive contexts.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.confidentiality.position"
+      ],
+      "position": "Five (5) year survival period for confidentiality obligations relating to non-trade-secret Confidential Information.",
+      "fallback": "Four (4) years if Lattice objects to five.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (from Section 10.1)",
+      "suggested_text": "The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of five (5) years thereafter"
+    },
+    {
+      "id": "protective-provisions-analyst-002",
+      "specialist": "protective-provisions-analyst",
+      "tier": 1,
+      "category": "IP ownership — Customer-specific outputs and analytics",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "insert",
+      "source_text": null,
+      "proposed_text": "6.4 Customer-Specific Outputs. Notwithstanding Section 6.1, any reports, dashboards, configurations, analytics, or other outputs that are specifically developed for Customer or derived exclusively from Customer Data ('Customer-Specific Outputs') shall be jointly owned by the Parties. Each Party shall have the right to use Customer-Specific Outputs without restriction, provided that Lattice may not disclose Customer-Specific Outputs to third parties in a manner that identifies Customer or reveals Customer's Confidential Information without Customer's prior written consent.",
+      "external_comment": "The current IP allocation gives Lattice full ownership of all analytics and outputs, including those derived entirely from our operational data. We should retain ownership or at least joint ownership of intelligence and insights specific to our business.",
+      "materiality_rationale": "Customer-specific analytics, optimization recommendations, and operational intelligence derived from Customer Data represent competitive value to Customer. Under the current language, Lattice owns these outputs outright and could potentially use them to benefit Customer's competitors or in developing competing products. This misalignment creates concrete competitive exposure.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.ip.position"
+      ],
+      "position": "Customer owns or jointly owns all Customer-specific outputs, reports, and analytics derived from Customer Data.",
+      "fallback": "Lattice may use Customer-specific outputs internally and in aggregated/anonymized form, but may not disclose them to third parties in identifiable form or use them to directly benefit Customer's competitors.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (from Section 10.1)",
+      "suggested_text": "6.4 Customer-Specific Outputs. Notwithstanding Section 6.1, any reports, dashboards, configurations, analytics, or other outputs that are specifically developed for Customer or derived exclusively from Customer Data ('Customer-Specific Outputs') shall be jointly owned by the Parties. Each Party shall have the right to use Customer-Specific Outputs without restriction, provided that Lattice may not disclose Customer-Specific Outputs to third parties in a manner that identifies Customer or reveals Customer's Confidential Information without Customer's prior written consent."
+    },
+    {
+      "id": "insurance-coverage-analyst-001",
+      "specialist": "insurance-coverage-analyst",
+      "tier": 1,
+      "category": "additional_insured_status",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "insert",
+      "source_text": null,
+      "proposed_text": "Customer and its Affiliates shall be named as additional insureds on Lattice's errors and omissions / professional liability insurance policy with respect to claims arising out of Lattice's provision of the Subscription Services under this Agreement.",
+      "external_comment": "To ensure we have direct recourse under Lattice's E&O policy for covered claims, we request additional-insured status on the E&O policy. This is standard for SaaS engagements where the customer is exposed to provider errors in service delivery.",
+      "materiality_rationale": "Without additional-insured status, Customer must rely on Lattice's financial capacity to satisfy judgments or settlements in E&O claims. Additional-insured status gives Customer direct access to the $5M E&O policy limits, reducing collection risk and accelerating claim resolution. In a mid-market SaaS deal with operational data in scope, this is material protection.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.insurance.position"
+      ],
+      "position": "Customer named as additional insured on Lattice's E&O/cyber policy for claims arising from Lattice's services under this Agreement.",
+      "fallback": "Customer named as additional insured on E&O policy for claims arising solely from Lattice's negligence in provision of Subscription Services.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (governing law per Section 10.1); additional-insured endorsements are governed by insurance policy terms and do not vary materially by U.S. jurisdiction for commercial E&O policies.",
+      "suggested_text": "Customer and its Affiliates shall be named as additional insureds on Lattice's errors and omissions / professional liability insurance policy with respect to claims arising out of Lattice's provision of the Subscription Services under this Agreement."
+    },
+    {
+      "id": "commercial-terms-analyst-004",
+      "specialist": "commercial-terms-analyst",
+      "tier": 2,
+      "category": "price_escalation",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "Lattice may increase the Fees applicable to a Renewal Term by providing Customer with written notice (which may be by email) at least sixty (60) days prior to the end of the then-current Subscription Term. Any such increase will take effect at the start of the next Renewal Term.",
+      "proposed_text": "Lattice may increase the Fees applicable to a Renewal Term by an amount not to exceed the greater of (a) five percent (5%) annually or (b) the percentage increase in the Consumer Price Index for All Urban Consumers (CPI-U) published by the U.S. Bureau of Labor Statistics for the twelve-month period ending on the date sixty (60) days prior to the end of the then-current Subscription Term, by providing Customer with written notice (which may be by email) at least sixty (60) days prior to the end of the then-current Subscription Term. Any such increase will take effect at the start of the next Renewal Term.",
+      "external_comment": "We propose capping annual price increases at the greater of 5% or CPI-U, which is consistent with inflationary adjustments while protecting us against outsized increases that are unmoored from cost inflation. This provides predictability for multi-year budget planning.",
+      "materiality_rationale": "As drafted, Lattice has unlimited unilateral pricing authority at each renewal. On a multi-year evergreen subscription with automatic renewals, uncapped escalation exposes Customer to unpredictable budget impacts and eliminates any long-term pricing visibility. A 5%-or-CPI cap preserves Lattice's ability to adjust for inflation while limiting Customer's downside risk to a level that can be absorbed in normal budget cycles.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Cap at the greater of 5% annually or CPI-U.",
+      "fallback": "Cap at the greater of 7% annually or CPI-U; or, allow uncapped increases but extend notice period to 90 days and allow Customer to terminate for convenience upon receipt of notice if increase exceeds 10%.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (assumed from choice-of-law clause in §10.1)",
+      "suggested_text": "Lattice may increase the Fees applicable to a Renewal Term by an amount not to exceed the greater of (a) five percent (5%) annually or (b) the percentage increase in the Consumer Price Index for All Urban Consumers (CPI-U) published by the U.S. Bureau of Labor Statistics for the twelve-month period ending on the date sixty (60) days prior to the end of the then-current Subscription Term, by providing Customer with written notice (which may be by email) at least sixty (60) days prior to the end of the then-current Subscription Term. Any such increase will take effect at the start of the next Renewal Term."
+    },
+    {
+      "id": "commercial-terms-analyst-005",
+      "specialist": "commercial-terms-analyst",
+      "tier": 2,
+      "category": "suspension_for_nonpayment",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "If any amount owing by Customer is more than thirty (30) days overdue, Lattice may, without limiting its other rights and remedies, suspend Customer's access to the Subscription Services until such amounts are paid in full. Lattice will provide Customer with at least ten (10) days' prior notice that Customer's account is overdue before suspending the Subscription Services.",
+      "proposed_text": "If any undisputed amount owing by Customer is more than thirty (30) days overdue, Lattice may, without limiting its other rights and remedies, suspend Customer's access to the Subscription Services until such amounts are paid in full, provided that (a) Lattice provides Customer with at least fifteen (15) days' prior written notice that Customer's account is overdue, and (b) such suspension right does not apply if Customer is diligently contesting the invoice in good faith in accordance with Section 3.6.",
+      "external_comment": "We propose clarifying that suspension applies only to undisputed amounts and that suspension is not available where we are contesting charges in good faith. We also request a 15-day cure notice to ensure sufficient time for internal escalation and payment processing. This protects operational continuity while preserving Lattice's collection remedies on legitimately overdue amounts.",
+      "materiality_rationale": "As drafted, Lattice may suspend for any overdue amount, including disputed amounts, after only 10 days' notice. This creates operational risk: if Customer disputes a portion of an invoice in good faith, Lattice can cut off access to business-critical services before the dispute is resolved. A 15-day notice period and exclusion for good-faith disputes reduces the risk of unintended service interruption while still incentivizing timely payment of undisputed amounts.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Suspension only for undisputed amounts; 15-day written notice; no suspension where Customer is contesting in good faith per dispute mechanics.",
+      "fallback": "Suspension only for undisputed amounts; 10-day notice acceptable if coupled with dispute-withholding provision.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (assumed from choice-of-law clause in §10.1)",
+      "suggested_text": "If any undisputed amount owing by Customer is more than thirty (30) days overdue, Lattice may, without limiting its other rights and remedies, suspend Customer's access to the Subscription Services until such amounts are paid in full, provided that (a) Lattice provides Customer with at least fifteen (15) days' prior written notice that Customer's account is overdue, and (b) such suspension right does not apply if Customer is diligently contesting the invoice in good faith in accordance with Section 3.6."
+    },
+    {
+      "id": "performance-obligations-analyst-003",
+      "specialist": "performance-obligations-analyst",
+      "tier": 2,
+      "category": "Asymmetric cure period for breach",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "Lattice may terminate this Agreement or any Order Form upon written notice to Customer if Customer materially breaches this Agreement and fails to cure such breach within thirty (30) days after receipt of written notice describing the breach in reasonable detail. Customer may terminate this Agreement or any Order Form upon written notice to Lattice if Lattice materially breaches this Agreement and fails to cure such breach within sixty (60) days after receipt of written notice describing the breach in reasonable detail.",
+      "proposed_text": "Either Party may terminate this Agreement or any Order Form upon written notice to the other Party if such other Party materially breaches this Agreement and fails to cure such breach within thirty (30) days after receipt of written notice describing the breach in reasonable detail.",
+      "external_comment": "Section 4.3 grants Lattice a 30-day cure period but requires us to wait 60 days before terminating for Lattice's breach. Symmetric cure periods are standard in commercial agreements of this type and ensure parity in remedies. We propose equalizing the cure period at 30 days for both Parties.",
+      "materiality_rationale": "The asymmetric cure period favors Lattice and limits Customer's ability to terminate for Lattice's breach. If Lattice suffers a Security Incident and fails to remediate within 30 days, Customer must wait an additional 30 days (60 total) before terminating, during which period the Security Incident may continue to expose Customer Data. In contrast, Lattice can terminate for Customer's payment breach after only 30 days. This imbalance creates real exposure in time-sensitive breach scenarios such as data security failures or sustained SLA failures.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Equalize cure period at 30 days for both Parties.",
+      "fallback": "Equalize cure period at 45 days for both Parties.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (per Section 10.1).",
+      "suggested_text": "Either Party may terminate this Agreement or any Order Form upon written notice to the other Party if such other Party materially breaches this Agreement and fails to cure such breach within thirty (30) days after receipt of written notice describing the breach in reasonable detail."
+    },
+    {
+      "id": "protective-provisions-analyst-003",
+      "specialist": "protective-provisions-analyst",
+      "tier": 2,
+      "category": "IP ownership — Professional Services deliverables",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "insert",
+      "source_text": null,
+      "proposed_text": "2.5(a) Deliverables Ownership. Any deliverables, configurations, customizations, or work product created specifically for Customer pursuant to a Statement of Work ('Deliverables') shall be owned by Customer upon full payment of the applicable Fees. Lattice retains ownership of its pre-existing materials, methodologies, and tools, and Customer receives a perpetual, irrevocable license to use such pre-existing materials to the extent incorporated in the Deliverables.",
+      "external_comment": "Section 2.5 does not specify ownership of Professional Services deliverables. We should own work product created specifically for us and paid for separately, while Lattice retains its pre-existing IP.",
+      "materiality_rationale": "Customer pays separately for Professional Services that create custom configurations, integrations, or implementations specific to Customer's environment. Under the current silence combined with Section 6.1's broad sweep, Lattice could claim ownership of all such work product. This creates uncertainty about Customer's rights to use, modify, or migrate deliverables it has paid to create.",
+      "playbook_fit": "applies",
+      "profile_refs": [],
+      "position": "Customer owns deliverables created and paid for under SOWs; Lattice retains pre-existing materials and receives ability to reuse methodologies.",
+      "fallback": "Joint ownership of deliverables with each party having unrestricted use rights; Lattice may reuse in anonymized/generalized form.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (from Section 10.1)",
+      "suggested_text": "2.5(a) Deliverables Ownership. Any deliverables, configurations, customizations, or work product created specifically for Customer pursuant to a Statement of Work ('Deliverables') shall be owned by Customer upon full payment of the applicable Fees. Lattice retains ownership of its pre-existing materials, methodologies, and tools, and Customer receives a perpetual, irrevocable license to use such pre-existing materials to the extent incorporated in the Deliverables."
+    },
+    {
+      "id": "termination-remedies-analyst-005",
+      "specialist": "termination-remedies-analyst",
+      "tier": 2,
+      "category": "termination for breach",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "insert",
+      "source_text": null,
+      "proposed_text": "For purposes of Section 4.3, a 'material breach' means a breach that substantially impairs the value of this Agreement to the non-breaching Party. Without limiting the foregoing, the following shall be deemed material breaches: (a) any breach of Section 2.2 (Restrictions) or Section 7 (Confidentiality) by Customer; (b) any failure by Lattice to provide the Subscription Services in substantial conformance with the service-level commitments in Exhibit A for three (3) consecutive months; (c) any Security Incident that results in unauthorized access to or loss of Customer Data affecting more than 1,000 records; or (d) non-payment of undisputed Fees by Customer for more than thirty (30) days past due.",
+      "external_comment": "The Agreement uses the term 'materially breaches' in Section 4.3 without defining 'material.' Adding a definition with illustrative examples provides both parties with clarity on what constitutes a termination-level breach, reducing the risk of disputes over whether a breach is sufficiently material to warrant termination.",
+      "materiality_rationale": "Without a definition of 'material breach,' the parties face uncertainty and potential dispute over whether a given breach is sufficient to trigger termination rights. This ambiguity creates risk for both parties: Customer may be unable to terminate for a serious Lattice failure if Lattice argues it is not 'material,' and Lattice may face customer claims that minor infractions justify termination. The examples provided anchor the definition to objectively verifiable events that align with industry practice.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Insert a definition of 'material breach' with illustrative examples tied to objective thresholds.",
+      "fallback": null,
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "suggested_text": "For purposes of Section 4.3, a 'material breach' means a breach that substantially impairs the value of this Agreement to the non-breaching Party. Without limiting the foregoing, the following shall be deemed material breaches: (a) any breach of Section 2.2 (Restrictions) or Section 7 (Confidentiality) by Customer; (b) any failure by Lattice to provide the Subscription Services in substantial conformance with the service-level commitments in Exhibit A for three (3) consecutive months; (c) any Security Incident that results in unauthorized access to or loss of Customer Data affecting more than 1,000 records; or (d) non-payment of undisputed Fees by Customer for more than thirty (30) days past due."
+    },
+    {
+      "id": "performance-obligations-analyst-001",
+      "specialist": "performance-obligations-analyst",
+      "tier": 2,
+      "category": "SLA sole-remedy vs. liability cap contradiction",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "Lattice's sole obligations and Customer's sole and exclusive remedies for failures to meet such service-level commitments are the service credits described in Exhibit A.",
+      "proposed_text": "Customer's remedies for failures to meet the service-level commitments set forth in Exhibit A include the service credits described in Exhibit A. If Lattice fails to meet the applicable service-level commitment for three (3) consecutive months, Customer may, as its additional remedy, terminate the affected Subscription Services in accordance with Section 4.3 without liability for any Fees that would otherwise be due for the remainder of the then-current Subscription Term.",
+      "external_comment": "The current framing makes SLA credits the sole remedy for all SLA failures, which conflicts with the liability cap and eliminates termination rights for repeated failures. We propose clarifying that credits are the primary remedy, with termination available for sustained breaches.",
+      "materiality_rationale": "As written, if Lattice provides inadequate uptime for six months, Customer's only remedy is capped service credits potentially worth far less than the 12-month liability cap, and Customer cannot terminate without paying the balance of the Subscription Term. This eliminates Customer's bargained-for remedies and creates an internal contractual contradiction between Sections 2.3 and 8.6.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Delete sole-remedy language; clarify that SLA credits are available in addition to Customer's other remedies under the Agreement, including termination for material breach. Add express right to terminate without further payment obligation if SLA failures persist for three consecutive months.",
+      "fallback": "Retain sole-remedy framing for individual SLA failures, but add exception: if Lattice fails to meet the SLA for three consecutive months, Customer may terminate the affected Subscription Services and receive a pro-rata refund of prepaid Fees for the period after termination.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (per Section 10.1).",
+      "suggested_text": "Customer's remedies for failures to meet the service-level commitments set forth in Exhibit A include the service credits described in Exhibit A. If Lattice fails to meet the applicable service-level commitment for three (3) consecutive months, Customer may, as its additional remedy, terminate the affected Subscription Services in accordance with Section 4.3 without liability for any Fees that would otherwise be due for the remainder of the then-current Subscription Term."
+    },
+    {
+      "id": "coherence-checker-001",
+      "specialist": "coherence-checker",
+      "tier": 2,
+      "category": "coherence",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "annotate",
+      "source_text": "Section 4.4(b): 'if Customer terminates this Agreement other than for Lattice's uncured material breach pursuant to Section 4.3, Customer shall pay all Fees that would have been payable for the remainder of the then-current Subscription Term'",
+      "proposed_text": null,
+      "external_comment": "The accepted finding termination-remedies-analyst-003 proposes changing the arbitration venue from San Francisco to Customer's home state or mutually agreed neutral location. However, Section 4.4(b) creates a financial disincentive for Customer to pursue termination even when Lattice commits a material breach: if Customer terminates for Lattice's breach under Section 4.3 (with the newly proposed symmetric 30-day cure period from termination-remedies-analyst-002), Customer avoids paying the balance of the term — but if Lattice refuses to cure and the dispute goes to arbitration, the forum clause now favors Customer. This is internally consistent. However, we flag that the early-termination payment obligation in 4.4(b) should be reviewed to ensure it does not inadvertently create a walkaway cost that undermines the improved termination-for-breach mechanics. Specifically: if Customer must pay Fees through end of term when terminating other than for Lattice's uncured breach, but Lattice disputes whether its breach was 'material' or whether it was 'cured,' Customer faces litigation risk on the characterization before knowing whether it owes the balance. Consider adding: 'For avoidance of doubt, if a Party terminates pursuant to Section 4.3 and the other Party disputes whether the breach was material or uncured, the terminating Party's payment obligations under this Section 4.4(b) shall be stayed pending resolution of the dispute, and if the terminating Party prevails in establishing that termination was proper under Section 4.3, no Fees for the post-termination period shall be owed.'",
+      "materiality_rationale": "The accepted termination-for-breach finding (termination-remedies-analyst-002) equalizes cure periods at 30 days, strengthening Customer's termination rights. But Section 4.4(b) creates an economic disincentive that could deter Customer from exercising those rights: even if Lattice commits a material breach (e.g., sustained SLA failure, Security Incident, failure to meet SOC 2 obligations), Customer must make a bet on whether Lattice's breach will be deemed 'material' and 'uncured' in arbitration before terminating. If Customer guesses wrong, it owes the full balance of the term. This payment obligation undermines the improved termination mechanics and creates concrete economic exposure in any borderline-materiality breach scenario. The proposed clarification ensures that the early-termination payment is stayed during dispute resolution, eliminating the chilling effect on Customer's exercise of its termination right.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Add clarifying language to Section 4.4(b) stating that if a Party terminates under Section 4.3 and the other Party disputes the termination, the terminating Party's obligation to pay Fees for the remainder of the term is stayed pending resolution of the dispute. If the terminating Party prevails, no post-termination Fees are owed.",
+      "fallback": "Add language requiring the disputing Party to post a bond or place disputed Fees in escrow during the dispute resolution process.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "coherence_with": [
+        "termination-remedies-analyst-002"
+      ]
+    },
+    {
+      "id": "coherence-checker-002",
+      "specialist": "coherence-checker",
+      "tier": 2,
+      "category": "coherence",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "annotate",
+      "source_text": "Section 2.3: 'Lattice's sole obligations and Customer's sole and exclusive remedies for failures to meet such service-level commitments are the service credits described in Exhibit A. Service credits do not constitute liquidated damages or limit Lattice's rights under this Agreement, and Customer's sole remedy in the event of repeated failures shall be the right to terminate the affected Subscription Service in accordance with Section 4.3.'",
+      "proposed_text": null,
+      "external_comment": "The accepted finding performance-obligations-analyst-001 proposes amending Section 2.3 to delete the sole-remedy language and add an express right to terminate without further payment obligation if SLA failures persist for three consecutive months. However, the existing Section 2.3 already states that 'Customer's sole remedy in the event of repeated failures shall be the right to terminate the affected Subscription Service in accordance with Section 4.3.' This creates internal tension: the existing language says termination under Section 4.3 is the remedy for repeated SLA failures, but Section 4.3 requires a 60-day cure period (or 30 days if termination-remedies-analyst-002 is accepted) and would trigger the early-termination payment obligation in Section 4.4(b) unless Lattice's SLA failure is deemed a 'material breach' that Lattice failed to cure. The accepted finding correctly identifies that SLA credits are inadequate as the sole remedy for sustained failures, but the proposed edit should also clarify how it interacts with the existing 'terminate in accordance with Section 4.3' language in Section 2.3. Recommend: replace the existing Section 2.3 termination language with the new three-consecutive-month termination right, and clarify that such termination does NOT require compliance with Section 4.3's cure-period mechanics and does NOT trigger Section 4.4(b)'s early-termination payment obligation.",
+      "materiality_rationale": "The existing Section 2.3 says Customer can terminate for repeated SLA failures 'in accordance with Section 4.3,' which imposes a cure period and potentially the early-termination payment. The accepted finding performance-obligations-analyst-001 proposes a cleaner termination right (three consecutive months of SLA failure = terminate without further payment), but does not explicitly supersede the existing 'in accordance with Section 4.3' language. This creates interpretive ambiguity: does the three-month termination right operate independently of Section 4.3, or must Customer still give Lattice a cure notice under 4.3? If the latter, Lattice could argue that the three-month SLA failure triggers a cure period, during which Lattice has additional time to remediate before termination becomes effective — negating the intent of the proposed amendment. The coherence issue is that two termination paths for SLA failure now exist in the contract with unclear interaction. Clarifying language is needed to establish that the three-consecutive-month SLA termination right in Section 2.3 is independent of Section 4.3 and does not trigger Section 4.4(b)'s payment obligation.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Clarify in the amended Section 2.3 that the three-consecutive-month SLA termination right operates independently of Section 4.3's cure-period requirements and does not trigger Section 4.4(b)'s obligation to pay Fees for the remainder of the term.",
+      "fallback": "Clarify that the three-month SLA termination right is 'in addition to' (not 'in accordance with') Section 4.3, and that termination under this provision is deemed termination for Lattice's material breach for purposes of Section 4.4(b).",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "coherence_with": [
+        "performance-obligations-analyst-001",
+        "termination-remedies-analyst-002"
+      ]
+    },
+    {
+      "id": "coherence-checker-003",
+      "specialist": "coherence-checker",
+      "tier": 2,
+      "category": "coherence",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "annotate",
+      "source_text": "Section 5.3: 'Lattice will notify Customer in writing without undue delay, and in any event within seventy-two (72) hours, after becoming aware of any unauthorized access to or acquisition of Customer Data' + Section 9.1: 'Lattice may engage third parties to perform any of its obligations under this Agreement, including without limitation hosting, content delivery, support, and processing of Customer Data. Lattice will remain responsible for the performance of any such subcontractors'",
+      "proposed_text": null,
+      "external_comment": "The accepted finding critical-issues-auditor-002 proposes amending Section 9.1 to require advance notice and approval for subcontractors processing Customer Data, with mandatory flowdown of Sections 5 and 7. This is correct and necessary. However, Section 5.3's 72-hour breach notification obligation does not explicitly state that Lattice must notify Customer of Security Incidents caused by or discovered by subcontractors within the same 72-hour window. As drafted, if a subcontractor suffers a breach and delays reporting it to Lattice, the 72-hour clock may not start until Lattice 'becomes aware' — but Lattice's awareness is now one step removed from the breach. The amended Section 9.1 should clarify that for purposes of Section 5.3, Lattice is deemed to 'become aware' of a Security Incident at the same time any subcontractor processing Customer Data becomes aware, such that the 72-hour notification clock starts when the subcontractor knows (not when Lattice knows). This ensures the notification obligation is not diluted by the subcontracting chain.",
+      "materiality_rationale": "Subcontractors processing Customer Data create supply-chain notification risk. If a subcontractor discovers a breach on Day 0 but delays reporting to Lattice until Day 5, and Lattice then notifies Customer 72 hours later (Day 8), Customer receives notification 8 days after the breach — well beyond regulatory safe-harbor windows in many U.S. state breach-notification laws. The accepted subcontracting amendment requires flowdown of Section 5 obligations, but does not explicitly address the 'becomes aware' trigger in Section 5.3. Clarifying that Lattice is deemed aware when any subcontractor becomes aware ensures the 72-hour clock is not gamed by delayed internal reporting within Lattice's supply chain.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Amend Section 5.3 or the proposed Section 9.1 amendment to clarify that for purposes of the 72-hour notification requirement, Lattice is deemed to 'become aware' of a Security Incident at the time any subcontractor processing Customer Data becomes aware of the incident.",
+      "fallback": "Require subcontractors to notify Lattice within 24 hours of becoming aware of a Security Incident, and require Lattice to notify Customer within 48 hours of receiving such notice from a subcontractor (net 72-hour maximum from subcontractor awareness to Customer notification).",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1); U.S. state breach-notification laws impose strict timelines regardless of contractual notification chains.",
+      "coherence_with": [
+        "critical-issues-auditor-002"
+      ]
+    }
+  ],
+  "rejected_findings": [
+    {
+      "id": "commercial-terms-analyst-003",
+      "specialist": "commercial-terms-analyst",
+      "rejection_reason": "DEDUPLICATION: Overlaps with commercial-terms-analyst-005 (suspension for nonpayment) which addresses the same downstream risk. The disputed-invoices finding proposes adding Section 3.6; the suspension finding proposes amending Section 3.4 to reference Section 3.6 and clarify that suspension applies only to undisputed amounts. Both are valid but the suspension finding is more directly material because it addresses the immediate operational risk (service cutoff), while the disputed-invoices mechanics are a supporting procedural element. Retaining commercial-terms-analyst-005 as the primary finding; the disputed-invoices mechanics can be incorporated into that negotiation."
+    },
+    {
+      "id": "commercial-terms-analyst-006",
+      "specialist": "commercial-terms-analyst",
+      "rejection_reason": "PROPORTIONALITY: The materiality_rationale reduces to limiting collection costs to 'actual litigation expense' where Lattice prevails, which is an incremental refinement of standard collection-cost language. The three-question gate is not satisfied: (1) Is this creating concrete exposure? The exposure is limited to pre-litigation collection costs, which are typically modest and do not rise to the level of material contract risk in a mid-market SaaS deal. (2) Does it interact with other clauses to create compounding risk? No compounding effect identified. (3) Does it violate a Profile deal-breaker or mandatory position? No. This is a Tier-2 minor-severity finding that refines a standard commercial term without addressing a material gap or Profile-mandated position. DROPPED."
+    },
+    {
+      "id": "insurance-coverage-analyst-002",
+      "specialist": "insurance-coverage-analyst",
+      "rejection_reason": "PROPORTIONALITY: The finding correctly notes that CGL at $2M per occurrence is above market for a pure SaaS engagement with negligible premises/product risk, but the materiality_rationale acknowledges this is 'not a deal-breaker' and 'correctable without weakening Customer's protection.' The three-question gate is not satisfied: (1) Is this creating concrete exposure for Customer? No — Customer's protection comes from the $5M E&O/cyber coverage, not CGL. The CGL requirement imposes incremental cost on Lattice but does not reduce Customer's recovery in any likely claim scenario. (2) Does it interact with other clauses to create compounding risk? No. (3) Does it violate a Profile deal-breaker or mandatory position? No — the Profile requires $5M E&O/cyber (present) and does not mandate specific CGL limits. This is a cost-allocation nit-pick, not a material risk issue. DROPPED."
+    },
+    {
+      "id": "insurance-coverage-analyst-003",
+      "specialist": "insurance-coverage-analyst",
+      "tier": 2,
+      "rejection_reason": "PROPORTIONALITY: The waiver-of-subrogation finding is valid in principle but fails the three-question gate on materiality. (1) Is this creating concrete exposure? The scenario requires (a) a claim where Lattice's insurer pays out, (b) Customer's conduct contributed to the loss, and (c) the insurer pursues subrogation against Customer. This is a low-probability tail risk. (2) Does it interact with other clauses to create compounding risk? No compounding effect identified. (3) Does it violate a Profile deal-breaker or mandatory position? No — the Profile does not require waivers of subrogation. The finding is a Tier-2 moderate-severity item addressing a speculative tail risk. In a low-leverage negotiation posture, this does not meet the proportionality threshold. DROPPED."
+    },
+    {
+      "id": "insurance-coverage-analyst-004",
+      "specialist": "insurance-coverage-analyst",
+      "tier": 2,
+      "rejection_reason": "PROPORTIONALITY: The 30-day notice-of-cancellation provision is a standard risk-management practice but does not create concrete exposure in its absence. (1) Is this creating concrete exposure? If Lattice's coverage lapses without notice, Customer is exposed to uninsured risk during the gap period, but the contract already requires Lattice to maintain coverage continuously (Section 9.2) and Customer has annual certificate-request rights. The notice provision adds early-warning visibility but does not change the underlying obligation. (2) Does it interact with other clauses to create compounding risk? No. (3) Does it violate a Profile deal-breaker or mandatory position? No. This is a Tier-2 minor-severity administrative refinement. DROPPED."
+    },
+    {
+      "id": "critical-issues-auditor-001",
+      "specialist": "critical-issues-auditor",
+      "tier": 1,
+      "category": "cross_section_hazard",
+      "severity": "blocker",
+      "existential": true,
+      "markup_type": "replace",
+      "source_text": "Section 8.6 LIABILITY CAP: 'IN NO EVENT WILL EITHER PARTY'S TOTAL CUMULATIVE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT EXCEED THE FEES PAID OR PAYABLE BY CUSTOMER TO LATTICE UNDER THE APPLICABLE ORDER FORM IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE LIABILITY. THE LIABILITY CAP SET FORTH IN THIS SECTION 8.6 SHALL APPLY IN AGGREGATE TO ALL CAUSES OF ACTION (WHETHER IN CONTRACT, TORT, OR OTHERWISE), ALL THEORIES OF LIABILITY, AND ALL ORDER FORMS UNDER THIS AGREEMENT...' + CARVE-OUT '(B) A PARTY'S BREACH OF SECTION 7 (CONFIDENTIALITY)' + Section 5.3 SECURITY INCIDENT NOTIFICATION: 72-hour notification requirement + Section 5.2 SOC 2 REQUIREMENT + NO DATA BREACH LIABILITY CARVE-OUT OR SUPERCAP IN SECTION 8.6",
+      "proposed_text": "Amend Section 8.6 to add the following carve-out: '(d) LATTICE'S LIABILITY FOR SECURITY INCIDENTS RESULTING IN UNAUTHORIZED ACCESS TO, ACQUISITION OF, OR LOSS OF CUSTOMER DATA CONTAINING PERSONAL INFORMATION, WHICH SHALL BE SUBJECT TO A SUPERCAP OF THE GREATER OF (I) THREE TIMES (3X) THE FEES PAID OR PAYABLE BY CUSTOMER TO LATTICE UNDER THE APPLICABLE ORDER FORM IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE SECURITY INCIDENT, OR (II) THE LIMITS OF LATTICE'S ERRORS AND OMISSIONS / CYBER LIABILITY INSURANCE COVERAGE REQUIRED UNDER SECTION 9.2(B).'",
+      "external_comment": "The Agreement requires SOC 2 Type II compliance and 72-hour breach notification, signaling that data security is a material term of the bargain. However, the liability cap applies to data breaches at 1x fees paid, creating a critical mismatch between the contractual data-security obligations and the economic remedy for failure. We need a supercap of 3x fees paid or insurance coverage limits for Security Incidents involving personal information, consistent with market practice for data-handling SaaS relationships. This protects both parties: it provides us with meaningful recourse for breach notification costs, regulatory exposure, and customer notification expenses that could far exceed annual subscription fees, while giving you a predictable ceiling tied to your insurance coverage.",
+      "materiality_rationale": "Customer likely handles operational data from its own customers, creating downstream liability exposure. If a Lattice-caused data breach triggers Customer's notification obligations to downstream customers and regulators, Customer's costs could easily exceed 1x annual fees by an order of magnitude. The Profile explicitly requires data breach carve-outs at 3x fees or insurance limits. Without this, the data-security promises in Sections 5.2 and 5.3 are economically unenforceable.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.liability_cap.position",
+        "playbook.liability_cap.carve_outs_required",
+        "deal_breakers"
+      ],
+      "position": "Data breach liability must be either uncapped or subject to a supercap of 3x fees paid in prior 12 months or the limits of Lattice's E&O/cyber insurance (currently $5M per Section 9.2(b)), whichever is greater.",
+      "fallback": "Supercap at 2x fees paid in prior 12 months, with Customer retaining right to audit Lattice's insurance coverage annually and require increase if Customer Data volume or sensitivity materially increases during the term.",
+      "walkaway": "If Lattice refuses any supercap or carve-out for data breach and insists on symmetric 1x-fees cap for all claims including Security Incidents, Customer should walk.",
+      "jurisdiction_assumed": "Delaware (per Section 10.1).",
+      "suggested_text": "Amend Section 8.6 to add the following carve-out: '(d) LATTICE'S LIABILITY FOR SECURITY INCIDENTS RESULTING IN UNAUTHORIZED ACCESS TO, ACQUISITION OF, OR LOSS OF CUSTOMER DATA CONTAINING PERSONAL INFORMATION, WHICH SHALL BE SUBJECT TO A SUPERCAP OF THE GREATER OF (I) THREE TIMES (3X) THE FEES PAID OR PAYABLE BY CUSTOMER TO LATTICE UNDER THE APPLICABLE ORDER FORM IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE SECURITY INCIDENT, OR (II) THE LIMITS OF LATTICE'S ERRORS AND OMISSIONS / CYBER LIABILITY INSURANCE COVERAGE REQUIRED UNDER SECTION 9.2(B).'",
+      "rejection_reason": "LLM escalation: edit moves contract against client in role.",
+      "rejection_rule": "llm_escalation",
+      "rejection_source": "llm"
+    },
+    {
+      "id": "commercial-terms-analyst-001",
+      "specialist": "commercial-terms-analyst",
+      "tier": 1,
+      "category": "payment_terms",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "replace",
+      "source_text": "All invoices are payable in U.S. dollars and are due net sixty (60) days from the date of invoice.",
+      "proposed_text": "All invoices are payable in U.S. dollars and are due net thirty (30) days from the date of invoice.",
+      "external_comment": "We'd like to align payment terms to Net-30, which is consistent with our standard AP cycle and market practice for SaaS subscriptions at this transaction size.",
+      "materiality_rationale": "Net-60 extends working-capital exposure by 30 days beyond Customer's standard AP cycle, creating internal process friction and increasing float cost on annual advance invoices. On a mid-market SaaS subscription invoiced annually in advance, the incremental float represents a measurable percentage of contract value.",
+      "playbook_fit": "applies_with_modification",
+      "profile_refs": [
+        "playbook.payment_terms.position",
+        "playbook.payment_terms.fallback"
+      ],
+      "position": "Net-30 from receipt of invoice.",
+      "fallback": "Net-45 from receipt of invoice, acceptable if vendor demonstrates this is critical to their cash-flow model or if the subscription is mission-critical and unavailable on standard terms elsewhere.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (assumed from choice-of-law clause in §10.1)",
+      "suggested_text": "All invoices are payable in U.S. dollars and are due net thirty (30) days from the date of invoice.",
+      "rejection_reason": "Proposed Net 30 shortens payment timing from Net 60; Customer-side reviews must not decrease Net-term days.",
+      "rejection_rule": "commercial-net-term-direction",
+      "rejection_source": "deterministic"
+    }
+  ],
+  "auditor_findings": [
+    {
+      "id": "critical-issues-auditor-001",
+      "specialist": "critical-issues-auditor",
+      "tier": 1,
+      "category": "cross_section_hazard",
+      "severity": "blocker",
+      "existential": true,
+      "markup_type": "replace",
+      "source_text": "Section 8.6 LIABILITY CAP: 'IN NO EVENT WILL EITHER PARTY'S TOTAL CUMULATIVE LIABILITY ARISING OUT OF OR RELATED TO THIS AGREEMENT EXCEED THE FEES PAID OR PAYABLE BY CUSTOMER TO LATTICE UNDER THE APPLICABLE ORDER FORM IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE LIABILITY. THE LIABILITY CAP SET FORTH IN THIS SECTION 8.6 SHALL APPLY IN AGGREGATE TO ALL CAUSES OF ACTION (WHETHER IN CONTRACT, TORT, OR OTHERWISE), ALL THEORIES OF LIABILITY, AND ALL ORDER FORMS UNDER THIS AGREEMENT...' + CARVE-OUT '(B) A PARTY'S BREACH OF SECTION 7 (CONFIDENTIALITY)' + Section 5.3 SECURITY INCIDENT NOTIFICATION: 72-hour notification requirement + Section 5.2 SOC 2 REQUIREMENT + NO DATA BREACH LIABILITY CARVE-OUT OR SUPERCAP IN SECTION 8.6",
+      "proposed_text": "Amend Section 8.6 to add the following carve-out: '(d) LATTICE'S LIABILITY FOR SECURITY INCIDENTS RESULTING IN UNAUTHORIZED ACCESS TO, ACQUISITION OF, OR LOSS OF CUSTOMER DATA CONTAINING PERSONAL INFORMATION, WHICH SHALL BE SUBJECT TO A SUPERCAP OF THE GREATER OF (I) THREE TIMES (3X) THE FEES PAID OR PAYABLE BY CUSTOMER TO LATTICE UNDER THE APPLICABLE ORDER FORM IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE SECURITY INCIDENT, OR (II) THE LIMITS OF LATTICE'S ERRORS AND OMISSIONS / CYBER LIABILITY INSURANCE COVERAGE REQUIRED UNDER SECTION 9.2(B).'",
+      "external_comment": "The current liability framework creates a critical gap: Section 5.3 imposes a 72-hour breach notification obligation and Section 5.2 requires SOC 2 Type II compliance, signaling that data security is a material term of the bargain. However, Section 8.6's liability cap at 1x fees paid applies to data breaches because they are not carved out. The only carve-out for data-related exposure is confidentiality breach under Section 7, but that provision does not explicitly address Security Incidents as defined in Section 5.3. This creates a material mismatch: Lattice's contractual data-security obligations are treated as high-priority (72-hour notice, SOC 2), but the economic consequence of failure is capped at 1x fees — far below the potential exposure Customer faces in breach notification costs, regulatory penalties, customer notification, credit monitoring, and reputational harm. For context, Customer is in software/SaaS and therefore likely handles operational data from its own customers, creating downstream liability. The Profile explicitly requires 'Data breach involving personal data (supercap of 3x or insurance coverage limits)' as a mandatory carve-out. This is existential because the capped liability for a material data breach could leave Customer financially exposed to third-party claims, regulatory action, and remediation costs that dwarf the 1x fees recovery, effectively negating the data-security promises in Sections 5.2 and 5.3.",
+      "materiality_rationale": "The liability-cap and data-security-obligations specialists each correctly analyzed their domains in isolation: the liability-cap specialist would note the 1x cap and confidentiality carve-out but has no instruction to cross-reference data-breach obligations, and the data-security specialist (not run in this pipeline per the findings provided) would focus on breach-notification timelines and SOC 2. Neither would structurally catch that the economic remedy for data breach is capped at 1x fees while the operational obligations (72-hour notice, SOC 2) signal high materiality. The Profile's playbook.liability_cap.carve_outs_required explicitly lists 'Data breach involving personal data (supercap of 3x or insurance coverage limits)' — this is a Profile-mandated position, and the contract as written violates it. The contract imposes symmetric 1x-fees caps on both parties per Section 8.6, but the risk profile is asymmetric: Lattice holds Customer Data (potentially including personal information) and has unilateral control over security posture, while Customer has no comparable exposure. The specialists would not catch this because it requires seeing (a) the liability cap, (b) the data-breach obligations, (c) the insurance limits, and (d) the Profile's mandatory carve-out position simultaneously. This is existential under the Profile's own deal-breakers, which include 'No data-breach notification timeline' — here, the timeline exists but is economically unenforceable due to the cap structure.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.liability_cap.position",
+        "playbook.liability_cap.carve_outs_required",
+        "deal_breakers"
+      ],
+      "position": "Data breach liability must be either uncapped or subject to a supercap of 3x fees paid in prior 12 months or the limits of Lattice's E&O/cyber insurance (currently $5M per Section 9.2(b)), whichever is greater.",
+      "fallback": "Supercap at 2x fees paid in prior 12 months, with Customer retaining right to audit Lattice's insurance coverage annually and require increase if Customer Data volume or sensitivity materially increases during the term.",
+      "walkaway": "If Lattice refuses any supercap or carve-out for data breach and insists on symmetric 1x-fees cap for all claims including Security Incidents, Customer should walk. The Profile lists 'No data-breach notification timeline' as a deal-breaker, and a notification timeline without meaningful economic remedy is functionally equivalent. Customer's downstream exposure (to its own customers, regulators, and notification costs) in a Lattice-caused data breach could easily exceed 1x annual subscription fees by an order of magnitude.",
+      "jurisdiction_assumed": "Delaware (per Section 10.1). Delaware law enforces liability caps as written but requires that limited remedies not fail of their essential purpose. A 1x-fees cap on data-breach liability where the contract imposes SOC 2 and 72-hour notification obligations may be challenged as failing of essential purpose if a breach occurs, but that is uncertain and post-hoc. Negotiating the carve-out now eliminates the risk.",
+      "suggested_text": "Amend Section 8.6 to add the following carve-out: '(d) LATTICE'S LIABILITY FOR SECURITY INCIDENTS RESULTING IN UNAUTHORIZED ACCESS TO, ACQUISITION OF, OR LOSS OF CUSTOMER DATA CONTAINING PERSONAL INFORMATION, WHICH SHALL BE SUBJECT TO A SUPERCAP OF THE GREATER OF (I) THREE TIMES (3X) THE FEES PAID OR PAYABLE BY CUSTOMER TO LATTICE UNDER THE APPLICABLE ORDER FORM IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE SECURITY INCIDENT, OR (II) THE LIMITS OF LATTICE'S ERRORS AND OMISSIONS / CYBER LIABILITY INSURANCE COVERAGE REQUIRED UNDER SECTION 9.2(B).'"
+    },
+    {
+      "id": "critical-issues-auditor-002",
+      "specialist": "critical-issues-auditor",
+      "tier": 1,
+      "category": "cross_section_hazard",
+      "severity": "blocker",
+      "existential": true,
+      "markup_type": "annotate",
+      "source_text": "Section 9.1 SUBCONTRACTORS: 'Lattice may engage third parties to perform any of its obligations under this Agreement, including without limitation hosting, content delivery, support, and processing of Customer Data. Lattice will remain responsible for the performance of any such subcontractors and for compliance by such subcontractors with the applicable terms of this Agreement. Lattice is not required to provide advance notice to Customer of, or obtain Customer's consent to, the engagement, replacement, or termination of any subcontractor.' + Section 5.1 CUSTOMER DATA LICENSE: 'Customer hereby grants Lattice a non-exclusive, worldwide, royalty-free license to host, copy, transmit, display, and otherwise process Customer Data solely as necessary for Lattice to provide and support the Subscription Services' + PROFILE REQUIREMENT: 'Notice required + customer approval for material subcontractors (defined as those processing customer data or providing >25% of services)'",
+      "proposed_text": null,
+      "external_comment": "Section 9.1 grants Lattice unlimited subcontracting rights for all obligations 'including without limitation hosting, content delivery, support, and processing of Customer Data' with no notice or consent requirement. This directly contradicts the Profile's playbook.subcontracting.position, which requires 'Notice required + customer approval for material subcontractors (defined as those processing customer data or providing >25% of services).' The Profile's rationale is explicit: 'We need visibility into the data-handling supply chain for compliance and security reviews. Vendor flowdown of obligations is required.' Customer is in software/SaaS, meaning Customer likely has its own contractual obligations to its downstream customers regarding data handling, and those obligations typically require Customer to vet and approve any third parties who will access customer data. Lattice's unilateral right to subcontract data processing (e.g., to offshore hosting providers, third-party analytics services, or support vendors) without notice creates three compounding risks: (1) Customer cannot perform due diligence on subcontractors' security posture, creating undetectable supply-chain risk; (2) Customer cannot ensure that subcontractors are subject to equivalent confidentiality, security, and data-protection obligations (Section 9.1 says Lattice 'will remain responsible' but does not require flowdown of Section 5 or Section 7 obligations to subcontractors); and (3) Customer may be in breach of its own downstream obligations if a Lattice subcontractor processes Customer's customers' data without Customer's knowledge or approval. The materiality is existential because if a Lattice subcontractor suffers a data breach and Customer's downstream customers assert claims against Customer for inadequate vendor management, Customer has no defense — Customer had no visibility into or approval of the subcontractor relationship. This is a structural gap that no individual specialist would catch: the subcontracting specialist (if run) would flag the lack of notice/consent, the data-security specialist (if run) would flag the 72-hour breach notification and SOC 2 but not cross-reference subcontracting rights, and the IP/confidentiality specialist (protective-provisions-analyst) would note the confidentiality obligations in Section 7 but not connect them to third-party processing rights. The cross-section hazard is the interaction of unlimited data-processing subcontracting + no flowdown requirement + Customer's own compliance obligations to third parties.",
+      "materiality_rationale": "Specialists analyzing Section 9.1 in isolation would see vendor-favorable subcontracting language and might flag it as a negotiation point, but would not structurally connect it to (a) the data-security obligations in Section 5, (b) the Profile's mandatory notice-and-consent requirement for data-processing subcontractors, or (c) Customer's own downstream liability if a subcontractor breaches. Specialists analyzing Section 5 would focus on Lattice's direct obligations (SOC 2, 72-hour notice) but not on whether those obligations flow down to subcontractors. The Profile makes this existential by explicitly requiring notice and approval for subcontractors processing customer data, and by listing data-security failures as a top concern. If Lattice engages a subcontractor who lacks adequate security controls and that subcontractor causes a breach, Customer's only remedy is the liability cap in Section 8.6 (which, per finding critical-issues-auditor-001, is capped at 1x fees and does not have a data-breach carve-out). Customer cannot terminate, cannot audit the subcontractor, and cannot prevent the relationship from forming in the first place. This is existential because it eliminates Customer's ability to manage a material category of risk that the Profile identifies as non-negotiable.",
+      "playbook_fit": "applies",
+      "profile_refs": [
+        "playbook.subcontracting.position",
+        "playbook.subcontracting.rationale",
+        "playbook.data_security.position"
+      ],
+      "position": "Amend Section 9.1 to require: (a) Lattice to provide written notice to Customer at least thirty (30) days in advance of engaging any subcontractor who will process Customer Data or provide more than 25% of the Subscription Services by volume or criticality; (b) Customer to have the right to review the subcontractor's security and privacy practices and to withhold consent if the subcontractor does not meet Customer's reasonable security standards (consistent with Section 5.2's SOC 2 requirement); (c) Lattice to include in all subcontracts flowdown provisions requiring subcontractors to comply with Sections 5 (Customer Data; Data Security; Privacy), 7 (Confidentiality), and any applicable Data Processing Addendum; and (d) Lattice to remain primarily liable for subcontractor performance and breaches.",
+      "fallback": "Notice required for all subcontractors processing Customer Data, with consent required only for subcontractors located outside the United States or processing more than 50% of Customer Data by volume. Flowdown of Sections 5 and 7 mandatory for all subcontractors processing Customer Data.",
+      "walkaway": "If Lattice refuses any notice or consent requirement for subcontractors processing Customer Data, and refuses to commit to flowdown of data-security and confidentiality obligations, Customer should walk. The Profile explicitly requires 'Notice required + customer approval for material subcontractors' and cites supply-chain visibility as essential for compliance. Without this, Customer has no way to satisfy its own downstream obligations or to manage supply-chain risk, and the SOC 2 and breach-notification requirements in Section 5 become unenforceable theater if subcontractors are not bound by equivalent obligations.",
+      "jurisdiction_assumed": "Delaware (per Section 10.1). Delaware law enforces subcontracting provisions as written. The lack of flowdown requirements does not void the contract but creates unmitigated risk for Customer. The Profile's position is a business-driven deal-breaker, not a legal one, but the legal consequence is that Customer has no recourse against subcontractors and limited recourse against Lattice due to the liability cap."
+    }
+  ],
+  "coherence_findings": [
+    {
+      "id": "coherence-checker-001",
+      "specialist": "coherence-checker",
+      "tier": 2,
+      "category": "coherence",
+      "severity": "major",
+      "existential": false,
+      "markup_type": "annotate",
+      "source_text": "Section 4.4(b): 'if Customer terminates this Agreement other than for Lattice's uncured material breach pursuant to Section 4.3, Customer shall pay all Fees that would have been payable for the remainder of the then-current Subscription Term'",
+      "proposed_text": null,
+      "external_comment": "The accepted finding termination-remedies-analyst-003 proposes changing the arbitration venue from San Francisco to Customer's home state or mutually agreed neutral location. However, Section 4.4(b) creates a financial disincentive for Customer to pursue termination even when Lattice commits a material breach: if Customer terminates for Lattice's breach under Section 4.3 (with the newly proposed symmetric 30-day cure period from termination-remedies-analyst-002), Customer avoids paying the balance of the term — but if Lattice refuses to cure and the dispute goes to arbitration, the forum clause now favors Customer. This is internally consistent. However, we flag that the early-termination payment obligation in 4.4(b) should be reviewed to ensure it does not inadvertently create a walkaway cost that undermines the improved termination-for-breach mechanics. Specifically: if Customer must pay Fees through end of term when terminating other than for Lattice's uncured breach, but Lattice disputes whether its breach was 'material' or whether it was 'cured,' Customer faces litigation risk on the characterization before knowing whether it owes the balance. Consider adding: 'For avoidance of doubt, if a Party terminates pursuant to Section 4.3 and the other Party disputes whether the breach was material or uncured, the terminating Party's payment obligations under this Section 4.4(b) shall be stayed pending resolution of the dispute, and if the terminating Party prevails in establishing that termination was proper under Section 4.3, no Fees for the post-termination period shall be owed.'",
+      "materiality_rationale": "The accepted termination-for-breach finding (termination-remedies-analyst-002) equalizes cure periods at 30 days, strengthening Customer's termination rights. But Section 4.4(b) creates an economic disincentive that could deter Customer from exercising those rights: even if Lattice commits a material breach (e.g., sustained SLA failure, Security Incident, failure to meet SOC 2 obligations), Customer must make a bet on whether Lattice's breach will be deemed 'material' and 'uncured' in arbitration before terminating. If Customer guesses wrong, it owes the full balance of the term. This payment obligation undermines the improved termination mechanics and creates concrete economic exposure in any borderline-materiality breach scenario. The proposed clarification ensures that the early-termination payment is stayed during dispute resolution, eliminating the chilling effect on Customer's exercise of its termination right.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Add clarifying language to Section 4.4(b) stating that if a Party terminates under Section 4.3 and the other Party disputes the termination, the terminating Party's obligation to pay Fees for the remainder of the term is stayed pending resolution of the dispute. If the terminating Party prevails, no post-termination Fees are owed.",
+      "fallback": "Add language requiring the disputing Party to post a bond or place disputed Fees in escrow during the dispute resolution process.",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "coherence_with": [
+        "termination-remedies-analyst-002"
+      ]
+    },
+    {
+      "id": "coherence-checker-002",
+      "specialist": "coherence-checker",
+      "tier": 2,
+      "category": "coherence",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "annotate",
+      "source_text": "Section 2.3: 'Lattice's sole obligations and Customer's sole and exclusive remedies for failures to meet such service-level commitments are the service credits described in Exhibit A. Service credits do not constitute liquidated damages or limit Lattice's rights under this Agreement, and Customer's sole remedy in the event of repeated failures shall be the right to terminate the affected Subscription Service in accordance with Section 4.3.'",
+      "proposed_text": null,
+      "external_comment": "The accepted finding performance-obligations-analyst-001 proposes amending Section 2.3 to delete the sole-remedy language and add an express right to terminate without further payment obligation if SLA failures persist for three consecutive months. However, the existing Section 2.3 already states that 'Customer's sole remedy in the event of repeated failures shall be the right to terminate the affected Subscription Service in accordance with Section 4.3.' This creates internal tension: the existing language says termination under Section 4.3 is the remedy for repeated SLA failures, but Section 4.3 requires a 60-day cure period (or 30 days if termination-remedies-analyst-002 is accepted) and would trigger the early-termination payment obligation in Section 4.4(b) unless Lattice's SLA failure is deemed a 'material breach' that Lattice failed to cure. The accepted finding correctly identifies that SLA credits are inadequate as the sole remedy for sustained failures, but the proposed edit should also clarify how it interacts with the existing 'terminate in accordance with Section 4.3' language in Section 2.3. Recommend: replace the existing Section 2.3 termination language with the new three-consecutive-month termination right, and clarify that such termination does NOT require compliance with Section 4.3's cure-period mechanics and does NOT trigger Section 4.4(b)'s early-termination payment obligation.",
+      "materiality_rationale": "The existing Section 2.3 says Customer can terminate for repeated SLA failures 'in accordance with Section 4.3,' which imposes a cure period and potentially the early-termination payment. The accepted finding performance-obligations-analyst-001 proposes a cleaner termination right (three consecutive months of SLA failure = terminate without further payment), but does not explicitly supersede the existing 'in accordance with Section 4.3' language. This creates interpretive ambiguity: does the three-month termination right operate independently of Section 4.3, or must Customer still give Lattice a cure notice under 4.3? If the latter, Lattice could argue that the three-month SLA failure triggers a cure period, during which Lattice has additional time to remediate before termination becomes effective — negating the intent of the proposed amendment. The coherence issue is that two termination paths for SLA failure now exist in the contract with unclear interaction. Clarifying language is needed to establish that the three-consecutive-month SLA termination right in Section 2.3 is independent of Section 4.3 and does not trigger Section 4.4(b)'s payment obligation.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Clarify in the amended Section 2.3 that the three-consecutive-month SLA termination right operates independently of Section 4.3's cure-period requirements and does not trigger Section 4.4(b)'s obligation to pay Fees for the remainder of the term.",
+      "fallback": "Clarify that the three-month SLA termination right is 'in addition to' (not 'in accordance with') Section 4.3, and that termination under this provision is deemed termination for Lattice's material breach for purposes of Section 4.4(b).",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1)",
+      "coherence_with": [
+        "performance-obligations-analyst-001",
+        "termination-remedies-analyst-002"
+      ]
+    },
+    {
+      "id": "coherence-checker-003",
+      "specialist": "coherence-checker",
+      "tier": 2,
+      "category": "coherence",
+      "severity": "moderate",
+      "existential": false,
+      "markup_type": "annotate",
+      "source_text": "Section 5.3: 'Lattice will notify Customer in writing without undue delay, and in any event within seventy-two (72) hours, after becoming aware of any unauthorized access to or acquisition of Customer Data' + Section 9.1: 'Lattice may engage third parties to perform any of its obligations under this Agreement, including without limitation hosting, content delivery, support, and processing of Customer Data. Lattice will remain responsible for the performance of any such subcontractors'",
+      "proposed_text": null,
+      "external_comment": "The accepted finding critical-issues-auditor-002 proposes amending Section 9.1 to require advance notice and approval for subcontractors processing Customer Data, with mandatory flowdown of Sections 5 and 7. This is correct and necessary. However, Section 5.3's 72-hour breach notification obligation does not explicitly state that Lattice must notify Customer of Security Incidents caused by or discovered by subcontractors within the same 72-hour window. As drafted, if a subcontractor suffers a breach and delays reporting it to Lattice, the 72-hour clock may not start until Lattice 'becomes aware' — but Lattice's awareness is now one step removed from the breach. The amended Section 9.1 should clarify that for purposes of Section 5.3, Lattice is deemed to 'become aware' of a Security Incident at the same time any subcontractor processing Customer Data becomes aware, such that the 72-hour notification clock starts when the subcontractor knows (not when Lattice knows). This ensures the notification obligation is not diluted by the subcontracting chain.",
+      "materiality_rationale": "Subcontractors processing Customer Data create supply-chain notification risk. If a subcontractor discovers a breach on Day 0 but delays reporting to Lattice until Day 5, and Lattice then notifies Customer 72 hours later (Day 8), Customer receives notification 8 days after the breach — well beyond regulatory safe-harbor windows in many U.S. state breach-notification laws. The accepted subcontracting amendment requires flowdown of Section 5 obligations, but does not explicitly address the 'becomes aware' trigger in Section 5.3. Clarifying that Lattice is deemed aware when any subcontractor becomes aware ensures the 72-hour clock is not gamed by delayed internal reporting within Lattice's supply chain.",
+      "playbook_fit": null,
+      "profile_refs": [],
+      "position": "Amend Section 5.3 or the proposed Section 9.1 amendment to clarify that for purposes of the 72-hour notification requirement, Lattice is deemed to 'become aware' of a Security Incident at the time any subcontractor processing Customer Data becomes aware of the incident.",
+      "fallback": "Require subcontractors to notify Lattice within 24 hours of becoming aware of a Security Incident, and require Lattice to notify Customer within 48 hours of receiving such notice from a subcontractor (net 72-hour maximum from subcontractor awareness to Customer notification).",
+      "walkaway": null,
+      "jurisdiction_assumed": "Delaware (Section 10.1); U.S. state breach-notification laws impose strict timelines regardless of contractual notification chains.",
+      "coherence_with": [
+        "critical-issues-auditor-002"
+      ]
+    }
+  ],
+  "restored_findings": [],
+  "coverage_pass_aggregate": [
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "net_payment_terms",
+      "source": "profile",
+      "profile_ref": "playbook.payment_terms.position",
+      "status": "partially_addressed",
+      "evidence": "§3.2: 'All invoices are payable in U.S. dollars and are due net sixty (60) days from the date of invoice.'",
+      "playbook_fit": "applies_with_modification"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "invoicing_cadence",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.2: 'Unless otherwise specified in an Order Form, Lattice will invoice Customer annually in advance for the Subscription Services.'"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "late_fee_rate",
+      "source": "profile",
+      "profile_ref": "playbook.late_fees.position",
+      "status": "present",
+      "evidence": "§3.3: 'Any amounts not paid when due will accrue interest at the rate of one and one-half percent (1.5%) per month, or the maximum rate permitted by applicable law, whichever is lower.'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "dispute_withholding_mechanics",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision addressing customer's right to withhold disputed invoice amounts, notice requirements, or handling of partial disputes."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "set_off_rights",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision addressing set-off or recoupment rights for either party."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "back_charges_or_chargebacks",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "not_applicable_to_this_deal",
+      "evidence": "SaaS subscription agreement; back-charge mechanics not relevant to this contract type."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "most_favored_customer_clause",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No MFN or price-protection clause present in contract."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "price_escalation_mechanics",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.5: 'Lattice may increase the Fees applicable to a Renewal Term by providing Customer with written notice (which may be by email) at least sixty (60) days prior to the end of the then-current Subscription Term.'"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "audit_rights",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No customer audit rights provision present; SOC 2 report available on request per §5.2 but no broader audit right."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "tax_allocation",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.1: 'Fees do not include any taxes, levies, duties, or similar governmental assessments of any nature, including value-added, sales, use, or withholding taxes (\"Taxes\"), and Customer is responsible for payment of all Taxes associated with its purchases hereunder, excluding only Taxes based on Lattice's net income.'"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "invoicing_documentation_requirements",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.2: 'Customer is responsible for providing complete and accurate billing and contact information to Lattice and notifying Lattice of any changes to such information.'"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "payment_method",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No specification of accepted payment methods (wire, check, ACH, credit card) in contract."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "currency_and_fx_risk",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.2: 'All invoices are payable in U.S. dollars' — single currency, no FX risk mechanics needed."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "payment_contingencies",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No pay-when-paid or pay-if-paid language present."
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "suspension_for_nonpayment_mechanics",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.4: 'If any amount owing by Customer is more than thirty (30) days overdue, Lattice may, without limiting its other rights and remedies, suspend Customer's access to the Subscription Services until such amounts are paid in full. Lattice will provide Customer with at least ten (10) days' prior notice that Customer's account is overdue before suspending the Subscription Services.'"
+    },
+    {
+      "specialist": "commercial-terms-analyst",
+      "item": "late_fee_collection_costs",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "§3.3: 'Customer will reimburse Lattice for all reasonable costs of collection (including attorneys' fees) incurred in collecting any past-due amounts.'"
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "commercial_general_liability_limits",
+      "source": "profile",
+      "profile_ref": "playbook.insurance.position",
+      "status": "partially_addressed",
+      "evidence": "Section 9.2: 'commercial general liability insurance with limits of not less than two million U.S. dollars ($2,000,000) per occurrence and in the aggregate'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "cyber_errors_omissions_liability_limits",
+      "source": "profile",
+      "profile_ref": "playbook.insurance.position",
+      "status": "present",
+      "evidence": "Section 9.2(b): 'errors and omissions / professional liability insurance (which may include cyber liability coverage) with limits of not less than five million U.S. dollars ($5,000,000) per occurrence and in the aggregate'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "certificate_of_insurance_delivery",
+      "source": "profile",
+      "profile_ref": "playbook.insurance.position",
+      "status": "present",
+      "evidence": "Section 9.2: 'Upon Customer's written request, Lattice will provide a certificate of insurance evidencing such coverage.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "additional_insured_status",
+      "source": "profile",
+      "profile_ref": "playbook.insurance.position",
+      "status": "absent",
+      "evidence": "No provision in Section 9.2 or elsewhere requiring Customer to be named as additional insured on any policy.",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "primary_noncontributory_language",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision addressing whether Lattice's insurance is primary or excess relative to Customer's coverage.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "waiver_of_subrogation",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision requiring Lattice to waive subrogation rights against Customer on any policy.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "notice_of_cancellation",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision requiring Lattice's insurers to provide advance notice to Customer in the event of cancellation, non-renewal, or material adverse change in coverage.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "certificate_renewal_mechanics",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "partially_addressed",
+      "evidence": "Section 9.2 provides for certificate delivery on request but does not address renewal timing or ongoing obligation to maintain coverage.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "workers_compensation_statutory",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision requiring workers' compensation coverage at statutory limits.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "employers_liability_limits",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision requiring employer's liability coverage.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "auto_liability_coverage",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "not_applicable_to_this_deal",
+      "evidence": "Cloud-hosted SaaS platform; no indication in the contract that Lattice will use vehicles on Customer's premises or for service delivery. Auto liability not relevant to this engagement.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "umbrella_excess_coverage",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision requiring umbrella or excess liability coverage.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "post_termination_insurance_survival",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision addressing whether insurance obligations survive termination or for what period.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "match_coverage_to_indemnity_exposure",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 8.3 requires Lattice to indemnify Customer for IP infringement claims. Section 8.6 caps liability at fees paid in prior 12 months with carve-outs for confidentiality breach and IP indemnity (uncapped per 8.3). E&O coverage at $5M provides reasonable cushion for uncapped IP indemnity exposure in a mid-market SaaS deal.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "insurance-coverage-analyst",
+      "item": "match_coverage_to_data_breach_risk",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 5.3 requires 72-hour breach notification. Section 9.2(b) requires E&O/professional liability 'which may include cyber liability coverage' at $5M. Language 'may include' is permissive rather than mandatory segregation, but $5M E&O floor covering cyber risk is adequate for a SaaS provider handling operational data (not regulated financial/health data per contract scope).",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Uptime / availability SLA",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "cross_referenced_to_master",
+      "evidence": "Section 2.3 references 'Service Level Schedule attached as Exhibit A' but Exhibit A is not provided in the four corners of this contract text",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Response time SLA",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "cross_referenced_to_master",
+      "evidence": "Section 2.3 references 'service-level commitments set forth in the Service Level Schedule attached as Exhibit A' but Exhibit A is not provided",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Resolution time SLA",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "cross_referenced_to_master",
+      "evidence": "Section 2.3 references 'service-level commitments set forth in the Service Level Schedule attached as Exhibit A' but Exhibit A is not provided",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "SLA credits or remedies",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "partially_addressed",
+      "evidence": "Section 2.3 states 'Lattice's sole obligations and Customer's sole and exclusive remedies for failures to meet such service-level commitments are the service credits described in Exhibit A' but the actual credit formula, cap, and sole-remedy interaction with liability cap are not determinable from the four corners",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Scheduled maintenance windows and exclusions",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "cross_referenced_to_master",
+      "evidence": "Not defined in the main agreement; would typically be in the Exhibit A Service Level Schedule which is not provided",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Acceptance criteria for Subscription Services",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "Section 2.1 grants right to access and use the Subscription Services but no acceptance criteria, testing period, or deemed-acceptance provision is present for the platform itself",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Acceptance criteria for Professional Services deliverables",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "partially_addressed",
+      "evidence": "Section 2.5 states 'Each SOW will identify the scope of work, deliverables (if any), fees, milestones, and any acceptance criteria' — criteria are delegated to individual SOWs and not baseline-defined in the MSA",
+      "playbook_fit": "applies_with_modification"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Performance warranty for Subscription Services",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 8.1(b): 'the Subscription Services will perform substantially in accordance with the Documentation under normal use during the Subscription Term'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Performance warranty for Professional Services",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 8.1(c): 'it will perform Professional Services in a workmanlike manner and substantially in accordance with the applicable SOW'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Warranty disclaimers",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 8.2: 'EXCEPT AS EXPRESSLY SET FORTH IN SECTION 8.1, THE SUBSCRIPTION SERVICES, DOCUMENTATION, AND PROFESSIONAL SERVICES ARE PROVIDED \"AS IS.\" LATTICE DISCLAIMS ALL OTHER WARRANTIES, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT...'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Time is of the essence clause",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No 'time is of the essence' or absolute-performance language appears in the contract",
+      "playbook_fit": "not_applicable_to_this_deal"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Means-and-methods control language",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No language granting Customer the right to direct the means, methods, sequence, or details of Lattice's performance appears in the contract. Section 10.7 explicitly states 'The Parties are independent contractors.'",
+      "playbook_fit": "not_applicable_to_this_deal"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Dependencies on customer cooperation",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision relieving Lattice of performance obligations or extending deadlines when delays are caused by Customer's failure to cooperate, provide information, or perform prerequisite acts",
+      "playbook_fit": "applies_with_modification"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Force majeure scope and SLA interaction",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "partially_addressed",
+      "evidence": "Section 9.3 defines Force Majeure Events broadly, including 'failures of third-party telecommunications, internet, or utility providers,' but does not explicitly state whether such events excuse SLA obligations or trigger SLA exclusions. The SLA exclusions would typically be in Exhibit A which is not provided.",
+      "playbook_fit": "applies_with_modification"
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "SLA credit cap",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "cross_referenced_to_master",
+      "evidence": "Section 2.3 references 'service credits described in Exhibit A' but the cap amount is not determinable from the four corners",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "performance-obligations-analyst",
+      "item": "Sole-remedy framing of SLA credits",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 2.3: 'Lattice's sole obligations and Customer's sole and exclusive remedies for failures to meet such service-level commitments are the service credits described in Exhibit A'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Initial term length",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 4.2: 'Each Order Form sets forth its own Initial Term.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Auto-renewal mechanics",
+      "source": "profile",
+      "profile_ref": "playbook.auto_renewal",
+      "status": "present",
+      "evidence": "Section 4.2: 'upon expiration of the Initial Term, the Subscription Services will automatically renew for successive one-year periods (each, a \"Renewal Term\") unless either Party provides written notice of non-renewal to the other Party at least sixty (60) days prior to the end of the then-current Subscription Term.'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Termination for material breach - symmetric cure periods",
+      "source": "profile",
+      "profile_ref": "playbook.termination_for_breach",
+      "status": "present",
+      "evidence": "Section 4.3: Lattice may terminate with 30-day cure; Customer may terminate with 60-day cure.",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Termination for insolvency",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 4.3: 'Either Party may terminate this Agreement immediately upon written notice if the other Party becomes insolvent, makes an assignment for the benefit of creditors, or files or has filed against it a petition in bankruptcy that is not dismissed within sixty (60) days.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Termination for change of control",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No termination right on change of control is provided.",
+      "playbook_fit": "overkill_for_this_deal"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Termination for convenience",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No termination for convenience right is provided for either party.",
+      "playbook_fit": "overkill_for_this_deal"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Definition of material breach",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "Section 4.3 uses 'materially breaches' without defining 'material.'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Post-termination data retrieval",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 4.4(c): '30 days following termination, Lattice will, upon Customer's written request and at Customer's expense, make Customer Data available for download in a commercially reasonable format.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Post-termination obligations - survival clause",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 4.5: 'The provisions of Sections 1, 3 (with respect to amounts accrued prior to termination), 4.4, 4.5, 6, 7, 8, 9, and 10 will survive any expiration or termination of this Agreement.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Wind-down / transition assistance",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No transition assistance or wind-down services are specified beyond 30-day data retrieval.",
+      "playbook_fit": "overkill_for_this_deal"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Dispute resolution forum",
+      "source": "profile",
+      "profile_ref": "playbook.dispute_resolution",
+      "status": "present",
+      "evidence": "Section 10.2: 'any dispute, claim, or controversy arising out of or relating to this Agreement... will be resolved exclusively by final and binding arbitration administered by the American Arbitration Association under its Commercial Arbitration Rules.'",
+      "playbook_fit": "applies_with_modification"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Arbitration location",
+      "source": "profile",
+      "profile_ref": "playbook.dispute_resolution",
+      "status": "present",
+      "evidence": "Section 10.2: 'The arbitration will be conducted in San Francisco, California by a single arbitrator selected in accordance with such rules.'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Governing law",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 10.1: 'This Agreement and any disputes arising out of or relating to it will be governed by and construed in accordance with the laws of the State of Delaware.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Jury waiver",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 10.2: 'THE PARTIES KNOWINGLY AND VOLUNTARILY WAIVE ANY RIGHT TO A TRIAL BY JURY.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Class action waiver",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 10.2: 'THE PARTIES KNOWINGLY AND VOLUNTARILY WAIVE... ANY RIGHT TO PARTICIPATE IN A CLASS, COLLECTIVE, OR REPRESENTATIVE ACTION.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Arbitration appeal rights",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "Section 10.2 does not specify appeal rights; AAA Commercial Rules typically provide limited appeal.",
+      "playbook_fit": "overkill_for_this_deal"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Force majeure scope",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 9.3: 'acts of God, natural disasters, war, terrorism, civil unrest, pandemic, government action, labor disputes, or failures of third-party telecommunications, internet, or utility providers.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Force majeure notice requirement",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 9.3(a): 'provide prompt written notice to the other Party of the event and its expected duration.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Force majeure termination right",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 9.3: 'If a Force Majeure Event continues for more than sixty (60) consecutive days, either Party may terminate the affected Order Form upon written notice to the other Party.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Confidentiality tail duration",
+      "source": "profile",
+      "profile_ref": "playbook.confidentiality",
+      "status": "present",
+      "evidence": "Section 7.4: 'The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of three (3) years thereafter, except that with respect to trade secrets such obligations will continue for as long as the information qualifies as a trade secret under applicable law.'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "termination-remedies-analyst",
+      "item": "Termination payment obligation - early termination by customer",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 4.4(b): 'if Customer terminates this Agreement other than for Lattice's uncured material breach pursuant to Section 4.3, Customer shall pay all Fees that would have been payable for the remainder of the then-current Subscription Term.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Confidentiality — definition of Confidential Information",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 7.1: 'Confidential Information' means any non-public information disclosed by one Party (the 'Disclosing Party') to the other Party (the 'Receiving Party'), whether orally, in writing, or in any other form, that is designated as confidential or that, given the nature of the information and the circumstances of disclosure, would reasonably be understood to be confidential.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Confidentiality — standard exceptions",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 7.3 provides all standard exceptions: already known without restriction, publicly available, independently developed, rightfully received from third party, and compelled disclosure with advance notice.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Confidentiality — duration",
+      "source": "profile",
+      "profile_ref": "playbook.confidentiality.position",
+      "status": "partially_addressed",
+      "evidence": "Section 7.4: 'The obligations of confidentiality set forth in this Section 7 will continue during the Subscription Term and for a period of three (3) years thereafter'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Confidentiality — permitted use and permitted recipients",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 7.2(a) limits use to 'performing its obligations or exercising its rights under this Agreement'. Section 7.2(c) limits recipients to 'employees, contractors, and agents who have a need to know such information and who are bound by confidentiality obligations no less protective than those set forth herein.'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "IP ownership — background/platform IP",
+      "source": "profile",
+      "profile_ref": "playbook.ip.position",
+      "status": "present",
+      "evidence": "Section 6.1: 'Lattice and its licensors own and shall retain all right, title, and interest in and to the Subscription Services, the Documentation, and any improvements, enhancements, derivative works, modifications, or other developments to or based on any of the foregoing'",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "IP ownership — deliverables and work product",
+      "source": "profile",
+      "profile_ref": "playbook.ip.position",
+      "status": "absent",
+      "evidence": "Section 2.5 addresses Professional Services but does not specify who owns deliverables. Section 6.1 gives Lattice ownership of 'improvements, enhancements, derivative works, modifications, or other developments' which could sweep in customer-specific outputs.",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "IP ownership — customer data",
+      "source": "profile",
+      "profile_ref": "playbook.ip.position",
+      "status": "present",
+      "evidence": "Section 5.1: 'As between the Parties, Customer retains all right, title, and interest in and to Customer Data.' Section 6.2 repeats this.",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "IP ownership — Usage Data and analytics",
+      "source": "profile",
+      "profile_ref": "playbook.ip.position",
+      "status": "absent",
+      "evidence": "Section 5.5 gives Lattice unrestricted rights to Usage Data: 'Lattice may aggregate and anonymize Usage Data and use such aggregated and anonymized data for any lawful business purpose'. No provision for Customer ownership or joint ownership of Customer-specific analytics or outputs.",
+      "playbook_fit": "applies"
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "IP ownership — jointly developed IP",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "not_applicable_to_this_deal",
+      "evidence": "No provision for joint development contemplated in this contract structure.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Work made for hire language scope",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No 'work made for hire' language appears in the contract.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "License grants — scope, exclusivity, duration, sublicensing",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 2.1: 'non-exclusive, non-transferable, non-sublicensable right during the Subscription Term to access and use the Subscription Services solely for Customer's internal business purposes'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "License back from Customer to Lattice",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 5.1: 'Customer hereby grants Lattice a non-exclusive, worldwide, royalty-free license to host, copy, transmit, display, and otherwise process Customer Data solely as necessary for Lattice to provide and support the Subscription Services'",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Non-compete",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No non-compete provision in the contract.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Non-solicit — employees",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No non-solicitation provision in the contract.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Non-solicit — customers",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No non-solicitation provision in the contract.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Non-disparagement",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No non-disparagement provision in the contract.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Publicity and marketing rights",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "absent",
+      "evidence": "No provision addressing use of Customer's name, logo, or case studies.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Residuals clause",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 5.5 implicitly creates a residuals-like right for Lattice: 'Lattice may aggregate and anonymize Usage Data and use such aggregated and anonymized data for any lawful business purpose'. No explicit residuals clause regarding information retained in memory.",
+      "playbook_fit": null
+    },
+    {
+      "specialist": "protective-provisions-analyst",
+      "item": "Feedback — treatment of customer suggestions",
+      "source": "baseline",
+      "profile_ref": null,
+      "status": "present",
+      "evidence": "Section 6.3: 'Customer hereby grants Lattice a non-exclusive, perpetual, irrevocable, worldwide, royalty-free, transferable, sublicensable right and license to use, copy, modify, distribute, and otherwise exploit such Feedback for any purpose, without any obligation or compensation to Customer.'",
+      "playbook_fit": null
+    }
+  ],
+  "priority_three": [
+    "critical-issues-auditor-001",
+    "critical-issues-auditor-002",
+    "termination-remedies-analyst-002"
+  ],
+  "compiler_metrics": {},
+  "posture_metrics": {
+    "deterministic_pass": 1,
+    "deterministic_fail": 1,
+    "escalated": 15,
+    "escalation_fail": 1
+  },
+  "tokens_used": 120977,
+  "elapsed_seconds": 531.4,
+  "timestamp": "2026-05-02T16:00:34.750Z"
+}
