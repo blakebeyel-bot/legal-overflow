@@ -3,7 +3,7 @@
 **Branch:** `round-5a-pdf-strikethrough`
 **Date:** 2026-04-30
 **Cost:** ~$0.00 (no pipeline runs needed; verification used handcrafted synthetic findings)
-**Status:** Architectural pass + three Acrobat-blocking issues addressed (string encoding, QuadPoints baseline-only quad, QuadPoints quad now encompasses full text bbox). Plus root-caused but unrelated "Font Capture" Acrobat popup. Awaiting user comparison vs Adobe's native Strikethrough tool.
+**Status:** Architectural pass + four Acrobat-blocking issues addressed (string encoding, QuadPoints baseline-only quad, full-text-bbox quad, multi-line StrikeOut with per-line QuadPoints). Plus root-caused but unrelated "Font Capture" Acrobat popup. Awaiting user visual confirmation of the multi-line fix.
 
 ## Goal
 
@@ -388,9 +388,68 @@ For Round 5a's visual verification, the user can either:
 - Click past the Font Capture popup (Acrobat usually still renders the page after dismissing it), or
 - Use a different test PDF that Acrobat handles cleanly. The QuadPoints comparison procedure (see "Awaiting user comparison" above) explicitly accepts ANY PDF — the geometry comparison just needs ground-truth Adobe output on text Acrobat can see clearly.
 
+## Acrobat-blocking fix #4 — multi-line StrikeOut (right-margin overshoot)
+
+After fix #3 the strike rendered correctly through the middle of the text on single-line matches. Then real findings (and a closer look at the test PDF) revealed a different visual bug: when source_text wrapped across multiple visual lines, the strike rendered as a single line that overshot into the right margin.
+
+### Diagnostic
+
+The user-reported phrase was `"Lattice's sole obligations and Customer's sole and exclusive remedies for failures to meet such service-level commitments are the service credits described in Exhibit A."` — three visual lines on page 2 of the test contract. The pre-fix code:
+
+1. Treated the source_text as one match and returned a single bounding rectangle from `findTextHits`.
+2. Estimated the rectangle's width as `min(sum_of_subsequent_item_widths, needle.length × 5)` — a cap of `5pt × char count`.
+3. For a ~140-char needle, the cap is ~700pt, which is wider than the page (612pt). The "rectangle" extended off the right side of the page.
+4. `addStrikeOutAnnotation` produced a single QuadPoints quadrilateral spanning that whole bounding box. Acrobat drew one strike line across the box — out into the right margin and through whitespace between lines.
+
+A second cause compounded the visual error: pdfjs's `getTextContent()` often returns a whole visual line as a single `item`. So when the match started mid-line (e.g. at "Lattice's sole" near the END of the first line), the matched item's `x` was the full line's left margin (72pt), not the actual mid-line start. Even with per-line splitting, the first line's strike would extend across the full visual line if we used `item.x` directly.
+
+### Fix
+
+Two changes in `netlify/lib/markup-pdf.js`:
+
+**(a) `findTextLineRects()`** — replaces `findTextHits()` for the StrikeOut path. Returns one entry per visual line that the matched text occupies, each with an accurate width.
+
+For each item that overlaps the matched character range:
+- If the item is fully covered, take its full `(x, x + width)`.
+- If the match starts mid-item, estimate the start x by linear interpolation: `xStart = item.x + (charsBeforeMatch / itemNormLen) × item.width`.
+- If the match ends mid-item, estimate the end x similarly: `xEnd = item.x + (charsThroughMatchEnd / itemNormLen) × item.width`.
+
+The estimate assumes uniform character width — accurate to within a few characters for proportional Latin fonts. Visual error is ~3-5pt vs the ~250pt overshoot of the pre-fix code.
+
+Sub-rects are then grouped by visual line (y-cluster within ½ font-height) into per-line rects. Each per-line rect has `(x, y, width, height)` where `width` is bounded by the items actually on that line.
+
+**(b) `addStrikeOutAnnotation()` refactor** — now takes `lineQuads: Array<{x, width, yBottom, yTop}>` instead of single `(x, width, yBottom, yTop)`. The helper builds an `8×N` QuadPoints array (one quadrilateral per line, in spec-mandated TL/TR/BL/BR order) and a `Rect` that's the bounding box of all line quads combined. Single-line matches pass a 1-element array — same code path, no special case.
+
+Per PDF 1.7 §12.5.6.10: a StrikeOut annotation with N quadrilaterals draws N separate strike marks, each bounded by its own quadrilateral. This is exactly what Adobe's native multi-line Strikethrough tool produces.
+
+### Programmatic verification
+
+`tools/contract-grader/round-5a-runs/synthetic-multiline-findings.json` — 4 findings exercising 3-line, 2-line, and 1-line matches:
+
+| Finding | Lines | Per-line widths (pt) |
+|---|---|---|
+| `multiline-screenshot` (user-reported) | 3 | 61.4 (line 1, mid-line "Lattice's sole" → end-of-line) → 413.8 (line 2, full) → 257.4 (line 3, start → "Exhibit A.") |
+| `multiline-extra` ("Subscription Services solely…") | 2 | 377.8 → 148.8 |
+| `single-line-regression` ("in its sole discretion") | 1 | 95.5 — single tightly-bounded strike, no overshoot |
+| `single-line-regression-2` ("one and one-half percent (1.5%) per month") | 2 | 71.4 → 109.2 — turned out to wrap too; both quads tightly bounded |
+
+For `multiline-screenshot`, the pre-fix code wrote a single quad of `≈700pt` width starting at `x=72` on a 612pt-wide page. The post-fix output is three properly-bounded quads with ZERO overshoot past the rightmost text on each line.
+
+`confirm-string-encoding.mjs` still passes (Contents/T encoding unaffected by the geometry refactor).
+
+### Awaiting user Acrobat verification
+
+The regenerated `synthetic-multiline-marked.pdf` is the visual deliverable. User to confirm in Acrobat:
+
+- The 3-line phrase shows **three** separate strike marks (no continuous line crossing the right margin).
+- Each strike covers only the actual matched text on its line.
+- The single-line phrase shows ONE strike, properly bounded (no regression).
+- Comments panel still populates per finding; right-click → Accept/Reject still works.
+
 ## Round 5b / 5c plan (carry-forward notes)
 
-- **Round 5b — multi-line StrikeOut.** When the anchor text wraps across lines, `findTextHits()` currently returns one bounding box that may span multiple lines visually. The fix is: detect line breaks in the matched run (gap in y-coordinate between consecutive pdfjs items inside the match) and emit one quadrilateral per line, concatenated into a single `QuadPoints` array. Per spec, `QuadPoints` is a flat array of 8N numbers (N quadrilaterals). Single annotation, multi-line strikethrough.
+- ~~**Round 5b — multi-line StrikeOut**~~. Done in follow-up #4 (above).
+- **Round 5b — multi-page StrikeOut.** Still deferred. When matched text crosses a page break, we currently anchor on whichever page contains the match start (the per-page indexOf in `findTextLineRects` finds the first page where the full needle appears as a single contiguous string). Cross-page matches need to emit two annotations linked by `/IRT` (in-reply-to). Real-world frequency is low — paragraph-level quotes rarely span page breaks.
 - **Round 5b — multi-page.** When the anchor text spans a page break, emit two annotations (one per page) and link them via `/IRT` (in-reply-to) so they appear as a thread.
 - **Round 5c — `replace` as paired StrikeOut + insertion.** `replace` should produce a real StrikeOut over the source_text *and* an "insertion" — either a `Caret` annotation at the end with the suggested_text in its popup, or a `FreeText` callout with the suggestion. We'll need to choose between these two on visual-quality grounds in 5c. Today's drawn-line behavior is preserved until then.
 - ~~**Encoding cleanup.**~~ Done in Round 5a follow-up — see "Acrobat-blocking fix" above.
@@ -409,6 +468,8 @@ For Round 5a's visual verification, the user can either:
 - `tools/contract-grader/round-5a-runs/probe-fonts.mjs` — walks every page's font resource dict and reports embed/non-embed status. Used to root-cause the Acrobat Font Capture popup as a source-PDF issue, not an annotation pipeline issue.
 - `tools/contract-grader/round-5a-runs/HOW-TO-PRODUCE-ADOBE-MANUAL-STRIKE.md` — instructions for the user to produce a ground-truth Adobe-marked PDF for QuadPoints comparison.
 - `tools/contract-grader/round-5a-runs/synthetic-delete-marked-v3.pdf` — current geometry output (descender + ascender quad) for visual verification.
+- `tools/contract-grader/round-5a-runs/synthetic-multiline-findings.json` — 4 findings testing multi-line + single-line StrikeOut.
+- `tools/contract-grader/round-5a-runs/synthetic-multiline-marked.pdf` — current multi-line geometry output.
 - `tools/contract-grader/REPORT_round_5a.md` — this file.
 
 ## Methodology note (for METHODOLOGY.md update)
