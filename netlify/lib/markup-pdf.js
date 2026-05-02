@@ -118,6 +118,23 @@ export async function applyPdfMarkup(pdfBuffer, findings) {
 // ---------- pdfjs text-position extraction ----------
 
 async function extractTextPositions(pdfBuffer) {
+  // pdfjs-dist v5+ DOMMatrix shim — see extract.js for full rationale.
+  // Required because pdfjs evaluates `new DOMMatrix()` at module load
+  // time, before its own polyfill block can resolve @napi-rs/canvas.
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    globalThis.DOMMatrix = class DOMMatrix {
+      constructor(init) {
+        if (Array.isArray(init) && init.length === 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+        } else {
+          this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+        }
+      }
+    };
+  }
+  if (typeof globalThis.Path2D === 'undefined') globalThis.Path2D = class Path2D {};
+  if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class ImageData {};
+
   // Lazy-load pdfjs-dist — only callers of applyPdfMarkup (i.e. PDF
   // contract reviews) pay the import cost.
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');

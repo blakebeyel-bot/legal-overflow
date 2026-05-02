@@ -63,6 +63,39 @@ async function extractDocx(buffer) {
 }
 
 async function extractPdf(buffer) {
+  // pdfjs-dist v5+ expects DOMMatrix / Path2D / ImageData on globalThis.
+  // Its own auto-polyfill via @napi-rs/canvas is unreliable in Netlify
+  // Functions: pdfjs evaluates `const SCALE_MATRIX = new DOMMatrix();`
+  // at module load time (top-level), which runs BEFORE the polyfill block
+  // can locate canvas. The result is "DOMMatrix is not defined" thrown
+  // during the import itself — before our extractPdf code ever runs.
+  //
+  // Define minimal stubs on globalThis BEFORE the pdfjs import. Text
+  // extraction (getTextContent) only needs the constructor to exist;
+  // it never invokes the matrix methods. Canvas-rendering code paths
+  // that DO use the methods are not hit by text extraction.
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    globalThis.DOMMatrix = class DOMMatrix {
+      constructor(init) {
+        // Minimal 2D affine identity — enough to satisfy pdfjs's
+        // top-level `new DOMMatrix()` at line 17027 of pdf.mjs.
+        // 2D-affine fields: a, b, c, d, e, f.
+        if (Array.isArray(init) && init.length === 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+        } else {
+          this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+        }
+      }
+    };
+  }
+  if (typeof globalThis.Path2D === 'undefined') {
+    globalThis.Path2D = class Path2D {};
+  }
+  if (typeof globalThis.ImageData === 'undefined') {
+    globalThis.ImageData = class ImageData {
+      constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
+    };
+  }
   // Lazy-load pdfjs-dist so a broken PDF dependency can't kill the whole
   // function at cold start. Only PDF uploads pay the import cost.
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
