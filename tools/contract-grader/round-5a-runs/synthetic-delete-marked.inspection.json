@@ -14,35 +14,35 @@
   "sample_annotations": [
     {
       "subtype": "StrikeOut",
-      "contents": "/Triple-restriction#20phrasing#20is#20duplicative#20#2014#20only#20the#20non-exclusive#20carve-out#2"
+      "contents": "<FEFF0054007200690070006C0065002D007200650073007400720069006300740069006F006E00200070006800720061007"
     },
     {
       "subtype": "Text",
-      "contents": "/Triple-restriction#20phrasing#20is#20duplicative#20#2014#20only#20the#20non-exclusive#20carve-out#2"
+      "contents": "<FEFF0054007200690070006C0065002D007200650073007400720069006300740069006F006E00200070006800720061007"
     },
     {
       "subtype": "StrikeOut",
-      "contents": "/Vendor-favorable#20absolute-discretion#20language.#20Buyer#20position:#20strike#20#2014#20modificat"
+      "contents": "<FEFF00560065006E0064006F0072002D006600610076006F007200610062006C00650020006100620073006F006C0075007"
     },
     {
       "subtype": "Text",
-      "contents": "/Vendor-favorable#20absolute-discretion#20language.#20Buyer#20position:#20strike#20#2014#20modificat"
+      "contents": "<FEFF00560065006E0064006F0072002D006600610076006F007200610062006C00650020006100620073006F006C0075007"
     },
     {
       "subtype": "StrikeOut",
-      "contents": "/Late-fee#20rate#20is#20above#20buyer's#20standard#20cap#20of#201.0#25#2Fmonth.#20Recommend#20striki"
+      "contents": "<FEFF004C006100740065002D00660065006500200072006100740065002000690073002000610062006F007600650020006"
     },
     {
       "subtype": "Text",
-      "contents": "/Late-fee#20rate#20is#20above#20buyer's#20standard#20cap#20of#201.0#25#2Fmonth.#20Recommend#20striki"
+      "contents": "<FEFF004C006100740065002D00660065006500200072006100740065002000690073002000610062006F007600650020006"
     },
     {
       "subtype": "StrikeOut",
-      "contents": "/Suspension#20trigger#20at#2030#20days#20is#20aggressive.#20Buyer#20position:#20strike#20this#20clau"
+      "contents": "<FEFF00530075007300700065006E00730069006F006E0020007400720069006700670065007200200061007400200033003"
     },
     {
       "subtype": "Text",
-      "contents": "/Suspension#20trigger#20at#2030#20days#20is#20aggressive.#20Buyer#20position:#20strike#20this#20clau"
+      "contents": "<FEFF00530075007300700065006E00730069006F006E0020007400720069006700670065007200200061007400200033003"
     }
   ]
 }

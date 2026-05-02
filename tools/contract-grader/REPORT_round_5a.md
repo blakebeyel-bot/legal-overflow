@@ -3,7 +3,7 @@
 **Branch:** `round-5a-pdf-strikethrough`
 **Date:** 2026-04-30
 **Cost:** ~$0.00 (no pipeline runs needed; verification used handcrafted synthetic findings)
-**Status:** Architectural pass; awaiting user-side Adobe Acrobat visual verification.
+**Status:** Architectural pass + Acrobat-blocking string-encoding bug fixed (see §Acrobat-blocking fix below). Awaiting user re-verification in Acrobat.
 
 ## Goal
 
@@ -115,18 +115,84 @@ Pass conditions (per round spec) for the user to confirm in Acrobat:
 | No regression on sticky-note comments | ✅ verified — 4 Text sticky-notes still present |
 | Visual rendering correct in Acrobat | ⏳ pending user verification |
 
-## Pre-existing finding worth noting
+## Acrobat-blocking fix — string encoding (PDF 1.7 §7.9.2)
 
-`Contents` and `T` come back from pdf-lib's `ctx.obj(string)` as PDFName objects (with `#20` for spaces) rather than PDFString literals. This matches what `addTextAnnotation()` has done since Round 1 — the existing sticky notes have been encoded the same way and have rendered correctly in production for citation-test users. Real viewers decode the Name back to readable text in the popup.
+The first pass of Round 5a opened cleanly in pdf-lib parse-back but Adobe Acrobat refused to parse it with: **"Expected a string object."**
 
-If we ever see a viewer that displays raw `Vendor-favorable#20absolute-discretion` in a comment popup, the fix is to switch both helpers to `PDFHexString.of(string)` or `PDFString.of(string)`. **Out of scope for Round 5a** — fixing it here would change behavior for the existing sticky-note path that's been shipping.
+### Diagnostic
+
+`pdf-lib`'s low-level `ctx.obj(string)` returns a **PDFName**, not a PDFString — Names are the dominant string-shaped type in PDF dicts (`/Type /Annot`, `/Subtype /StrikeOut`, etc.) so the constructor defaults to that. Inspecting the marked PDF programmatically with `lookup → .get(PDFName.of('Contents'))` showed:
+
+```
+StrikeOut | Contents class: PDFName  | value: /Triple-restriction#20phrasing#20is#20duplicative#20…
+StrikeOut | T        class: PDFName  | value: /Legal#20Overflow
+Text      | Contents class: PDFName  | value: /Triple-restriction#20phrasing#20is#20duplicative#20…
+Text      | T        class: PDFName  | value: /Legal#20Overflow
+```
+
+The leading `/` and `#20`-encoded spaces are the giveaway: those are PDF Name-object encodings. PDF 1.7 §12.5.6.4 (annotation `Contents` field) and §12.5.6.4 (`T` author field) require **text string objects**, defined in §7.9.2 as either:
+
+- a literal string `(...)` (PDFDocEncoding-compatible), or
+- a hex string `<...>` (UTF-16BE with optional FEFF BOM for Unicode).
+
+Acrobat is strict here. Other viewers (Apple Preview, Chrome's PDF viewer) can be lenient and silently decode `/Foo#20bar` as the string "Foo bar", which is why the earlier `addTextAnnotation()` sticky-note encoding had been shipping unnoticed since Round 1. **The bug was always there — Round 5a's StrikeOut just exposed it on the same code path.**
+
+### Fix
+
+Switch both `addStrikeOutAnnotation()` and `addTextAnnotation()` to encode `Contents` and `T` with the proper pdf-lib types:
+
+```js
+import { PDFDocument, PDFHexString, PDFString, rgb } from 'pdf-lib';
+
+// …
+Contents: PDFHexString.fromText(String(contents || '')),  // <FEFF…> UTF-16BE
+T:        PDFString.of(String(author || '')),              // (Legal Overflow)
+```
+
+**API trap encountered**: `PDFHexString.of(text)` does NOT hex-encode the input — it wraps an already-hex-encoded string in `<…>`. The first attempt at the fix used `PDFHexString.of()` and produced corrupted content (`<Triple-restriction phrasing…>` — invalid hex chars get silently treated as zero by viewers). **`PDFHexString.fromText()` is the correct method** — it produces `<FEFF0054007200…>`, UTF-16BE with the byte-order-mark prefix the spec requires for Unicode text strings.
+
+`PDFString.of()` was kept for `T` because:
+- The author value is a known ASCII string ("Legal Overflow") with no parens to escape.
+- Literal-string serialization is more readable when inspecting the raw PDF.
+- `PDFString.of()` does NOT escape parens — using it on arbitrary text would break the parser if the text contained an unbalanced `(` or `)`. For `Contents` (which can contain anything), the hex form is the only safe choice.
+
+### Verification (post-fix)
+
+```
+node tools/contract-grader/round-5a-runs/confirm-string-encoding.mjs
+
+Checked 16 string fields across all annotations.
+Passed (PDFString or PDFHexString): 16
+Failed: 0
+OK — every Contents/T field is a proper PDF text-string object.
+```
+
+Spot-check on the first StrikeOut annotation:
+
+```
+Contents class: PDFHexString
+Contents raw: <FEFF0054007200690070006C0065002D0072006500730074007200690063…>
+Has FEFF BOM: true
+Contents decodeText(): "Triple-restriction phrasing is duplicative — only the non-exclusive…"
+T class: PDFString
+T raw: (Legal Overflow)
+T decodeText(): "Legal Overflow"
+```
+
+The em-dash (`—`, U+2014) round-trips cleanly through UTF-16BE, confirming the encoding handles non-ASCII content correctly.
+
+`tools/contract-grader/round-5a-runs/confirm-string-encoding.mjs` is committed as a permanent regression check. Run after any change to `markup-pdf.js` to catch a re-introduction of the Name-encoding bug.
+
+### Awaiting Acrobat re-verification
+
+The regenerated `synthetic-delete-marked.pdf` should now open cleanly in Acrobat without the "Expected a string object" popup. User to confirm: (a) no error; (b) StrikeOut annotations visible on the four target phrases; (c) Comments-panel popup shows the decoded comment text including the em-dashes; (d) right-click → Accept/Reject context menu present.
 
 ## Round 5b / 5c plan (carry-forward notes)
 
 - **Round 5b — multi-line StrikeOut.** When the anchor text wraps across lines, `findTextHits()` currently returns one bounding box that may span multiple lines visually. The fix is: detect line breaks in the matched run (gap in y-coordinate between consecutive pdfjs items inside the match) and emit one quadrilateral per line, concatenated into a single `QuadPoints` array. Per spec, `QuadPoints` is a flat array of 8N numbers (N quadrilaterals). Single annotation, multi-line strikethrough.
 - **Round 5b — multi-page.** When the anchor text spans a page break, emit two annotations (one per page) and link them via `/IRT` (in-reply-to) so they appear as a thread.
 - **Round 5c — `replace` as paired StrikeOut + insertion.** `replace` should produce a real StrikeOut over the source_text *and* an "insertion" — either a `Caret` annotation at the end with the suggested_text in its popup, or a `FreeText` callout with the suggestion. We'll need to choose between these two on visual-quality grounds in 5c. Today's drawn-line behavior is preserved until then.
-- **Encoding cleanup.** Migrate both `addTextAnnotation` and `addStrikeOutAnnotation` from `ctx.obj(string)` → `PDFHexString.of(string)` for `/Contents` and `/T` if any viewer compatibility issue surfaces.
+- ~~**Encoding cleanup.**~~ Done in Round 5a follow-up — see "Acrobat-blocking fix" above.
 
 ## Files changed
 
@@ -136,6 +202,7 @@ If we ever see a viewer that displays raw `Vendor-favorable#20absolute-discretio
 - `tools/contract-grader/round-5a-runs/synthetic-delete-marked.inspection.json` — programmatic inspection result.
 - `tools/contract-grader/apply_markup.mjs` — restored from prior round (was deleted on this branch's main parent).
 - `tools/contract-grader/inspect_pdf_markup.mjs` — same.
+- `tools/contract-grader/round-5a-runs/confirm-string-encoding.mjs` — permanent regression check that every annotation's `Contents`/`T` field is a `PDFString` or `PDFHexString` (not `PDFName`).
 - `tools/contract-grader/REPORT_round_5a.md` — this file.
 
 ## Methodology note (for METHODOLOGY.md update)

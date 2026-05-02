@@ -16,7 +16,7 @@
  * <200 chars of text. By the time findings arrive here, the PDF is known
  * to be native/text-bearing.
  */
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, PDFHexString, PDFString, rgb } from 'pdf-lib';
 // pdfjs-dist is lazy-loaded inside extractTextPositions() to keep it off
 // the cold-start path. The DOCX markup path never needs it, and a broken
 // PDF dep must not crash the whole function.
@@ -215,14 +215,25 @@ function findTextHits(positions, needle) {
 // ---------- sticky-note annotation (low-level) ----------
 
 function addTextAnnotation(pdfDoc, page, { x, y, contents, author }) {
-  const { PDFName, PDFDict, PDFString, PDFArray, PDFNumber } = pdfDoc.context.constructor;
   const ctx = pdfDoc.context;
+  // Round 5a fix — PDF 1.7 §7.9.2/§12.5.6.4 require Contents and T to be
+  // text *string* objects, not Name objects. pdf-lib's `ctx.obj(string)`
+  // emits a Name (because Name is the dominant string-shaped type in PDF
+  // dicts: /Type /Annot etc.), which Acrobat rejects with
+  // "Expected a string object." Encode explicitly:
+  //   • Contents → PDFHexString.fromText() — encodes as UTF-16BE hex
+  //     with BOM (FEFF...), spec-compliant per §7.9.2.2 and robust
+  //     against apostrophes, parens, non-ASCII, etc. NOTE: PDFHexString.of()
+  //     does NOT encode — it just wraps an already-hex string in <>; using
+  //     it on raw text produces corrupted content.
+  //   • T → PDFString.of() — literal string in parens; fine for an
+  //     ASCII author name like "Legal Overflow" with no parens to escape.
   const annotDict = ctx.obj({
     Type: 'Annot',
     Subtype: 'Text',
     Rect: [x, y - 20, x + 20, y],
-    Contents: ctx.obj(String(contents)),
-    T: ctx.obj(author),
+    Contents: PDFHexString.fromText(String(contents || '')),
+    T: PDFString.of(String(author || '')),
     Name: 'Comment',
     Open: false,
   });
@@ -283,8 +294,9 @@ function addStrikeOutAnnotation(pdfDoc, page, { x, y, width, height, contents, a
     // Color in DeviceRGB — red, matching the visual style for the
     // (deprecated) drawn-line fallback. Most viewers honor this.
     C: [0.85, 0.2, 0.2],
-    Contents: ctx.obj(String(contents || '')),
-    T: ctx.obj(author),
+    // Round 5a fix — text strings, not Names (Acrobat-strict)
+    Contents: PDFHexString.fromText(String(contents || '')),
+    T: PDFString.of(String(author || '')),
     F: 4,                          // Print flag — the annotation prints with the doc
     CA: 0.85,                      // Constant opacity
   });
