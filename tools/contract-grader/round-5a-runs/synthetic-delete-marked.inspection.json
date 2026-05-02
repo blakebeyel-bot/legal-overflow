@@ -1,0 +1,48 @@
+{
+  "file": "tools/contract-grader/round-5a-runs/synthetic-delete-marked.pdf",
+  "total_findings": 4,
+  "markup_types": {
+    "delete": 4
+  },
+  "total_annotations": 8,
+  "annotations_by_subtype": {
+    "StrikeOut": 4,
+    "Text": 4
+  },
+  "unanchored_count": 0,
+  "unanchored": [],
+  "sample_annotations": [
+    {
+      "subtype": "StrikeOut",
+      "contents": "/Triple-restriction#20phrasing#20is#20duplicative#20#2014#20only#20the#20non-exclusive#20carve-out#2"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/Triple-restriction#20phrasing#20is#20duplicative#20#2014#20only#20the#20non-exclusive#20carve-out#2"
+    },
+    {
+      "subtype": "StrikeOut",
+      "contents": "/Vendor-favorable#20absolute-discretion#20language.#20Buyer#20position:#20strike#20#2014#20modificat"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/Vendor-favorable#20absolute-discretion#20language.#20Buyer#20position:#20strike#20#2014#20modificat"
+    },
+    {
+      "subtype": "StrikeOut",
+      "contents": "/Late-fee#20rate#20is#20above#20buyer's#20standard#20cap#20of#201.0#25#2Fmonth.#20Recommend#20striki"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/Late-fee#20rate#20is#20above#20buyer's#20standard#20cap#20of#201.0#25#2Fmonth.#20Recommend#20striki"
+    },
+    {
+      "subtype": "StrikeOut",
+      "contents": "/Suspension#20trigger#20at#2030#20days#20is#20aggressive.#20Buyer#20position:#20strike#20this#20clau"
+    },
+    {
+      "subtype": "Text",
+      "contents": "/Suspension#20trigger#20at#2030#20days#20is#20aggressive.#20Buyer#20position:#20strike#20this#20clau"
+    }
+  ]
+}

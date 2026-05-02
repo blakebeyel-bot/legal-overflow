@@ -1,0 +1,33 @@
+{
+  "_note": "Round 5a — synthetic findings to validate the new PDF StrikeOut annotation path. Real specialists rarely emit markup_type='delete' (R3.5 PDF run produced 0), so we hand-craft them against known single-line text in msa_reasoning_test.pdf to exercise the code path.",
+  "findings": [
+    {
+      "id": "synth-delete-1",
+      "markup_type": "delete",
+      "source_text": "one and one-half percent (1.5%) per month",
+      "external_comment": "Late-fee rate is above buyer's standard cap of 1.0%/month. Recommend striking entirely — interest charges should be addressed in a separate negotiated provision.",
+      "category": "payment_terms"
+    },
+    {
+      "id": "synth-delete-2",
+      "markup_type": "delete",
+      "source_text": "non-exclusive, non-transferable, non-sublicensable",
+      "external_comment": "Triple-restriction phrasing is duplicative — only the non-exclusive carve-out is buyer-relevant. Strike the over-restrictive transfer/sublicense limits and address them under the assignment clause.",
+      "category": "license_grant"
+    },
+    {
+      "id": "synth-delete-3",
+      "markup_type": "delete",
+      "source_text": "in its sole discretion",
+      "external_comment": "Vendor-favorable absolute-discretion language. Buyer position: strike — modifications must be subject to a reasonableness standard with notice obligations.",
+      "category": "modification_rights"
+    },
+    {
+      "id": "synth-delete-4",
+      "markup_type": "delete",
+      "source_text": "thirty (30) days overdue",
+      "external_comment": "Suspension trigger at 30 days is aggressive. Buyer position: strike this clause; suspension rights should require 60+ days plus a notice-and-cure period.",
+      "category": "suspension_rights"
+    }
+  ]
+}

@@ -74,8 +74,33 @@ export async function applyPdfMarkup(pdfBuffer, findings) {
       noteBody = `${noteBody}\n\n[PROPOSED DELETION — remove the struck-through text.]`.trim();
     }
 
-    if (markup_type === 'replace' || markup_type === 'delete') {
-      // Strikethrough highlight — red semi-transparent line over the range
+    if (markup_type === 'delete') {
+      // Round 5a — single-line StrikeOut annotation (proper PDF text-markup
+      // annotation, not a drawn line). Acrobat / Foxit / Preview render
+      // these natively with Accept/Reject UI; they're also discoverable as
+      // /Subtype /StrikeOut by other PDF tooling.
+      //
+      // SCOPE LIMITS (per Round 5a spec):
+      //   • Single-line text only. Wrapped text would need multiple
+      //     QuadPoint rectangles (see Round 5b).
+      //   • Single-page text only.
+      //   • Drawn-line fallback is REMOVED for delete findings — replaced
+      //     by the proper annotation. Other markup types keep their
+      //     existing drawn-line behavior unchanged.
+      //
+      // The hit's (x, yTop, width, height) are the text run's bounding box
+      // in pdf-lib coordinates (y from bottom). A single quadrilateral is
+      // sufficient for single-line text. If the hit's width spans multiple
+      // lines (text wrapped), the annotation will span only the first
+      // line — the multi-line case is deferred to Round 5b.
+      addStrikeOutAnnotation(pdfDoc, page, {
+        x, y: yTop - height, width, height,
+        contents: noteBody, author: AUTHOR,
+      });
+    } else if (markup_type === 'replace') {
+      // Existing behavior — drawn red line (visual strikethrough). Real
+      // StrikeOut annotation for replace findings is deferred to Round 5c
+      // because replace also needs a paired insertion annotation.
       page.drawLine({
         start: { x, y: yTop - height / 2 },
         end: { x: x + width, y: yTop - height / 2 },
@@ -200,6 +225,68 @@ function addTextAnnotation(pdfDoc, page, { x, y, contents, author }) {
     T: ctx.obj(author),
     Name: 'Comment',
     Open: false,
+  });
+  const annotRef = ctx.register(annotDict);
+  const existing = page.node.Annots();
+  if (existing) {
+    existing.push(annotRef);
+  } else {
+    page.node.set(ctx.obj('Annots'), ctx.obj([annotRef]));
+  }
+}
+
+// ---------- Round 5a: StrikeOut annotation (proper PDF markup) ----------
+
+/**
+ * Add a StrikeOut text-markup annotation over a single-line text rectangle.
+ *
+ * Round 5a scope: single-line single-page only. Multi-line / multi-page
+ * support deferred to Round 5b.
+ *
+ * The QuadPoints array per PDF spec (PDF 1.7 §12.5.6.10) is 8 numbers per
+ * quadrilateral: [x1 y1 x2 y2 x3 y3 x4 y4] in the order
+ *   1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right
+ * (the spec's order is unusual; some viewers also accept TL,TR,BR,BL but
+ * Adobe Acrobat prefers TL,TR,BL,BR per the spec).
+ *
+ * Coordinates are in PDF user-space, y measured from the bottom of the
+ * page (matching pdf-lib convention; callers pass already-flipped y).
+ *
+ * @param {PDFDocument} pdfDoc       — pdf-lib document
+ * @param {PDFPage}     page          — page to annotate
+ * @param {object}      box           — { x, y, width, height } of the run
+ * @param {string}      box.contents  — popup comment text (the external_comment)
+ * @param {string}      box.author    — annotation author (T field)
+ */
+function addStrikeOutAnnotation(pdfDoc, page, { x, y, width, height, contents, author }) {
+  const ctx = pdfDoc.context;
+  const x1 = x;
+  const y1 = y + height;        // top-left y (y is bottom of run)
+  const x2 = x + width;
+  const y2 = y + height;        // top-right
+  const x3 = x;
+  const y3 = y;                 // bottom-left
+  const x4 = x + width;
+  const y4 = y;                 // bottom-right
+
+  // Spec order: TL, TR, BL, BR
+  const quadPoints = [x1, y1, x2, y2, x3, y3, x4, y4];
+
+  // Bounding rectangle: [llx, lly, urx, ury]
+  const rect = [x, y, x + width, y + height];
+
+  const annotDict = ctx.obj({
+    Type: 'Annot',
+    Subtype: 'StrikeOut',
+    Rect: rect,
+    QuadPoints: quadPoints,
+    // Color in DeviceRGB — red, matching the visual style for the
+    // (deprecated) drawn-line fallback. Most viewers honor this.
+    C: [0.85, 0.2, 0.2],
+    Contents: ctx.obj(String(contents || '')),
+    T: ctx.obj(author),
+    F: 4,                          // Print flag — the annotation prints with the doc
+    CA: 0.85,                      // Constant opacity
   });
   const annotRef = ctx.register(annotDict);
   const existing = page.node.Annots();
