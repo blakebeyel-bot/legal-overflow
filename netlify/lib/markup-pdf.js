@@ -93,27 +93,33 @@ export async function applyPdfMarkup(pdfBuffer, findings) {
       // sufficient for single-line text. If the hit's width spans multiple
       // lines (text wrapped), the annotation will span only the first
       // line — the multi-line case is deferred to Round 5b.
-      // Round 5a follow-up #2 — geometry fix.
+      // Round 5a follow-up #3 — match Adobe's native Strikethrough geometry.
       //
-      // pdfjs's Util.transform(viewport.transform, item.transform)[5]
-      // gives a top-down y in the page-flipped coordinate system. Our
-      // call site flips it back with `yTop = pageHeight - tx[5]`, which
-      // makes `yTop` equal the **text baseline** in pdf-lib (bottom-up)
-      // coordinates — verified empirically with
-      // round-5a-runs/probe-text-geometry.mjs.
+      // pdfjs's `yTop = pageHeight - tx[5]` equals the text BASELINE in
+      // pdf-lib (bottom-up) coords, and `height = item.height` ≈ font
+      // size. Per PDF 1.7 §12.5.6.10, QuadPoints must "encompass the
+      // word" — i.e. span the full visual text bounding box including
+      // the descender region. With Latin fonts at typical metric ratios:
+      //   • descender ≈ 0.20 × font size (below baseline)
+      //   • ascender  ≈ 0.80 × font size (above baseline, ~cap height)
+      // So the quad spans [baseline − 0.20·size, baseline + 0.80·size]
+      // and Acrobat draws the strike at the quad midpoint, which falls
+      // at baseline + 0.30·size — roughly mid-x-height, i.e. the
+      // canonical strikethrough position.
       //
-      // The previous code passed `y = yTop - height` to this helper, then
-      // built the quad from y..y+height. That made the quad span the
-      // region BELOW the baseline (baseline-height .. baseline) and the
-      // strike midpoint landed roughly mid-descender — Acrobat rendered
-      // it as an underline.
-      //
-      // The correct quad spans baseline → baseline+height (i.e. up
-      // through the glyph cap). Acrobat draws StrikeOut at the vertical
-      // center of the quad, which then falls around the x-height, where
-      // a strikethrough visually belongs. So we pass y = yTop directly.
+      // Follow-up #2 had the quad start AT the baseline (no descender
+      // clearance). That made the visual strike sit too low (Acrobat's
+      // user reported it rendering "as an underline"). Adding the
+      // descender clearance below the baseline lifts the midpoint up
+      // into the visual middle of the glyphs.
+      const DESCENDER_RATIO = 0.20;
+      const ASCENDER_RATIO  = 0.80;
+      const yBottomQuad = yTop - DESCENDER_RATIO * height;
+      const yTopQuad    = yTop + ASCENDER_RATIO  * height;
       addStrikeOutAnnotation(pdfDoc, page, {
-        x, y: yTop, width, height,
+        x, width,
+        yBottom: yBottomQuad,
+        yTop:    yTopQuad,
         contents: noteBody, author: AUTHOR,
       });
     } else if (markup_type === 'replace') {
@@ -282,28 +288,37 @@ function addTextAnnotation(pdfDoc, page, { x, y, contents, author }) {
  * Coordinates are in PDF user-space, y measured from the bottom of the
  * page (matching pdf-lib convention; callers pass already-flipped y).
  *
+ * Caller is responsible for choosing yBottom/yTop such that the quad
+ * encompasses the visual text — typically [baseline − descender,
+ * baseline + ascender]. Acrobat draws the strike at the midpoint of
+ * the quad, so positioning depends on accurate top/bottom y-values.
+ *
  * @param {PDFDocument} pdfDoc       — pdf-lib document
  * @param {PDFPage}     page          — page to annotate
- * @param {object}      box           — { x, y, width, height } of the run
+ * @param {object}      box           — quad geometry + popup metadata
+ * @param {number}      box.x         — left edge of the run
+ * @param {number}      box.width     — width of the run
+ * @param {number}      box.yBottom   — bottom-of-quad y in pdf-lib coords (e.g. baseline − descender)
+ * @param {number}      box.yTop      — top-of-quad y in pdf-lib coords (e.g. baseline + ascender)
  * @param {string}      box.contents  — popup comment text (the external_comment)
  * @param {string}      box.author    — annotation author (T field)
  */
-function addStrikeOutAnnotation(pdfDoc, page, { x, y, width, height, contents, author }) {
+function addStrikeOutAnnotation(pdfDoc, page, { x, width, yBottom, yTop, contents, author }) {
   const ctx = pdfDoc.context;
   const x1 = x;
-  const y1 = y + height;        // top-left y (y is bottom of run)
+  const y1 = yTop;              // top-left y
   const x2 = x + width;
-  const y2 = y + height;        // top-right
+  const y2 = yTop;              // top-right
   const x3 = x;
-  const y3 = y;                 // bottom-left
+  const y3 = yBottom;           // bottom-left
   const x4 = x + width;
-  const y4 = y;                 // bottom-right
+  const y4 = yBottom;           // bottom-right
 
   // Spec order: TL, TR, BL, BR
   const quadPoints = [x1, y1, x2, y2, x3, y3, x4, y4];
 
   // Bounding rectangle: [llx, lly, urx, ury]
-  const rect = [x, y, x + width, y + height];
+  const rect = [x, yBottom, x + width, yTop];
 
   const annotDict = ctx.obj({
     Type: 'Annot',

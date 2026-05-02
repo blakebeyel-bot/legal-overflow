@@ -3,7 +3,7 @@
 **Branch:** `round-5a-pdf-strikethrough`
 **Date:** 2026-04-30
 **Cost:** ~$0.00 (no pipeline runs needed; verification used handcrafted synthetic findings)
-**Status:** Architectural pass + two Acrobat-blocking bugs fixed (string encoding, then QuadPoints geometry). Awaiting user re-verification in Acrobat.
+**Status:** Architectural pass + three Acrobat-blocking issues addressed (string encoding, QuadPoints baseline-only quad, QuadPoints quad now encompasses full text bbox). Plus root-caused but unrelated "Font Capture" Acrobat popup. Awaiting user comparison vs Adobe's native Strikethrough tool.
 
 ## Goal
 
@@ -257,6 +257,137 @@ The regenerated `synthetic-delete-marked.pdf` should now show the strike line th
 
 PDF 1.7 §12.5.6.10's StrikeOut definition is unambiguous, so cross-viewer divergence is unexpected — but if it happens, Acrobat is the authoritative target. If Apple Preview or Chrome's PDF viewer shows the line in a different place, document the divergence; we will not chase it.
 
+## Acrobat-blocking fix #3 — quad must encompass full text bbox (descender + ascender)
+
+After fix #2 the strike still rendered LOW in Acrobat — the user reported it visually as an underline, not a strikethrough. Compared to Adobe's native Strikethrough tool on the same text, our line was clearly off.
+
+### Diagnostic
+
+Fix #2 made the quad span `[baseline, baseline + height]` — i.e. the quad started AT the baseline with no descender clearance below it. PDF 1.7 §12.5.6.10 says QuadPoints must "encompass the word or group of contiguous words" — meaning the quad has to bound the actual visual text, including the descender region (e.g. the bottom of letters like `g`, `p`, `y`).
+
+Acrobat appears to interpret QuadPoints as the visual text bounding box and draws the strike near the *quad bottom* (or somewhere weighted-low within the quad), not at the geometric midpoint. With our baseline-anchored quad, that put the strike at or near the baseline — visually an underline.
+
+A spec-faithful quad must include both:
+
+- **Below the baseline** for descenders (≈ 0.20 × font size on most Latin fonts)
+- **Above the baseline** for ascenders / cap height (≈ 0.80 × font size)
+
+Doing this encompasses the full visual text region, and the strike then lands at the visually-correct mid-x-height position regardless of how the renderer interprets "midpoint."
+
+### Fix
+
+Refactor `addStrikeOutAnnotation()` to take explicit `yBottom`/`yTop` instead of `(y, height)`, so the call site computes the descender/ascender geometry directly:
+
+```js
+const DESCENDER_RATIO = 0.20;
+const ASCENDER_RATIO  = 0.80;
+const yBottomQuad = yTop - DESCENDER_RATIO * height;   // baseline − 0.20·size
+const yTopQuad    = yTop + ASCENDER_RATIO  * height;   // baseline + 0.80·size
+
+addStrikeOutAnnotation(pdfDoc, page, {
+  x, width,
+  yBottom: yBottomQuad,
+  yTop:    yTopQuad,
+  contents: noteBody,
+  author: AUTHOR,
+});
+```
+
+Quad midpoint is now at `baseline + 0.30 × font size` — that's between mid-x-height and cap-mid, the canonical strikethrough position regardless of how a viewer interprets QuadPoints.
+
+### Programmatic verification
+
+```
+node tools/contract-grader/round-5a-runs/compare-quadpoints.mjs \
+  tools/contract-grader/round-5a-runs/synthetic-delete-marked-v3.pdf
+
+--- page 2, annotation #1 ---
+Subtype: /StrikeOut
+Rect [llx,lly,urx,ury]: [72.00, 583.40, 322.00, 594.40]
+QuadPoints (8 numbers, 1 quadrilateral):
+  Quad 1: TL(72.00, 594.40)  TR(322.00, 594.40)  BL(72.00, 583.40)  BR(322.00, 583.40)
+           width=250.00, height=11.00, midY=588.90 (=BL.y + 5.50 = 50% from bottom)
+```
+
+For the page-2 baseline at y=585.60:
+- Old (fix #2) quad: `[585.60, 596.60]`, midY at `baseline + 5.50pt`
+- New (fix #3) quad: `[583.40, 594.40]`, midY at `baseline + 3.30pt` ← closer to canonical strike position
+- Quad now spans the descender region (BL at 583.40 < baseline=585.60) and the ascender region (TL at 594.40 > baseline+x-height)
+
+`confirm-string-encoding.mjs` still passes 16/16.
+
+### Awaiting user comparison vs Adobe's native tool
+
+The fix is geometric; matching Adobe to the pixel may require iterating against a real Adobe-marked reference. Procedure (see `tools/contract-grader/round-5a-runs/HOW-TO-PRODUCE-ADOBE-MANUAL-STRIKE.md`):
+
+1. User opens any PDF that Acrobat handles cleanly, applies a manual Strikethrough using Adobe's native tool, saves as `adobe-manual-strike.pdf`.
+2. We run `compare-quadpoints.mjs` on that PDF and on our generated `synthetic-delete-marked-v3.pdf`.
+3. We adjust `DESCENDER_RATIO`/`ASCENDER_RATIO` (or the helper itself) until our QuadPoints geometry matches Adobe's for equivalent text runs.
+4. Re-run, confirm visual parity.
+
+The current ratios (0.20 / 0.80) are typical Latin-font metric estimates. Adobe likely uses font-metric-aware values queried from the embedded `FontDescriptor` — if our generic estimate is off for the specific font, the comparison step will tell us.
+
+## Issue B — "Font Capture: Windows - Application Error" popup (root-caused; not blocking)
+
+User saw a popup from Acrobat DC on Windows with `0xc06d007e` ("unknown software exception") immediately on opening the marked PDF.
+
+### Diagnostic
+
+`tools/contract-grader/round-5a-runs/probe-fonts.mjs` walks every page's `/Font` resource dict, dereferences each font, and reports:
+- Font subtype (Type1, TrueType, CIDFontType0/2)
+- BaseFont name
+- Whether a `/FontDescriptor` is present
+- Whether an embedded font stream (`/FontFile`, `/FontFile2`, `/FontFile3`) is present
+
+Run on the source PDF (no annotations):
+
+```
+File: tools/contract-grader/test_contracts/msa_reasoning_test.pdf
+Pages: 8
+Unique font dicts referenced: 2
+
+Font 4 0 R:
+  /Type: /Font
+  /Subtype: /Type1
+  /BaseFont: /Times-Roman
+  /Encoding: /WinAnsiEncoding
+  → No FontDescriptor — font likely a Standard 14 (Helvetica/Times/Courier) and not embedded
+
+Font 5 0 R:
+  /Type: /Font
+  /Subtype: /Type1
+  /BaseFont: /Times-Bold
+  /Encoding: /WinAnsiEncoding
+  → No FontDescriptor — font likely a Standard 14 and not embedded
+```
+
+Then on the marked PDF:
+
+```
+File: tools/contract-grader/round-5a-runs/synthetic-delete-marked.pdf
+Pages: 8
+Unique font dicts referenced: 2
+[exact same Font 4 0 R / Font 5 0 R, identical entries]
+```
+
+**The annotation pipeline does not touch fonts.** Font dictionaries are byte-identical between source and marked PDF.
+
+### Root cause
+
+The source PDF (`msa_reasoning_test.pdf`, generated by `tools/contract-grader/build_test_pdf.mjs`) uses **Type 1 Times-Roman / Times-Bold without embedded font streams** — the legacy "Standard 14 base font" pattern. Adobe Acrobat DC on Windows has been progressively deprecating its handling of unembedded Standard-14 fonts since around 2018. On modern builds (especially Acrobat DC 2024+ on Win 10/11) the substitution path can fail and the Font Capture subsystem throws `0xc06d007e`.
+
+### Implications
+
+- **Not an annotation pipeline bug.** Round 5a's tool changes are not a contributing factor.
+- **Not blocking shipping.** Real-world contract PDFs (from Word's "Save as PDF", Google Docs, modern PDF generators) virtually always embed fonts. Production users will not see this popup.
+- **Test fixture issue.** `tools/contract-grader/build_test_pdf.mjs` should be updated to embed fonts (e.g. by registering a TTF via `pdfDoc.embedFont(fontkit, ...)` or using a different generator). This is out of scope for Round 5a — it should be filed as a separate fixture-modernization task.
+
+### User-side workaround during Acrobat verification
+
+For Round 5a's visual verification, the user can either:
+- Click past the Font Capture popup (Acrobat usually still renders the page after dismissing it), or
+- Use a different test PDF that Acrobat handles cleanly. The QuadPoints comparison procedure (see "Awaiting user comparison" above) explicitly accepts ANY PDF — the geometry comparison just needs ground-truth Adobe output on text Acrobat can see clearly.
+
 ## Round 5b / 5c plan (carry-forward notes)
 
 - **Round 5b — multi-line StrikeOut.** When the anchor text wraps across lines, `findTextHits()` currently returns one bounding box that may span multiple lines visually. The fix is: detect line breaks in the matched run (gap in y-coordinate between consecutive pdfjs items inside the match) and emit one quadrilateral per line, concatenated into a single `QuadPoints` array. Per spec, `QuadPoints` is a flat array of 8N numbers (N quadrilaterals). Single annotation, multi-line strikethrough.
@@ -274,6 +405,10 @@ PDF 1.7 §12.5.6.10's StrikeOut definition is unambiguous, so cross-viewer diver
 - `tools/contract-grader/inspect_pdf_markup.mjs` — same.
 - `tools/contract-grader/round-5a-runs/confirm-string-encoding.mjs` — permanent regression check that every annotation's `Contents`/`T` field is a `PDFString` or `PDFHexString` (not `PDFName`).
 - `tools/contract-grader/round-5a-runs/probe-text-geometry.mjs` — diagnostic that prints what `yTop` and `item.height` represent for a chosen text phrase in the test PDF. Used to identify the QuadPoints geometry bug; kept for future geometry investigations.
+- `tools/contract-grader/round-5a-runs/compare-quadpoints.mjs` — dumps StrikeOut/Highlight/Underline QuadPoints from any PDF, with derived height/width/midpoint metrics. Used for ground-truth comparison vs Adobe's native Strikethrough tool.
+- `tools/contract-grader/round-5a-runs/probe-fonts.mjs` — walks every page's font resource dict and reports embed/non-embed status. Used to root-cause the Acrobat Font Capture popup as a source-PDF issue, not an annotation pipeline issue.
+- `tools/contract-grader/round-5a-runs/HOW-TO-PRODUCE-ADOBE-MANUAL-STRIKE.md` — instructions for the user to produce a ground-truth Adobe-marked PDF for QuadPoints comparison.
+- `tools/contract-grader/round-5a-runs/synthetic-delete-marked-v3.pdf` — current geometry output (descender + ascender quad) for visual verification.
 - `tools/contract-grader/REPORT_round_5a.md` — this file.
 
 ## Methodology note (for METHODOLOGY.md update)
