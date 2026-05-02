@@ -20,6 +20,15 @@
   # files). Keeping it out of external_node_modules lets esbuild bundle
   # only what static imports need, avoiding a prod cold-start failure we
   # hit when pdfjs-dist was declared external.
+  #
+  # @napi-rs/canvas IS in external_node_modules — it's a native module
+  # with platform-specific .node binaries that esbuild can't bundle.
+  # pdfjs-dist v5+ dynamically imports it at runtime to polyfill
+  # DOMMatrix / Path2D / ImageData on Node (which has no native DOM
+  # globals). If left to the bundler, esbuild rewrites the dynamic
+  # require, the .node binaries never make it into the function bundle,
+  # and pdfjs throws "DOMMatrix is not defined" on first transform.
+  external_node_modules = ["@napi-rs/canvas"]
 
 # Background function — up to 15 min runtime. Name must end in `-background`.
 [functions."fanout-background"]
