@@ -3,7 +3,7 @@
 **Branch:** `round-5a-pdf-strikethrough`
 **Date:** 2026-04-30
 **Cost:** ~$0.00 (no pipeline runs needed; verification used handcrafted synthetic findings)
-**Status:** Architectural pass + Acrobat-blocking string-encoding bug fixed (see §Acrobat-blocking fix below). Awaiting user re-verification in Acrobat.
+**Status:** Architectural pass + two Acrobat-blocking bugs fixed (string encoding, then QuadPoints geometry). Awaiting user re-verification in Acrobat.
 
 ## Goal
 
@@ -183,9 +183,79 @@ The em-dash (`—`, U+2014) round-trips cleanly through UTF-16BE, confirming the
 
 `tools/contract-grader/round-5a-runs/confirm-string-encoding.mjs` is committed as a permanent regression check. Run after any change to `markup-pdf.js` to catch a re-introduction of the Name-encoding bug.
 
+### Acrobat re-verification — first pass
+
+Acrobat opened the encoding-fixed PDF cleanly (no more "Expected a string object" popup). However, **the strikethrough rendered as an underline** — the line sat below the text, not through it. That's a separate geometry bug, fixed below.
+
+## Acrobat-blocking fix #2 — QuadPoints geometry (PDF 1.7 §12.5.6.10)
+
+### Diagnostic
+
+`tools/contract-grader/round-5a-runs/probe-text-geometry.mjs` walks the test PDF, finds a known phrase, and prints what each part of the coordinate computation actually represents. Output for the 11pt body text on page 1:
+
+```
+item.transform: [11, 0, 0, 11, 72, 496]      ← font size = 11, baseline y = 496
+item.width × height: 451.96 × 11
+viewport tx[4,5] (top-down): 72, 296
+yTop = pageHeight - tx[5] = 496              ← yTop EQUALS the text baseline (bottom-up)
+
+Current (broken) quad:
+  bottom edge (y)         = yTop - height = 485
+  top    edge (y + height) = yTop          = 496
+  → strike midpoint        = yTop - height/2 = 490.5  (5.5pt BELOW baseline — well below descender)
+
+Correct quad:
+  bottom edge (baseline)  = yTop          = 496
+  top    edge (cap top)   = yTop + height = 507
+  → strike midpoint        = yTop + height/2 = 501.5  (5.5pt ABOVE baseline — at x-height, where strikethroughs belong)
+```
+
+`yTop` is the **text baseline** in pdf-lib (bottom-up) coordinates. The previous code passed `y = yTop - height` to `addStrikeOutAnnotation()`, which made the helper build a quadrilateral spanning **from baseline DOWN by one font-height** — entirely below the text. Acrobat then drew the strike at the vertical center of that quad (about 5.5pt below baseline) — visually that landed at or just below the descender, which the user correctly called out as an "underline."
+
+Vertex ordering (TL, TR, BL, BR per spec) was already correct — only the y-extents were wrong.
+
+### Fix
+
+One-line change in the call site:
+
+```diff
+  addStrikeOutAnnotation(pdfDoc, page, {
+-   x, y: yTop - height, width, height,
++   x, y: yTop, width, height,
+    contents: noteBody, author: AUTHOR,
+  });
+```
+
+The helper itself is unchanged: it still treats the passed `y` as the bottom edge and `y + height` as the top edge. Now that `y = yTop = baseline`, the quad spans `[baseline, baseline + height]` and Acrobat renders the strike at the midpoint (`baseline + height/2`), which falls around the x-height for a typical Latin font — the natural strikethrough position.
+
+### Verification
+
+Programmatic re-inspection of the four StrikeOut annotations after the fix (full output in `synthetic-delete-marked.inspection.json`):
+
+| Annotation | Rect [llx, lly, urx, ury] | Quad height | Strike midpoint vs baseline |
+|---|---|---|---|
+| 1 | [72.00, 585.60, 322.00, 596.60] | 11.00pt | midY = baseline + 5.50pt ✓ |
+| 2 | [72.00, 274.80, 182.00, 285.80] | 11.00pt | midY = baseline + 5.50pt ✓ |
+| 3 | [72.00, 610.80, 277.00, 621.80] | 11.00pt | midY = baseline + 5.50pt ✓ |
+| 4 | [72.00, 549.20, 192.00, 560.20] | 11.00pt | midY = baseline + 5.50pt ✓ |
+
+For each annotation: `BL.y < midY < TL.y` (i.e., strike line is inside the quad and above the baseline). All four quadrilaterals are 11pt tall (matching font size) and start at the baseline.
+
+`confirm-string-encoding.mjs` still passes 16/16 — the encoding fix was unaffected by the geometry change.
+
 ### Awaiting Acrobat re-verification
 
-The regenerated `synthetic-delete-marked.pdf` should now open cleanly in Acrobat without the "Expected a string object" popup. User to confirm: (a) no error; (b) StrikeOut annotations visible on the four target phrases; (c) Comments-panel popup shows the decoded comment text including the em-dashes; (d) right-click → Accept/Reject context menu present.
+The regenerated `synthetic-delete-marked.pdf` should now show the strike line through the middle of each target phrase, not below it. User to confirm in Acrobat:
+
+- Strikethrough renders **through the text**, not below it.
+- Strike covers the full horizontal extent of the source_text.
+- Strike color is red (`/C [0.85 0.20 0.20]`).
+- Comments panel still populates with the external_comment.
+- Right-click → Accept/Reject markup options still present.
+
+### Cross-viewer sanity (post-fix, optional)
+
+PDF 1.7 §12.5.6.10's StrikeOut definition is unambiguous, so cross-viewer divergence is unexpected — but if it happens, Acrobat is the authoritative target. If Apple Preview or Chrome's PDF viewer shows the line in a different place, document the divergence; we will not chase it.
 
 ## Round 5b / 5c plan (carry-forward notes)
 
@@ -203,6 +273,7 @@ The regenerated `synthetic-delete-marked.pdf` should now open cleanly in Acrobat
 - `tools/contract-grader/apply_markup.mjs` — restored from prior round (was deleted on this branch's main parent).
 - `tools/contract-grader/inspect_pdf_markup.mjs` — same.
 - `tools/contract-grader/round-5a-runs/confirm-string-encoding.mjs` — permanent regression check that every annotation's `Contents`/`T` field is a `PDFString` or `PDFHexString` (not `PDFName`).
+- `tools/contract-grader/round-5a-runs/probe-text-geometry.mjs` — diagnostic that prints what `yTop` and `item.height` represent for a chosen text phrase in the test PDF. Used to identify the QuadPoints geometry bug; kept for future geometry investigations.
 - `tools/contract-grader/REPORT_round_5a.md` — this file.
 
 ## Methodology note (for METHODOLOGY.md update)

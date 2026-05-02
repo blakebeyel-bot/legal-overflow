@@ -93,8 +93,27 @@ export async function applyPdfMarkup(pdfBuffer, findings) {
       // sufficient for single-line text. If the hit's width spans multiple
       // lines (text wrapped), the annotation will span only the first
       // line — the multi-line case is deferred to Round 5b.
+      // Round 5a follow-up #2 — geometry fix.
+      //
+      // pdfjs's Util.transform(viewport.transform, item.transform)[5]
+      // gives a top-down y in the page-flipped coordinate system. Our
+      // call site flips it back with `yTop = pageHeight - tx[5]`, which
+      // makes `yTop` equal the **text baseline** in pdf-lib (bottom-up)
+      // coordinates — verified empirically with
+      // round-5a-runs/probe-text-geometry.mjs.
+      //
+      // The previous code passed `y = yTop - height` to this helper, then
+      // built the quad from y..y+height. That made the quad span the
+      // region BELOW the baseline (baseline-height .. baseline) and the
+      // strike midpoint landed roughly mid-descender — Acrobat rendered
+      // it as an underline.
+      //
+      // The correct quad spans baseline → baseline+height (i.e. up
+      // through the glyph cap). Acrobat draws StrikeOut at the vertical
+      // center of the quad, which then falls around the x-height, where
+      // a strikethrough visually belongs. So we pass y = yTop directly.
       addStrikeOutAnnotation(pdfDoc, page, {
-        x, y: yTop - height, width, height,
+        x, y: yTop, width, height,
         contents: noteBody, author: AUTHOR,
       });
     } else if (markup_type === 'replace') {
