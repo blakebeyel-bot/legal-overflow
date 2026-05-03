@@ -23,7 +23,11 @@ import { getAgent, loadConfig } from '../lib/agents.js';
 import { callSpecialist, callModel, extractJson } from '../lib/anthropic.js';
 import { extractDocumentText } from '../lib/extract.js';
 import { applyDocxMarkup } from '../lib/markup-docx.js';
-import { applyPdfMarkup } from '../lib/markup-pdf.js';
+// PDF markup goes through the Modal/PyMuPDF service. The wrapper falls
+// back to the legacy drawn-line markup if the Modal env vars aren't set,
+// so the function keeps working in environments without the Python
+// service configured.
+import { applyPdfMarkup } from '../lib/markup-pdf-modal.js';
 import { buildReviewSummaryDocx } from '../lib/review-summary.js';
 import { estimateCostUsd } from '../lib/constants.js';
 import { DEFAULT_PROFILE } from '../lib/default-profile.js';
@@ -366,15 +370,21 @@ async function processReview({ userId, reviewId, supabase }) {
     })
     .filter(Boolean);
 
-  // 10. STAGE 6 — Apply markup (UNCHANGED per user request)
+  // 10. STAGE 6 — Apply markup
   await updateProgress(supabase, reviewId, 'compiling', 'Applying markup…');
+  // Reviewer-name attribution lives on the company profile under
+  // output.reviewer_author (per company_profile.schema.json). Set on the
+  // "Tell us how you negotiate" intake form via the "Your name" field,
+  // which the workflow-configurator agent maps into the schema. Fallback
+  // to "Legal Overflow" when the user hasn't set one.
+  const reviewerName = (profile?.output?.reviewer_author && String(profile.output.reviewer_author).trim()) || 'Legal Overflow';
   let annotated, unanchored;
   if (format === 'docx') {
-    const r = await applyDocxMarkup(contractBuffer, finalFindings);
+    const r = await applyDocxMarkup(contractBuffer, finalFindings, { author: reviewerName });
     annotated = r.buffer;
     unanchored = r.unanchored;
   } else if (format === 'pdf') {
-    const r = await applyPdfMarkup(contractBuffer, finalFindings);
+    const r = await applyPdfMarkup(contractBuffer, finalFindings, { author: reviewerName });
     annotated = r.buffer;
     unanchored = r.unanchored;
   } else {

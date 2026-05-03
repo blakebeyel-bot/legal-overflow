@@ -44,9 +44,11 @@ export const DEFAULT_PROFILE = {
     cite_industry_standards: true,
   },
   output: {
-    reviewer_name: 'Legal Overflow',
+    // Field names align with company_profile.schema.json (reviewer_author,
+    // not reviewer_name; annotated_file_suffix, not file_naming_suffix).
+    reviewer_author: 'Legal Overflow',
     reviewer_initials: 'LO',
-    file_naming_suffix: '_Annotated',
+    annotated_file_suffix: '_Annotated',
   },
   _is_default_profile: true,
 };

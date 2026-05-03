@@ -119,6 +119,10 @@ import Consent from '../../partials/consent.astro';
         <div class="quick-setup-body">
           <div class="qs-grid">
             <label class="qs-field">
+              <span class="qs-label">Your name</span>
+              <input type="text" id="qs-reviewer-name" maxlength="80" placeholder="e.g., Mary Jones" autocomplete="name" />
+            </label>
+            <label class="qs-field">
               <span class="qs-label">Company legal name</span>
               <input type="text" id="qs-company" placeholder="e.g., Magic Inc." />
             </label>
@@ -409,10 +413,10 @@ import Consent from '../../partials/consent.astro';
         </div>
       </div>
       <div class="severity-row">
-        <div class="sev blocker"><div class="sev-l">Blocker</div><div class="sev-n" id="sev-blocker">0</div></div>
-        <div class="sev major"><div class="sev-l">Major</div><div class="sev-n" id="sev-major">0</div></div>
-        <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n" id="sev-moderate">0</div></div>
-        <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n" id="sev-minor">0</div></div>
+        <div class="sev blocker"><div class="sev-l">Red flag</div><div class="sev-n" id="sev-blocker">0</div></div>
+        <div class="sev major"><div class="sev-l">Material</div><div class="sev-n" id="sev-major">0</div></div>
+        <div class="sev moderate"><div class="sev-l">Worth flagging</div><div class="sev-n" id="sev-moderate">0</div></div>
+        <div class="sev minor"><div class="sev-l">Note for record</div><div class="sev-n" id="sev-minor">0</div></div>
       </div>
 
       <!-- Tabbed results panel: Top 3 | All Findings | Structural | Coverage -->
@@ -528,6 +532,7 @@ import Consent from '../../partials/consent.astro';
     location.href = '/login/?redirect=/agents/contract-review/';
   }
 
+
   // ---- Sign out ----
   document.getElementById('cr-signout').addEventListener('click', async () => {
     await supabase.auth.signOut();
@@ -634,6 +639,7 @@ import Consent from '../../partials/consent.astro';
   if (qsSubmit) {
     qsSubmit.addEventListener('click', async () => {
       const val = (id) => (document.getElementById(id)?.value || '').trim();
+      const reviewerName = val('qs-reviewer-name');
       const company = val('qs-company');
       const industry = val('qs-industry');
       const role = val('qs-role');
@@ -656,6 +662,7 @@ import Consent from '../../partials/consent.astro';
         'COMPANY CONTRACT-REVIEW PLAYBOOK',
         '================================',
         '',
+        reviewerName && `Reviewer name: ${reviewerName}`,
         `Company legal name: ${company}`,
         industry && `Industry: ${industry}`,
         role && `Typical role in contracts: ${role}`,
@@ -726,6 +733,7 @@ import Consent from '../../partials/consent.astro';
   // Map of backend suggest-field names to the form input IDs they should
   // write into. The chat model is told the exact set of allowed names.
   const FIELD_TO_INPUT_ID = {
+    reviewer_name: 'qs-reviewer-name',
     company: 'qs-company',
     jurisdiction: 'qs-jurisdiction',
     industry: 'qs-industry',
@@ -737,6 +745,7 @@ import Consent from '../../partials/consent.astro';
     notes: 'qs-notes',
   };
   const FIELD_LABEL = {
+    reviewer_name: 'Your name',
     company: 'Company', jurisdiction: 'Jurisdiction', industry: 'Industry',
     role: 'Role', description: 'Description', liability: 'Liability cap',
     payment: 'Payment terms', red_flags: 'Red flags', notes: 'Notes',
@@ -747,6 +756,7 @@ import Consent from '../../partials/consent.astro';
   function collectFormState() {
     const val = (id) => (document.getElementById(id)?.value || '').trim();
     return {
+      reviewer_name: val('qs-reviewer-name'),
       company: val('qs-company'),
       jurisdiction: val('qs-jurisdiction'),
       industry: val('qs-industry'),
@@ -937,6 +947,18 @@ import Consent from '../../partials/consent.astro';
     auditing:    'audit',
     compiling:   'assemble',
     complete:    'assemble',
+  };
+
+  // Severity labels — display text the user sees on UI tabs / filter
+  // buttons / finding cards. Internal enum (blocker|major|moderate|minor)
+  // is unchanged across the schema, agent prompts, and validation logic;
+  // ONLY the surface labels were renamed to senior-counsel voice.
+  const SEVERITY_LABELS = {
+    all:      'All',
+    blocker:  'Red flag',
+    major:    'Material',
+    moderate: 'Worth flagging',
+    minor:    'Note for record',
   };
 
   // Pending review state between upload and confirm
@@ -1153,7 +1175,7 @@ import Consent from '../../partials/consent.astro';
     document.getElementById('results-subtitle').textContent = new Date(r.completed_at || r.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     document.getElementById('results-title').innerHTML = `Review — <em>${escapeHtml(r.filename)}</em>`;
     const totalFindings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
-    document.getElementById('results-sub').textContent = `${totalFindings} finding(s) · ${r.severity_counts?.blocker || 0} blocker(s)`;
+    document.getElementById('results-sub').textContent = `${totalFindings} finding(s) · ${r.severity_counts?.blocker || 0} red flag(s)`;
     document.getElementById('results-ct').textContent = r.contract_type || '—';
     document.getElementById('results-mode').textContent = r.pipeline_mode || '—';
     document.getElementById('results-count').textContent = String(totalFindings);
@@ -1202,7 +1224,7 @@ import Consent from '../../partials/consent.astro';
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `findings-filter ${sev}${activeFilter === sev ? ' active' : ''}`;
-        const label = sev.charAt(0).toUpperCase() + sev.slice(1);
+        const label = SEVERITY_LABELS[sev] || (sev.charAt(0).toUpperCase() + sev.slice(1));
         btn.innerHTML = `${escapeHtml(label)}<span class="ff-count">${counts[sev] || 0}</span>`;
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1428,7 +1450,7 @@ import Consent from '../../partials/consent.astro';
       card.innerHTML = `
         <div class="priority-card-head">
           <span class="priority-card-num">${i + 1}</span>
-          <span class="finding-sev-tag ${sev}">${escapeHtml(f.severity || 'Minor')}</span>
+          <span class="finding-sev-tag ${sev}">${escapeHtml(SEVERITY_LABELS[sev] || 'Note for record')}</span>
           ${existentialTag}
           <span class="finding-category">${escapeHtml(f.category || '—')}</span>
           <span class="finding-preview">${escapeHtml((f.location || '').slice(0, 80))}</span>
@@ -1498,7 +1520,7 @@ import Consent from '../../partials/consent.astro';
     const head = document.createElement('div');
     head.className = 'finding-head';
     head.innerHTML = `
-      <span class="finding-sev-tag ${severity}">${escapeHtml(f.severity || 'Minor')}</span>
+      <span class="finding-sev-tag ${severity}">${escapeHtml(SEVERITY_LABELS[severity] || 'Note for record')}</span>
       ${existentialTag}
       ${tierTag}
       <span class="finding-category">${escapeHtml(f.category || '—')}</span>
@@ -1709,10 +1731,10 @@ import Consent from '../../partials/consent.astro';
     return `
       <div class="drawer-head">
         <div class="severity-row">
-          <div class="sev blocker"><div class="sev-l">Blocker</div><div class="sev-n">${sc.blocker || 0}</div></div>
-          <div class="sev major"><div class="sev-l">Major</div><div class="sev-n">${sc.major || 0}</div></div>
-          <div class="sev moderate"><div class="sev-l">Moderate</div><div class="sev-n">${sc.moderate || 0}</div></div>
-          <div class="sev minor"><div class="sev-l">Minor</div><div class="sev-n">${sc.minor || 0}</div></div>
+          <div class="sev blocker"><div class="sev-l">Red flag</div><div class="sev-n">${sc.blocker || 0}</div></div>
+          <div class="sev major"><div class="sev-l">Material</div><div class="sev-n">${sc.major || 0}</div></div>
+          <div class="sev moderate"><div class="sev-l">Worth flagging</div><div class="sev-n">${sc.moderate || 0}</div></div>
+          <div class="sev minor"><div class="sev-l">Note for record</div><div class="sev-n">${sc.minor || 0}</div></div>
         </div>
       </div>
 

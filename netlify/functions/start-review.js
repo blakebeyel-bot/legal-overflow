@@ -71,6 +71,7 @@ export default async (req) => {
     dealPosture = postureRaw;
   }
 
+
   const filename = file.name || 'contract';
   const ext = (filename.split('.').pop() || '').toLowerCase();
   if (!ALLOWED_EXT.has(ext)) {

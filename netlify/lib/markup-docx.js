@@ -40,17 +40,36 @@ const DOCUMENT_PATH = 'word/document.xml';
 const COMMENTS_PATH = 'word/comments.xml';
 const RELS_PATH = 'word/_rels/document.xml.rels';
 
-const AUTHOR = 'Legal Overflow';
-const INITIALS = 'LO';
+const DEFAULT_AUTHOR = 'Legal Overflow';
+const DEFAULT_INITIALS = 'LO';
+
+// AUTHOR / INITIALS are set per-invocation by applyDocxMarkup() and read
+// by the helper functions below (buildMarkupXml, buildFullParagraphMarkup,
+// buildCommentsXml). Per-invocation mutability is acceptable here because
+// applyDocxMarkup runs serially within a single fanout-background
+// invocation — the markup helpers are not concurrent across reviews.
+let AUTHOR = DEFAULT_AUTHOR;
+let INITIALS = DEFAULT_INITIALS;
+
+function deriveInitials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return DEFAULT_INITIALS;
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 /**
  * Apply an array of finding objects to a DOCX buffer. Returns a new Buffer.
  *
  * @param {Buffer} docxBuffer — input DOCX bytes
  * @param {Array<Finding>} findings — findings from specialist fan-out
+ * @param {object}  [options]
+ * @param {string}  [options.author='Legal Overflow'] — name to attribute on tracked changes + comments
  * @returns {Promise<{ buffer: Buffer, applied: number, unanchored: Finding[] }>}
  */
-export async function applyDocxMarkup(docxBuffer, findings) {
+export async function applyDocxMarkup(docxBuffer, findings, options = {}) {
+  AUTHOR = (options.author && String(options.author).trim()) || DEFAULT_AUTHOR;
+  INITIALS = deriveInitials(AUTHOR);
   const zip = await JSZip.loadAsync(docxBuffer);
 
   const documentXml = await zip.file(DOCUMENT_PATH).async('string');

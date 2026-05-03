@@ -21,7 +21,10 @@ import { PDFDocument, rgb } from 'pdf-lib';
 // the cold-start path. The DOCX markup path never needs it, and a broken
 // PDF dep must not crash the whole function.
 
-const AUTHOR = 'Legal Overflow';
+const DEFAULT_AUTHOR = 'Legal Overflow';
+// AUTHOR is set per-invocation by applyPdfMarkup() and used by the
+// downstream sticky-note + caret writers in this module.
+let AUTHOR = DEFAULT_AUTHOR;
 
 /**
  * Apply findings to a PDF buffer. Returns a new PDF buffer with annotations.
@@ -30,7 +33,8 @@ const AUTHOR = 'Legal Overflow';
  * @param {Array<Finding>} findings
  * @returns {Promise<{ buffer: Buffer, applied: number, unanchored: Finding[] }>}
  */
-export async function applyPdfMarkup(pdfBuffer, findings) {
+export async function applyPdfMarkup(pdfBuffer, findings, options = {}) {
+  AUTHOR = (options.author && String(options.author).trim()) || DEFAULT_AUTHOR;
   // Step 1: extract text with positions using pdfjs-dist
   const positions = await extractTextPositions(pdfBuffer);
 

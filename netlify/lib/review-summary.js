@@ -70,10 +70,10 @@ export async function buildReviewSummaryDocx({
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
       tableRow(['Severity', 'Count'], true),
-      tableRow(['Blocker',  String(severityCounts?.blocker  || 0)]),
-      tableRow(['Major',    String(severityCounts?.major    || 0)]),
-      tableRow(['Moderate', String(severityCounts?.moderate || 0)]),
-      tableRow(['Minor',    String(severityCounts?.minor    || 0)]),
+      tableRow(['Red flag',        String(severityCounts?.blocker  || 0)]),
+      tableRow(['Material',        String(severityCounts?.major    || 0)]),
+      tableRow(['Worth flagging',  String(severityCounts?.moderate || 0)]),
+      tableRow(['Note for record', String(severityCounts?.minor    || 0)]),
     ],
   }));
   children.push(new Paragraph({ children: [new TextRun('')] }));
