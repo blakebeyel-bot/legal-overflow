@@ -17,6 +17,7 @@ import { getAgent } from '../lib/agents.js';
 import { callModel, extractJson } from '../lib/anthropic.js';
 import { extractDocumentText } from '../lib/extract.js';
 import { detectParties } from '../lib/detect-parties.js';
+import { humanize } from '../lib/text-utils.js';
 import { MAX_UPLOAD_BYTES } from '../lib/constants.js';
 
 const ALLOWED_EXT = new Set(['docx', 'pdf', 'txt', 'md']);
@@ -185,7 +186,7 @@ export default async (req) => {
     classification_confidence: classification.confidence,
     detected_parties: detectedParties.length ? detectedParties : null,
     status: 'classifying',
-    progress_message: `Classified as ${classification.contract_type} — awaiting confirmation.`,
+    progress_message: `Classified as ${humanize(classification.contract_type)} — awaiting confirmation.`,
   }).eq('id', reviewId);
 
   // DO NOT fire fanout here. The UI displays the classification, optionally

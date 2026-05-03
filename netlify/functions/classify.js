@@ -16,6 +16,7 @@
 import { requireUser, getSupabaseAdmin } from '../lib/supabase-admin.js';
 import { getAgent } from '../lib/agents.js';
 import { callModel, extractJson } from '../lib/anthropic.js';
+import { humanize } from '../lib/text-utils.js';
 
 export default async (req) => {
   if (req.method !== 'POST') {
@@ -69,7 +70,7 @@ export default async (req) => {
     contract_type: result.contract_type,
     pipeline_mode: result.pipeline_mode,
     status: 'classifying',
-    progress_message: `Classified as ${result.contract_type} — running ${result.pipeline_mode} pipeline.`,
+    progress_message: `Classified as ${humanize(result.contract_type)} — awaiting confirmation.`,
   }).eq('id', review_id);
 
   return json({ ok: true, ...result });

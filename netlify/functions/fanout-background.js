@@ -32,6 +32,7 @@ import { buildReviewSummaryDocx } from '../lib/review-summary.js';
 import { estimateCostUsd } from '../lib/constants.js';
 import { DEFAULT_PROFILE } from '../lib/default-profile.js';
 import { runPostureIntegrity, checkFinding as postureCheckFinding } from '../lib/posture-integrity.js';
+import { humanize } from '../lib/text-utils.js';
 
 export default async (req) => {
   if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
@@ -564,7 +565,12 @@ function tallySeverities(findings) {
 }
 
 function humanizeAgent(name) {
-  return String(name).replace(/-/g, ' ').replace(/\banalyst\b/, '').trim() || name;
+  // Use the shared humanize() but drop the "analyst" suffix so progress
+  // messages read "just finished Commercial Terms" rather than the longer
+  // "just finished Commercial Terms Analyst". Falls back to the raw slug
+  // if humanize returns empty.
+  const cleaned = String(name || '').replace(/[_-]?analyst$/i, '');
+  return humanize(cleaned) || humanize(name) || name;
 }
 
 /**

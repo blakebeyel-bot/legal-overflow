@@ -1014,7 +1014,7 @@ import Consent from '../../partials/consent.astro';
     const confirmPanel = document.getElementById('review-confirm');
     confirmPanel.classList.remove('hidden');
 
-    document.getElementById('confirm-contract-type').textContent = kickoff.contract_type || 'unclassified';
+    document.getElementById('confirm-contract-type').textContent = humanize(kickoff.contract_type) || 'Unclassified';
     const conf = typeof kickoff.confidence === 'number' ? kickoff.confidence : 0;
     const confPct = Math.round(conf * 100);
     const confLabel = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
@@ -1177,7 +1177,7 @@ import Consent from '../../partials/consent.astro';
     const progress = document.getElementById('review-progress');
     progress.classList.remove('hidden');
     document.getElementById('progress-file-sub').textContent =
-      `${pendingKickoff.contract_type}`;
+      humanize(pendingKickoff.contract_type);
 
     // Start elapsed-time ticker
     const reviewStartedAt = Date.now();
@@ -1251,8 +1251,8 @@ import Consent from '../../partials/consent.astro';
       card.innerHTML =
         `<div class="stream-card-head">` +
         `  <span class="stream-card-sev">${escapeHtml(sevLabel)}</span>` +
-        `  <span class="stream-card-spec">${escapeHtml(f.specialist_label || f.specialist || '')}</span>` +
-        `  ${f.category ? `<span class="stream-card-cat">${escapeHtml(f.category)}</span>` : ''}` +
+        `  <span class="stream-card-spec">${escapeHtml(f.specialist_label || humanize(f.specialist) || '')}</span>` +
+        `  ${f.category ? `<span class="stream-card-cat">${escapeHtml(humanize(f.category))}</span>` : ''}` +
         `</div>` +
         (f.external_comment
           ? `<div class="stream-card-body">${escapeHtml(f.external_comment)}</div>`
@@ -1276,7 +1276,7 @@ import Consent from '../../partials/consent.astro';
     document.getElementById('results-title').innerHTML = `Review — <em>${escapeHtml(r.filename)}</em>`;
     const totalFindings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
     document.getElementById('results-sub').textContent = `${totalFindings} finding(s) · ${r.severity_counts?.blocker || 0} red flag(s)`;
-    document.getElementById('results-ct').textContent = r.contract_type || '—';
+    document.getElementById('results-ct').textContent = humanize(r.contract_type) || '—';
     document.getElementById('results-count').textContent = String(totalFindings);
     document.getElementById('results-tokens').textContent = String(r.total_tokens || 0);
     document.getElementById('sev-blocker').textContent = String(r.severity_counts?.blocker || 0);
@@ -1463,7 +1463,7 @@ import Consent from '../../partials/consent.astro';
       wrap.className = 'coverage-specialist';
       wrap.innerHTML = `
         <summary class="coverage-specialist-summary">
-          <span class="coverage-specialist-name">${escapeHtml(spec)}</span>
+          <span class="coverage-specialist-name">${escapeHtml(humanize(spec))}</span>
           <span class="coverage-specialist-count">${entries.length} item${entries.length === 1 ? '' : 's'}</span>
           <span class="coverage-collapse-arrow" aria-hidden="true">▸</span>
         </summary>
@@ -1471,12 +1471,12 @@ import Consent from '../../partials/consent.astro';
           ${entries.map(e => `
             <div class="coverage-entry status-${escapeHtml((e.status || 'unknown').replace(/_/g, '-'))}">
               <div class="coverage-entry-head">
-                <span class="coverage-status">${escapeHtml(e.status || '—')}</span>
+                <span class="coverage-status">${escapeHtml(humanize(e.status) || '—')}</span>
                 <span class="coverage-item">${escapeHtml(e.item || '—')}</span>
-                <span class="coverage-source">${escapeHtml(e.source || '—')}</span>
+                <span class="coverage-source">${escapeHtml(humanize(e.source) || '—')}</span>
               </div>
               ${e.evidence ? `<div class="coverage-evidence">${escapeHtml(e.evidence)}</div>` : ''}
-              ${e.profile_ref ? `<div class="coverage-profile-ref">profile: ${escapeHtml(e.profile_ref)}${e.playbook_fit ? ` · fit: ${escapeHtml(e.playbook_fit)}` : ''}</div>` : ''}
+              ${e.profile_ref ? `<div class="coverage-profile-ref">Profile: ${escapeHtml(e.profile_ref)}${e.playbook_fit ? ` · Fit: ${escapeHtml(humanize(e.playbook_fit))}` : ''}</div>` : ''}
             </div>
           `).join('')}
         </div>
@@ -1551,7 +1551,7 @@ import Consent from '../../partials/consent.astro';
           <span class="priority-card-num">${i + 1}</span>
           <span class="finding-sev-tag ${sev}">${escapeHtml(SEVERITY_LABELS[sev] || 'Note for record')}</span>
           ${existentialTag}
-          <span class="finding-category">${escapeHtml(f.category || '—')}</span>
+          <span class="finding-category">${escapeHtml(humanize(f.category) || '—')}</span>
           <span class="finding-preview">${escapeHtml((f.location || '').slice(0, 80))}</span>
         </div>
         ${f.materiality_rationale ? `<div class="priority-card-rationale">${escapeHtml(f.materiality_rationale)}</div>` : ''}
@@ -1622,8 +1622,8 @@ import Consent from '../../partials/consent.astro';
       <span class="finding-sev-tag ${severity}">${escapeHtml(SEVERITY_LABELS[severity] || 'Note for record')}</span>
       ${existentialTag}
       ${tierTag}
-      <span class="finding-category">${escapeHtml(f.category || '—')}</span>
-      <span class="finding-markup">${escapeHtml(f.markup_type || '—')}</span>
+      <span class="finding-category">${escapeHtml(humanize(f.category) || '—')}</span>
+      <span class="finding-markup">${escapeHtml(humanize(f.markup_type) || '—')}</span>
       <span class="finding-preview">${escapeHtml(preview)}</span>
       <span class="finding-toggle" aria-hidden="true">›</span>
     `;
@@ -1635,7 +1635,7 @@ import Consent from '../../partials/consent.astro';
     const blocks = [];
     if (f.specialist || f.jurisdiction_assumed) {
       const meta = [];
-      if (f.specialist) meta.push(`<span class="finding-meta-chip">${escapeHtml(f.specialist)}</span>`);
+      if (f.specialist) meta.push(`<span class="finding-meta-chip">${escapeHtml(humanize(f.specialist))}</span>`);
       if (f.jurisdiction_assumed) meta.push(`<span class="finding-meta-chip jurisdiction">Jurisdiction assumed: ${escapeHtml(f.jurisdiction_assumed)}</span>`);
       blocks.push(`<div class="finding-block"><div class="finding-meta-row">${meta.join('')}</div></div>`);
     }
@@ -1713,6 +1713,35 @@ import Consent from '../../partials/consent.astro';
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
+  // Convert snake_case / kebab-case identifiers to user-facing labels.
+  // Mirror of netlify/lib/text-utils.js — keep both in lockstep.
+  // Examples:
+  //   "master_services_agreement" → "Master Services Agreement"
+  //   "nda" → "NDA"
+  //   "commercial-terms-analyst" → "Commercial Terms Analyst"
+  //   "their_paper_high_leverage" → "Their Paper High Leverage"
+  const HUMANIZE_ACRONYMS = new Set([
+    'nda','mnda','msa','sow','po','mou','loi','sla','eula',
+    'dpa','baa','ip','sa','tos','pdf','docx','csa','rfp',
+  ]);
+  const HUMANIZE_JOINERS = new Set([
+    'with','and','or','of','for','to','the','a','an','in','on',
+  ]);
+  function humanize(input) {
+    if (input == null) return '';
+    const s = String(input).trim();
+    if (!s) return '';
+    const parts = s.split(/[_-]+/).map(p => p.trim()).filter(Boolean);
+    if (parts.length === 0) return '';
+    return parts.map((part, i) => {
+      const lower = part.toLowerCase();
+      if (HUMANIZE_ACRONYMS.has(lower)) return lower.toUpperCase();
+      if (i > 0 && HUMANIZE_JOINERS.has(lower)) return lower;
+      if (/[A-Z]/.test(part.slice(1))) return part;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    }).join(' ');
+  }
+
   // ---- Archive ----
   async function loadArchive() {
     const rows = document.getElementById('history-rows');
@@ -1732,7 +1761,7 @@ import Consent from '../../partials/consent.astro';
           <div class="history-row-wrap" data-review-id="${r.id}">
             <div class="history-row" role="button" aria-expanded="false" tabindex="0">
               <div class="h-name">${escapeHtml(r.filename)}</div>
-              <div class="h-meta">${escapeHtml(r.contract_type || '—')}</div>
+              <div class="h-meta">${escapeHtml(humanize(r.contract_type) || '—')}</div>
               <div class="h-meta emph">${new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
               <div class="h-meta">${findings} findings</div>
               <div>
@@ -1816,7 +1845,7 @@ import Consent from '../../partials/consent.astro';
       return `<div class="findings-empty">This review failed: ${escapeHtml(r.error_message || 'no error message recorded.')}</div>`;
     }
     if (r.status !== 'complete') {
-      return `<div class="findings-empty">Still running — ${escapeHtml(r.progress_message || r.status)}</div>`;
+      return `<div class="findings-empty">Still running — ${escapeHtml(r.progress_message || humanize(r.status))}</div>`;
     }
     const sc = r.severity_counts || {};
     const total = (sc.blocker || 0) + (sc.major || 0) + (sc.moderate || 0) + (sc.minor || 0);

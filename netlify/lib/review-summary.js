@@ -13,6 +13,17 @@ import {
   Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell,
   WidthType, AlignmentType,
 } from 'docx';
+import { humanize } from './text-utils.js';
+
+// Mirrors the UI's SEVERITY_LABELS map so the downloadable summary speaks
+// the same human labels the customer sees in the dashboard.
+const SEVERITY_LABEL = {
+  blocker:  'Red flag',
+  major:    'Material',
+  moderate: 'Worth flagging',
+  minor:    'Note for record',
+};
+const sevLabel = (s) => SEVERITY_LABEL[String(s || '').toLowerCase()] || (s ? humanize(s) : '—');
 
 /**
  * @param {object} opts
@@ -55,8 +66,9 @@ export async function buildReviewSummaryDocx({
   children.push(new Paragraph({
     children: [new TextRun({ text: `Document: ${filename}`, bold: true })],
   }));
-  children.push(new Paragraph({ children: [new TextRun(`Contract type: ${contractType || 'unclassified'}`)] }));
-  children.push(new Paragraph({ children: [new TextRun(`Pipeline mode: ${pipelineMode || 'standard'}`)] }));
+  children.push(new Paragraph({ children: [new TextRun(`Contract type: ${humanize(contractType) || 'Unclassified'}`)] }));
+  // Pipeline-mode line dropped — there is only one mode now ("standard")
+  // so the line is dead weight in every summary.
   children.push(new Paragraph({ children: [new TextRun(`Reviewed: ${date}`)] }));
   children.push(new Paragraph({ children: [new TextRun('')] }));
 
@@ -106,7 +118,7 @@ export async function buildReviewSummaryDocx({
     for (const f of specialistFailures) {
       children.push(new Paragraph({
         children: [
-          new TextRun({ text: '• ' + (f.specialist || '(unknown)'), bold: true }),
+          new TextRun({ text: '• ' + (humanize(f.specialist) || '(unknown)'), bold: true }),
         ],
       }));
       children.push(new Paragraph({
@@ -131,7 +143,7 @@ export async function buildReviewSummaryDocx({
     priorityThree.slice(0, 3).forEach((f, i) => {
       children.push(new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        children: [new TextRun({ text: `${i + 1}. [${f.severity || '—'}] ${f.category || '—'} · ${f.location || 'Unlocated'}` })],
+        children: [new TextRun({ text: `${i + 1}. [${sevLabel(f.severity)}] ${humanize(f.category) || '—'} · ${f.location || 'Unlocated'}` })],
       }));
       if (f.materiality_rationale) {
         children.push(new Paragraph({
@@ -220,17 +232,17 @@ export async function buildReviewSummaryDocx({
     for (const [spec, entries] of Object.entries(bySpecialist)) {
       children.push(new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        children: [new TextRun({ text: spec })],
+        children: [new TextRun({ text: humanize(spec) })],
       }));
       for (const e of entries) {
         children.push(new Paragraph({
           children: [
-            new TextRun({ text: `• [${e.status || '—'}] ${e.item || '—'}`, bold: true }),
+            new TextRun({ text: `• [${humanize(e.status) || '—'}] ${e.item || '—'}`, bold: true }),
           ],
         }));
         if (e.source) {
           children.push(new Paragraph({
-            children: [new TextRun({ text: `   source: ${e.source}${e.profile_ref ? ` (${e.profile_ref})` : ''}${e.playbook_fit ? ` — playbook_fit: ${e.playbook_fit}` : ''}`, italics: true })],
+            children: [new TextRun({ text: `   Source: ${humanize(e.source)}${e.profile_ref ? ` (${e.profile_ref})` : ''}${e.playbook_fit ? ` — Playbook fit: ${humanize(e.playbook_fit)}` : ''}`, italics: true })],
           }));
         }
         if (e.evidence) {
@@ -256,9 +268,10 @@ export async function buildReviewSummaryDocx({
       })],
     }));
     for (const f of rejectedFindings) {
+      const rejTag = humanize(f.rejection_source || (f.rejection_reason ? 'rejected' : 'rejected'));
       children.push(new Paragraph({
         children: [
-          new TextRun({ text: `• [${f.rejection_source || f.rejection_reason ? (f.rejection_source || 'rejected') : 'rejected'}] ${f.category || '—'} · ${f.specialist || '—'}`, bold: true }),
+          new TextRun({ text: `• [${rejTag}] ${humanize(f.category) || '—'} · ${humanize(f.specialist) || '—'}`, bold: true }),
         ],
       }));
       if (f.rejection_reason) {
@@ -296,7 +309,7 @@ function tableRow(cells, header = false) {
 function renderFinding(f, opts = {}) {
   const out = [];
   const existentialTag = f.existential ? ' [EXISTENTIAL]' : '';
-  const title = `[${f.severity || '—'}]${existentialTag} ${f.category || '—'} · ${f.location || 'Unlocated'}`;
+  const title = `[${sevLabel(f.severity)}]${existentialTag} ${humanize(f.category) || '—'} · ${f.location || 'Unlocated'}`;
   out.push(new Paragraph({
     heading: HeadingLevel.HEADING_2,
     children: [new TextRun({ text: title })],
@@ -304,7 +317,7 @@ function renderFinding(f, opts = {}) {
 
   if (f.specialist || f.jurisdiction_assumed) {
     const parts = [];
-    if (f.specialist) parts.push(`Specialist: ${f.specialist}`);
+    if (f.specialist) parts.push(`Specialist: ${humanize(f.specialist)}`);
     if (f.jurisdiction_assumed) parts.push(`Jurisdiction assumed: ${f.jurisdiction_assumed}`);
     out.push(new Paragraph({
       children: [new TextRun({ text: parts.join('  ·  '), italics: true })],
