@@ -9,7 +9,7 @@
  * Body (JSON):
  *   {
  *     review_id: string,
- *     pipeline_mode?: "express" | "standard" | "comprehensive",
+ *     pipeline_mode?: "standard",  // sole valid value; legacy field, ignored on server
  *     governing_agreement_context?: {
  *       mode: "summary" | "file",
  *       text?: string,           // for mode="summary"
@@ -51,14 +51,13 @@ export default async (req) => {
     return json({ error: `Review already past confirmation stage (status=${review.status})` }, 400);
   }
 
-  // Validate pipeline_mode override
-  const VALID_MODES = new Set(['express', 'standard', 'comprehensive']);
-  const finalMode = VALID_MODES.has(pipeline_mode) ? pipeline_mode : undefined;
-
+  // Pipeline mode is always "standard" now. We still write it to the
+  // reviews row so legacy reads (review-summary, get-review) keep
+  // displaying something sane — but we ignore whatever the client sent.
   const update = {
     pipeline_mode_confirmed_at: new Date().toISOString(),
+    pipeline_mode: 'standard',
   };
-  if (finalMode) update.pipeline_mode = finalMode;
   if (governing_agreement_context && typeof governing_agreement_context === 'object') {
     // Basic shape validation
     const { mode, text, storage_key } = governing_agreement_context;

@@ -105,9 +105,11 @@ async function processReview({ userId, reviewId, supabase }) {
   const contractBuffer = Buffer.from(await blob.arrayBuffer());
   const { text: contractText, format } = await extractDocumentText(contractBuffer, review.filename);
 
-  // 4. Pipeline mode
+  // 4. Pipeline mode — there is now only one ("standard"). Reviews persisted
+  // before the collapse may have "express" or "comprehensive" stored in the
+  // pipeline_mode column; coerce them to standard rather than failing.
   const registry = loadConfig('agent_registry');
-  const mode = review.pipeline_mode || 'standard';
+  const mode = 'standard';
   const pipeline = registry.pipeline_modes[mode];
   if (!pipeline) throw new Error(`Unknown pipeline mode: ${mode}`);
 

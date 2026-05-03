@@ -334,15 +334,6 @@ import Consent from '../../partials/consent.astro';
         <div id="confirm-party-options" class="confirm-party-options"></div>
       </div>
 
-      <div class="confirm-mode-row">
-        <div class="confirm-mode-label">Pipeline mode</div>
-        <div class="confirm-mode-options">
-          <button type="button" class="confirm-mode-btn" data-mode="express">Express</button>
-          <button type="button" class="confirm-mode-btn" data-mode="standard">Standard</button>
-          <button type="button" class="confirm-mode-btn" data-mode="comprehensive">Comprehensive</button>
-        </div>
-      </div>
-
       <div class="confirm-actions">
         <button type="button" class="btn btn-primary" id="confirm-start-btn">
           Run review <span id="confirm-countdown" class="confirm-countdown"></span>
@@ -405,7 +396,6 @@ import Consent from '../../partials/consent.astro';
         <div class="results-head-sub" id="results-sub">— findings</div>
         <div class="results-meta">
           <div><div class="results-meta-l">Contract type</div><div class="results-meta-v" id="results-ct">—</div></div>
-          <div><div class="results-meta-l">Pipeline</div><div class="results-meta-v" id="results-mode">—</div></div>
           <div><div class="results-meta-l">Findings</div><div class="results-meta-v" id="results-count">—</div></div>
           <div><div class="results-meta-l">Tokens</div><div class="results-meta-v" id="results-tokens">—</div></div>
         </div>
@@ -1013,20 +1003,14 @@ import Consent from '../../partials/consent.astro';
     confirmPanel.classList.remove('hidden');
 
     document.getElementById('confirm-contract-type').textContent = kickoff.contract_type || 'unclassified';
-    const modeLabel = kickoff.pipeline_mode || 'standard';
     const conf = typeof kickoff.confidence === 'number' ? kickoff.confidence : 0;
     const confPct = Math.round(conf * 100);
     const confLabel = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
     document.getElementById('confirm-sub').textContent =
-      `Running the ${modeLabel} pipeline. Change the mode below if you disagree.`;
+      `Confirm the contract type and pick which party you're representing.`;
     document.getElementById('confirm-confidence').innerHTML =
       `Classification confidence: <strong>${confPct}%</strong> (${confLabel}).` +
       (kickoff.reasoning ? ` ${escapeHtml(kickoff.reasoning)}` : '');
-
-    // Highlight the recommended mode button
-    document.querySelectorAll('.confirm-mode-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === modeLabel);
-    });
 
     // Show governing-agreement panel if classifier flagged subordinate type
     const governingEl = document.getElementById('confirm-governing');
@@ -1122,13 +1106,6 @@ import Consent from '../../partials/consent.astro';
   }
 
   // Wire confirm panel interactions
-  document.querySelectorAll('.confirm-mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      cancelConfirmCountdown();
-      document.querySelectorAll('.confirm-mode-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  });
   document.querySelectorAll('.cg-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       cancelConfirmCountdown();
@@ -1163,9 +1140,12 @@ import Consent from '../../partials/consent.astro';
       return;
     }
 
-    // Gather final pipeline mode + governing context
-    const activeModeBtn = document.querySelector('.confirm-mode-btn.active');
-    const finalMode = activeModeBtn?.dataset.mode || pendingKickoff.pipeline_mode || 'standard';
+    // Pipeline mode is now fixed at "standard" — the express/comprehensive
+    // picker was removed because the modes weren't producing meaningfully
+    // different products. Express was unfinished (skipped specialists);
+    // comprehensive only added one extra specialist. Standard is the
+    // single, validated review path.
+    const finalMode = 'standard';
 
     let governingCtx = null;
     const governingEl = document.getElementById('confirm-governing');
@@ -1185,7 +1165,7 @@ import Consent from '../../partials/consent.astro';
     const progress = document.getElementById('review-progress');
     progress.classList.remove('hidden');
     document.getElementById('progress-file-sub').textContent =
-      `${pendingKickoff.contract_type} · ${finalMode}`;
+      `${pendingKickoff.contract_type}`;
 
     // Start elapsed-time ticker
     const reviewStartedAt = Date.now();
@@ -1240,7 +1220,6 @@ import Consent from '../../partials/consent.astro';
     const totalFindings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
     document.getElementById('results-sub').textContent = `${totalFindings} finding(s) · ${r.severity_counts?.blocker || 0} red flag(s)`;
     document.getElementById('results-ct').textContent = r.contract_type || '—';
-    document.getElementById('results-mode').textContent = r.pipeline_mode || '—';
     document.getElementById('results-count').textContent = String(totalFindings);
     document.getElementById('results-tokens').textContent = String(r.total_tokens || 0);
     document.getElementById('sev-blocker').textContent = String(r.severity_counts?.blocker || 0);

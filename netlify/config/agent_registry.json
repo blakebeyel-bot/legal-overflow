@@ -4,37 +4,8 @@
   "classifier": "document-classifier",
 
   "pipeline_modes": {
-    "express": {
-      "description": "Fast-track for simple documents (short NDAs, standard POs, order forms). Skips the full specialist fan-out.",
-      "stages": [
-        { "stage": "triage", "agents": ["document-classifier"] },
-        { "stage": "assemble", "agents": ["review-compiler"] }
-      ]
-    },
-
     "standard": {
-      "description": "Default pipeline for most B2B contracts. Core specialist fan-out plus critical-issues sweep.",
-      "stages": [
-        { "stage": "triage", "agents": ["document-classifier"] },
-        {
-          "stage": "analyze",
-          "parallel": true,
-          "agents": [
-            "commercial-terms-analyst",
-            "risk-allocation-analyst",
-            "insurance-coverage-analyst",
-            "performance-obligations-analyst",
-            "termination-remedies-analyst",
-            "protective-provisions-analyst"
-          ]
-        },
-        { "stage": "audit", "agents": ["critical-issues-auditor"] },
-        { "stage": "assemble", "agents": ["review-compiler"] }
-      ]
-    },
-
-    "comprehensive": {
-      "description": "Deep analysis for high-value, regulated, or complex contracts. Adds compliance-regulatory analyst and any enabled industry modules.",
+      "description": "The single review pipeline. Core specialist fan-out, critical-issues sweep, posture-integrity, coherence-checker, and compiler. Express/comprehensive variants were removed because they weren't producing meaningfully different products.",
       "stages": [
         { "stage": "triage", "agents": ["document-classifier"] },
         {

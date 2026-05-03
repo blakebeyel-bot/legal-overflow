@@ -1423,37 +1423,13 @@
     font-size: 13px;
     opacity: 0.9;
   }
-  .confirm-mode-row {
-    margin-top: 22px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
+  /* .confirm-mode-label is reused by the party picker — keep its styling. */
   .confirm-mode-label {
     font-family: var(--mono);
     font-size: 10.5px;
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ink-3);
-  }
-  .confirm-mode-options { display: flex; gap: 6px; }
-  .confirm-mode-btn {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    padding: 8px 16px;
-    border: 1px solid var(--rule);
-    background: var(--paper);
-    color: var(--ink-2);
-    border-radius: 999px;
-    cursor: pointer;
-  }
-  .confirm-mode-btn.active {
-    background: var(--accent-deep);
-    color: var(--paper);
-    border-color: var(--accent-deep);
   }
   .confirm-actions {
     margin-top: 28px;

@@ -133,8 +133,8 @@ export default async (req) => {
       userMessage:
         `Classify the following contract. Return ONLY a JSON object with keys:\n` +
         `  "contract_type"  — string, e.g. "master_services_agreement", "order_form", "sow", "nda", "subscription_agreement", "purchase_order", "work_order", "license_agreement", ...\n` +
-        `  "pipeline_mode"  — one of "express" | "standard" | "comprehensive"\n` +
-        `  "confidence"     — number 0-1 representing how certain you are about contract_type AND pipeline_mode. Be honest; low confidence is better than wrong.\n` +
+        `  "pipeline_mode"  — always "standard" (the only mode we run; included for shape compatibility)\n` +
+        `  "confidence"     — number 0-1 representing how certain you are about contract_type. Be honest; low confidence is better than wrong.\n` +
         `  "is_subordinate" — boolean. True if the document is an order_form, sow, work_order, statement_of_work, addendum, or similar document that references or is governed by a separate master agreement.\n` +
         `  "reasoning"      — one-sentence string.\n\n` +
         `CONFIDENCE GUIDE:\n` +
@@ -161,16 +161,12 @@ export default async (req) => {
     console.error('classifier failed, defaulting to standard:', err.message);
   }
 
-  // Confidence-based pipeline-mode guardrails:
-  //   Only downgrade to express when the classifier is highly confident.
-  //   On low confidence, force standard so we don't skip specialists on
-  //   something we misread.
-  if (classification.pipeline_mode === 'express' && classification.confidence < 0.85) {
-    classification.pipeline_mode = 'standard';
-  }
-  if (classification.confidence < 0.4) {
-    classification.pipeline_mode = 'standard';
-  }
+  // Pipeline mode is now fixed at "standard" — the express/comprehensive
+  // variants were removed (express was unfinished, comprehensive only
+  // added one extra specialist already folded into standard). The
+  // classifier may still emit a mode hint, but we ignore it and run the
+  // single validated review path.
+  classification.pipeline_mode = 'standard';
 
   // Party detection: identify the parties + their Defined Terms so the
   // intake confirm panel can ask the user which one they represent. Runs
