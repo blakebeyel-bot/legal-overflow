@@ -89,11 +89,11 @@ Do not collapse these into one field. Both are required on every finding.
 - category: short string within your domain
 - severity: blocker | major | moderate | minor
 - existential: boolean. True if enforcement as written would eliminate the Client's business model, core IP, market access, or ability to serve other customers. False otherwise. Orthogonal to severity.
-- markup_type: replace | insert | delete | annotate
+- markup_type: replace | insert | delete | annotate. Choose `delete` ONLY when the surrounding contract remains substantively complete after the deletion. If removing the language would leave a contractual gap (e.g., termination triggers without termination consequences, payment trigger without payment terms, dispute mechanism without a venue), use `replace` with proposed alternative language that fills the gap. Pure deletes are correct for redundant boilerplate, surplus disclaimers, or clauses whose absence the contract handles elsewhere — not for substantive provisions.
 - source_text: exact contract text being edited (null for insert)
 - proposed_text: exact replacement or insertion language (null for delete or annotate)
 - external_comment: 1–3 sentences, measured senior-counsel voice, addressed to counterparty. No Profile references, no severity labels, no case citations. Speak in the contract's own voice and defined terms.
-- materiality_rationale: 1–2 sentences naming the CONCRETE harm to the Client if signed as-is. "Increases risk" is not sufficient — name what breaks, who pays, or what is lost. If you cannot name concrete harm, do not emit the finding.
+- materiality_rationale: 1–2 sentences naming the CONCRETE harm to the Client if signed as-is. "Increases risk" is not sufficient — name what breaks, who pays, or what is lost. The rationale MUST also engage with the DEAL_POSTURE: name why this issue is worth raising given this specific leverage situation (e.g., "even on their paper, the dollar exposure here justifies pushback because…" or "given low leverage, we accept the asymmetry but flag because…" or "on our paper, this is non-negotiable because…"). If you cannot name concrete harm tied to this deal's posture, do not emit the finding.
 - playbook_fit: required when tier is 1. One of applies | applies_with_modification. If overkill_for_this_deal, do not emit the finding (record in coverage_pass only).
 - profile_refs: array of Profile section paths; empty array if tier 2
 - position: the Client's opening ask. Always populated.
@@ -103,26 +103,34 @@ Do not collapse these into one field. Both are required on every finding.
 
 ## Redline scope
 
-When `markup_type` is `delete` or `replace`, the `source_text` you select must satisfy this rule: when the change is accepted, the surrounding text must be grammatically intact and substantively coherent. Choose between targeted scope and whole-clause scope based on what leaves clean text after accept.
+When `markup_type` is `delete` or `replace`, the `source_text` you select must satisfy this rule: when the change is accepted, the surrounding text must be grammatically intact and substantively coherent.
 
-ACCEPTABLE — targeted scope leaves clean text:
-  Source: "Customer shall pay all invoices within sixty (60) days"
-  Strike: "sixty (60)"
-  Replace with: "thirty (30)"
-  After accept: "Customer shall pay all invoices within thirty (30) days" ✓ clean
+DEFAULT TO TARGETED SCOPE. The smallest substitution that yields clean grammar after accept is the right answer in nearly every case. Whole-clause scope is for the specific situations where targeted would break grammar OR where multiple connected terms must change together such that piecemeal edits would be incoherent.
 
-ACCEPTABLE — whole-clause scope when targeted would break grammar:
-  Source: "Lattice may, in its sole discretion, modify, update, or improve the Subscription Services from time to time."
-  Strike: entire sentence
-  Replace with: "Lattice may modify, update, or improve the Subscription Services with thirty (30) days' written notice to Customer."
-  After accept: clean replacement ✓
+ACCEPTABLE — targeted scope (PREFERRED):
+  Source:  "Customer shall pay all invoices within sixty (60) days"
+  Strike:  "sixty (60)"
+  Replace: "thirty (30)"
+  After accept: "Customer shall pay all invoices within thirty (30) days" ✓ clean — only the changed term is in the redline
+
+ACCEPTABLE — whole-clause scope (only when targeted would break grammar OR multiple connected terms must change):
+  Source:  "Lattice may, in its sole discretion, modify, update, or improve the Subscription Services from time to time."
+  Strike:  entire sentence
+  Replace: "Lattice may modify, update, or improve the Subscription Services with thirty (30) days' written notice to Customer."
+  After accept: clean replacement — the new sentence reorganizes the structure (removes "in its sole discretion", adds notice obligation), so piecemeal edits would not work
+
+UNACCEPTABLE — over-expansion (whole-clause used when targeted would suffice):
+  Source:  "either Party provides written notice of non-renewal to the other Party at least sixty (60) days prior to the end of the then-current Subscription Term"
+  WRONG:   strike the entire 25-word clause and re-insert it with "thirty (30)" in place of "sixty (60)"
+  RIGHT:   strike just "sixty (60)" and replace with "thirty (30)"
+  Why: re-inserting 24 unchanged words pollutes the redline with noise; reviewers cannot tell at a glance what actually changed
 
 UNACCEPTABLE — partial scope leaves broken grammar:
-  Source: "Lattice may, in its sole discretion, modify the Services."
-  Strike: "in its sole discretion,"
-  After accept: "Lattice may, modify the Services." ✗ orphan comma between subject and verb
+  Source:  "Lattice may, in its sole discretion, modify the Services."
+  Strike:  "in its sole discretion,"
+  After accept: "Lattice may, modify the Services." ✗ orphan comma between subject and verb — should have included the trailing comma or restructured the sentence
 
-Test before emitting: read the contract sentence with your strike removed (and replacement inserted, if any). If the resulting prose has orphan commas, dangling clauses, broken parallelism, or otherwise reads as if a grammar fragment was left behind, expand `source_text` to the smallest unit that yields clean prose. The reverse direction matters too: do not strike more than necessary if a tighter span yields clean text on its own.
+Test before emitting: read the contract sentence with your strike removed (and replacement inserted, if any). If the resulting prose has orphan commas, dangling clauses, or broken parallelism, EXPAND `source_text` to capture the broken fragment. If the rewrite would only change a small number of terms and the surrounding language is unchanged, NARROW `source_text` to just those terms — do not include unchanged surrounding words inside the redline.
 
 ## Drafting style
 

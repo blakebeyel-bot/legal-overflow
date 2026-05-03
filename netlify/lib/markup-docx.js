@@ -87,7 +87,37 @@ export async function applyDocxMarkup(docxBuffer, findings, options = {}) {
   for (const f of findings) {
     const { markup_type, source_text, suggested_text, anchor_text, external_comment } = f;
 
-    const searchText = source_text || anchor_text || '';
+    // Round 4 anchor-reliability: specialists sometimes wrap source_text in a
+    // citation prefix like "Section 4.2: 'actual quoted contract text…'" — that
+    // prefix never appears in the contract, so locateText fails. Strip the
+    // wrapper before searching.
+    const rawSearchText = source_text || anchor_text || '';
+    const stripped = stripQuotedSectionPrefix(rawSearchText);
+    let searchText = stripped || rawSearchText;
+
+    // For insert findings without a usable searchText, try to derive an anchor
+    // from the suggested_text's section number (e.g. "10.5 …" → place after the
+    // existing 10.4). Falls back to unanchored if no derivation works.
+    if (markup_type === 'insert' && (!searchText || searchText.length < 8)) {
+      const paragraphs = enumerateParagraphs(modifiedXml);
+      const cid = commentIdCounter;
+      const result = tryInsertWithDerivedAnchor(
+        modifiedXml,
+        paragraphs,
+        suggested_text || '',
+        cid,
+      );
+      if (result) {
+        modifiedXml = result.modifiedXml;
+        commentIdCounter += 1;
+        if (external_comment) commentsToAppend.push({ id: cid, text: external_comment });
+        applied.push(f);
+        continue;
+      }
+      unanchored.push(f);
+      continue;
+    }
+
     if (!searchText || searchText.length < 8) {
       unanchored.push(f);
       continue;
@@ -95,7 +125,17 @@ export async function applyDocxMarkup(docxBuffer, findings, options = {}) {
 
     // Each pass re-enumerates paragraphs since prior splices have shifted offsets.
     const paragraphs = enumerateParagraphs(modifiedXml);
-    const location = locateText(modifiedXml, searchText, paragraphs);
+    let location = locateText(modifiedXml, searchText, paragraphs);
+
+    // Round 4 fallback: if the stripped quoted text didn't anchor, try the raw
+    // form (some specialists emit just the inner quote without the wrapper, but
+    // the wrapper-strip itself can over-trim if the contract really does include
+    // a "Section X:" lead-in).
+    if (location == null && stripped && stripped !== rawSearchText) {
+      location = locateText(modifiedXml, rawSearchText, paragraphs);
+      if (location != null) searchText = rawSearchText;
+    }
+
     if (location == null) {
       unanchored.push(f);
       continue;
@@ -145,6 +185,13 @@ export async function applyDocxMarkup(docxBuffer, findings, options = {}) {
     await ensureCommentsContentType(zip);
     await ensureCommentsRelationship(zip);
   }
+
+  // Add <w:trackChanges/> to settings.xml so the document opens with
+  // Track Changes mode active. Effect: any new edits the reviewer types
+  // are also tracked (not just our existing redlines). The Review
+  // ribbon's Track Changes button shows as toggled on. Pure UX polish —
+  // doesn't affect the existing <w:del>/<w:ins> tags we wrote above.
+  await ensureTrackChangesEnabled(zip);
 
   zip.file(DOCUMENT_PATH, modifiedXml);
 
@@ -355,6 +402,160 @@ function encodeXml(s) {
 }
 
 // ================================================================
+// Round 4 — anchor-reliability helpers
+// ================================================================
+
+/**
+ * Strip a quoted-section prefix from `source_text` so the inner quote can be
+ * located in the document.
+ *
+ * Specialists sometimes emit source_text shaped like:
+ *
+ *   Section 4.2: "Customer shall pay all invoices within sixty (60) days…"
+ *   Section 10.1 GOVERNING LAW: "This Agreement shall be governed by…"
+ *   Section 7.3 AS USED: "The term Confidential Information shall mean…"
+ *
+ * The prefix never appears in the contract body that way — the contract has the
+ * heading on its own line and the prose on subsequent lines. To anchor, we
+ * peel the wrapper and return the inner quoted contract text.
+ *
+ * Composite citations ("Section 4.2 + Section 4.3", "Section 4.2 AND Section
+ * 4.3", "Section 4.2 COMBINED WITH Section 4.3") are flattened to the inner
+ * quoted text of the FIRST section — locateText handles cross-paragraph
+ * matching from there.
+ *
+ * Returns null when the input doesn't match the wrapper shape — caller falls
+ * back to the original text.
+ */
+function stripQuotedSectionPrefix(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+
+  // Find the first "Section X.Y[…]:" wrapper. Allow:
+  //   - decimal section IDs (4, 4.2, 4.2.1, 4(a), 4.2(a)(i))
+  //   - optional ALL-CAPS heading or "AS USED IN…" lead-in before the colon
+  // We don't anchor at start-of-string strictly; composite forms ("…+ Section
+  // 5.1: …") may have a prefix we want to drop.
+  const wrapper = /Section\s+[\d.()a-zA-Z]+(?:\s+[^:'"]{1,80}?)?\s*:\s*['"‘’“”]/;
+  const m = trimmed.match(wrapper);
+  if (!m) return null;
+
+  // Slice from after the opening quote, then find the matching closing quote.
+  const startQuoteIdx = m.index + m[0].length - 1;
+  const openQuote = trimmed[startQuoteIdx];
+  const closeQuote =
+    openQuote === '‘' ? '’' :
+    openQuote === '“' ? '”' :
+    openQuote;
+  const innerStart = startQuoteIdx + 1;
+  // Find the last matching close quote — quoted contract excerpts can contain
+  // nested punctuation but rarely contain the same smart-quote variant.
+  let innerEnd = trimmed.lastIndexOf(closeQuote);
+  if (innerEnd <= innerStart) {
+    // Fall back to a simple quote pair scan.
+    innerEnd = trimmed.indexOf(closeQuote, innerStart);
+    if (innerEnd <= innerStart) return null;
+  }
+  const inner = trimmed.slice(innerStart, innerEnd).trim();
+  if (!inner || inner.length < 8) return null;
+  return inner;
+}
+
+/**
+ * For an `insert` finding with no source_text/anchor_text, try to derive an
+ * anchor from the section number embedded in `suggested_text`. Example:
+ *
+ *   suggested_text starts with "10.5 Force Majeure. Neither party shall…"
+ *   → look for paragraphs whose text begins with "10.4" (or "10.4.x"); the
+ *     last one is the closest preceding section.
+ *   → splice a new <w:p> immediately after that paragraph containing the
+ *     suggested_text wrapped in <w:ins>, with a comment range around it.
+ *
+ * Returns { modifiedXml } on success, or null when no anchor could be derived.
+ */
+function tryInsertWithDerivedAnchor(xml, paragraphs, suggestedText, commentId) {
+  if (!suggestedText || typeof suggestedText !== 'string') return null;
+
+  // Extract the leading section number from the suggestion.
+  const numMatch = suggestedText.trim().match(/^(?:Section\s+)?(\d+)(?:\.(\d+))?(?:\.(\d+))?\b/);
+  if (!numMatch) return null;
+  const major = parseInt(numMatch[1], 10);
+  const minor = numMatch[2] != null ? parseInt(numMatch[2], 10) : null;
+  if (!Number.isFinite(major)) return null;
+
+  // Walk paragraphs and find the deepest preceding sibling whose number is in
+  // the same major and lower minor. If we have no minor (just "10 …"), find
+  // the last paragraph in major (10.x.x) — i.e., the section just before the
+  // next major.
+  let anchorIdx = -1;
+  let bestKey = -1;
+  for (let i = 0; i < paragraphs.length; i++) {
+    const t = (paragraphs[i].text || '').trim();
+    const pm = t.match(/^(?:Section\s+)?(\d+)(?:\.(\d+))?(?:\.(\d+))?\b/);
+    if (!pm) continue;
+    const pMajor = parseInt(pm[1], 10);
+    if (pMajor !== major) continue;
+    const pMinor = pm[2] != null ? parseInt(pm[2], 10) : 0;
+    if (minor != null && pMinor >= minor) continue;
+    // rank: prefer highest minor < target minor; ties broken by index (later wins).
+    const key = pMinor * 1000 + i;
+    if (key > bestKey) {
+      bestKey = key;
+      anchorIdx = i;
+    }
+  }
+
+  if (anchorIdx < 0) return null;
+
+  // Walk forward to the LAST paragraph of that section — i.e., until we hit
+  // a paragraph whose major.minor differs from the anchor's.
+  const anchorText = paragraphs[anchorIdx].text.trim();
+  const am = anchorText.match(/^(?:Section\s+)?(\d+)(?:\.(\d+))?/);
+  const aMajor = parseInt(am[1], 10);
+  const aMinor = am[2] != null ? parseInt(am[2], 10) : 0;
+  let lastIdx = anchorIdx;
+  for (let i = anchorIdx + 1; i < paragraphs.length; i++) {
+    const t = (paragraphs[i].text || '').trim();
+    const pm = t.match(/^(?:Section\s+)?(\d+)(?:\.(\d+))?/);
+    if (!pm) {
+      // unnumbered continuation — assume it belongs to the current section.
+      lastIdx = i;
+      continue;
+    }
+    const pMajor = parseInt(pm[1], 10);
+    const pMinor = pm[2] != null ? parseInt(pm[2], 10) : 0;
+    if (pMajor === aMajor && pMinor === aMinor) {
+      lastIdx = i;
+      continue;
+    }
+    // Different section reached — stop.
+    break;
+  }
+
+  // Splice a new <w:p>…</w:p> with the insertion AFTER paragraphs[lastIdx].
+  const ts = new Date().toISOString();
+  // Inherit the anchor paragraph's pPr (sans rPr) so the inserted paragraph
+  // matches the surrounding style — heading level, indentation, etc.
+  const anchorXml = paragraphs[lastIdx].xml;
+  const pPrMatch = anchorXml.match(/<w:pPr>([\s\S]*?)<\/w:pPr>/);
+  const cleanPPrBody = pPrMatch ? pPrMatch[1].replace(/<w:rPr>[\s\S]*?<\/w:rPr>/g, '') : '';
+  const cleanPPr = cleanPPrBody ? `<w:pPr>${cleanPPrBody}</w:pPr>` : '';
+  const insertedParagraph =
+    `<w:p>${cleanPPr}` +
+    `<w:commentRangeStart w:id="${commentId}"/>` +
+    `<w:ins w:id="${commentId + 2000}" w:author="${AUTHOR}" w:date="${ts}">` +
+    `<w:r><w:t xml:space="preserve">${encodeXml(suggestedText)}</w:t></w:r>` +
+    `</w:ins>` +
+    `<w:commentRangeEnd w:id="${commentId}"/>` +
+    `<w:r><w:commentReference w:id="${commentId}"/></w:r>` +
+    `</w:p>`;
+
+  const insertAt = paragraphs[lastIdx].end;
+  const modifiedXml = xml.slice(0, insertAt) + insertedParagraph + xml.slice(insertAt);
+  return { modifiedXml };
+}
+
+// ================================================================
 // Markup builders
 // ================================================================
 
@@ -366,16 +567,33 @@ function encodeXml(s) {
 function buildMarkupXml({ markupType, sourceText, suggestedText, commentId, originalRunXml }) {
   const ts = new Date().toISOString();
   const commentStart = `<w:commentRangeStart w:id="${commentId}"/>`;
-  const commentEnd = `<w:commentRangeEnd w:id="${commentId}"/><w:r><w:commentReference w:id="${commentId}"/></w:r>`;
+  // Split the closing markers so we can place the rangeEnd between the
+  // deletion and the insertion (for `replace`), with the marker reference
+  // at the end of the change. Other markup types still use the combined
+  // closing block via `commentEnd`.
+  const commentRangeEnd = `<w:commentRangeEnd w:id="${commentId}"/>`;
+  const commentReference = `<w:r><w:commentReference w:id="${commentId}"/></w:r>`;
+  const commentEnd = commentRangeEnd + commentReference;
 
   const rPrMatch = originalRunXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
   const rPr = rPrMatch ? rPrMatch[0] : '';
 
   let body = '';
   if (markupType === 'replace') {
-    body =
+    // Wrap the comment range around ONLY the deletion. Putting the
+    // <w:ins> outside the comment range lets Word's inline "Accept or
+    // reject" tooltip surface cleanly when the reviewer hovers over the
+    // inserted text — without it, the comment-balloon overlay (which
+    // covers the whole rangeStart..rangeEnd span) intercepts hover
+    // events on the inserted text and Word shows the comment instead of
+    // the accept/reject card.
+    return (
+      commentStart +
       `<w:del w:id="${commentId + 1000}" w:author="${AUTHOR}" w:date="${ts}"><w:r>${rPr}<w:delText xml:space="preserve">${encodeXml(sourceText)}</w:delText></w:r></w:del>` +
-      `<w:ins w:id="${commentId + 2000}" w:author="${AUTHOR}" w:date="${ts}"><w:r>${rPr}<w:t xml:space="preserve">${encodeXml(suggestedText)}</w:t></w:r></w:ins>`;
+      commentRangeEnd +
+      `<w:ins w:id="${commentId + 2000}" w:author="${AUTHOR}" w:date="${ts}"><w:r>${rPr}<w:t xml:space="preserve">${encodeXml(suggestedText)}</w:t></w:r></w:ins>` +
+      commentReference
+    );
   } else if (markupType === 'delete') {
     body =
       `<w:del w:id="${commentId + 1000}" w:author="${AUTHOR}" w:date="${ts}"><w:r>${rPr}<w:delText xml:space="preserve">${encodeXml(sourceText)}</w:delText></w:r></w:del>`;
@@ -620,6 +838,44 @@ async function ensureCommentsRelationship(zip) {
   const newRel = `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>`;
   rels = rels.replace('</Relationships>', newRel + '</Relationships>');
   zip.file(RELS_PATH, rels);
+}
+
+/**
+ * Add <w:trackChanges/> to word/settings.xml so the document opens with
+ * Track Changes mode active. Idempotent — bails if the flag is already
+ * present, otherwise inserts immediately after the opening <w:settings>
+ * tag (per OOXML, child elements of w:settings have no required order).
+ *
+ * If word/settings.xml is missing entirely (some authoring tools omit
+ * it), we create a minimal one with just the trackChanges flag.
+ */
+async function ensureTrackChangesEnabled(zip) {
+  const SETTINGS_PATH = 'word/settings.xml';
+  const settingsFile = zip.file(SETTINGS_PATH);
+
+  if (!settingsFile) {
+    // Create a minimal settings.xml. Word accepts this even without the
+    // usual <w:zoom>, <w:defaultTabStop>, etc. — those default to sane
+    // values. The settings.rels relationship is auto-discovered.
+    const minimal =
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+      `<w:trackChanges/>` +
+      `</w:settings>`;
+    zip.file(SETTINGS_PATH, minimal);
+    return;
+  }
+
+  let settings = await settingsFile.async('string');
+  if (/<w:trackChanges\b/.test(settings)) return; // already enabled
+
+  // Insert after the opening <w:settings ...> tag. Match the tag with
+  // any namespace declarations / attributes.
+  const updated = settings.replace(
+    /(<w:settings\b[^>]*>)/,
+    '$1<w:trackChanges/>',
+  );
+  zip.file(SETTINGS_PATH, updated);
 }
 
 function nextRelId(relsXml) {
