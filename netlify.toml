@@ -29,6 +29,15 @@
   # require, the .node binaries never make it into the function bundle,
   # and pdfjs throws "DOMMatrix is not defined" on first transform.
   external_node_modules = ["@napi-rs/canvas"]
+  # pdf.worker.mjs is dynamically imported at runtime by pdfjs's main
+  # `pdf.mjs` (it sets `GlobalWorkerOptions.workerSrc ||=
+  # "./pdf.worker.mjs"`). esbuild bundles `pdf.mjs` but doesn't follow
+  # that dynamic import. The file must be shipped at the expected
+  # relative path so pdfjs can resolve it at /var/task/node_modules/...
+  included_files = [
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+    "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  ]
 
 # Background function — up to 15 min runtime. Name must end in `-background`.
 [functions."fanout-background"]
