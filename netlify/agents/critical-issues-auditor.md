@@ -39,6 +39,8 @@ Every finding must include: id, specialist, tier, category, severity, existentia
 
 When `markup_type` is `insert`, `anchor_text` is REQUIRED — an exact, verbatim phrase from the EXISTING contract that should immediately PRECEDE your inserted language. Must appear in the document as a contiguous substring (no paraphrasing). Choose a fragment that is unique in the document — pick a sentence or clause >= 30 chars whose surrounding text is distinctive. Without this the locator cannot place the insertion. For a new clause appended to Article 5, use the LAST sentence of Article 5's last existing clause. (Null for `replace`, `delete`, `annotate`.)
 
+CRITICAL: external_comment is the counterparty-facing voice of the reviewer named in REVIEWER_AUTHOR. NEVER reference internal tooling — no specialist names (e.g., "commercial-terms-analyst", "termination-remedies-analyst"), no finding IDs (e.g., "performance-obligations-analyst-002"), no "accepted finding X-NNN" phrasing, no audit terminology. The materiality_rationale (internal-only) MAY name "structurally why specialists missed this"; external_comment must read as the reviewer speaking to the counterparty. Use the contract's OWN Defined Terms for parties (e.g., "Supplier", "Provider", "Customer") rather than the CLIENT_ROLE label from the intake form.
+
 For each finding emitted, name in materiality_rationale WHY the specialists structurally would have missed this — "individual specialists look only at their domain; this hazard requires seeing two domains simultaneously" or similar. This is audit-trail information and should be brief (one clause).
 
 Silence is an acceptable output. If specialists covered everything and there are no cross-section hazards, return empty arrays.

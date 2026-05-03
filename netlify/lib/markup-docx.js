@@ -885,12 +885,70 @@ function buildCommentsXml(existingXml, newComments) {
   const newBody = newComments
     .map(c =>
       `<w:comment w:id="${c.id}" w:author="${AUTHOR}" w:date="${ts}" w:initials="${INITIALS}">` +
-      `<w:p><w:r><w:t xml:space="preserve">${encodeXml(c.text)}</w:t></w:r></w:p>` +
+      `<w:p><w:r><w:t xml:space="preserve">${encodeXml(sanitizeCommentText(c.text))}</w:t></w:r></w:p>` +
       `</w:comment>`
     )
     .join('');
 
   return header + existingBody + newBody + footer;
+}
+
+/**
+ * Safety-net sanitizer for comment text reaching the counterparty-facing
+ * comments.xml. The prompts already forbid internal tooling references but a
+ * single LLM slip should never produce a comment that exposes the agent
+ * pipeline to the counterparty.
+ *
+ * Strips:
+ *   - "Accepted finding <specialist>-<NNN>" / "accepted finding ..." → "the proposed change"
+ *   - Bare "<specialist>-<NNN>" finding IDs → ""
+ *   - Bare specialist names ("commercial-terms-analyst", "critical-issues-auditor",
+ *     "coherence-checker", "termination-remedies-analyst", etc.) → ""
+ *
+ * Does not touch the materiality_rationale (internal-only) — only the
+ * external_comment that becomes the visible Word comment.
+ */
+function sanitizeCommentText(text) {
+  if (!text || typeof text !== 'string') return '';
+  // Known agent slugs — derived from netlify/agents/*.md filenames.
+  const AGENT_SLUGS = [
+    'commercial-terms-analyst',
+    'compliance-regulatory-analyst',
+    'industry-saas-analyst',
+    'insurance-coverage-analyst',
+    'performance-obligations-analyst',
+    'protective-provisions-analyst',
+    'risk-allocation-analyst',
+    'termination-remedies-analyst',
+    'critical-issues-auditor',
+    'coherence-checker',
+    'posture-integrity',
+  ];
+  const slugAlt = AGENT_SLUGS.join('|');
+
+  let out = text;
+
+  // "Accepted finding <slug>-NNN" (any case) → "The proposed change"
+  out = out.replace(
+    new RegExp(`\\bAccepted\\s+finding\\s+(?:${slugAlt})-\\d{1,4}\\b`, 'gi'),
+    'The proposed change',
+  );
+  // "(see <slug>-NNN)" → ""
+  out = out.replace(
+    new RegExp(`\\s*\\((?:see\\s+)?(?:${slugAlt})-\\d{1,4}\\)`, 'gi'),
+    '',
+  );
+  // Bare finding IDs anywhere else → ""
+  out = out.replace(
+    new RegExp(`\\b(?:${slugAlt})-\\d{1,4}\\b`, 'gi'),
+    '',
+  );
+  // Bare slugs ("commercial-terms-analyst") that escaped → ""
+  out = out.replace(new RegExp(`\\b(?:${slugAlt})\\b`, 'gi'), '');
+
+  // Tidy up double spaces, double commas, leading/trailing whitespace
+  out = out.replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim();
+  return out;
 }
 
 async function ensureCommentsContentType(zip) {

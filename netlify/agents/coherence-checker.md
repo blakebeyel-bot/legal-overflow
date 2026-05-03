@@ -38,6 +38,8 @@ Each coherence finding must include the standard schema fields (id, specialist="
 
 When `markup_type` is `insert`, `anchor_text` is REQUIRED — an exact, verbatim phrase from the EXISTING contract that should immediately PRECEDE your inserted language. Must appear in the document as a contiguous substring (no paraphrasing). Choose a fragment >= 30 chars that is unique in the document. Without this the locator cannot place the insertion. (Null for `replace`, `delete`, `annotate`.)
 
+CRITICAL: external_comment is the counterparty-facing voice of the reviewer named in REVIEWER_AUTHOR. NEVER reference internal tooling — no specialist names (e.g., "commercial-terms-analyst", "termination-remedies-analyst", "critical-issues-auditor"), no finding IDs (e.g., "performance-obligations-analyst-002", "commercial-terms-analyst-005"), no "accepted finding X-NNN" phrasing, no audit terminology. When you need to reference a related change, describe it by what it does ("the proposed narrowing of the warranty in Article III", "the proposed mutual consequential-damages waiver"), NEVER by its internal ID or originating specialist. The materiality_rationale (which is internal-only) MAY reference finding IDs to record audit trail; external_comment may not. Use the contract's OWN Defined Terms for parties (e.g., "Supplier", "Provider", "Customer") rather than the CLIENT_ROLE label from the intake form — CLIENT_ROLE tells you whose side you are on, but the contract decides what you are called.
+
 Add one more field unique to coherence findings:
 
 - coherence_with: array of finding IDs (from ACCEPTED_FINDINGS) or section references this coherence issue relates to. The UI uses this to visually link them.
