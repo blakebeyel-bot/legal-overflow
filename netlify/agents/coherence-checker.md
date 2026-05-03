@@ -34,7 +34,9 @@ Typical coherence problems you are catching:
 - A newly proposed DPA in §14 references a data-processing framework that isn't reflected in the existing §7 security obligations.
 - An accepted narrowing of the indemnity in §10 leaves a broader "hold harmless" covenant in §13 that would be invoked instead.
 
-Each coherence finding must include the standard schema fields (id, specialist="coherence-checker", tier 2, category="coherence", severity, existential (usually false), markup_type, source_text, proposed_text, external_comment, materiality_rationale, profile_refs, position, jurisdiction_assumed; fallback/walkaway only when required by schema).
+Each coherence finding must include the standard schema fields (id, specialist="coherence-checker", tier 2, category="coherence", severity, existential (usually false), markup_type, source_text, anchor_text, proposed_text, external_comment, materiality_rationale, profile_refs, position, jurisdiction_assumed; fallback/walkaway only when required by schema).
+
+When `markup_type` is `insert`, `anchor_text` is REQUIRED — an exact, verbatim phrase from the EXISTING contract that should immediately PRECEDE your inserted language. Must appear in the document as a contiguous substring (no paraphrasing). Choose a fragment >= 30 chars that is unique in the document. Without this the locator cannot place the insertion. (Null for `replace`, `delete`, `annotate`.)
 
 Add one more field unique to coherence findings:
 

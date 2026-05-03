@@ -125,6 +125,27 @@ export async function applyDocxMarkup(docxBuffer, findings, options = {}) {
 
     // Each pass re-enumerates paragraphs since prior splices have shifted offsets.
     const paragraphs = enumerateParagraphs(modifiedXml);
+
+    // Round 5 — multi-instance disambiguation: if `searchText` is short
+    // (under 30 chars after normalization) AND occurs more than once in the
+    // document body, anchoring on the first hit is unsafe — the deletion
+    // lands on whichever instance happens to come first, but the OTHER
+    // instances stay put. Verification then flags it because source_text
+    // is still present in the accepted view. Better to mark it unanchored
+    // with a clear reason so the user can either accept the verification
+    // failure or have the specialist refine the source_text with leading
+    // context to make it unique.
+    const occurrenceCount = countOccurrences(modifiedXml, searchText);
+    if (occurrenceCount > 1 && normalizeForCompare(searchText).length < 30) {
+      f._markup_failure_reason = 'short_source_text_matches_multiple_instances';
+      f._markup_failure_detail =
+        `source_text "${normalizeForCompare(searchText).slice(0, 60)}" appears ` +
+        `${occurrenceCount} times — needs more leading context to be unique.`;
+      console.log(`[markup-locate] AMBIGUOUS ${f.id || f.category || '(unnamed)'}: ${f._markup_failure_detail}`);
+      unanchored.push(f);
+      continue;
+    }
+
     let location = locateText(modifiedXml, searchText, paragraphs);
 
     // Round 4 fallback: if the stripped quoted text didn't anchor, try the raw
@@ -267,6 +288,36 @@ function normalizeForCompare(s) {
     .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Count occurrences of `needle` in the document XML's plain-text projection.
+ * Used by the multi-instance guard before locateText \u2014 short generic phrases
+ * like "sixty (60) days" can occur in three or four sections of an MSA;
+ * anchoring on the first hit silently mis-strikes one and leaves the others
+ * untouched. The caller treats > 1 as "ambiguous, mark unanchored with reason."
+ */
+function countOccurrences(xml, needle) {
+  // Project the XML to plain text the same way locateText does (concatenated
+  // <w:t> contents) so the count matches the locator's view.
+  const tRegex = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g;
+  let plain = '';
+  let m;
+  while ((m = tRegex.exec(xml)) !== null) {
+    plain += decodeXml(m[1]);
+  }
+  const plainNorm = normalizeForCompare(plain);
+  const needleNorm = normalizeForCompare(needle);
+  if (!needleNorm) return 0;
+  let count = 0;
+  let i = 0;
+  while (true) {
+    const at = plainNorm.indexOf(needleNorm, i);
+    if (at < 0) break;
+    count++;
+    i = at + needleNorm.length;
+  }
+  return count;
 }
 
 /**
@@ -431,34 +482,57 @@ function stripQuotedSectionPrefix(text) {
   if (!text || typeof text !== 'string') return null;
   const trimmed = text.trim();
 
-  // Find the first "Section X.Y[…]:" wrapper. Allow:
-  //   - decimal section IDs (4, 4.2, 4.2.1, 4(a), 4.2(a)(i))
-  //   - optional ALL-CAPS heading or "AS USED IN…" lead-in before the colon
-  // We don't anchor at start-of-string strictly; composite forms ("…+ Section
-  // 5.1: …") may have a prefix we want to drop.
+  // -------- Pass 1: quoted form (preferred — most reliable). --------
+  //   Section 4.2: "Customer shall pay..."
+  //   Section 10.1 GOVERNING LAW: "This Agreement..."
+  // The opening quote anchors the match; the LAST matching close quote is
+  // the end of the contract excerpt.
   const wrapper = /Section\s+[\d.()a-zA-Z]+(?:\s+[^:'"]{1,80}?)?\s*:\s*['"‘’“”]/;
-  const m = trimmed.match(wrapper);
-  if (!m) return null;
-
-  // Slice from after the opening quote, then find the matching closing quote.
-  const startQuoteIdx = m.index + m[0].length - 1;
-  const openQuote = trimmed[startQuoteIdx];
-  const closeQuote =
-    openQuote === '‘' ? '’' :
-    openQuote === '“' ? '”' :
-    openQuote;
-  const innerStart = startQuoteIdx + 1;
-  // Find the last matching close quote — quoted contract excerpts can contain
-  // nested punctuation but rarely contain the same smart-quote variant.
-  let innerEnd = trimmed.lastIndexOf(closeQuote);
-  if (innerEnd <= innerStart) {
-    // Fall back to a simple quote pair scan.
-    innerEnd = trimmed.indexOf(closeQuote, innerStart);
-    if (innerEnd <= innerStart) return null;
+  const qm = trimmed.match(wrapper);
+  if (qm) {
+    const startQuoteIdx = qm.index + qm[0].length - 1;
+    const openQuote = trimmed[startQuoteIdx];
+    const closeQuote =
+      openQuote === '‘' ? '’' :
+      openQuote === '“' ? '”' :
+      openQuote;
+    const innerStart = startQuoteIdx + 1;
+    let innerEnd = trimmed.lastIndexOf(closeQuote);
+    if (innerEnd <= innerStart) {
+      innerEnd = trimmed.indexOf(closeQuote, innerStart);
+    }
+    if (innerEnd > innerStart) {
+      const inner = trimmed.slice(innerStart, innerEnd).trim();
+      if (inner && inner.length >= 8) return inner;
+    }
   }
-  const inner = trimmed.slice(innerStart, innerEnd).trim();
-  if (!inner || inner.length < 8) return null;
-  return inner;
+
+  // -------- Pass 2: unquoted composite form. --------
+  //   Section 9.1: Lattice may engage subcontractors without notice or
+  //     consent + Section 8.6: ...
+  //   Section 3.4: If any amount owing... AND Section 8.5: ...
+  //
+  // Take whatever comes between the FIRST `Section X.Y:` and the FIRST
+  // composite separator (` + Section`, ` AND Section`, ` COMBINED WITH
+  // Section`). That slice is the candidate contract text from the first
+  // cited section — locateText handles cross-paragraph matching from
+  // there.
+  const colonForm = /Section\s+[\d.()a-zA-Z]+(?:\s+[^:'"+]{1,80}?)?\s*:\s+/;
+  const cm = trimmed.match(colonForm);
+  if (cm) {
+    const innerStart = cm.index + cm[0].length;
+    const rest = trimmed.slice(innerStart);
+    // Composite separator: a " + Section ", " AND Section ", " OR Section ",
+    // " COMBINED WITH Section ", or " IN COMBINATION WITH Section ".
+    const sepRegex = /\s+(?:\+|AND|OR|COMBINED\s+WITH|IN\s+COMBINATION\s+WITH)\s+Section\s+[\d.()a-zA-Z]+/i;
+    const sm = rest.match(sepRegex);
+    let candidate = sm ? rest.slice(0, sm.index) : rest;
+    candidate = candidate.trim().replace(/[,;.]+$/, '').trim();
+    if (candidate && candidate.length >= 12) return candidate;
+  }
+
+  // No usable form found — caller falls back to the raw input.
+  return null;
 }
 
 /**

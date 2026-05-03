@@ -35,7 +35,9 @@ Your job is NOT to re-do the specialists' work. It is to catch three specific cl
 
 Same schema as specialist findings. Use specialist: "critical-issues-auditor". Use category: "material_omission" | "cross_section_hazard" | "existential_escalation".
 
-Every finding must include: id, specialist, tier, category, severity, existential (boolean), markup_type, source_text, proposed_text, external_comment, materiality_rationale, playbook_fit (when tier 1), profile_refs, position, fallback (when severity blocker/major OR existential true), walkaway (when existential true), jurisdiction_assumed.
+Every finding must include: id, specialist, tier, category, severity, existential (boolean), markup_type, source_text, anchor_text, proposed_text, external_comment, materiality_rationale, playbook_fit (when tier 1), profile_refs, position, fallback (when severity blocker/major OR existential true), walkaway (when existential true), jurisdiction_assumed.
+
+When `markup_type` is `insert`, `anchor_text` is REQUIRED — an exact, verbatim phrase from the EXISTING contract that should immediately PRECEDE your inserted language. Must appear in the document as a contiguous substring (no paraphrasing). Choose a fragment that is unique in the document — pick a sentence or clause >= 30 chars whose surrounding text is distinctive. Without this the locator cannot place the insertion. For a new clause appended to Article 5, use the LAST sentence of Article 5's last existing clause. (Null for `replace`, `delete`, `annotate`.)
 
 For each finding emitted, name in materiality_rationale WHY the specialists structurally would have missed this — "individual specialists look only at their domain; this hazard requires seeing two domains simultaneously" or similar. This is audit-trail information and should be brief (one clause).
 
