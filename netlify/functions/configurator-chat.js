@@ -149,13 +149,13 @@ function buildBrainstormSystem(agentPrompt, savedProfile, formState) {
     `FORMAT RULES (STRICT):\n` +
     `- Reply with a SHORT prose intro (1–2 sentences max) explaining what you're suggesting.\n` +
     `- Then emit 3–7 <suggest field="FIELD_NAME">value</suggest> tags, one per line.\n` +
-    `- FIELD_NAME must be exactly one of: company, jurisdiction, industry, role, description, liability, payment, red_flags, notes.\n` +
+    `- FIELD_NAME must be exactly one of: company, jurisdiction, industry, description, liability, payment, red_flags, notes.\n` +
     `- Each <suggest> value should be short, self-contained, and ready to paste (no markdown, no bullets, no quotes around it).\n` +
     `- For red_flags, one <suggest> per red flag (so the user can pick which to add).\n` +
     `- For description / notes, each <suggest> is one complete candidate sentence or paragraph.\n` +
-    `- Tailor suggestions to the saved profile + form state shown above (e.g., if industry is "Software / SaaS" and role is "Vendor / Provider", suggest SaaS-vendor-appropriate red flags).\n` +
+    `- Tailor suggestions to the saved profile + form state shown above (e.g., if industry is "Software / SaaS", suggest SaaS-vendor-appropriate red flags). Side-of-deal is determined per-contract by the party picker at intake, not by this form.\n` +
     `- NEVER emit <reply>/<profile>/<done>/<profile_partial>/<option> tags — those are for a different mode.\n` +
-    `- NEVER invent fields other than the 9 listed above.\n` +
+    `- NEVER invent fields other than the 8 listed above.\n` +
     `- If the user asks a question that isn't about filling the form, answer briefly and still suggest any relevant form entries you can.\n\n` +
     `EXAMPLE (for a SaaS vendor asking about red flags):\n` +
     `Here are common red flags for a SaaS vendor in your position:\n\n` +

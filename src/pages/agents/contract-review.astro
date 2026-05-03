@@ -146,19 +146,6 @@ import Consent from '../../partials/consent.astro';
                 <option>Other</option>
               </select>
             </label>
-            <label class="qs-field">
-              <span class="qs-label">Typical role in contracts</span>
-              <select id="qs-role">
-                <option value="">Select…</option>
-                <option>Vendor / Provider</option>
-                <option>Customer / Buyer</option>
-                <option>Licensor</option>
-                <option>Licensee</option>
-                <option>Contractor</option>
-                <option>Subcontractor</option>
-                <option>Mixed (both sides)</option>
-              </select>
-            </label>
             <label class="qs-field qs-field-wide">
               <span class="qs-label-row">
                 <span class="qs-label">What does the company do? (2–3 sentences)</span>
@@ -653,7 +640,6 @@ import Consent from '../../partials/consent.astro';
       const reviewerName = val('qs-reviewer-name');
       const company = val('qs-company');
       const industry = val('qs-industry');
-      const role = val('qs-role');
       const jurisdiction = val('qs-jurisdiction');
       const description = val('qs-description');
       const liability = val('qs-liability');
@@ -676,7 +662,6 @@ import Consent from '../../partials/consent.astro';
         reviewerName && `Reviewer name: ${reviewerName}`,
         `Company legal name: ${company}`,
         industry && `Industry: ${industry}`,
-        role && `Typical role in contracts: ${role}`,
         jurisdiction && `Primary jurisdiction: ${jurisdiction}`,
         '',
         'Business description:',
@@ -723,7 +708,6 @@ import Consent from '../../partials/consent.astro';
     const push = (k, v) => rows.push(`<div class="playbook-parse-line"><span class="playbook-parse-k">${k}</span><span class="playbook-parse-v">${v || '—'}</span><span class="playbook-parse-check">✓ ingested</span></div>`);
     push('Company', profile.company?.name || profile.company_name);
     push('Industry', profile.industry || profile.sector);
-    push('Role', profile.role || profile.typical_role);
     push('Jurisdiction', profile.jurisdiction || profile.governing_law);
     const positions = profile.positions ? Object.keys(profile.positions).length : 0;
     push('Positions', positions ? `${positions} position group(s)` : '—');
@@ -748,7 +732,6 @@ import Consent from '../../partials/consent.astro';
     company: 'qs-company',
     jurisdiction: 'qs-jurisdiction',
     industry: 'qs-industry',
-    role: 'qs-role',
     description: 'qs-description',
     liability: 'qs-liability',
     payment: 'qs-payment',
@@ -758,7 +741,7 @@ import Consent from '../../partials/consent.astro';
   const FIELD_LABEL = {
     reviewer_name: 'Your name',
     company: 'Company', jurisdiction: 'Jurisdiction', industry: 'Industry',
-    role: 'Role', description: 'Description', liability: 'Liability cap',
+    description: 'Description', liability: 'Liability cap',
     payment: 'Payment terms', red_flags: 'Red flags', notes: 'Notes',
   };
 
@@ -771,7 +754,6 @@ import Consent from '../../partials/consent.astro';
       company: val('qs-company'),
       jurisdiction: val('qs-jurisdiction'),
       industry: val('qs-industry'),
-      role: val('qs-role'),
       description: val('qs-description'),
       liability: val('qs-liability'),
       payment: val('qs-payment'),
