@@ -23,7 +23,7 @@ export default async (req) => {
   const supabase = getSupabaseAdmin();
   const { data: review, error } = await supabase
     .from('reviews')
-    .select('id, user_id, filename, contract_type, pipeline_mode, severity_counts, status, progress_message, annotated_url, summary_url, findings_json_url, error_message, total_tokens, cost_usd, created_at, completed_at')
+    .select('id, user_id, filename, contract_type, pipeline_mode, severity_counts, status, progress_message, annotated_url, summary_url, findings_json_url, error_message, total_tokens, cost_usd, created_at, completed_at, streamed_findings')
     .eq('id', reviewId)
     .single();
 
@@ -65,6 +65,11 @@ export default async (req) => {
       cost_usd: review.cost_usd,
       created_at: review.created_at,
       completed_at: review.completed_at,
+      // Live preview of findings as specialists complete. Pre-compiler
+      // and pre-coherence — items here may get deduped or pruned in
+      // the final review. The UI shows them with a "preview" label
+      // during the analyze/audit stages.
+      streamed_findings: Array.isArray(review.streamed_findings) ? review.streamed_findings : [],
     },
     downloads,
     quota: {

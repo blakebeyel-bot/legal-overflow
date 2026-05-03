@@ -183,6 +183,30 @@ async function processReview({ userId, reviewId, supabase }) {
         await updateProgress(supabase, reviewId, 'analyzing',
           `Specialists: ${completedCount} of ${specialists.length} complete — just finished ${humanizeAgent(agentName)}…`);
       } catch {}
+
+      // Stream this specialist's findings to the UI for live preview.
+      // Pre-compiler, pre-coherence — items here may be deduped or
+      // posture-rejected before they reach the final review. The UI
+      // labels them as "preview" and replaces with the final list when
+      // status flips to 'complete'.
+      if (findings.length > 0) {
+        try {
+          await appendStreamedFindings(supabase, reviewId, findings.map(f => ({
+            id: f.id || `${agentName}-stream-${Math.random().toString(36).slice(2, 8)}`,
+            specialist: agentName,
+            specialist_label: humanizeAgent(agentName),
+            category: f.category || '',
+            severity: f.severity || 'minor',
+            markup_type: f.markup_type || 'annotate',
+            external_comment: f.external_comment || '',
+            source_text_preview: (f.source_text || '').slice(0, 200),
+            streamed_at: new Date().toISOString(),
+          })));
+        } catch (e) {
+          console.error(`[stream-findings] ${agentName} append failed:`, e.message);
+        }
+      }
+
       console.log(`[fanout-background] ${agentName} done: ${findings.length} findings, ${coverage.length} coverage entries${outcome.error ? ' (flagged: ' + outcome.error + ')' : ''}`);
     } catch (err) {
       outcome.error = `invocation failed: ${err.message || String(err)}`;
@@ -265,6 +289,21 @@ async function processReview({ userId, reviewId, supabase }) {
     try { auditParsed = extractJson(auditResp.text); } catch { auditParsed = null; }
     const { findings: auditFindings } = normalizeSpecialistOutput(auditParsed || {}, 'critical-issues-auditor');
     allFindings.push(...auditFindings);
+    if (auditFindings.length > 0) {
+      try {
+        await appendStreamedFindings(supabase, reviewId, auditFindings.map(f => ({
+          id: f.id || `critical-issues-auditor-stream-${Math.random().toString(36).slice(2, 8)}`,
+          specialist: 'critical-issues-auditor',
+          specialist_label: humanizeAgent('critical-issues-auditor'),
+          category: f.category || '',
+          severity: f.severity || 'minor',
+          markup_type: f.markup_type || 'annotate',
+          external_comment: f.external_comment || '',
+          source_text_preview: (f.source_text || '').slice(0, 200),
+          streamed_at: new Date().toISOString(),
+        })));
+      } catch (e) { console.error('[stream-findings] auditor append failed:', e.message); }
+    }
     console.log(`[fanout-background] auditor added ${auditFindings.length} findings`);
   } catch (e) {
     console.error('auditor failed:', e.message);
@@ -492,6 +531,27 @@ async function processReview({ userId, reviewId, supabase }) {
 
 async function updateProgress(supabase, reviewId, status, message) {
   await supabase.from('reviews').update({ status, progress_message: message }).eq('id', reviewId);
+}
+
+/**
+ * Atomic append to reviews.streamed_findings. Backed by the
+ * append_streamed_findings Postgres function (migration 0010) which
+ * does the merge in a single statement so concurrent specialists
+ * don't lose writes via JS read-modify-write races.
+ *
+ * Each entry should be a thin preview object (id, specialist, category,
+ * severity, markup_type, external_comment, source_text_preview,
+ * streamed_at) — NOT the full finding. The UI uses these for live
+ * preview and replaces them with the compiler-reconciled final list
+ * when the review completes.
+ */
+async function appendStreamedFindings(supabase, reviewId, previews) {
+  if (!Array.isArray(previews) || previews.length === 0) return;
+  const { error } = await supabase.rpc('append_streamed_findings', {
+    p_review_id: reviewId,
+    p_findings: previews,
+  });
+  if (error) throw new Error(error.message);
 }
 
 function tallySeverities(findings) {

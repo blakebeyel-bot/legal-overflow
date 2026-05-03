@@ -383,6 +383,18 @@ import Consent from '../../partials/consent.astro';
           <div class="stage-detail"></div>
         </div>
       </div>
+
+      <!-- Live findings preview — populated as specialists complete.
+           Hidden until the first finding lands. The list is replaced by
+           the compiler-reconciled final list when status flips to
+           'complete', so items here may be deduped or pruned. -->
+      <div id="stream-findings" class="stream-findings hidden">
+        <div class="stream-findings-head">
+          <span class="stream-findings-title">Findings as they land</span>
+          <span class="stream-findings-sub">Live preview — the compiler may dedupe or prune some of these in the final review.</span>
+        </div>
+        <div id="stream-findings-list" class="stream-findings-list"></div>
+      </div>
     </div>
 
     <!-- Results -->
@@ -1180,6 +1192,11 @@ import Consent from '../../partials/consent.astro';
     try {
       await api.confirmReview(pendingKickoff.review_id, finalMode, governingCtx, clientParty);
 
+      // Reset stream-findings UI for this run
+      window.__streamedRenderedIds = new Set();
+      document.getElementById('stream-findings').classList.add('hidden');
+      document.getElementById('stream-findings-list').innerHTML = '';
+
       const final = await api.pollReview(pendingKickoff.review_id, (snap) => {
         const stage = STAGE_MAP[snap.review.status] || 'specialists';
         const order = ['extract','classify','specialists','audit','assemble'];
@@ -1189,7 +1206,12 @@ import Consent from '../../partials/consent.astro';
         });
         const activeEl = document.querySelector('.stage.running .stage-detail');
         if (activeEl) activeEl.textContent = snap.review.progress_message || '';
-      });
+
+        // Render any newly streamed findings (preview cards)
+        if (Array.isArray(snap.review.streamed_findings) && snap.review.streamed_findings.length > 0) {
+          renderStreamedFindings(snap.review.streamed_findings);
+        }
+      }, { intervalMs: 3000 });
       if (final.review.status === 'failed') {
         throw new Error(final.review.error_message || 'Review failed');
       }
@@ -1209,6 +1231,41 @@ import Consent from '../../partials/consent.astro';
     if (!el) return;
     el.classList.remove('pending', 'active', 'done');
     el.classList.add(state);
+  }
+
+  // Render incremental specialist findings as they arrive. Items are
+  // appended in arrival order; we dedupe on finding id so the same
+  // poll-snapshot doesn't re-render existing cards. Hidden until the
+  // first finding lands.
+  function renderStreamedFindings(items) {
+    const list = document.getElementById('stream-findings-list');
+    const wrap = document.getElementById('stream-findings');
+    let appended = 0;
+    for (const f of items) {
+      if (!f || !f.id) continue;
+      if (window.__streamedRenderedIds.has(f.id)) continue;
+      window.__streamedRenderedIds.add(f.id);
+      const sevLabel = SEVERITY_LABELS[f.severity] || f.severity || '—';
+      const card = document.createElement('div');
+      card.className = `stream-card stream-card-${f.severity || 'minor'}`;
+      card.innerHTML =
+        `<div class="stream-card-head">` +
+        `  <span class="stream-card-sev">${escapeHtml(sevLabel)}</span>` +
+        `  <span class="stream-card-spec">${escapeHtml(f.specialist_label || f.specialist || '')}</span>` +
+        `  ${f.category ? `<span class="stream-card-cat">${escapeHtml(f.category)}</span>` : ''}` +
+        `</div>` +
+        (f.external_comment
+          ? `<div class="stream-card-body">${escapeHtml(f.external_comment)}</div>`
+          : '') +
+        (f.source_text_preview
+          ? `<div class="stream-card-quote">"${escapeHtml(f.source_text_preview)}${f.source_text_preview.length >= 200 ? '…' : ''}"</div>`
+          : '');
+      list.appendChild(card);
+      appended++;
+    }
+    if (appended > 0) {
+      wrap.classList.remove('hidden');
+    }
   }
 
   function showResults(snap) {

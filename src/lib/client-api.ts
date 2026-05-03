@@ -206,6 +206,18 @@ export interface StartReviewResponse {
   deal_posture: string | null;
 }
 
+export interface StreamedFinding {
+  id: string;
+  specialist: string;
+  specialist_label: string;
+  category: string;
+  severity: 'blocker' | 'major' | 'moderate' | 'minor';
+  markup_type: 'replace' | 'insert' | 'delete' | 'annotate';
+  external_comment: string;
+  source_text_preview: string;
+  streamed_at: string;
+}
+
 export interface GetReviewResponse {
   review: {
     id: string;
@@ -220,6 +232,8 @@ export interface GetReviewResponse {
     cost_usd: number;
     created_at: string;
     completed_at: string | null;
+    /** Live preview of findings as specialists complete (pre-compiler). Items may be deduped/pruned in the final review. */
+    streamed_findings: StreamedFinding[];
   };
   downloads: { annotated?: string; summary?: string; findings_json?: string };
   quota: { used: number; cap: number };

@@ -1375,6 +1375,94 @@
     line-height: 1.45;
   }
 
+  /* ===== Streaming-findings preview (progress panel) ===== */
+  .stream-findings {
+    margin-top: 28px;
+    padding: 18px 20px;
+    border-top: 1px solid var(--rule);
+  }
+  .stream-findings.hidden { display: none; }
+  .stream-findings-head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .stream-findings-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .stream-findings-sub {
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+  .stream-findings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .stream-card {
+    padding: 12px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--paper);
+    border-left-width: 3px;
+    animation: streamCardIn 220ms ease-out;
+  }
+  @keyframes streamCardIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .stream-card-blocker  { border-left-color: #c0392b; }
+  .stream-card-major    { border-left-color: #d97706; }
+  .stream-card-moderate { border-left-color: #ca8a04; }
+  .stream-card-minor    { border-left-color: var(--ink-3); }
+  .stream-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .stream-card-sev {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    padding: 2px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+  }
+  .stream-card-spec {
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .stream-card-cat {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    background: var(--paper-2, #fafaf7);
+    padding: 1px 8px;
+    border-radius: 999px;
+  }
+  .stream-card-body {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--ink-1);
+    margin-top: 4px;
+  }
+  .stream-card-quote {
+    font-size: 12.5px;
+    font-style: italic;
+    color: var(--ink-3);
+    margin-top: 6px;
+    padding-left: 10px;
+    border-left: 2px solid var(--rule);
+  }
+
   .confirm-party {
     margin-top: 22px;
     padding: 16px 18px;
