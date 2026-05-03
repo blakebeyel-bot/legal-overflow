@@ -129,63 +129,82 @@ async function processReview({ userId, reviewId, supabase }) {
   const allCoverage = [];
   const specialistFailures = []; // tracked and surfaced to both findings.json + Review_Summary.docx
 
-  const specialistResults = await Promise.allSettled(
-    specialists.map(async (agentName) => {
-      // Always resolve with an outcome envelope so one specialist's failure
-      // can't silently disappear via Promise.allSettled's rejection path.
-      const outcome = { agentName, findings: [], coverage: [], error: null };
-      try {
-        const agent = getAgent(agentName);
-        if (!agent || !agent.systemPrompt) {
-          outcome.error = `agent "${agentName}" not found in bundle (agents-data.js) — may be missing from netlify/agents/ or the bundle build`;
-          console.error(`[specialist-failure] ${agentName}: ${outcome.error}`);
-          return outcome;
-        }
-        const resp = await callSpecialist({
-          agentName,
-          systemPrompt: agent.systemPrompt,
-          profileJson: profile,
-          contractText,
-          taskPrompt: specialistTaskEnvelope,
-          userId, reviewId,
-          maxTokens: 8192,
-          tokensUsedSoFar: tokensUsed,
-        });
-        tokensUsed += (resp.usage.input_tokens || 0) + (resp.usage.output_tokens || 0);
-
-        let parsed;
-        try {
-          parsed = extractJson(resp.text);
-        } catch (e) {
-          outcome.error = `non-JSON output from model: ${e.message}`;
-          console.error(`[specialist-failure] ${agentName} returned non-JSON:`, e.message);
-          parsed = { coverage_pass: [], findings: [] };
-        }
-        const { findings, coverage } = normalizeSpecialistOutput(parsed, agentName);
-        outcome.findings = findings;
-        outcome.coverage = coverage;
-
-        // Master template says coverage_pass is EXHAUSTIVE — zero entries is
-        // itself a failure signal, not a clean run.
-        if (coverage.length === 0 && !outcome.error) {
-          outcome.error =
-            'returned empty coverage_pass — the specialist is required by its system prompt to enumerate every hard-requirement item in its domain, so an empty array indicates either model failure or prompt drift';
-          console.warn(`[specialist-failure] ${agentName}: empty coverage_pass`);
-        }
-
-        completedCount++;
-        try {
-          await updateProgress(supabase, reviewId, 'analyzing',
-            `Specialists: ${completedCount} of ${specialists.length} complete — just finished ${humanizeAgent(agentName)}…`);
-        } catch {}
-        console.log(`[fanout-background] ${agentName} done: ${findings.length} findings, ${coverage.length} coverage entries${outcome.error ? ' (flagged: ' + outcome.error + ')' : ''}`);
-      } catch (err) {
-        outcome.error = `invocation failed: ${err.message || String(err)}`;
-        console.error(`[specialist-failure] ${agentName} invocation failed:`, err);
+  // Run a single specialist and return the outcome envelope. Hoisted so
+  // we can sequence the first call (to warm the prompt cache) and fan
+  // the rest out in parallel. See the warm-cache comment below.
+  const runSpecialist = async (agentName) => {
+    const outcome = { agentName, findings: [], coverage: [], error: null };
+    try {
+      const agent = getAgent(agentName);
+      if (!agent || !agent.systemPrompt) {
+        outcome.error = `agent "${agentName}" not found in bundle (agents-data.js) — may be missing from netlify/agents/ or the bundle build`;
+        console.error(`[specialist-failure] ${agentName}: ${outcome.error}`);
+        return outcome;
       }
-      return outcome;
-    })
+      const resp = await callSpecialist({
+        agentName,
+        systemPrompt: agent.systemPrompt,
+        profileJson: profile,
+        contractText,
+        taskPrompt: specialistTaskEnvelope,
+        userId, reviewId,
+        // 4096 is well above any specialist's actual usage on every run we've
+        // measured (longest was ~3500 tokens). 8192 was leaving a long-tail
+        // window where a runaway specialist would generate for an extra
+        // minute with no benefit. The compiler still ranks/dedupes whatever
+        // each specialist produces, so capping output is safe.
+        maxTokens: 4096,
+        tokensUsedSoFar: tokensUsed,
+      });
+      tokensUsed += (resp.usage.input_tokens || 0) + (resp.usage.output_tokens || 0);
+
+      let parsed;
+      try {
+        parsed = extractJson(resp.text);
+      } catch (e) {
+        outcome.error = `non-JSON output from model: ${e.message}`;
+        console.error(`[specialist-failure] ${agentName} returned non-JSON:`, e.message);
+        parsed = { coverage_pass: [], findings: [] };
+      }
+      const { findings, coverage } = normalizeSpecialistOutput(parsed, agentName);
+      outcome.findings = findings;
+      outcome.coverage = coverage;
+
+      if (coverage.length === 0 && !outcome.error) {
+        outcome.error =
+          'returned empty coverage_pass — the specialist is required by its system prompt to enumerate every hard-requirement item in its domain, so an empty array indicates either model failure or prompt drift';
+        console.warn(`[specialist-failure] ${agentName}: empty coverage_pass`);
+      }
+
+      completedCount++;
+      try {
+        await updateProgress(supabase, reviewId, 'analyzing',
+          `Specialists: ${completedCount} of ${specialists.length} complete — just finished ${humanizeAgent(agentName)}…`);
+      } catch {}
+      console.log(`[fanout-background] ${agentName} done: ${findings.length} findings, ${coverage.length} coverage entries${outcome.error ? ' (flagged: ' + outcome.error + ')' : ''}`);
+    } catch (err) {
+      outcome.error = `invocation failed: ${err.message || String(err)}`;
+      console.error(`[specialist-failure] ${agentName} invocation failed:`, err);
+    }
+    return outcome;
+  };
+
+  // Warm-cache sequencing. The profile + contract blocks are identical
+  // across every specialist call and Anthropic's prompt cache will reuse
+  // them — but only AFTER one call has written the cache. If we fire all
+  // 6 specialists simultaneously they all miss and each pays the full
+  // input-token toll. By awaiting the first call, then fanning the rest
+  // out in parallel, the remaining 5 land on a warm cache and read the
+  // ~6 KB contract block cheaply, shaving ~20-40 s off wall time.
+  const firstOutcome = specialists.length > 0
+    ? await runSpecialist(specialists[0])
+    : null;
+  const remainingResults = await Promise.allSettled(
+    specialists.slice(1).map((agentName) => runSpecialist(agentName)),
   );
+  const specialistResults = firstOutcome
+    ? [{ status: 'fulfilled', value: firstOutcome }, ...remainingResults]
+    : remainingResults;
 
   for (const r of specialistResults) {
     if (r.status === 'fulfilled') {
