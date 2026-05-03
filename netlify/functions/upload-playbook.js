@@ -85,11 +85,18 @@ export default async (req) => {
     `and emit a company_profile.json object that conforms to the provided schema.\n\n` +
     `Rules:\n` +
     `1. Output ONLY a JSON object — no prose, no markdown fences, no commentary.\n` +
-    `2. Do not invent positions the user didn't state. For unspecified sections, use an empty object/array or null, and set a top-level "needs_review": true marker.\n` +
-    `3. Be faithful to the user's words. Use their phrasings for red flags and positions.\n` +
-    `4. KEEP IT TIGHT — aim for under 1.5KB of JSON. Summarize rather than restate. Pick the 10–15 most important red flags/positions, not everything.\n` +
-    `5. Emit the JSON immediately — no reasoning preamble.\n` +
-    `6. Field values should be short strings (~100 chars) not long paragraphs. The full playbook lives in storage — this profile is a structured summary.\n\n` +
+    `2. ALWAYS emit ALL seven required top-level keys: company, jurisdiction, positions, red_flags, escalation, voice, output. Never omit a required key — if the playbook is silent on a section, populate it with a sensible default (see below) rather than leaving it out.\n` +
+    `3. Do NOT invent SPECIFIC positions or red flags the user didn't state. For unspecified sections, use the empty defaults below and set a top-level "needs_review": true marker.\n` +
+    `4. Be faithful to the user's words. Use their phrasings for red flags and positions.\n` +
+    `5. KEEP IT TIGHT — aim for under 1.5KB of JSON. Summarize rather than restate. Pick the 10–15 most important red flags/positions, not everything.\n` +
+    `6. Emit the JSON immediately — no reasoning preamble.\n` +
+    `7. Field values should be short strings (~100 chars) not long paragraphs. The full playbook lives in storage — this profile is a structured summary.\n\n` +
+    `DEFAULTS when the playbook is silent on a section:\n` +
+    `  red_flags: []  (empty array)\n` +
+    `  escalation: { "senior_reviewers": [], "escalation_trigger_severity": "blocker" }\n` +
+    `  voice: { "tone": "measured senior counsel", "speaker_label": "we", "counterparty_label": "you" }\n` +
+    `  output: { "reviewer_author": "<reviewer name from playbook, else company name>", "reviewer_initials": "<derived 2-letter initials>" }\n` +
+    `  positions: {}  (empty object — only fill if the playbook clearly states positions on liability, payment, IP, termination, etc.)\n\n` +
     `SCHEMA:\n${JSON.stringify(schema, null, 2)}`;
 
   const MAX_PLAYBOOK_CHARS = 25_000;
@@ -106,14 +113,23 @@ export default async (req) => {
       systemPrompt,
       userMessage,
       userId: auth.user.id,
-      // 1500 tokens ≈ 4–5KB of JSON. Enough room that the model rarely
-      // hits the ceiling mid-output (extractJson repairs truncation as
-      // a safety net, but clean completions are preferred).
-      maxTokens: 1500,
+      // 2500 tokens ≈ 8KB JSON. The model needs room for rich positions
+      // + red_flags content AND the lower-priority keys (voice, output,
+      // escalation). At 1500 tokens it was running out of budget and
+      // dropping the latter group.
+      maxTokens: 2500,
     });
     stamp('model returned ' + (resp.text?.length || 0) + ' chars');
     profile = extractJson(resp.text);
     stamp('parsed profile JSON');
+
+    // Defensive defaulting — even with explicit "ALWAYS emit all 7 keys"
+    // instructions, the model occasionally omits low-priority sections.
+    // Backfill so the saved profile always satisfies the schema's
+    // required-fields contract; downstream specialists fall back to these
+    // defaults gracefully.
+    profile = applyProfileDefaults(profile);
+    stamp('applied schema defaults');
   } catch (err) {
     stamp('model/parse failed: ' + err.message);
     return json({ error: 'Configurator failed: ' + err.message }, 500);
@@ -142,4 +158,107 @@ function json(obj, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * Backfill schema-required keys the model may have omitted. The schema
+ * (company_profile.schema.json) requires seven top-level keys plus several
+ * required sub-keys (e.g. company.name, jurisdiction.primary, voice.tone).
+ * The workflow-configurator prompt instructs the model to ALWAYS emit them
+ * with sensible defaults, but at the token boundary the model occasionally
+ * drops the lower-priority sections (voice, output, escalation). This
+ * function backfills any missing keys so the saved profile satisfies the
+ * schema contract, with clearly-marked-as-default values that downstream
+ * specialists can detect and surface to the user as "needs review."
+ */
+function applyProfileDefaults(profileIn) {
+  const profile = profileIn && typeof profileIn === 'object' ? { ...profileIn } : {};
+
+  // Track whether we had to fill in any defaults so downstream UI can
+  // show a "we filled in some sections — review when ready" hint.
+  let backfilled = false;
+
+  // company — required keys: name, industry, role_in_contracts
+  profile.company = profile.company && typeof profile.company === 'object' ? { ...profile.company } : {};
+  if (!profile.company.name) { profile.company.name = profile.company_name || ''; backfilled = true; }
+  if (!profile.company.industry) { profile.company.industry = profile.industry || ''; backfilled = true; }
+  if (!profile.company.role_in_contracts) {
+    // Legacy field — kept for backward compat with reviews that ran
+    // before the per-contract party picker landed.
+    profile.company.role_in_contracts = profile.role_in_contracts || '';
+    backfilled = true;
+  }
+
+  // jurisdiction — required: primary
+  if (typeof profile.jurisdiction !== 'object' || !profile.jurisdiction) {
+    profile.jurisdiction = { primary: typeof profileIn?.jurisdiction === 'string' ? profileIn.jurisdiction : '' };
+    backfilled = true;
+  } else if (!profile.jurisdiction.primary) {
+    profile.jurisdiction.primary = '';
+    backfilled = true;
+  }
+
+  // positions — empty object if missing
+  if (typeof profile.positions !== 'object' || !profile.positions) {
+    profile.positions = {};
+    backfilled = true;
+  }
+
+  // red_flags — empty array if missing
+  if (!Array.isArray(profile.red_flags)) {
+    profile.red_flags = [];
+    backfilled = true;
+  }
+
+  // escalation — required sub-keys: senior_reviewers, escalation_trigger_severity
+  if (typeof profile.escalation !== 'object' || !profile.escalation) {
+    profile.escalation = { senior_reviewers: [], escalation_trigger_severity: 'blocker' };
+    backfilled = true;
+  } else {
+    if (!Array.isArray(profile.escalation.senior_reviewers)) {
+      profile.escalation.senior_reviewers = []; backfilled = true;
+    }
+    if (!profile.escalation.escalation_trigger_severity) {
+      profile.escalation.escalation_trigger_severity = 'blocker'; backfilled = true;
+    }
+  }
+
+  // voice — required sub-keys: tone, speaker_label, counterparty_label
+  if (typeof profile.voice !== 'object' || !profile.voice) {
+    profile.voice = { tone: 'measured senior counsel', speaker_label: 'we', counterparty_label: 'you' };
+    backfilled = true;
+  } else {
+    if (!profile.voice.tone) { profile.voice.tone = 'measured senior counsel'; backfilled = true; }
+    if (!profile.voice.speaker_label) { profile.voice.speaker_label = 'we'; backfilled = true; }
+    if (!profile.voice.counterparty_label) { profile.voice.counterparty_label = 'you'; backfilled = true; }
+  }
+
+  // output — required sub-keys: reviewer_author, reviewer_initials
+  if (typeof profile.output !== 'object' || !profile.output) {
+    const author = profile.company?.name || '';
+    profile.output = { reviewer_author: author, reviewer_initials: deriveInitials(author) };
+    backfilled = true;
+  } else {
+    if (!profile.output.reviewer_author) {
+      profile.output.reviewer_author = profile.company?.name || ''; backfilled = true;
+    }
+    if (!profile.output.reviewer_initials) {
+      profile.output.reviewer_initials = deriveInitials(profile.output.reviewer_author); backfilled = true;
+    }
+  }
+
+  // Hint to downstream UI / configurator-chat that some defaults were applied.
+  // Don't clobber an existing needs_review flag the model already set.
+  if (backfilled && profile.needs_review !== false) {
+    profile.needs_review = true;
+  }
+
+  return profile;
+}
+
+function deriveInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }

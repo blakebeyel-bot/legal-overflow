@@ -78,9 +78,9 @@ import Consent from '../../partials/consent.astro';
     </div>
 
     <h1 class="hero-title">
-      <span class="rise rise-1">The firm is</span>
-      <span class="rise rise-2"><em>learning</em> to</span>
-      <span class="rise rise-3">read its own contracts.</span>
+      <span class="rise rise-1">Your standards.</span>
+      <span class="rise rise-2"><em>Every</em> contract.</span>
+      <span class="rise rise-3">Automatically.</span>
     </h1>
 
     <p class="hero-sub rise rise-3">
@@ -228,9 +228,10 @@ import Consent from '../../partials/consent.astro';
       </div>
     </div>
 
-    <!-- Parse results — shown after submit -->
+    <!-- Parse results — shown after submit OR on revisit when a profile already exists -->
     <div class="playbook-parse hidden" id="playbook-parse">
-      <div class="playbook-parse-title">Your profile is <em>saved</em></div>
+      <div class="playbook-parse-title">Your <em>profile</em></div>
+      <div class="playbook-parse-status" id="playbook-parse-status">Loaded from your last session.</div>
       <div id="playbook-parse-fields"></div>
       <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" id="goto-review-btn">
@@ -253,8 +254,8 @@ import Consent from '../../partials/consent.astro';
 
     <h1 class="hero-title">
       <span class="rise rise-1">Upload a contract.</span>
-      <span class="rise rise-2">Get it <em>back</em>, marked up,</span>
-      <span class="rise rise-3">in about sixty seconds.</span>
+      <span class="rise rise-2">Get it <em>back</em>, fully redlined,</span>
+      <span class="rise rise-3">in minutes.</span>
     </h1>
 
     <p class="hero-sub rise rise-3">
@@ -582,11 +583,29 @@ import Consent from '../../partials/consent.astro';
       currentProfile = profile;
       const banner = document.getElementById('profile-status');
       const txt = document.getElementById('profile-status-text');
+      const panel = document.getElementById('playbook-parse');
+      const fields = document.getElementById('playbook-parse-fields');
       if (profile) {
-        banner.style.display = 'flex';
-        txt.textContent = 'Profile loaded. Head to Review when ready.';
+        // Show the parse panel populated with the loaded profile so the user
+        // sees their actual saved data — not a separate "you have a profile"
+        // banner that duplicates the message and lies about it being newly saved.
+        // The status line under the panel title reflects state ("Loaded" /
+        // "Saved just now" / "Editing — unsaved changes").
+        if (panel && fields) {
+          fields.innerHTML = renderProfileSummary(profile);
+          // Only stamp "loaded" if status isn't already in a fresher state
+          // (e.g., user just hit Save and we don't want to overwrite that).
+          const statusEl = document.getElementById('playbook-parse-status');
+          const isFreshlySaved = statusEl?.classList.contains('saved');
+          if (!isFreshlySaved) {
+            setProfileStatus('loaded', 'Loaded from your last session.');
+          }
+          panel.classList.remove('hidden');
+        }
+        if (banner) banner.style.display = 'none';
       } else {
-        banner.style.display = 'none';
+        if (banner) banner.style.display = 'none';
+        if (panel) panel.classList.add('hidden');
       }
     } catch (e) {
       console.error('profile status:', e);
@@ -623,6 +642,7 @@ import Consent from '../../partials/consent.astro';
       const panel = document.getElementById('playbook-parse');
       const fields = document.getElementById('playbook-parse-fields');
       fields.innerHTML = renderProfileSummary(result.profile);
+      setProfileStatus('saved', 'Saved just now from uploaded playbook.');
       panel.classList.remove('hidden');
       currentProfile = result.profile;
       await refreshStatus();
@@ -632,6 +652,34 @@ import Consent from '../../partials/consent.astro';
       fastTrackCopy.textContent = 'Error: ' + err.message;
     }
   });
+
+  // Update the profile-summary status line.
+  // mode = 'loaded' | 'saved' | 'editing'
+  function setProfileStatus(mode, text) {
+    const el = document.getElementById('playbook-parse-status');
+    if (!el) return;
+    el.classList.remove('saved', 'editing');
+    if (mode === 'saved') el.classList.add('saved');
+    if (mode === 'editing') el.classList.add('editing');
+    el.textContent = text;
+  }
+
+  // Detect form edits — once any quick-setup field is touched, flip the
+  // status from "loaded/saved" to "editing — unsaved changes" so the user
+  // never sees a stale "saved" while they're modifying things.
+  const QS_FIELDS = ['qs-reviewer-name','qs-company','qs-industry','qs-jurisdiction','qs-description','qs-liability','qs-payment','qs-red-flags','qs-notes'];
+  for (const id of QS_FIELDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.addEventListener('input', () => {
+      // Only flip if the panel is currently shown (i.e. user has an existing
+      // profile they're now editing).
+      const panel = document.getElementById('playbook-parse');
+      if (panel && !panel.classList.contains('hidden')) {
+        setProfileStatus('editing', 'Editing — changes not saved yet.');
+      }
+    });
+  }
 
   // ---- Quick Setup form — one API call via uploadPlaybook ----
   const qsSubmit = document.getElementById('qs-submit-btn');
@@ -692,6 +740,7 @@ import Consent from '../../partials/consent.astro';
         const panel = document.getElementById('playbook-parse');
         const fields = document.getElementById('playbook-parse-fields');
         fields.innerHTML = renderProfileSummary(result.profile);
+        setProfileStatus('saved', 'Saved just now.');
         panel.classList.remove('hidden');
         currentProfile = result.profile;
         await refreshStatus();
@@ -706,15 +755,43 @@ import Consent from '../../partials/consent.astro';
   }
 
   function renderProfileSummary(profile) {
+    if (!profile || typeof profile !== 'object') return '';
     const rows = [];
-    const push = (k, v) => rows.push(`<div class="playbook-parse-line"><span class="playbook-parse-k">${k}</span><span class="playbook-parse-v">${v || '—'}</span><span class="playbook-parse-check">✓ ingested</span></div>`);
-    push('Company', profile.company?.name || profile.company_name);
-    push('Industry', profile.industry || profile.sector);
-    push('Jurisdiction', profile.jurisdiction || profile.governing_law);
-    const positions = profile.positions ? Object.keys(profile.positions).length : 0;
-    push('Positions', positions ? `${positions} position group(s)` : '—');
-    const redFlags = Array.isArray(profile.red_flags) ? profile.red_flags.length : (profile.red_flags ? Object.keys(profile.red_flags).length : 0);
-    push('Red flags', redFlags ? `${redFlags} flag(s)` : '—');
+    const push = (k, v) => rows.push(`<div class="playbook-parse-line"><span class="playbook-parse-k">${k}</span><span class="playbook-parse-v">${escapeHtml(v || '—')}</span><span class="playbook-parse-check">✓ ingested</span></div>`);
+
+    // Company name lives at profile.company.name in the canonical schema; the
+    // workflow-configurator's looser shape sometimes returns company_name at
+    // the top level — check both.
+    const companyName = profile.company?.name || profile.company_name || '';
+
+    // Industry is on profile.company.industry. Fallbacks for older profile
+    // shapes that may have stored it as profile.industry or profile.sector.
+    const industry = profile.company?.industry || profile.industry || profile.sector || '';
+
+    // Jurisdiction is an OBJECT in the canonical schema:
+    //   { primary: "Florida, USA", secondary: [...], ... }
+    // Older shapes may have stored it as a plain string. Stringifying the
+    // object directly produces "[object Object]" — explicitly read .primary,
+    // and fall back through the alternate fields.
+    const jurisdiction =
+      (typeof profile.jurisdiction === 'object' && profile.jurisdiction)
+        ? profile.jurisdiction.primary || profile.jurisdiction.governing_law || ''
+        : (profile.jurisdiction || profile.governing_law || '');
+
+    push('Company', companyName);
+    push('Industry', industry);
+    push('Jurisdiction', jurisdiction);
+
+    // Positions / red_flags are containers — show counts, not contents.
+    const positionsCount = profile.positions && typeof profile.positions === 'object'
+      ? Object.keys(profile.positions).length : 0;
+    push('Positions', positionsCount ? `${positionsCount} position group${positionsCount === 1 ? '' : 's'}` : '—');
+
+    const redFlagsCount = Array.isArray(profile.red_flags)
+      ? profile.red_flags.length
+      : (profile.red_flags && typeof profile.red_flags === 'object' ? Object.keys(profile.red_flags).length : 0);
+    push('Red flags', redFlagsCount ? `${redFlagsCount} flag${redFlagsCount === 1 ? '' : 's'}` : '—');
+
     return rows.join('');
   }
 
@@ -1292,11 +1369,11 @@ import Consent from '../../partials/consent.astro';
     if (snap.downloads?.summary) {
       actions.appendChild(btn('Review summary', snap.downloads.summary, false));
     }
-    if (snap.downloads?.findings_json) {
-      actions.appendChild(btn('findings.json', snap.downloads.findings_json, false));
-    }
-
-    // Populate the in-browser findings viewer
+    // findings.json is no longer surfaced as a download — it's a developer
+    // artifact, not something a customer should be encouraged to open. The
+    // URL is still consumed below to populate the in-browser findings
+    // viewer, but the user-facing download list stops at the marked
+    // contract + the Review Summary docx.
     loadFindingsInline(snap.downloads?.findings_json);
   }
 
@@ -1851,9 +1928,10 @@ import Consent from '../../partials/consent.astro';
     const total = (sc.blocker || 0) + (sc.major || 0) + (sc.moderate || 0) + (sc.minor || 0);
     const d = snap.downloads || {};
     const downloadLinks = [
-      d.annotated     ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(d.annotated)}" target="_blank" rel="noopener">Annotated contract</a>` : '',
-      d.summary       ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(d.summary)}" target="_blank" rel="noopener">Review summary</a>` : '',
-      d.findings_json ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(d.findings_json)}" target="_blank" rel="noopener">findings.json</a>` : '',
+      d.annotated ? `<a class="btn btn-primary btn-sm" href="${escapeHtml(d.annotated)}" target="_blank" rel="noopener">Annotated contract</a>` : '',
+      d.summary   ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(d.summary)}" target="_blank" rel="noopener">Review summary</a>` : '',
+      // findings_json intentionally not surfaced as a download — developer
+      // artifact, in-browser viewer below consumes it directly.
     ].filter(Boolean).join('');
 
     return `

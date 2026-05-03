@@ -464,6 +464,7 @@ async function processReview({ userId, reviewId, supabase }) {
     filename: review.filename,
     contractType: review.contract_type,
     pipelineMode: mode,
+    reviewerName,
     findings: finalFindings,
     priorityThree: priorityFindings,
     coveragePassAggregate,
