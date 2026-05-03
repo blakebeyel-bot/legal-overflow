@@ -60,10 +60,18 @@ export interface GoverningAgreementContext {
   storage_key?: string;
 }
 
+export interface ClientParty {
+  /** The contract's Defined Term for the user's party (e.g. "Supplier", "Provider"). */
+  defined_term: string;
+  /** Optional legal-entity name as written in the contract. */
+  name?: string;
+}
+
 export async function confirmReview(
   reviewId: string,
   pipelineMode: 'express' | 'standard' | 'comprehensive',
   governingAgreementContext?: GoverningAgreementContext | null,
+  clientParty?: ClientParty | null,
 ): Promise<{ ok: boolean; review_id: string }> {
   const headers = { ...(await authHeader()), 'Content-Type': 'application/json' };
   const res = await fetch('/.netlify/functions/confirm-review', {
@@ -73,6 +81,7 @@ export async function confirmReview(
       review_id: reviewId,
       pipeline_mode: pipelineMode,
       governing_agreement_context: governingAgreementContext ?? null,
+      client_party: clientParty ?? null,
     }),
   });
   return parseResponse(res, 'Confirm review');
@@ -176,6 +185,12 @@ export async function getProfile() {
 }
 
 // ---------- types ----------
+export interface DetectedParty {
+  name: string;
+  defined_term: string;
+  role_hint: 'provider' | 'recipient' | 'unknown';
+}
+
 export interface StartReviewResponse {
   ok: boolean;
   review_id: string;
@@ -184,6 +199,8 @@ export interface StartReviewResponse {
   confidence: number;
   is_subordinate: boolean;
   reasoning: string;
+  /** Parties detected by the pre-pass; consumed by the intake party picker. Empty array means detection failed (UI falls back to legacy CLIENT_ROLE path). */
+  detected_parties: DetectedParty[];
   quota: { used: number; cap: number; remaining: number; tier: string };
   profile_mode: 'configured' | 'baseline_only';
   deal_posture: string | null;

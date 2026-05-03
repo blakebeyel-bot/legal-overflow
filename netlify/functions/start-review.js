@@ -16,6 +16,7 @@ import { requireUser, getSupabaseAdmin, checkReviewQuota } from '../lib/supabase
 import { getAgent } from '../lib/agents.js';
 import { callModel, extractJson } from '../lib/anthropic.js';
 import { extractDocumentText } from '../lib/extract.js';
+import { detectParties } from '../lib/detect-parties.js';
 import { MAX_UPLOAD_BYTES } from '../lib/constants.js';
 
 const ALLOWED_EXT = new Set(['docx', 'pdf', 'txt', 'md']);
@@ -171,10 +172,22 @@ export default async (req) => {
     classification.pipeline_mode = 'standard';
   }
 
+  // Party detection: identify the parties + their Defined Terms so the
+  // intake confirm panel can ask the user which one they represent. Runs
+  // in parallel with classification persistence; failure returns []
+  // (UI falls back to the legacy free-text role).
+  let detectedParties = [];
+  try {
+    detectedParties = await detectParties(contractText, { userId: auth.user.id, reviewId });
+  } catch (err) {
+    console.error('[start-review] detectParties failed:', err.message);
+  }
+
   await supabase.from('reviews').update({
     contract_type: classification.contract_type,
     pipeline_mode: classification.pipeline_mode,
     classification_confidence: classification.confidence,
+    detected_parties: detectedParties.length ? detectedParties : null,
     status: 'classifying',
     progress_message: `Classified as ${classification.contract_type} — awaiting confirmation.`,
   }).eq('id', reviewId);
@@ -190,6 +203,7 @@ export default async (req) => {
     confidence: classification.confidence,
     is_subordinate: !!classification.is_subordinate,
     reasoning: classification.reasoning || '',
+    detected_parties: detectedParties,
     quota,
     profile_mode: hasProfile ? 'configured' : 'baseline_only',
     deal_posture: dealPosture,

@@ -90,6 +90,11 @@ async function processReview({ userId, reviewId, supabase }) {
   const clientRole = profile?.company?.role_in_contracts || 'unknown';
   const jurisdiction = profile?.jurisdiction?.primary || 'not determinable from four corners';
   const contractType = review.contract_type || 'unclassified';
+  // Party-detection output: when the user picked a party at intake, its
+  // Defined Term is the authoritative label for specialists' drafted
+  // language. Pass null when missing; specialists fall back to CLIENT_ROLE.
+  const clientDefinedTerm = review.client_party?.defined_term || null;
+  const clientName = review.client_party?.name || null;
 
   // 3. Download + extract contract
   const storagePath = `${userId}/${reviewId}/${review.filename}`;
@@ -115,7 +120,7 @@ async function processReview({ userId, reviewId, supabase }) {
 
   // 5. STAGE 1 — Specialists fan out
   const specialistTaskEnvelope = buildSpecialistEnvelope({
-    clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction,
+    clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction,
   });
 
   let tokensUsed = 0;
@@ -227,7 +232,7 @@ async function processReview({ userId, reviewId, supabase }) {
       profileJson: profile,
       contractText,
       taskPrompt: buildAuditorEnvelope({
-        clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction,
+        clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction,
         specialistFindings: allFindings, coveragePass: allCoverage,
       }),
       userId, reviewId,
@@ -259,7 +264,7 @@ async function processReview({ userId, reviewId, supabase }) {
       profileJson: profile,
       contractText,
       taskPrompt: buildCompilerEnvelope({
-        clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction,
+        clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction,
         allFindings, allCoverage,
       }),
       userId, reviewId,
@@ -321,7 +326,7 @@ async function processReview({ userId, reviewId, supabase }) {
       profileJson: profile,
       contractText,
       taskPrompt: buildCoherenceEnvelope({
-        clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction,
+        clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction,
         acceptedFindings, rejectedFindings, coveragePassAggregate,
       }),
       userId, reviewId,
@@ -611,14 +616,24 @@ function validateFindingSchema(f) {
 
 // ========== task envelopes (system prompts live in .md; these are short) ==========
 
-function buildContextBlock({ clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction }) {
+function buildContextBlock({ clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction }) {
   const gacText = governingAgreementContext
     ? (governingAgreementContext.mode === 'summary' && governingAgreementContext.text
         ? `GOVERNING_AGREEMENT_CONTEXT (user-provided summary of governing MSA):\n${governingAgreementContext.text}`
         : `GOVERNING_AGREEMENT_CONTEXT: user uploaded governing MSA; assume standard-market upstream provisions unless the document expressly overrides.`)
     : `GOVERNING_AGREEMENT_CONTEXT: null (no governing MSA declared for this review)`;
+  // CLIENT_DEFINED_TERM is the contract's own Defined Term for the user's
+  // party (e.g. "Supplier", "Provider", "Customer"). When present, this is
+  // the AUTHORITATIVE label specialists use when drafting proposed_text and
+  // external_comment. CLIENT_ROLE is the legacy free-text role from the
+  // user's profile and is kept as a fallback for reviews that ran before
+  // party detection landed.
+  const clientLine = clientDefinedTerm
+    ? `CLIENT_DEFINED_TERM: ${clientDefinedTerm}${clientName ? ` (legal entity: ${clientName})` : ''}\n` +
+      `CLIENT_ROLE: ${clientRole} (legacy fallback — prefer CLIENT_DEFINED_TERM when drafting)\n`
+    : `CLIENT_ROLE: ${clientRole}\n`;
   return (
-    `CLIENT_ROLE: ${clientRole}\n` +
+    clientLine +
     `DEAL_POSTURE: ${dealPosture || 'unspecified'}\n` +
     `CONTRACT_TYPE: ${contractType}\n` +
     `JURISDICTION: ${jurisdiction}\n` +

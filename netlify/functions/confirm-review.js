@@ -14,6 +14,10 @@
  *       mode: "summary" | "file",
  *       text?: string,           // for mode="summary"
  *       storage_key?: string     // for mode="file" — a previously-uploaded MSA
+ *     } | null,
+ *     client_party?: {
+ *       name?: string,           // legal entity name as written in contract
+ *       defined_term: string     // contract's Defined Term for this party
  *     } | null
  *   }
  *
@@ -29,7 +33,7 @@ export default async (req) => {
 
   let body;
   try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
-  const { review_id, pipeline_mode, governing_agreement_context } = body || {};
+  const { review_id, pipeline_mode, governing_agreement_context, client_party } = body || {};
   if (!review_id) return json({ error: 'review_id required' }, 400);
 
   const supabase = getSupabaseAdmin();
@@ -63,6 +67,18 @@ export default async (req) => {
     } else if (mode === 'file' && typeof storage_key === 'string') {
       update.governing_agreement_context = { mode: 'file', storage_key };
     }
+  }
+
+  // Client-party selection from the intake party picker. defined_term is
+  // the only required field — name is informational. Length capped to
+  // protect against pathological inputs.
+  if (client_party && typeof client_party === 'object'
+      && typeof client_party.defined_term === 'string'
+      && client_party.defined_term.trim()) {
+    update.client_party = {
+      name: typeof client_party.name === 'string' ? client_party.name.slice(0, 200) : '',
+      defined_term: client_party.defined_term.slice(0, 80).trim(),
+    };
   }
 
   const { error: updErr } = await supabase.from('reviews').update(update).eq('id', review_id);

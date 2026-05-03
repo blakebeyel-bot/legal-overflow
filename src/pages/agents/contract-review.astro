@@ -336,6 +336,17 @@ import Consent from '../../partials/consent.astro';
         </div>
       </div>
 
+      <!-- Party picker: hidden if classifier-pre-pass returned no parties.
+           When shown, the user MUST select one before "Run review" fires.
+           The selection becomes CLIENT_DEFINED_TERM in the specialist
+           context, which the prompts use as the authoritative party label
+           in proposed_text and external_comment. -->
+      <div id="confirm-party" class="confirm-party hidden">
+        <div class="confirm-mode-label">Which party are you representing?</div>
+        <div class="confirm-party-sub">Pick the side you're on. Specialists will use this party's contract-defined term in drafted clauses and comments.</div>
+        <div id="confirm-party-options" class="confirm-party-options"></div>
+      </div>
+
       <div class="confirm-mode-row">
         <div class="confirm-mode-label">Pipeline mode</div>
         <div class="confirm-mode-options">
@@ -1039,8 +1050,67 @@ import Consent from '../../partials/consent.astro';
     const governingEl = document.getElementById('confirm-governing');
     governingEl.classList.toggle('hidden', !kickoff.is_subordinate);
 
-    // Start 10-second auto-proceed countdown (pauses when user interacts)
-    startConfirmCountdown();
+    // Party picker — show only when the pre-pass returned parties.
+    // The countdown is suspended until the user picks one (or auto-resumed
+    // if there are no parties to pick).
+    renderPartyPicker(kickoff.detected_parties || []);
+
+    // Start 10-second auto-proceed countdown — but only if no party picker
+    // is showing (or only one party detected, auto-selected). When the user
+    // must pick, we wait for the click before starting the countdown.
+    const partyPickerVisible = !document.getElementById('confirm-party').classList.contains('hidden');
+    const partyAlreadyChosen = !!window.__chosenClientParty;
+    if (!partyPickerVisible || partyAlreadyChosen) {
+      startConfirmCountdown();
+    }
+  }
+
+  // Holds the user's party pick across the confirm flow. Cleared on
+  // panel re-show.
+  function renderPartyPicker(parties) {
+    const wrap = document.getElementById('confirm-party');
+    const opts = document.getElementById('confirm-party-options');
+    opts.innerHTML = '';
+    window.__chosenClientParty = null;
+
+    if (!parties || parties.length === 0) {
+      wrap.classList.add('hidden');
+      return;
+    }
+    wrap.classList.remove('hidden');
+
+    // Sort: providers first (most users are on the supplier side) then
+    // recipients then unknown. Stable within group.
+    const order = { provider: 0, recipient: 1, unknown: 2 };
+    const sorted = [...parties].sort((a, b) =>
+      (order[a.role_hint] ?? 3) - (order[b.role_hint] ?? 3));
+
+    for (const p of sorted) {
+      const term = p.defined_term || p.name || 'Unnamed';
+      const name = p.name && p.name !== term ? p.name : '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'confirm-party-btn';
+      btn.dataset.term = term;
+      btn.dataset.name = name;
+      btn.innerHTML =
+        `<span class="cp-term">${escapeHtml(term)}</span>` +
+        (name ? `<span class="cp-name">${escapeHtml(name)}</span>` : '');
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.confirm-party-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        window.__chosenClientParty = { defined_term: term, name };
+        // Once the user picks, start (or resume) the auto-proceed countdown
+        if (!confirmCountdownInterval) startConfirmCountdown();
+      });
+      opts.appendChild(btn);
+    }
+
+    // If exactly one party was detected (rare — sloppy preamble), preselect it
+    if (sorted.length === 1) {
+      const only = opts.querySelector('.confirm-party-btn');
+      if (only) only.click();
+    }
   }
 
   function startConfirmCountdown() {
@@ -1102,6 +1172,15 @@ import Consent from '../../partials/consent.astro';
     cancelConfirmCountdown();
     if (!pendingKickoff) return;
 
+    // Block start until the user picks a party (when the picker is shown).
+    // Detected_parties = [] from a failed pre-pass leaves the picker hidden,
+    // and we proceed without a CLIENT_DEFINED_TERM (legacy CLIENT_ROLE path).
+    const partyPickerVisible = !document.getElementById('confirm-party').classList.contains('hidden');
+    if (partyPickerVisible && !window.__chosenClientParty) {
+      alert('Please pick which party you are representing before starting the review.');
+      return;
+    }
+
     // Gather final pipeline mode + governing context
     const activeModeBtn = document.querySelector('.confirm-mode-btn.active');
     const finalMode = activeModeBtn?.dataset.mode || pendingKickoff.pipeline_mode || 'standard';
@@ -1116,6 +1195,8 @@ import Consent from '../../partials/consent.astro';
       }
       // file upload mode: TODO — would need a separate upload endpoint. For now, skip.
     }
+
+    const clientParty = window.__chosenClientParty || null;
 
     // Hide confirm, show progress
     document.getElementById('review-confirm').classList.add('hidden');
@@ -1135,7 +1216,7 @@ import Consent from '../../partials/consent.astro';
     }, 1000);
 
     try {
-      await api.confirmReview(pendingKickoff.review_id, finalMode, governingCtx);
+      await api.confirmReview(pendingKickoff.review_id, finalMode, governingCtx, clientParty);
 
       const final = await api.pollReview(pendingKickoff.review_id, (snap) => {
         const stage = STAGE_MAP[snap.review.status] || 'specialists';

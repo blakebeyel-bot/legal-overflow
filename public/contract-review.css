@@ -1375,6 +1375,54 @@
     line-height: 1.45;
   }
 
+  .confirm-party {
+    margin-top: 22px;
+    padding: 16px 18px;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    background: var(--paper-2, #fafaf7);
+  }
+  .confirm-party.hidden { display: none; }
+  .confirm-party-sub {
+    font-size: 13px;
+    color: var(--ink-3);
+    margin: 6px 0 12px;
+  }
+  .confirm-party-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .confirm-party-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 16px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink-1);
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    min-width: 200px;
+  }
+  .confirm-party-btn:hover { border-color: var(--accent-deep); }
+  .confirm-party-btn.active {
+    background: var(--accent-deep);
+    color: var(--paper);
+    border-color: var(--accent-deep);
+  }
+  .confirm-party-btn .cp-term {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .confirm-party-btn .cp-name {
+    font-size: 13px;
+    opacity: 0.9;
+  }
   .confirm-mode-row {
     margin-top: 22px;
     display: flex;

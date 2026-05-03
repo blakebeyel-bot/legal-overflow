@@ -93,14 +93,18 @@ function resolveSpecialists(analyzeStage, registry, profile) {
   return specialists;
 }
 
-function buildContextBlock({ clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction }) {
+function buildContextBlock({ clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction }) {
   const gacText = governingAgreementContext
     ? (governingAgreementContext.mode === 'summary' && governingAgreementContext.text
         ? `GOVERNING_AGREEMENT_CONTEXT (user-provided summary of governing MSA):\n${governingAgreementContext.text}`
         : `GOVERNING_AGREEMENT_CONTEXT: user uploaded governing MSA; assume standard-market upstream provisions unless the document expressly overrides.`)
     : `GOVERNING_AGREEMENT_CONTEXT: null (no governing MSA declared for this review)`;
+  const clientLine = clientDefinedTerm
+    ? `CLIENT_DEFINED_TERM: ${clientDefinedTerm}${clientName ? ` (legal entity: ${clientName})` : ''}\n` +
+      `CLIENT_ROLE: ${clientRole} (legacy fallback — prefer CLIENT_DEFINED_TERM when drafting)\n`
+    : `CLIENT_ROLE: ${clientRole}\n`;
   return (
-    `CLIENT_ROLE: ${clientRole}\n` +
+    clientLine +
     `DEAL_POSTURE: ${dealPosture || 'unspecified'}\n` +
     `CONTRACT_TYPE: ${contractType}\n` +
     `JURISDICTION: ${jurisdiction}\n` +
@@ -196,7 +200,14 @@ async function runScenario({ runLabel, contractPath, profile, dealPosture, contr
   const analyzeStage = pipeline.stages.find((s) => s.stage === 'analyze');
   const specialists = resolveSpecialists(analyzeStage, registry, profile);
 
-  const ctx = { clientRole, dealPosture, contractType, governingAgreementContext, jurisdiction };
+  // Harness doesn't run the party-detection pre-pass — local fixtures are
+  // graded with the legacy CLIENT_ROLE path. Setting clientDefinedTerm =
+  // null exercises the legacy fallback in the prompts so harness results
+  // are comparable across rounds. To exercise the new path, pass a
+  // CLIENT_DEFINED_TERM env override.
+  const clientDefinedTerm = process.env.CLIENT_DEFINED_TERM || null;
+  const clientName = process.env.CLIENT_NAME || null;
+  const ctx = { clientRole, clientDefinedTerm, clientName, dealPosture, contractType, governingAgreementContext, jurisdiction };
 
   console.log(`\n[${runLabel}] specialists (${specialists.length}): ${specialists.join(', ')}`);
   console.log(`[${runLabel}] role=${clientRole}, posture=${dealPosture}, format=${format}, words=${contractText.split(/\s+/).length}`);
