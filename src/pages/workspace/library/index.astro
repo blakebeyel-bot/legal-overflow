@@ -264,6 +264,161 @@
     }
   }
 
+  // ---- Edit-review (accept / reject) for an existing redline run ----
+  async function openEditReview(overlay, runId, docId, docName, run, trackChangesVersion) {
+    overlay.querySelector('.attach-modal-inner').style.width = 'min(820px, 96vw)';
+    overlay.querySelector('.attach-modal-inner').style.maxHeight = '90vh';
+
+    // Pre-build a signed URL for the track-changes preview download
+    let previewUrl = null;
+    if (trackChangesVersion?.storage_path) {
+      const { data: signed } = await supabase.storage
+        .from('library')
+        .createSignedUrl(trackChangesVersion.storage_path, 600);
+      previewUrl = signed?.signedUrl || null;
+    }
+
+    overlay.querySelector('.attach-modal-inner').innerHTML = `
+      <header class="attach-modal-head">
+        <h2 class="attach-modal-title">Review proposed edits</h2>
+        <button type="button" class="attach-modal-close" data-close>×</button>
+      </header>
+      <div class="attach-modal-body">
+        <div class="rdln-summary">
+          <strong>${escapeHtml(docName)}</strong>
+          ${run.edits_summary ? `<p class="rdln-summary-p">${escapeHtml(run.edits_summary)}</p>` : ''}
+          <div class="rdln-bulkbar">
+            <button type="button" class="ws-btn-secondary" data-bulk="accepted">Accept all</button>
+            <button type="button" class="ws-btn-secondary" data-bulk="rejected">Reject all</button>
+            <span class="rdln-counter" id="rdln-counter">…</span>
+            ${previewUrl ? `<a href="${previewUrl}" download="${escapeHtml(docName.replace(/\.docx$/i, ''))} (track changes).docx" class="lib-back" style="margin-left:auto">Download Word track-changes preview →</a>` : ''}
+          </div>
+        </div>
+        <div id="rdln-edits-list" class="rdln-edits-list"><div class="ws-empty">Loading edits…</div></div>
+      </div>
+      <footer class="attach-modal-foot">
+        <span id="rdln-final-status" class="rdln-final-status"></span>
+        <button type="button" class="ws-btn" id="rdln-finalize" disabled>Apply accepted edits</button>
+      </footer>`;
+    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.remove());
+
+    let edits = [];
+    async function loadEdits() {
+      const r = await fetch(`/.netlify/functions/workspace-redline-edits-list?run_id=${runId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        document.getElementById('rdln-edits-list').innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
+        return;
+      }
+      edits = j.edits || [];
+      renderEdits();
+    }
+
+    function renderEdits() {
+      const listEl = document.getElementById('rdln-edits-list');
+      listEl.innerHTML = edits.map((e) => `
+        <div class="rdln-edit ${e.status === 'accepted' ? 'is-accepted' : e.status === 'rejected' ? 'is-rejected' : ''}" data-edit-id="${e.id}">
+          <div class="rdln-edit-rationale">${escapeHtml(e.rationale || '(no rationale)')}</div>
+          <div class="rdln-edit-diff">
+            <div class="rdln-edit-from"><span class="rdln-edit-label">From</span><div class="rdln-edit-text">${escapeHtml(e.find_text)}</div></div>
+            <div class="rdln-edit-to"><span class="rdln-edit-label">To</span><div class="rdln-edit-text">${e.replace_text ? escapeHtml(e.replace_text) : '<em class="rdln-edit-empty">(deletion)</em>'}</div></div>
+          </div>
+          <div class="rdln-edit-actions">
+            <button type="button" class="rdln-btn-acc${e.status === 'accepted' ? ' is-on' : ''}" data-status="accepted">✓ Accept</button>
+            <button type="button" class="rdln-btn-rej${e.status === 'rejected' ? ' is-on' : ''}" data-status="rejected">× Reject</button>
+            <button type="button" class="rdln-btn-pen${e.status === 'pending' ? ' is-on' : ''}" data-status="pending">↺ Reset</button>
+          </div>
+        </div>`).join('');
+      // Wire per-edit buttons
+      listEl.querySelectorAll('.rdln-edit').forEach((row) => {
+        const editId = row.dataset.editId;
+        row.querySelectorAll('button[data-status]').forEach((btn) => {
+          btn.addEventListener('click', () => updateOne(editId, btn.dataset.status));
+        });
+      });
+      updateCounter();
+    }
+
+    function updateCounter() {
+      const total = edits.length;
+      const accepted = edits.filter((e) => e.status === 'accepted').length;
+      const rejected = edits.filter((e) => e.status === 'rejected').length;
+      const pending = total - accepted - rejected;
+      document.getElementById('rdln-counter').textContent =
+        `${accepted} accepted · ${rejected} rejected · ${pending} pending`;
+      const finalizeBtn = document.getElementById('rdln-finalize');
+      finalizeBtn.disabled = accepted === 0;
+      finalizeBtn.textContent = accepted ? `Apply ${accepted} accepted edit${accepted === 1 ? '' : 's'}` : 'Apply accepted edits';
+    }
+
+    async function updateOne(editId, status) {
+      const r = await fetch('/.netlify/functions/workspace-redline-edits-update', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editId, status }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert('Update failed: ' + (j.error || 'unknown'));
+        return;
+      }
+      // Optimistic update
+      const e = edits.find((x) => x.id === editId);
+      if (e) { e.status = status; renderEdits(); }
+    }
+
+    overlay.querySelectorAll('[data-bulk]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const status = btn.dataset.bulk;
+        if (!confirm(`${status === 'accepted' ? 'Accept' : 'Reject'} all ${edits.length} edits?`)) return;
+        const r = await fetch('/.netlify/functions/workspace-redline-edits-update', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ run_id: runId, status, scope: 'all' }),
+        });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); alert('Failed: ' + (j.error || 'unknown')); return; }
+        for (const e of edits) e.status = status;
+        renderEdits();
+      });
+    });
+
+    document.getElementById('rdln-finalize').addEventListener('click', async () => {
+      const finalBtn = document.getElementById('rdln-finalize');
+      const finalStatus = document.getElementById('rdln-final-status');
+      finalBtn.disabled = true;
+      finalBtn.textContent = 'Applying…';
+      finalStatus.textContent = '';
+      const r = await fetch('/.netlify/functions/workspace-redline-finalize', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: runId }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        finalStatus.textContent = 'Failed: ' + (j.error || 'unknown');
+        finalStatus.className = 'rdln-final-status is-error';
+        finalBtn.disabled = false;
+        updateCounter();
+        return;
+      }
+      const v = j.version;
+      const { data: signed } = await supabase.storage
+        .from('library')
+        .createSignedUrl(v.storage_path, 600);
+      if (signed?.signedUrl) {
+        finalStatus.innerHTML = `<a href="${signed.signedUrl}" download="${escapeHtml(docName.replace(/\.docx$/i, ''))} (final).docx" class="ws-btn">Download final .docx</a>`;
+      } else {
+        finalStatus.textContent = 'Done — refresh the library to see the new version.';
+      }
+      finalBtn.textContent = '✓ Applied';
+      loadDocs();
+    });
+
+    loadEdits();
+  }
+
   // ---- Redline modal ----
   function openRedlineModal(docId, docName) {
     const overlay = document.createElement('div');
@@ -343,20 +498,8 @@
             goBtn.textContent = 'Generate redlines';
             return;
           }
-          const version = sj.version;
-          statusEl.className = 'rdln-status is-done';
-          statusEl.innerHTML = `<strong>${run.edits_count} edits applied.</strong><br>${escapeHtml(run.edits_summary || '')}`;
-          // Build a signed download URL
-          const { data: signedUrl } = await supabase.storage
-            .from('library')
-            .createSignedUrl(version.storage_path, 600);
-          if (signedUrl?.signedUrl) {
-            dlEl.href = signedUrl.signedUrl;
-            dlEl.download = `${docName.replace(/\.docx$/i, '')} (redlined v${version.version_number}).docx`;
-            dlEl.hidden = false;
-          }
-          goBtn.textContent = 'Done';
-          loadDocs();
+          // Switch the modal to the review-edits view (accept/reject UI)
+          await openEditReview(overlay, runId, docId, docName, run, sj.version);
           return;
         }
         if (run.status === 'error') {

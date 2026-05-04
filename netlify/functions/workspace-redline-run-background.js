@@ -97,6 +97,22 @@ export default async (req) => {
     return new Response('done — no edits');
   }
 
+  // Persist each edit as a row so the browser UI can accept/reject
+  // them individually before calling /finalize. Default status is
+  // 'pending'.
+  const editRows = edits.map((e, i) => ({
+    run_id: runId,
+    edit_index: i,
+    find_text: e.find,
+    replace_text: e.replace,
+    rationale: e.rationale,
+    status: 'pending',
+  }));
+  const { error: editInsertErr } = await supabase
+    .from('workspace_redline_edits')
+    .insert(editRows);
+  if (editInsertErr) return fail(`Edit row insert failed: ${editInsertErr.message}`);
+
   // 3. Download original from storage
   let originalBytes;
   try {

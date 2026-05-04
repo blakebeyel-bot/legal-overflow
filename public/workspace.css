@@ -415,6 +415,41 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .rdln-status.is-error   { background: rgba(178,34,34,.06); color: #722;    border: 1px solid rgba(178,34,34,.25); }
 .rdln-status.is-warn    { background: rgba(184,127,0,.10); color: #b87f00; border: 1px solid rgba(184,127,0,.25); }
 
+/* Per-edit review UI */
+.rdln-summary { padding-bottom: 12px; border-bottom: 1px solid var(--rule-soft); margin-bottom: 14px; }
+.rdln-summary-p { font-size: 13px; color: var(--ink-2); line-height: 1.5; margin: 6px 0 10px; }
+.rdln-bulkbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rdln-counter { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; }
+.rdln-edits-list { display: flex; flex-direction: column; gap: 12px; max-height: 50vh; overflow-y: auto; padding-right: 6px; }
+.rdln-edit { padding: 12px 14px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); transition: background .15s, border-color .15s; }
+.rdln-edit.is-accepted { background: rgba(10,125,87,.04); border-color: rgba(10,125,87,.4); }
+.rdln-edit.is-rejected { background: rgba(178,34,34,.04); border-color: rgba(178,34,34,.4); opacity: .7; }
+.rdln-edit-rationale { font-size: 13px; line-height: 1.5; color: var(--ink); margin-bottom: 8px; }
+.rdln-edit-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.rdln-edit-from, .rdln-edit-to { padding: 8px 10px; border-radius: 4px; }
+.rdln-edit-from { background: rgba(178,34,34,.06); }
+.rdln-edit-to { background: rgba(10,125,87,.06); }
+.rdln-edit-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 3px; }
+.rdln-edit-text { font-family: var(--mono); font-size: 12px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.rdln-edit-empty { color: var(--ink-3); font-style: italic; font-family: var(--sans); }
+.rdln-edit-actions { display: flex; gap: 6px; }
+.rdln-btn-acc, .rdln-btn-rej, .rdln-btn-pen {
+  padding: 4px 10px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink-3); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.rdln-btn-acc:hover, .rdln-btn-acc.is-on { background: #0a7d57; color: white; border-color: #0a7d57; }
+.rdln-btn-rej:hover, .rdln-btn-rej.is-on { background: #b22222; color: white; border-color: #b22222; }
+.rdln-btn-pen:hover, .rdln-btn-pen.is-on { background: var(--ink-2); color: white; border-color: var(--ink-2); }
+.rdln-final-status { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.rdln-final-status.is-error { color: #b22222; }
+.rdln-final-status .ws-btn { font-family: var(--mono); }
+
+@media (max-width: 600px) {
+  .rdln-edit-diff { grid-template-columns: 1fr; }
+}
+
 .lib-uploads {
   position: fixed; right: 24px; bottom: 24px;
   display: flex; flex-direction: column; gap: 8px; z-index: 100;
