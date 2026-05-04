@@ -57,6 +57,11 @@
   <section class="chat-main">
     <header class="chat-head">
       <input type="text" id="chat-title" class="chat-title-input" placeholder="Untitled chat" />
+      <button type="button" id="chat-project-pill" class="chat-project-pill" aria-haspopup="true" title="Set project">
+        <span id="chat-project-pill-label">…</span>
+        <span class="chat-project-pill-caret">▾</span>
+      </button>
+      <div id="chat-project-popover" class="chat-project-popover" hidden></div>
       <div class="chat-head-right">
         <select id="model-select" class="chat-model-select" aria-label="Model"></select>
         <span id="key-source" class="chat-key-source" aria-live="polite"></span>
@@ -308,6 +313,7 @@
     els.title.value = meta.title || '';
     els.title.placeholder = 'Untitled chat';
     if (meta.model) els.model.value = meta.model;
+    syncPillFromChat();
   }
 
   function loadChatFromCache() {
@@ -774,6 +780,150 @@
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     for (const f of files) await uploadFromModal(f);
+  });
+
+  // ---- Project picker pill ----
+  // Click the pill in the chat header to assign the chat to a project,
+  // remove it from one, or create a new project inline. Same pattern
+  // as Notion / Linear's quick-pick popovers.
+  const pill = document.getElementById('chat-project-pill');
+  const pillLabel = document.getElementById('chat-project-pill-label');
+  const popover = document.getElementById('chat-project-popover');
+  let cachedProjects = null;
+
+  function setPillLabel(projectName) {
+    pillLabel.textContent = projectName ? projectName : 'No project';
+    pill.classList.toggle('has-project', !!projectName);
+  }
+  // Fill the pill once chat metadata loads (loadChat sets `chat`)
+  function syncPillFromChat() {
+    if (!chat) return;
+    if (chat.project_id && chat.project_name) {
+      setPillLabel(chat.project_name);
+    } else if (chat.project_id) {
+      setPillLabel('Loading project…');
+      // We don't carry project_name in the chat row; fetch the name once.
+      fetch('/.netlify/functions/workspace-projects-list', { headers: { Authorization: `Bearer ${accessToken}` } })
+        .then((r) => r.json())
+        .then((j) => {
+          cachedProjects = j.projects || [];
+          const found = cachedProjects.find((p) => p.id === chat.project_id);
+          setPillLabel(found ? found.name : 'Project (deleted)');
+        })
+        .catch(() => setPillLabel('Project'));
+    } else {
+      setPillLabel(null);
+    }
+  }
+
+  async function openPopover() {
+    // Position popover under the pill
+    const rect = pill.getBoundingClientRect();
+    popover.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    popover.style.left = (rect.left + window.scrollX) + 'px';
+    popover.hidden = false;
+
+    // Fetch projects fresh
+    popover.innerHTML = '<div class="cpop-loading">Loading projects…</div>';
+    const r = await fetch('/.netlify/functions/workspace-projects-list', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    cachedProjects = j.projects || [];
+    renderPopover();
+  }
+
+  function renderPopover() {
+    const projects = cachedProjects || [];
+    const inAProject = !!chat?.project_id;
+    const lines = [
+      `<input type="text" class="cpop-search" placeholder="Filter projects…" />`,
+      `<div class="cpop-list">`,
+      ...projects.map((p) => {
+        const sel = p.id === chat?.project_id ? ' is-current' : '';
+        return `<button type="button" class="cpop-item${sel}" data-pick="${p.id}" data-name="${escapeHtml(p.name)}">${escapeHtml(p.name)}${sel ? ' ✓' : ''}</button>`;
+      }),
+      projects.length === 0 ? `<div class="cpop-empty">No projects yet.</div>` : '',
+      `</div>`,
+      `<div class="cpop-divider"></div>`,
+      inAProject ? `<button type="button" class="cpop-action" data-action="remove">Remove from project</button>` : '',
+      `<button type="button" class="cpop-action cpop-new" data-action="new">+ New project…</button>`,
+    ];
+    popover.innerHTML = lines.filter(Boolean).join('');
+    const search = popover.querySelector('.cpop-search');
+    search?.focus();
+    search?.addEventListener('input', () => {
+      const q = search.value.toLowerCase();
+      popover.querySelectorAll('[data-pick]').forEach((b) => {
+        const name = (b.dataset.name || '').toLowerCase();
+        b.style.display = name.includes(q) ? '' : 'none';
+      });
+    });
+    popover.querySelectorAll('[data-pick]').forEach((b) => {
+      b.addEventListener('click', () => moveToProject(b.dataset.pick, b.dataset.name));
+    });
+    popover.querySelector('[data-action="remove"]')?.addEventListener('click', () => moveToProject(null, null));
+    popover.querySelector('[data-action="new"]')?.addEventListener('click', openInlineNewProject);
+  }
+
+  function closePopover() { popover.hidden = true; }
+
+  async function moveToProject(projectId, projectName) {
+    closePopover();
+    setPillLabel(projectId ? (projectName || 'Loading…') : null);
+    const r = await fetch('/.netlify/functions/workspace-chats-update', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: chat.id, project_id: projectId }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      alert('Move failed: ' + (j.error || 'unknown'));
+      return;
+    }
+    if (chat) chat.project_id = projectId;
+    // Bust the rail cache so the workspace landing reflects the move.
+    try { localStorage.removeItem(RAIL_CACHE_KEY); } catch {}
+  }
+
+  function openInlineNewProject() {
+    popover.innerHTML = `
+      <div class="cpop-newform">
+        <div class="cpop-label">Project name</div>
+        <input type="text" class="cpop-input" placeholder="Acme Corp acquisition" maxlength="200" />
+        <div class="cpop-actions">
+          <button type="button" class="cpop-cancel">Cancel</button>
+          <button type="button" class="cpop-create">Create &amp; assign</button>
+        </div>
+      </div>`;
+    const input = popover.querySelector('.cpop-input');
+    input.focus();
+    popover.querySelector('.cpop-cancel').addEventListener('click', renderPopover);
+    const create = async () => {
+      const name = input.value.trim();
+      if (!name) { input.focus(); return; }
+      popover.querySelector('.cpop-create').disabled = true;
+      const r = await fetch('/.netlify/functions/workspace-projects-create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert('Failed: ' + (j.error || 'unknown')); return; }
+      cachedProjects = [j.project, ...(cachedProjects || [])];
+      await moveToProject(j.project.id, j.project.name);
+    };
+    popover.querySelector('.cpop-create').addEventListener('click', create);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+  }
+
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (popover.hidden) openPopover();
+    else closePopover();
+  });
+  document.addEventListener('click', (e) => {
+    if (!popover.hidden && !popover.contains(e.target)) closePopover();
   });
 
   // ---- Resizable sidebar ----

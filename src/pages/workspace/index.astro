@@ -48,6 +48,13 @@
     <button id="new-chat" class="ws-btn">New chat</button>
   </header>
 
+  <!-- Projects strip — drop a chat row onto any chip to move that chat
+       into the project. Click "+ New project" to create one inline. -->
+  <section id="proj-strip" class="proj-strip" hidden>
+    <span class="proj-strip-label">Drop a chat to move it →</span>
+    <div id="proj-strip-chips" class="proj-strip-chips"></div>
+  </section>
+
   <section class="ws-card">
     <header class="ws-card-head">
       <h2 class="ws-card-title">Recent chats</h2>
@@ -58,6 +65,7 @@
   </section>
 
   <p class="ws-foot">
+    <a href="/workspace/projects/">Projects →</a> &nbsp;·&nbsp;
     <a href="/workspace/library/">Document library →</a> &nbsp;·&nbsp;
     <a href="/workspace/reviews/">Tabular reviews →</a> &nbsp;·&nbsp;
     <a href="/account/">Manage your API keys →</a>
@@ -137,16 +145,28 @@
     chatList.innerHTML = chats.map((c) => {
       const title = (c.title || 'Untitled chat').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
       const date = new Date(c.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-      // Delete button is a sibling button (not nested inside the
-      // anchor) so clicking it doesn't trigger row navigation.
-      return `<div class="ws-row-wrap">
+      const projBadge = c.project_id ? `<span class="ws-row-proj-badge" title="In a project">●</span>` : '';
+      // Each row is draggable for the project strip drop-zones above.
+      // The anchor inside is kept clickable for navigation; the drag
+      // handler lives on the wrap so the user can grab any part.
+      return `<div class="ws-row-wrap" draggable="true" data-chat-id="${c.id}">
         <a href="/workspace/chat/?id=${c.id}" class="ws-row">
-          <span class="ws-row-title">${title}</span>
+          <span class="ws-row-title">${projBadge}${title}</span>
           <span class="ws-row-meta">${c.model || ''} · ${date}</span>
         </a>
         <button type="button" class="ws-row-del" data-del="${c.id}" data-title="${title}" aria-label="Delete chat" title="Delete chat">×</button>
       </div>`;
     }).join('');
+
+    // Wire drag handlers
+    chatList.querySelectorAll('[data-chat-id]').forEach((row) => {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/chat-id', row.dataset.chatId);
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('is-dragging');
+      });
+      row.addEventListener('dragend', () => row.classList.remove('is-dragging'));
+    });
 
     // Wire delete handlers
     chatList.querySelectorAll('[data-del]').forEach((btn) => {
@@ -215,9 +235,104 @@
   }
 
   newChatBtn.addEventListener('click', createChat);
+
+  // ---- Project strip (drag chats onto a project to move them) ----
+  const stripEl = document.getElementById('proj-strip');
+  const stripChips = document.getElementById('proj-strip-chips');
+  async function loadProjectStrip() {
+    const r = await fetch('/.netlify/functions/workspace-projects-list', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    if (!r.ok) return;
+    const projects = j.projects || [];
+    if (!projects.length) {
+      stripEl.hidden = false;
+      stripChips.innerHTML = `<button type="button" class="proj-strip-new">+ New project</button>`;
+      stripChips.querySelector('.proj-strip-new').addEventListener('click', createInlineProject);
+      return;
+    }
+    stripEl.hidden = false;
+    stripChips.innerHTML = projects.map((p) => {
+      const c = p.counts || {};
+      return `<a href="/workspace/projects/?id=${p.id}" class="proj-strip-chip" data-proj-drop="${p.id}" title="${(c.chats || 0) + ' chats · ' + (c.documents || 0) + ' docs'}">${(p.name || '').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]))}</a>`;
+    }).join('') + `<button type="button" class="proj-strip-new">+ New</button>`;
+    stripChips.querySelector('.proj-strip-new').addEventListener('click', createInlineProject);
+    // Wire drop targets
+    stripChips.querySelectorAll('[data-proj-drop]').forEach((chip) => {
+      chip.addEventListener('dragover', (e) => {
+        if (e.dataTransfer.types.includes('text/chat-id')) {
+          e.preventDefault();
+          chip.classList.add('is-drop-target');
+        }
+      });
+      chip.addEventListener('dragleave', () => chip.classList.remove('is-drop-target'));
+      chip.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        chip.classList.remove('is-drop-target');
+        const chatId = e.dataTransfer.getData('text/chat-id');
+        const projectId = chip.dataset.projDrop;
+        if (!chatId) return;
+        await fetch('/.netlify/functions/workspace-chats-update', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: chatId, project_id: projectId }),
+        });
+        try { localStorage.removeItem(RAIL_CACHE_KEY); } catch {}
+        loadChats();
+      });
+    });
+  }
+  // Inline-edit project creation. Swaps the "+ New" button for a
+  // small input field; Enter creates, Esc cancels. Avoids the
+  // native browser prompt() dialog which feels disconnected from
+  // the page.
+  function createInlineProject() {
+    const newBtn = stripChips.querySelector('.proj-strip-new');
+    if (!newBtn) return;
+    if (newBtn.classList.contains('is-editing')) return;   // already open
+    const wrap = document.createElement('span');
+    wrap.className = 'proj-strip-newform';
+    wrap.innerHTML = `<input type="text" class="proj-strip-newinput" placeholder="Project name" maxlength="200" />`;
+    newBtn.replaceWith(wrap);
+    const input = wrap.querySelector('input');
+    input.focus();
+
+    const cancel = () => {
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.className = 'proj-strip-new';
+      restore.textContent = '+ New';
+      restore.addEventListener('click', createInlineProject);
+      wrap.replaceWith(restore);
+    };
+    const create = async () => {
+      const name = input.value.trim();
+      if (!name) { cancel(); return; }
+      input.disabled = true;
+      const r = await fetch('/.netlify/functions/workspace-projects-create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const j = await r.json();
+      if (!r.ok) { input.disabled = false; input.classList.add('is-error'); input.title = j.error || 'failed'; return; }
+      loadProjectStrip();
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); create(); }
+      else if (e.key === 'Escape') cancel();
+    });
+    input.addEventListener('blur', () => {
+      // small delay so click on a sibling element doesn't double-fire
+      setTimeout(() => { if (document.contains(input) && !input.disabled) cancel(); }, 120);
+    });
+  }
+
   // Show cached list instantly, then refresh from server.
   renderFromCache();
   loadChats();
+  loadProjectStrip();
 </script>
 </body>
 </html>
