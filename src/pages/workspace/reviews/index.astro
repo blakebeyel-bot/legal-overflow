@@ -330,6 +330,7 @@
           <div class="rv-head-meta">
             <span id="rv-status-pill" class="rv-status-pill rv-status-pen">…</span>
             <span id="rv-counter" class="rv-counter"></span>
+            <button id="rv-export" type="button" class="ws-btn-secondary" title="Download as CSV (opens in Excel)">Export CSV</button>
           </div>
         </header>
         <div class="rv-grid-wrap"><div id="rv-grid"></div></div>
@@ -339,6 +340,26 @@
     await loadGrid(id);
     // Poll while running. Stop when complete/error/partial.
     pollLoop(id);
+
+    document.getElementById('rv-export')?.addEventListener('click', async () => {
+      const r = await fetch(`/.netlify/functions/workspace-tr-export?id=${encodeURIComponent(id)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert('Export failed: ' + (j.error || 'unknown'));
+        return;
+      }
+      const blob = await r.blob();
+      const filename = (r.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/)?.[1] || 'review.csv';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
   }
 
   async function loadGrid(id) {
