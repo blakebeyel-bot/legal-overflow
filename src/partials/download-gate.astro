@@ -21,9 +21,9 @@
   <div class="dg-backdrop"></div>
   <div class="dg-card">
     <button type="button" class="dg-close" id="dg-close" aria-label="Close">×</button>
-    <div class="dg-kicker">Before you download</div>
-    <h2 id="dg-title" class="dg-title">A quick acknowledgment.</h2>
-    <p class="dg-sub">This download is free. In exchange, we ask for your email and a short acknowledgment of how these tools are meant to be used.</p>
+    <div class="dg-kicker">Request access</div>
+    <h2 id="dg-title" class="dg-title">Request access to this download.</h2>
+    <p class="dg-sub">Downloads are released on a per-request basis. Tell us a bit about who you are and how you'll use it. We'll email you the file once your request is reviewed.</p>
 
     <form id="dg-form" class="dg-form" novalidate>
       <input type="hidden" name="form-name" value="downloads" />
@@ -67,9 +67,18 @@
         <span><strong>Non-attorney acknowledgment.</strong> I understand that the skills, prompt packs, and sample outputs on this site <strong>are tools and templates, not legal advice.</strong> Nothing I download here creates an attorney-client relationship. <strong>These materials are not a substitute for consultation with a licensed attorney in my jurisdiction</strong>, and I will independently verify any output produced by these tools with qualified counsel before relying on it for any actual legal matter. I accept sole responsibility for how I use these materials and for any consequences arising from that use. I also understand that using AI-generated content without attorney review in connection with a court filing, contract, or other binding legal matter may carry significant risk.</span>
       </label>
 
-      <button type="submit" class="dg-submit">Accept and Download</button>
-      <p class="dg-fineprint">Your email is stored securely and used only to notify you about updates to this skill. It will not be sold or shared.</p>
+      <button type="submit" class="dg-submit">Request access</button>
+      <p class="dg-fineprint">Your request is reviewed manually. Once approved, the download link is emailed to you. Your email is stored securely and used only to deliver the file and notify you about updates. It will not be sold or shared.</p>
     </form>
+
+    <!-- Confirmation panel — replaces the form when the request is submitted. -->
+    <div id="dg-confirm" class="dg-confirm" hidden>
+      <div class="dg-confirm-icon" aria-hidden="true">✓</div>
+      <h3 class="dg-confirm-title">Request received.</h3>
+      <p class="dg-confirm-sub">We received your request for <strong id="dg-confirm-file">this file</strong>. The download link will be emailed to <strong id="dg-confirm-email">your address</strong> once your request is approved.</p>
+      <p class="dg-confirm-fine">Most requests are reviewed within one business day. If you don't hear back within 48 hours, email <a href="mailto:blake@beyelbrothers.com">blake@beyelbrothers.com</a>.</p>
+      <button type="button" class="dg-submit" id="dg-confirm-close">Close</button>
+    </div>
   </div>
 </div>
 
@@ -132,10 +141,12 @@
     document.body.removeChild(a);
   }
 
-  // Intercept any anchor tag that points at a file in /assets/skills/ and has a download attribute
+  // Intercept any anchor tag that points at a file in /assets/skills/ and has
+  // a download attribute. Always show the request modal — no localStorage
+  // bypass — because access is now manual-approval per request, not a
+  // one-time acknowledgment.
   document.querySelectorAll('a[href^="/assets/skills/"][download]').forEach(function(link) {
     link.addEventListener('click', function(e) {
-      if (!isExpired()) return; // already acknowledged recently, let the browser download
       e.preventDefault();
       pendingDownloadUrl = link.getAttribute('href');
       pendingDownloadName = pendingDownloadUrl.split('/').pop();
@@ -172,15 +183,30 @@
   // Backdrop click closes
   gate.querySelector('.dg-backdrop').addEventListener('click', closeGate);
 
+  // Confirmation panel + close button
+  var confirmPanel = document.getElementById('dg-confirm');
+  var confirmFile = document.getElementById('dg-confirm-file');
+  var confirmEmail = document.getElementById('dg-confirm-email');
+  var confirmClose = document.getElementById('dg-confirm-close');
+  if (confirmClose) confirmClose.addEventListener('click', function() {
+    closeGate();
+    // Reset the modal back to the form so the next opening is clean.
+    if (confirmPanel) confirmPanel.hidden = true;
+    if (form) form.hidden = false;
+    form.reset();
+    if (jurisdictionField) jurisdictionField.hidden = true;
+    if (attorneyAckField) attorneyAckField.hidden = true;
+    if (nonAttorneyAckField) nonAttorneyAckField.hidden = true;
+  });
+
   form.addEventListener('submit', function(e) {
     e.preventDefault();
-    // Manual validity check (novalidate is on for styling control)
     if (!form.checkValidity()) {
       form.reportValidity();
       return;
     }
     var submit = form.querySelector('.dg-submit');
-    if (submit) { submit.disabled = true; submit.textContent = 'Downloading…'; }
+    if (submit) { submit.disabled = true; submit.textContent = 'Submitting…'; }
 
     var data = new FormData(form);
     var params = new URLSearchParams();
@@ -188,20 +214,23 @@
 
     var email = data.get('email');
 
+    // Submit the request to Netlify Forms. The user does NOT get the file
+    // immediately. The admin reviews the submission and emails an
+    // approved download link manually (or via a future approval tool).
     fetch('/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params.toString()
-    }).catch(function(){ /* swallow — still allow download so user isn't blocked by form outage */ })
+    })
+      .catch(function() { /* swallow — admin can still see partial submissions in Netlify dashboard */ })
       .finally(function() {
         remember(email);
-        if (pendingDownloadUrl) triggerDownload(pendingDownloadUrl, pendingDownloadName);
-        closeGate();
-        if (submit) { submit.disabled = false; submit.textContent = 'Accept and Download'; }
-        form.reset();
-        if (jurisdictionField) jurisdictionField.hidden = true;
-        if (attorneyAckField) attorneyAckField.hidden = true;
-        if (nonAttorneyAckField) nonAttorneyAckField.hidden = true;
+        // Show the confirmation panel; hide the form.
+        if (confirmFile) confirmFile.textContent = pendingDownloadName || 'this file';
+        if (confirmEmail) confirmEmail.textContent = email || 'your address';
+        if (form) form.hidden = true;
+        if (confirmPanel) confirmPanel.hidden = false;
+        if (submit) { submit.disabled = false; submit.textContent = 'Request access'; }
       });
   });
 })();

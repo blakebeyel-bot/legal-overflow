@@ -21,6 +21,16 @@ import Consent from '../../partials/consent.astro';
   .cv-sub { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 780px; margin: 0 0 40px; }
 
   /* Steps */
+  .cv-quota { display: flex; align-items: center; gap: 8px; margin: -16px 0 28px; padding: 10px 14px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper-2); }
+  .cv-quota-text { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
+  .cv-quota.is-low .cv-quota-text { color: #b45309; }
+  .cv-quota.is-out .cv-quota-text { color: #b3532f; font-weight: 600; }
+  .cv-paywall { border: 1px solid var(--ink); border-radius: 8px; padding: 36px 36px 32px; background: var(--paper-2); margin-bottom: 28px; }
+  .cv-paywall-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 10px; }
+  .cv-paywall-title { font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; margin: 0 0 14px; }
+  .cv-paywall-title em { font-style: italic; color: var(--accent-deep); }
+  .cv-paywall-sub { font-size: 15px; line-height: 1.6; color: var(--ink-2); max-width: 620px; margin: 0 0 22px; }
+  .cv-paywall-actions { display: flex; gap: 12px; flex-wrap: wrap; }
   .cv-step { border: 1px solid var(--rule-soft); border-radius: 8px; padding: 28px 30px; background: var(--paper-2); margin-bottom: 24px; }
   .cv-step.is-active { border-color: var(--ink); background: var(--paper); }
   .cv-step.is-done { border-style: dashed; opacity: .85; }
@@ -114,6 +124,38 @@ import Consent from '../../partials/consent.astro';
     <a href="/agents/citation-verifier/methodology/" style="color: var(--accent-deep);">See the methodology →</a>
   </p>
 
+  <!-- Quota counter — populated on page load by querying verification_runs
+       directly via Supabase (RLS limits the query to the signed-in user's
+       rows). When the user has exhausted their cap, the upload form below
+       is hidden and the paywall card takes its place. -->
+  <div id="cv-quota" class="cv-quota" style="display:none;">
+    <span class="cv-quota-text" id="cv-quota-text">— of 3 citation checks left</span>
+  </div>
+
+  <!-- Pending-approval panel — shown when verify-citations-start returns
+       403 with pending_approval: true. Replaces the upload UI for new,
+       not-yet-approved users. Reuses the cv-paywall styling for visual
+       consistency. -->
+  <section id="cv-pending" class="cv-paywall" style="display:none;">
+    <div class="cv-paywall-kicker">Account pending approval</div>
+    <h2 class="cv-paywall-title">Your account is <em>under review</em>.</h2>
+    <p class="cv-paywall-sub">We review every signup before granting access to the citation verifier. Most requests are reviewed within one business day. You'll receive an email once your account is approved.</p>
+    <div class="cv-paywall-actions">
+      <a class="cv-btn" href="mailto:blake@beyelbrothers.com?subject=Account%20approval%20%E2%80%94%20citation%20verifier">Email about my request</a>
+    </div>
+  </section>
+
+  <!-- Paywall — shown when the user has used all their checks. Replaces
+       the upload card; restored to "hidden" only when quota frees up. -->
+  <section id="cv-paywall" class="cv-paywall" style="display:none;">
+    <div class="cv-paywall-kicker">Out of citation checks</div>
+    <h2 class="cv-paywall-title">You've used all <em>3</em> trial verifications.</h2>
+    <p class="cv-paywall-sub">Your trial allows three citation checks per 30-day window. The window resets automatically. To unlock more capacity now, get in touch and we'll set up a paid tier sized to your usage.</p>
+    <div class="cv-paywall-actions">
+      <a class="cv-btn" href="mailto:contact@beyelbrothers.com?subject=Citation%20Verifier%20%E2%80%94%20upgrade">Contact us to upgrade</a>
+    </div>
+  </section>
+
   <!-- ============================================================
        STEP 1 — Upload + options
        ============================================================ -->
@@ -154,10 +196,16 @@ import Consent from '../../partials/consent.astro';
     <div class="cv-checkbox">
       <input type="checkbox" id="cv-disclaimer" />
       <label for="cv-disclaimer">
-        I understand this report records form-checking against Bluebook 22e <strong>only</strong>. It does NOT attest
-        to the substantive accuracy of any cited authority. Existence checks use CourtListener, which does not
-        include every state opinion, recent unpublished disposition, or sealed matter. I will independently verify
-        every citation before filing. <em>(disclaimer v1.0)</em>
+        I understand this is an AI-assisted form-check tool, not legal services or legal advice. No attorney-client
+        relationship is formed by uploading. The report records Bluebook 22e form-checking <strong>only</strong> and
+        does NOT attest to the substantive accuracy of any cited authority. Existence checks use CourtListener, which
+        does not include every state opinion, recent unpublished disposition, or sealed matter. I am responsible for
+        independently verifying every citation before filing, and for ensuring my use of this tool complies with my
+        own confidentiality and competence obligations under the rules of professional conduct in my jurisdiction.
+        See the <a href="/legal/disclaimer/" target="_blank" rel="noopener" style="color:var(--accent-deep);border-bottom:1px solid var(--accent);">Disclaimer</a>,
+        <a href="/legal/privacy/" target="_blank" rel="noopener" style="color:var(--accent-deep);border-bottom:1px solid var(--accent);">Privacy Policy</a>,
+        and <a href="/legal/terms/" target="_blank" rel="noopener" style="color:var(--accent-deep);border-bottom:1px solid var(--accent);">Terms</a>.
+        <em>(disclaimer v1.1)</em>
       </label>
     </div>
 
@@ -199,7 +247,14 @@ import Consent from '../../partials/consent.astro';
 </main>
 
 <footer class="foot">
-  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04</span></div>
+  <p class="foot-bar-disclosure">
+    <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+    The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+    Before you decide, ask for written information about the lawyer's qualifications and experience.
+    No representation is made that the quality of the legal services to be performed is greater than
+    the quality of legal services performed by other lawyers.
+  </p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span></div>
 </footer>
 
 <Consent />
@@ -215,6 +270,18 @@ import Consent from '../../partials/consent.astro';
     location.href = '/login/?redirect=/agents/citation-verifier/';
     throw new Error('Not signed in — redirecting');
   }
+
+  // If the signed-in user changes (sign-out, or a different user signs in
+  // via another tab and the session syncs), hard-reload so all in-tab JS
+  // state is dropped and every gate re-runs under the new identity.
+  let currentSessionUserId = session?.user?.id || null;
+  supabase.auth.onAuthStateChange((event, newSession) => {
+    const newUserId = newSession?.user?.id || null;
+    if (event === 'SIGNED_OUT' || newUserId !== currentSessionUserId) {
+      currentSessionUserId = newUserId;
+      location.reload();
+    }
+  });
 
   // ---- Element refs ----
   const fileInput   = document.getElementById('cv-file');
@@ -237,6 +304,46 @@ import Consent from '../../partials/consent.astro';
   disclaimCb.addEventListener('change', gate);
 
   startBtn.addEventListener('click', startRun);
+
+  // ---- Quota check ----
+  // Trial users get 3 citation verifications per 30-day window. We count
+  // their verification_runs directly via Supabase (RLS scopes the read to
+  // their own rows). When the quota is exhausted we hide the upload step
+  // and show the paywall card.
+  const TRIAL_CAP = 3;
+  const QUOTA_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+  async function refreshCitationQuota() {
+    try {
+      const since = new Date(Date.now() - QUOTA_WINDOW_MS).toISOString();
+      const { count, error } = await supabase
+        .from('verification_runs')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', since);
+      if (error) {
+        console.error('citation quota:', error);
+        return;
+      }
+      const used = count || 0;
+      const remaining = Math.max(0, TRIAL_CAP - used);
+      const quotaEl = document.getElementById('cv-quota');
+      const quotaText = document.getElementById('cv-quota-text');
+      const paywall = document.getElementById('cv-paywall');
+      const uploadStep = document.getElementById('cv-step-upload');
+      quotaEl.style.display = 'flex';
+      quotaText.textContent = `${remaining} of ${TRIAL_CAP} citation checks left this 30-day window`;
+      quotaEl.classList.remove('is-low', 'is-out');
+      if (remaining === 0) {
+        quotaEl.classList.add('is-out');
+        paywall.style.display = 'block';
+        if (uploadStep) uploadStep.style.display = 'none';
+      } else if (remaining === 1) {
+        quotaEl.classList.add('is-low');
+      }
+    } catch (e) {
+      console.error('citation quota:', e);
+    }
+  }
+  refreshCitationQuota();
 
   document.getElementById('cv-restart-btn')?.addEventListener('click', () => {
     location.reload();
@@ -272,7 +379,7 @@ import Consent from '../../partials/consent.astro';
     fd.append('style', styleSel.value);
     fd.append('ruleset', rulesetSel.value);
     fd.append('retain_text', retainCb.checked ? 'true' : 'false');
-    fd.append('disclaimer_version', '1.0');
+    fd.append('disclaimer_version', '1.1');
 
     let res;
     try {
@@ -289,6 +396,26 @@ import Consent from '../../partials/consent.astro';
     }
 
     const data = await res.json().catch(() => ({}));
+    if (res.status === 403 && data.pending_approval) {
+      // Account hasn't been approved yet — show the pending panel.
+      showStep('upload');
+      const pending = document.getElementById('cv-pending');
+      const upload = document.getElementById('cv-step-upload');
+      if (pending) pending.style.display = 'block';
+      if (upload) upload.style.display = 'none';
+      startBtn.disabled = false;
+      return;
+    }
+    if (res.status === 429 && data.quota) {
+      // Quota exceeded — flip to paywall instead of leaving the user on a
+      // raw error toast.
+      showStep('upload');
+      document.getElementById('cv-paywall').style.display = 'block';
+      const upload = document.getElementById('cv-step-upload');
+      if (upload) upload.style.display = 'none';
+      startBtn.disabled = false;
+      return;
+    }
     if (!res.ok || !data.ok) {
       showStep('upload');
       showError(data.error || `Server returned ${res.status}`);

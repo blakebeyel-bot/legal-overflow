@@ -59,19 +59,21 @@ import Consent from '../partials/consent.astro';
 </header>
 
 <div class="auth-wrap">
-  <div class="auth-kicker">Sign in</div>
-  <h1 class="auth-title">Sign in with a <em>magic link</em>.</h1>
-  <p class="auth-sub">Enter your email. We'll send a one-time link. No passwords to manage. If you're new, your account is created the first time you click the link.</p>
+  <div class="auth-kicker">Create account</div>
+  <h1 class="auth-title">Sign <em>up</em>.</h1>
+  <p class="auth-sub">Three contract reviews and three citation checks free. Already have an account? <a href="/login/">Sign in here.</a></p>
 
   <form id="auth-form" class="auth-form">
     <label for="email">Email address</label>
-    <input type="email" id="email" name="email" required placeholder="you@firm.com" autocomplete="email" />
-    <button type="submit" class="auth-submit" id="submit-btn">Send magic link</button>
+    <input type="email" id="email" name="email" required placeholder="you@company.com" autocomplete="email" />
+    <label for="password">Password (8+ characters)</label>
+    <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password" />
+    <button type="submit" class="auth-submit" id="submit-btn">Create account</button>
   </form>
 
   <div id="auth-msg" class="auth-msg"></div>
 
-  <p class="auth-alt">Trouble? Check your spam folder. Links expire after 1 hour.</p>
+  <p class="auth-alt">By creating an account you agree to our terms and privacy policy.</p>
 </div>
 
 <script>
@@ -93,27 +95,52 @@ import Consent from '../partials/consent.astro';
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value.trim();
-    if (!email) return;
+    const password = document.getElementById('password').value;
+    if (!email || !password) return;
+    if (password.length < 8) {
+      msg.className = 'auth-msg error';
+      msg.textContent = 'Password must be at least 8 characters.';
+      return;
+    }
     btn.disabled = true;
-    btn.textContent = 'Sending…';
+    btn.textContent = 'Creating account…';
     msg.className = 'auth-msg';
     msg.textContent = '';
 
     const redirect = new URLSearchParams(location.search).get('redirect') || '/agents/contract-review/';
-    const { error } = await supabase.auth.signInWithOtp({
+    const { data, error } = await supabase.auth.signUp({
       email,
+      password,
+      // emailRedirectTo lets Supabase send a confirmation email that links
+      // back to the app once the user confirms. If your Supabase project
+      // has "confirm email" disabled, signUp returns a session immediately
+      // and the redirect never fires — both flows work below.
       options: { emailRedirectTo: `${location.origin}${redirect}` },
     });
 
     btn.disabled = false;
-    btn.textContent = 'Send magic link';
+    btn.textContent = 'Create account';
 
     if (error) {
       msg.className = 'auth-msg error';
-      msg.textContent = error.message;
+      const m = error.message || '';
+      if (/already registered|user already/i.test(m)) {
+        msg.textContent = 'An account with that email already exists. Try signing in instead.';
+      } else if (/password/i.test(m) && /weak|short/i.test(m)) {
+        msg.textContent = 'That password is too weak. Use at least 8 characters with a mix of letters and numbers.';
+      } else {
+        msg.textContent = m;
+      }
+      return;
+    }
+
+    if (data?.session) {
+      // Supabase project has email confirmation OFF — user is signed in immediately.
+      location.href = redirect;
     } else {
+      // Email confirmation is ON — show a check-your-inbox message.
       msg.className = 'auth-msg success';
-      msg.textContent = `Sent. Check ${email} for the sign-in link.`;
+      msg.textContent = `Account created. We sent a confirmation link to ${email}. Click it to finish signing up.`;
     }
   });
 </script>

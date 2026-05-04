@@ -19,7 +19,7 @@
  *   disclaimer_version — required text, e.g. "1.0"
  */
 
-import { requireUser, getSupabaseAdmin } from '../lib/supabase-admin.js';
+import { requireUser, getSupabaseAdmin, checkCitationQuota, checkUserApproval } from '../lib/supabase-admin.js';
 import { MODEL_ID, MAX_UPLOAD_BYTES } from '../lib/constants.js';
 import { createHash } from 'node:crypto';
 
@@ -32,6 +32,27 @@ export default async (req) => {
 
   const auth = await requireUser(req.headers.get('Authorization'));
   if (auth.error) return json({ error: auth.error }, auth.status);
+
+  // Approval gate (Florida Rule 4-1.7 / 4-1.18 / 4-1.1). Pending users
+  // get a 403 with a message the UI surfaces as a "pending approval" panel.
+  const approval = await checkUserApproval(auth.user.id);
+  if (!approval.approved) {
+    return json({
+      error: 'Your account is pending approval. We review every signup before granting access to the agents. You will receive an email once approved.',
+      pending_approval: true,
+    }, 403);
+  }
+
+  // Quota gate — same shape as the contract-review path. Trial users get
+  // 3 verifications per 30-day window; the response carries the full
+  // quota state so the UI can render the paywall card.
+  const quota = await checkCitationQuota(auth.user.id);
+  if (!quota.allowed) {
+    return json({
+      error: `Quota exceeded — ${quota.used} of ${quota.cap} citation checks used in the last 30 days.`,
+      quota,
+    }, 429);
+  }
 
   let formData;
   try {
@@ -174,6 +195,7 @@ export default async (req) => {
     style,
     ruleset,
     retain_text,
+    quota,
   });
 };
 

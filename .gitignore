@@ -28,5 +28,12 @@ tools/grader/grader/inputs/*.docx
 tools/grader/grader/grader_output/
 tools/grader/grader/last_run/
 
+# Contract grader — local run artifacts (reproducible)
+tools/contract-grader/runs/
+tools/contract-grader/baseline-runs/
+
+# Tracker — local operational artifacts
+tools/tracker/
+
 # Local debug + dry-run output
 tmp/

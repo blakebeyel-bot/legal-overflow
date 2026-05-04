@@ -175,7 +175,6 @@ export async function buildReviewSummaryDocx({
   filename,
   contractType,
   pipelineMode,
-  reviewerName,
   findings,
   priorityThree = [],
   coveragePassAggregate = [],
@@ -192,16 +191,29 @@ export async function buildReviewSummaryDocx({
 
   const children = [];
 
-  // Memo-style header — title + reviewer/date + RE: subject line.
-  // reviewerName flows through fanout-background from
-  // profile.output.reviewer_author (set on the "Tell us how you negotiate"
-  // form's name field). Falls back to "Legal Overflow" only when the user
-  // hasn't supplied a name.
+  // Memo-style header. Per user direction, no personal-name attribution
+  // appears on the deliverable. The "AI-drafted" by-line keeps the
+  // honesty signal required by Florida Rule 4-7.13 without identifying
+  // any specific reviewer on the document.
   children.push(...memoHeaderParagraphs({
     title: 'CONTRACT REVIEW MEMORANDUM',
     subject: `${filename}  —  ${humanize(contractType) || 'Unclassified'}`,
-    preparedBy: (reviewerName && String(reviewerName).trim()) || 'Legal Overflow',
+    preparedBy: 'AI-drafted contract analysis',
     dateStr: date,
+  }));
+
+  // Up-front warning paragraph — appears on page 1 immediately after the
+  // memo header, before any findings. The full disclaimer block still
+  // appears at the end of the document.
+  children.push(new Paragraph({
+    spacing: { before: 0, after: 200 },
+    children: [
+      new TextRun({
+        text: 'NOTICE: This document was drafted by an automated AI system. It is NOT legal advice and has NOT been independently reviewed by a licensed attorney. Before sending, signing, filing, or otherwise acting on any finding here, you must independently review the analysis and, where appropriate, consult qualified counsel. See the full disclaimer at the end of this document.',
+        italics: true,
+        size: 18,
+      }),
+    ],
   }));
 
   // Severity summary

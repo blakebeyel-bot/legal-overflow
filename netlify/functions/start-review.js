@@ -12,7 +12,7 @@
  * Body: multipart/form-data with a "file" field
  * Auth: user access token via Authorization: Bearer <token>
  */
-import { requireUser, getSupabaseAdmin, checkReviewQuota } from '../lib/supabase-admin.js';
+import { requireUser, getSupabaseAdmin, checkReviewQuota, checkUserApproval } from '../lib/supabase-admin.js';
 import { getAgent } from '../lib/agents.js';
 import { callModel, extractJson } from '../lib/anthropic.js';
 import { extractDocumentText } from '../lib/extract.js';
@@ -27,6 +27,18 @@ export default async (req) => {
 
   const auth = await requireUser(req.headers.get('Authorization'));
   if (auth.error) return json({ error: auth.error }, auth.status);
+
+  // Approval gate (Florida Rule 4-1.7 / 4-1.18 / 4-1.1). New signups
+  // land in a pending state — they can prep their playbook and read
+  // the public site, but cannot run an agent until the operator
+  // manually approves their account.
+  const approval = await checkUserApproval(auth.user.id);
+  if (!approval.approved) {
+    return json({
+      error: 'Your account is pending approval. We review every signup before granting access to the agents. You will receive an email once approved.',
+      pending_approval: true,
+    }, 403);
+  }
 
   // Profile is OPTIONAL. If absent, fanout-background falls back to the
   // default profile and produces an industry-baseline review. Tell the

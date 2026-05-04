@@ -438,19 +438,20 @@ async function processReview({ userId, reviewId, supabase }) {
 
   // 10. STAGE 6 — Apply markup
   await updateProgress(supabase, reviewId, 'compiling', 'Applying markup…');
-  // Reviewer-name attribution lives on the company profile under
-  // output.reviewer_author (per company_profile.schema.json). Set on the
-  // "Tell us how you negotiate" intake form via the "Your name" field,
-  // which the workflow-configurator agent maps into the schema. Fallback
-  // to "Legal Overflow" when the user hasn't set one.
-  const reviewerName = (profile?.output?.reviewer_author && String(profile.output.reviewer_author).trim()) || 'Legal Overflow';
+  // Document attribution is fixed to a generic platform label — we do
+  // NOT put the user's personal name on the marked DOCX/PDF or on the
+  // tracked-changes / comment author attributes that Word displays.
+  // The disclaimers on the deliverables make clear the analysis is
+  // AI-drafted; the user remains responsible for review but is not
+  // identified on the artifact itself.
+  const docAuthor = 'Legal Overflow';
   let annotated, unanchored;
   if (format === 'docx') {
-    const r = await applyDocxMarkup(contractBuffer, finalFindings, { author: reviewerName });
+    const r = await applyDocxMarkup(contractBuffer, finalFindings, { author: docAuthor });
     annotated = r.buffer;
     unanchored = r.unanchored;
   } else if (format === 'pdf') {
-    const r = await applyPdfMarkup(contractBuffer, finalFindings, { author: reviewerName });
+    const r = await applyPdfMarkup(contractBuffer, finalFindings, { author: docAuthor });
     annotated = r.buffer;
     unanchored = r.unanchored;
   } else {
@@ -464,7 +465,6 @@ async function processReview({ userId, reviewId, supabase }) {
     filename: review.filename,
     contractType: review.contract_type,
     pipelineMode: mode,
-    reviewerName,
     findings: finalFindings,
     priorityThree: priorityFindings,
     coveragePassAggregate,

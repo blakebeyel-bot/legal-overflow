@@ -119,10 +119,6 @@ import Consent from '../../partials/consent.astro';
         <div class="quick-setup-body">
           <div class="qs-grid">
             <label class="qs-field">
-              <span class="qs-label">Your name</span>
-              <input type="text" id="qs-reviewer-name" maxlength="80" placeholder="e.g., Mary Jones" autocomplete="name" />
-            </label>
-            <label class="qs-field">
               <span class="qs-label">Company legal name</span>
               <input type="text" id="qs-company" placeholder="e.g., Magic Inc." />
             </label>
@@ -211,14 +207,13 @@ import Consent from '../../partials/consent.astro';
           <div class="chat-topbar-status"><span class="live-dot" style="width:6px;height:6px"></span> Ready</div>
         </div>
         <div class="chat-scroll" id="chat-scroll"></div>
-        <div class="msg-counter" id="msg-counter" style="display:none;">
+        <div class="msg-counter" id="msg-counter">
           <span id="msg-counter-label">0 of 15 messages</span>
           <div class="msg-counter-bar"><div class="msg-counter-fill" id="msg-counter-fill"></div></div>
-          <span>Cap: 15</span>
         </div>
         <div class="chat-input-area">
           <div class="chat-input-row">
-            <textarea class="chat-input" id="chat-input" rows="1" placeholder='e.g., "What red flags should a SaaS vendor watch for?"'></textarea>
+            <textarea class="chat-input" id="chat-input" rows="3" placeholder='e.g., "What red flags should a SaaS vendor watch for?"'></textarea>
             <button class="btn btn-primary btn-sm" id="send-btn">
               Send
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -263,10 +258,27 @@ import Consent from '../../partials/consent.astro';
       applies native tracked changes, and returns the file in the format you sent it.
     </p>
 
-    <!-- Quota-exceeded state -->
+    <!-- Pending-approval state — shown when start-review returns 403 with
+         pending_approval: true. New users see this until the operator
+         manually approves them in Supabase. -->
+    <div id="review-pending" class="quota-block hidden">
+      <div class="quota-kicker">Account pending approval</div>
+      <h3>Your account is <em>under review</em>.</h3>
+      <p>We review every signup before granting access to the contract-review agent. Most requests are reviewed within one business day. You'll receive an email once your account is approved.</p>
+      <div class="quota-actions">
+        <a class="btn btn-ghost btn-sm" href="mailto:blake@beyelbrothers.com?subject=Account%20approval%20%E2%80%94%20contract%20review">Email about my request</a>
+      </div>
+    </div>
+
+    <!-- Quota-exceeded state — shown when checkReviewQuota returns 0 remaining,
+         either on page load (refreshStatus) or after a 429 from start-review. -->
     <div id="review-blocked" class="quota-block hidden">
+      <div class="quota-kicker">Out of contract reviews</div>
       <h3>You've used all <em>3</em> trial reviews this window.</h3>
-      <p>Your trial allows three full contract reviews per 30-day window. Your window resets automatically, or upgrade for more capacity.</p>
+      <p>Your trial allows three full contract reviews per 30-day window. The window resets automatically. To unlock more capacity now, get in touch and we'll set up a paid tier sized to your usage.</p>
+      <div class="quota-actions">
+        <a class="btn btn-primary btn-sm" href="mailto:contact@beyelbrothers.com?subject=Contract%20Review%20%E2%80%94%20upgrade">Contact us to upgrade</a>
+      </div>
     </div>
 
     <!-- Upload -->
@@ -292,6 +304,27 @@ import Consent from '../../partials/consent.astro';
         </div>
       </div>
       <input type="file" id="contract-file-input" accept=".pdf,.docx,.txt,.md" style="display:none;" />
+
+      <!-- Mandatory pre-upload acknowledgment. Florida Rule 4-1.6
+           (confidentiality / informed consent for cloud processing),
+           4-1.18 (no prospective-client relationship), 4-1.1 (user
+           review responsibility). Submission gated on the checkbox. -->
+      <div class="upload-ack">
+        <label class="upload-ack-label">
+          <input type="checkbox" id="upload-ack-checkbox" />
+          <span class="upload-ack-text">
+            I understand that this is an AI-assisted document review tool, not legal services.
+            No attorney-client relationship is formed by uploading this contract.
+            The output is a starting point — I am responsible for reviewing it before relying on it,
+            sending it, or signing anything.
+            If I am uploading material covered by anyone's confidentiality or privilege,
+            I have obtained the necessary informed consent.
+            See the <a href="/legal/disclaimer/" target="_blank" rel="noopener">Disclaimer</a>,
+            <a href="/legal/privacy/" target="_blank" rel="noopener">Privacy Policy</a>,
+            and <a href="/legal/terms/" target="_blank" rel="noopener">Terms</a>.
+          </span>
+        </label>
+      </div>
     </div>
 
     <!-- Classification confirm (between upload and progress) -->
@@ -533,6 +566,23 @@ import Consent from '../../partials/consent.astro';
     location.href = '/login/?redirect=/agents/contract-review/';
   }
 
+  // ---- Auth state listener ----
+  // If the user signs out OR a different user signs in (e.g. via another tab
+  // and the new session syncs into this one), clear any in-memory profile/
+  // review state and force a hard reload so the page re-runs every gate
+  // (auth → quota → profile fetch) under the new identity. Belt-and-suspenders
+  // on top of database RLS — RLS already prevents cross-user reads, but
+  // without this listener the in-tab JS could keep showing the prior user's
+  // currentProfile until the next refreshStatus() ran.
+  let currentSessionUserId = session?.user?.id || null;
+  supabase.auth.onAuthStateChange((event, newSession) => {
+    const newUserId = newSession?.user?.id || null;
+    if (event === 'SIGNED_OUT' || newUserId !== currentSessionUserId) {
+      currentSessionUserId = newUserId;
+      // Hard reload to drop all in-tab state
+      location.reload();
+    }
+  });
 
   // ---- Sign out ----
   document.getElementById('cr-signout').addEventListener('click', async () => {
@@ -617,6 +667,19 @@ import Consent from '../../partials/consent.astro';
       const remaining = Math.max(0, cap - used);
       const text = document.getElementById('quota-text');
       text.textContent = `${remaining} of ${cap} reviews left`;
+      // Quota gate: when the user has burned through the cap, swap the
+      // upload area for the paywall card. Mirror of the citation-verifier
+      // paywall behavior.
+      const blocked = document.getElementById('review-blocked');
+      const upload = document.getElementById('review-upload');
+      if (remaining === 0) {
+        if (blocked) blocked.classList.remove('hidden');
+        if (upload) upload.classList.add('hidden');
+      } else {
+        if (blocked) blocked.classList.add('hidden');
+        // Don't force-show upload here — other states (progress, confirm,
+        // results) toggle visibility too. We only HIDE it when blocked.
+      }
     } catch (e) {
       console.error('quota status:', e);
     }
@@ -667,7 +730,7 @@ import Consent from '../../partials/consent.astro';
   // Detect form edits — once any quick-setup field is touched, flip the
   // status from "loaded/saved" to "editing — unsaved changes" so the user
   // never sees a stale "saved" while they're modifying things.
-  const QS_FIELDS = ['qs-reviewer-name','qs-company','qs-industry','qs-jurisdiction','qs-description','qs-liability','qs-payment','qs-red-flags','qs-notes'];
+  const QS_FIELDS = ['qs-company','qs-industry','qs-jurisdiction','qs-description','qs-liability','qs-payment','qs-red-flags','qs-notes'];
   for (const id of QS_FIELDS) {
     const el = document.getElementById(id);
     if (!el) continue;
@@ -687,7 +750,6 @@ import Consent from '../../partials/consent.astro';
   if (qsSubmit) {
     qsSubmit.addEventListener('click', async () => {
       const val = (id) => (document.getElementById(id)?.value || '').trim();
-      const reviewerName = val('qs-reviewer-name');
       const company = val('qs-company');
       const industry = val('qs-industry');
       const jurisdiction = val('qs-jurisdiction');
@@ -709,7 +771,6 @@ import Consent from '../../partials/consent.astro';
         'COMPANY CONTRACT-REVIEW PLAYBOOK',
         '================================',
         '',
-        reviewerName && `Reviewer name: ${reviewerName}`,
         `Company legal name: ${company}`,
         industry && `Industry: ${industry}`,
         jurisdiction && `Primary jurisdiction: ${jurisdiction}`,
@@ -807,7 +868,6 @@ import Consent from '../../partials/consent.astro';
   // Map of backend suggest-field names to the form input IDs they should
   // write into. The chat model is told the exact set of allowed names.
   const FIELD_TO_INPUT_ID = {
-    reviewer_name: 'qs-reviewer-name',
     company: 'qs-company',
     jurisdiction: 'qs-jurisdiction',
     industry: 'qs-industry',
@@ -818,7 +878,6 @@ import Consent from '../../partials/consent.astro';
     notes: 'qs-notes',
   };
   const FIELD_LABEL = {
-    reviewer_name: 'Your name',
     company: 'Company', jurisdiction: 'Jurisdiction', industry: 'Industry',
     description: 'Description', liability: 'Liability cap',
     payment: 'Payment terms', red_flags: 'Red flags', notes: 'Notes',
@@ -829,7 +888,6 @@ import Consent from '../../partials/consent.astro';
   function collectFormState() {
     const val = (id) => (document.getElementById(id)?.value || '').trim();
     return {
-      reviewer_name: val('qs-reviewer-name'),
       company: val('qs-company'),
       jurisdiction: val('qs-jurisdiction'),
       industry: val('qs-industry'),
@@ -871,9 +929,11 @@ import Consent from '../../partials/consent.astro';
   function addChatBubble(role, text) {
     const row = document.createElement('div');
     row.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+    // Avatar is a small solid dot — no text, no icon. Color differs by
+    // role (accent green for the bot, ink-dark for the user) so the two
+    // sides of the conversation are still visually distinct.
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = role === 'user' ? 'YOU' : 'CR';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
 
@@ -930,17 +990,33 @@ import Consent from '../../partials/consent.astro';
     chatScroll.scrollTop = chatScroll.scrollHeight;
   }
 
+  const CHAT_CAP = 15;
   function updateMsgCounter() {
     const used = chatHistory.filter(m => m.role === 'user').length;
-    if (used === 0) { msgCounter.style.display = 'none'; return; }
-    msgCounter.style.display = 'flex';
-    msgCounterLabel.textContent = `${used} of 15 messages`;
-    msgCounterFill.style.width = `${Math.min(100, (used / 15) * 100)}%`;
+    msgCounter.style.display = 'flex'; // Always shown so the cap is visible
+    msgCounterLabel.textContent = `${used} of ${CHAT_CAP} messages`;
+    msgCounterFill.style.width = `${Math.min(100, (used / CHAT_CAP) * 100)}%`;
+    msgCounter.classList.toggle('warn', used >= CHAT_CAP - 2);
+
+    // Hard cap: lock the input + send button when reached.
+    const capped = used >= CHAT_CAP;
+    chatInput.disabled = capped;
+    sendBtn.disabled = capped;
+    if (capped) {
+      chatInput.placeholder = 'Message limit reached for this session.';
+    }
   }
 
   async function sendChat(seedMessage = null) {
     const text = (seedMessage ?? chatInput.value).trim();
     if (!text) return;
+    // Defensive: even if the UI already disabled the controls, never let
+    // a 16th user message slip through.
+    const used = chatHistory.filter(m => m.role === 'user').length;
+    if (used >= CHAT_CAP) {
+      addChatBubble('bot', `You've hit the ${CHAT_CAP}-message limit for this session. Save your profile and start a new review when you need more help.`);
+      return;
+    }
     chatHistory.push({ role: 'user', content: text });
     addChatBubble('user', text);
     chatInput.value = '';
@@ -960,8 +1036,13 @@ import Consent from '../../partials/consent.astro';
     } catch (err) {
       addChatBubble('bot', 'Error: ' + err.message);
     } finally {
-      sendBtn.disabled = false;
+      // Re-enable controls only if we're still under the cap.
+      const used = chatHistory.filter(m => m.role === 'user').length;
+      if (used < CHAT_CAP) {
+        sendBtn.disabled = false;
+      }
       sendBtn.textContent = 'Send';
+      updateMsgCounter(); // ensures disabled-state holds at the boundary
     }
   }
 
@@ -986,6 +1067,7 @@ import Consent from '../../partials/consent.astro';
   // Opening message — depends on whether a profile is already saved
   (async () => {
     await refreshStatus();
+    updateMsgCounter(); // initialize "0 of 15" before first message
     if (currentProfile) {
       addChatBubble('bot',
         "Welcome back. Your profile is already saved. I can help refine it — ask for more red flags, voice preferences, or anything else. Click any suggestion I give you to paste it into the form.");
@@ -1040,6 +1122,16 @@ import Consent from '../../partials/consent.astro';
   let confirmTimeoutMs = 10000;
 
   async function handleContractUpload(file) {
+    // Acknowledgment gate (Florida Rule 4-1.6 informed-consent + 4-1.18
+    // no-prospective-client). User must check the box before any upload.
+    const ackCb = document.getElementById('upload-ack-checkbox');
+    if (ackCb && !ackCb.checked) {
+      ackCb.focus();
+      ackCb.closest('.upload-ack')?.classList.add('upload-ack-error');
+      alert('Please confirm the disclosure box before uploading a contract.');
+      return;
+    }
+
     // Validate deal_posture before doing anything
     const postureSelect = document.getElementById('deal-posture-select');
     const dealPosture = postureSelect?.value || '';
@@ -1083,6 +1175,27 @@ import Consent from '../../partials/consent.astro';
       progress.classList.add('hidden');
       showConfirmPanel(kickoff);
     } catch (err) {
+      const msg = err.message || '';
+      // 403 with pending_approval — new account hasn't been approved yet.
+      if (/pending approval/i.test(msg)) {
+        progress.classList.add('hidden');
+        const pending = document.getElementById('review-pending');
+        const upload = document.getElementById('review-upload');
+        if (pending) pending.classList.remove('hidden');
+        if (upload) upload.classList.add('hidden');
+        return;
+      }
+      // 429 from the server arrives as a thrown Error with the
+      // "Quota exceeded — N of M reviews used" message. Swap the
+      // upload area for the paywall instead of a raw error toast.
+      if (/quota exceeded/i.test(msg)) {
+        progress.classList.add('hidden');
+        const blocked = document.getElementById('review-blocked');
+        const upload = document.getElementById('review-upload');
+        if (blocked) blocked.classList.remove('hidden');
+        if (upload) upload.classList.add('hidden');
+        return;
+      }
       document.getElementById('progress-file-sub').textContent = 'Error: ' + err.message;
     }
   }

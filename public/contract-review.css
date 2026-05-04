@@ -303,44 +303,42 @@
   .chat-scroll::-webkit-scrollbar { width: 6px; }
   .chat-scroll::-webkit-scrollbar-thumb { background: var(--rule-soft); border-radius: 999px; }
 
-  .msg { margin: 14px 0; display: flex; gap: 12px; max-width: 84%; }
+  .msg { margin: 12px 0; display: flex; gap: 10px; align-items: flex-end; max-width: 90%; }
   .msg.bot { align-self: flex-start; }
   .msg.user { margin-left: auto; flex-direction: row-reverse; }
   .avatar {
-    width: 32px; height: 32px;
+    width: 12px; height: 12px;
     border-radius: 999px;
     flex-shrink: 0;
-    display: grid;
-    place-items: center;
-    font-family: var(--mono);
-    font-size: 10px;
-    letter-spacing: .05em;
-    font-weight: 500;
+    margin-bottom: 14px;   /* aligns the dot near the bottom of the bubble */
   }
   .msg.bot .avatar {
-    background: var(--accent-tint);
-    color: var(--accent-deep);
-    border: 1px solid color-mix(in oklab, var(--accent-deep) 30%, transparent);
+    background: var(--accent-deep);
   }
   .msg.user .avatar {
     background: var(--ink);
-    color: var(--paper);
   }
   .bubble {
     padding: 12px 16px;
-    font-size: 14.5px;
-    line-height: 1.55;
+    font-size: 14px;
+    line-height: 1.5;
     white-space: pre-wrap;
     word-wrap: break-word;
-    border-radius: 6px;
+    overflow-wrap: anywhere;
+    border-radius: 14px;
+    flex: 0 1 auto;
+    min-width: 0;     /* let the bubble shrink inside the flex row */
   }
   .msg.bot .bubble {
     background: var(--paper-2);
     color: var(--ink);
+    border: 1px solid var(--rule-soft);
+    border-bottom-left-radius: 4px;   /* "tail" corner toward avatar */
   }
   .msg.user .bubble {
     background: var(--ink);
     color: var(--paper);
+    border-bottom-right-radius: 4px;
   }
   .bubble em { font-style: italic; color: var(--accent-deep); }
   .msg.user .bubble em { color: color-mix(in oklab, var(--accent) 80%, white); }
@@ -720,6 +718,14 @@
   }
   .playbook-parse-v { color: var(--ink); flex: 1; }
   .playbook-parse-check { color: var(--accent-deep); font-family: var(--mono); font-size: 12px; }
+  .quota-kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    margin-bottom: 12px;
+  }
   .quota-block h3 {
     font-family: var(--serif);
     font-size: 32px;
@@ -731,23 +737,50 @@
     max-width: 52ch;
     margin: 0 auto 24px;
   }
-  .chat-input-row { display: flex; gap: 10px; align-items: flex-end; }
+  .quota-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  .chat-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;     /* equal heights for textarea + button */
+  }
   .chat-input {
     flex: 1;
     border: 1px solid var(--rule-soft);
-    border-radius: 6px;
-    padding: 11px 14px;
+    border-radius: 10px;
+    padding: 14px 16px;
     font-family: var(--sans);
     font-size: 14px;
+    line-height: 1.5;
     color: var(--ink);
     background: var(--paper);
-    resize: none;
-    min-height: 44px;
-    max-height: 120px;
+    resize: none;            /* disable manual resize handle */
+    height: 88px;            /* fixed at-rest height; large enough to show
+                                a 2-line placeholder without scrollbars */
+    max-height: 200px;
+    overflow-y: auto;        /* scroll only kicks in past max-height */
     outline: none;
-    transition: border-color .2s ease;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }
-  .chat-input:focus { border-color: var(--ink); }
+  .chat-input::placeholder { color: var(--ink-3); }
+  .chat-input:focus {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ink) 8%, transparent);
+  }
+  .chat-input:disabled {
+    background: var(--paper-2);
+    color: var(--ink-3);
+    cursor: not-allowed;
+  }
+  /* Send button matches the input's height + corner radius so the
+     pair reads as a single rounded module. Targets the chat row only. */
+  .chat-input-row #send-btn {
+    border-radius: 10px;
+    padding: 0 24px;
+    align-self: stretch;
+    height: 88px;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
 
   /* Profile sidebar */
   .profile-panel { padding: 0; }
@@ -1294,6 +1327,43 @@
     color: var(--ink-3);
     margin-top: 8px;
     line-height: 1.45;
+  }
+
+  /* Pre-upload acknowledgment box (Florida Rule 4-1.6 / 4-1.18 / 4-1.1).
+     Always visible — user must check the box before upload completes. */
+  .upload-ack {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--paper-2);
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .upload-ack-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+  }
+  .upload-ack-label input[type="checkbox"] {
+    margin-top: 4px;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-deep);
+  }
+  .upload-ack-text {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+  .upload-ack-text a {
+    color: var(--accent-deep);
+    border-bottom: 1px solid var(--accent);
+  }
+  .upload-ack.upload-ack-error {
+    border-color: #b3532f;
+    background: rgba(179, 83, 47, .04);
   }
 
   /* Classification confirm panel (between upload and progress) */

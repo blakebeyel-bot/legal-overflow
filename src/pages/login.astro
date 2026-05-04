@@ -60,18 +60,20 @@ import Consent from '../partials/consent.astro';
 
 <div class="auth-wrap">
   <div class="auth-kicker">Sign in</div>
-  <h1 class="auth-title">Sign in with a <em>magic link</em>.</h1>
-  <p class="auth-sub">Enter your email. We'll send a one-time link. No passwords to manage. If you're new, your account is created the first time you click the link.</p>
+  <h1 class="auth-title">Sign <em>in</em>.</h1>
+  <p class="auth-sub">Email and password. Don't have an account yet? <a href="/signup/">Sign up here.</a></p>
 
   <form id="auth-form" class="auth-form">
     <label for="email">Email address</label>
-    <input type="email" id="email" name="email" required placeholder="you@firm.com" autocomplete="email" />
-    <button type="submit" class="auth-submit" id="submit-btn">Send magic link</button>
+    <input type="email" id="email" name="email" required placeholder="you@company.com" autocomplete="email" />
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" required minlength="8" autocomplete="current-password" />
+    <button type="submit" class="auth-submit" id="submit-btn">Sign in</button>
   </form>
 
   <div id="auth-msg" class="auth-msg"></div>
 
-  <p class="auth-alt">Trouble? Check your spam folder. Links expire after 1 hour.</p>
+  <p class="auth-alt">Forgot your password? <a href="mailto:contact@beyelbrothers.com?subject=Password%20reset">Email us to reset.</a></p>
 </div>
 
 <script>
@@ -93,27 +95,39 @@ import Consent from '../partials/consent.astro';
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value.trim();
-    if (!email) return;
+    const password = document.getElementById('password').value;
+    if (!email || !password) return;
     btn.disabled = true;
-    btn.textContent = 'Sending…';
+    btn.textContent = 'Signing in…';
     msg.className = 'auth-msg';
     msg.textContent = '';
 
-    const redirect = new URLSearchParams(location.search).get('redirect') || '/agents/contract-review/';
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${location.origin}${redirect}` },
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     btn.disabled = false;
-    btn.textContent = 'Send magic link';
+    btn.textContent = 'Sign in';
 
     if (error) {
       msg.className = 'auth-msg error';
-      msg.textContent = error.message;
+      // Surface the most common errors in user-readable language; everything
+      // else falls through to the raw Supabase message.
+      const m = error.message || '';
+      if (/invalid login credentials/i.test(m)) {
+        msg.textContent = 'Email or password is incorrect.';
+      } else if (/email not confirmed/i.test(m)) {
+        msg.textContent = 'Please confirm your email address before signing in. Check your inbox for the confirmation link.';
+      } else {
+        msg.textContent = m;
+      }
+      return;
+    }
+
+    if (data?.session) {
+      const redirect = new URLSearchParams(location.search).get('redirect') || '/agents/contract-review/';
+      location.href = redirect;
     } else {
-      msg.className = 'auth-msg success';
-      msg.textContent = `Sent. Check ${email} for the sign-in link.`;
+      msg.className = 'auth-msg error';
+      msg.textContent = 'Sign-in did not produce a session. Try again.';
     }
   });
 </script>

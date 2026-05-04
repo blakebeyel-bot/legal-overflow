@@ -79,3 +79,12 @@
 
 [functions."upload-playbook"]
   timeout = 120
+
+# Daily 3 AM UTC purge of user uploads older than 30 days. Implements
+# the data-retention promise in /legal/privacy/ (sections 4 + 5) and
+# Florida Rule 4-1.6 confidentiality minimization. Auth gate uses the
+# CRON_SECRET env var; Netlify's scheduled-function infrastructure
+# attaches the secret automatically.
+[functions."purge-old-uploads"]
+  timeout = 60
+  schedule = "0 3 * * *"
