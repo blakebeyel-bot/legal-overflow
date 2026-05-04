@@ -1921,20 +1921,27 @@ body.consent-lock { overflow: hidden; }
  * if a casual visitor finds and clicks the link, they'll get a 403
  * unless their profile.tier is 'admin'.
  * =================================================================== */
+/* Hidden admin entry. Visually a tiny dot, but the click target is
+   larger (24×24) via padding so operators can actually hit it without
+   pixel-perfect aim. background-clip + content-box keeps the visible
+   dot at 8px while the hit area extends transparently. */
 .foot-admin-link {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
+  padding: 8px;
   border-radius: 999px;
   background: var(--ink-3);
-  opacity: 0.18;
-  margin-left: 12px;
-  transition: opacity .15s ease, background .15s ease, transform .15s ease;
+  background-clip: content-box;
+  opacity: 0.22;
+  margin-left: 8px;
   vertical-align: middle;
   cursor: pointer;
+  transition: opacity .15s ease, background .15s ease, transform .15s ease;
 }
 .foot-admin-link:hover {
   opacity: 1;
   background: var(--accent-deep);
-  transform: scale(1.4);
+  background-clip: content-box;
+  transform: scale(1.2);
 }

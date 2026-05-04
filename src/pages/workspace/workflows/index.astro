@@ -1,0 +1,376 @@
+---
+// Workflows / playbooks. List view at /workspace/workflows/, editor
+// at /workspace/workflows/?id=<uuid>&edit=1, single-view at
+// /workspace/workflows/?id=<uuid>. Same page, JS branches on the
+// query params.
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Workflows — Legal Overflow</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/workspace/" class="is-active">Workspace</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <a href="/account/" class="nav-sub">Account</a>
+  </div>
+</header>
+
+<main id="page-main"></main>
+
+<footer class="foot">
+  <p class="foot-bar-disclosure">
+    <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+    The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+    Before you decide, ask for written information about the lawyer's qualifications and experience.
+    No representation is made that the quality of the legal services to be performed is greater than
+    the quality of legal services performed by other lawyers.
+  </p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span></div>
+</footer>
+
+<script>
+  import { getSupabase } from '../../../lib/supabase';
+  const supabase = getSupabase();
+
+  document.body.style.visibility = 'hidden';
+  let session;
+  try {
+    const { data } = await supabase.auth.getSession();
+    session = data?.session;
+    if (!session) {
+      const here = location.pathname + location.search;
+      location.href = '/login/?redirect=' + encodeURIComponent(here);
+      throw new Error('not signed in');
+    }
+    const { data: profile } = await supabase
+      .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
+    if (!profile?.approved_at) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('pending approval');
+    }
+    document.body.style.visibility = '';
+  } catch (err) {
+    if (err && !['not signed in','pending approval'].includes(err.message)) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Workflows error</h1><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap">${(err.message || String(err)).replace(/[<>&]/g,(c)=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
+    }
+    throw err;
+  }
+
+  const accessToken = session.access_token;
+  const userId = session.user.id;
+  const main = document.getElementById('page-main');
+  const params = new URL(location.href).searchParams;
+  const wfId = params.get('id');
+  const editMode = params.get('edit') === '1';
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  }
+
+  // ============================================================
+  // LIST VIEW
+  // ============================================================
+  async function renderListView() {
+    main.innerHTML = `
+      <div class="ws-wrap">
+        <header class="ws-head">
+          <div>
+            <div class="ws-kicker">Workflows</div>
+            <h1 class="ws-title">Reusable playbooks.</h1>
+            <p class="ws-sub">Save a system prompt or column config once, run it against any document. Workflows published by the operator (badged "Curated") are shared with everyone.</p>
+          </div>
+          <div class="ws-head-actions">
+            <a href="/workspace/workflows/?edit=1&new=chat" class="ws-btn-secondary">+ Chat workflow</a>
+            <a href="/workspace/workflows/?edit=1&new=tabular" class="ws-btn">+ Tabular workflow</a>
+          </div>
+        </header>
+        <section class="ws-card">
+          <div id="wf-grid" class="lib-grid"><div class="ws-empty">Loading…</div></div>
+        </section>
+        <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
+      </div>
+    `;
+    await loadWorkflows();
+  }
+
+  async function loadWorkflows() {
+    const r = await fetch('/.netlify/functions/workspace-workflows-list', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    const grid = document.getElementById('wf-grid');
+    if (!r.ok) {
+      grid.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
+      return;
+    }
+    if (!j.workflows?.length) {
+      grid.innerHTML = '<div class="ws-empty">No workflows yet. Create one with the buttons above.</div>';
+      return;
+    }
+    grid.innerHTML = j.workflows.map((w) => {
+      const isCurated = !w.user_id;
+      const kindLabel = w.kind === 'tabular' ? 'Tabular' : 'Chat';
+      const colCount = (w.columns_config || []).length;
+      const desc = w.description || '';
+      return `<a href="/workspace/workflows/?id=${w.id}" class="proj-card">
+        <div class="wf-card-row">
+          <span class="wf-card-kind">${kindLabel}</span>
+          ${isCurated ? '<span class="wf-card-curated">Curated</span>' : ''}
+          ${w.practice_area ? `<span class="wf-card-practice">${escapeHtml(w.practice_area)}</span>` : ''}
+        </div>
+        <div class="proj-card-name">${escapeHtml(w.title)}</div>
+        ${desc ? `<div class="proj-card-desc">${escapeHtml(desc)}</div>` : '<div class="proj-card-desc"></div>'}
+        <div class="proj-card-meta">
+          ${w.kind === 'tabular' ? `<span>${colCount} columns</span>` : `<span>${(w.prompt_md || '').length.toLocaleString()} chars</span>`}
+        </div>
+      </a>`;
+    }).join('');
+  }
+
+  // ============================================================
+  // SINGLE WORKFLOW VIEW
+  // ============================================================
+  async function renderViewMode(id) {
+    const r = await fetch(`/.netlify/functions/workspace-workflows-get?id=${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      main.innerHTML = `<div class="ws-wrap"><div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div></div>`;
+      return;
+    }
+    const w = j.workflow;
+    const isOwn = w.user_id === userId;
+    const isCurated = !w.user_id;
+    const kindLabel = w.kind === 'tabular' ? 'Tabular review' : 'Chat';
+
+    main.innerHTML = `
+      <div class="ws-wrap">
+        <header class="ws-head">
+          <div>
+            <div class="ws-kicker"><a href="/workspace/workflows/" class="lib-back">← Workflows</a></div>
+            <h1 class="ws-title">${escapeHtml(w.title)}</h1>
+            <div class="wf-card-row" style="margin-top:6px">
+              <span class="wf-card-kind">${kindLabel}</span>
+              ${isCurated ? '<span class="wf-card-curated">Curated</span>' : ''}
+              ${w.practice_area ? `<span class="wf-card-practice">${escapeHtml(w.practice_area)}</span>` : ''}
+            </div>
+            ${w.description ? `<p class="ws-sub">${escapeHtml(w.description)}</p>` : ''}
+          </div>
+          <div class="ws-head-actions">
+            ${w.kind === 'chat' ? `<button id="wf-use-chat" class="ws-btn">Use in chat</button>` : `<button id="wf-use-tabular" class="ws-btn">Use in review</button>`}
+            ${isOwn ? `<a href="/workspace/workflows/?id=${w.id}&edit=1" class="ws-btn-secondary">Edit</a>` : ''}
+            ${isOwn ? `<button id="wf-delete" class="ws-btn-secondary">Delete</button>` : ''}
+          </div>
+        </header>
+
+        ${w.kind === 'chat' ? `
+          <section class="ws-card">
+            <header class="ws-card-head"><h2 class="ws-card-title">System prompt</h2></header>
+            <pre class="wf-prompt">${escapeHtml(w.prompt_md || '')}</pre>
+          </section>` : `
+          <section class="ws-card">
+            <header class="ws-card-head"><h2 class="ws-card-title">Columns (${(w.columns_config || []).length})</h2></header>
+            <div class="wf-cols">
+              ${(w.columns_config || []).map((c) => `
+                <div class="wf-col">
+                  <div class="wf-col-name">${escapeHtml(c.name || '?')}</div>
+                  <div class="wf-col-prompt">${escapeHtml(c.prompt || '')}</div>
+                </div>`).join('')}
+            </div>
+          </section>`}
+      </div>
+    `;
+
+    document.getElementById('wf-use-chat')?.addEventListener('click', async () => {
+      // Create new chat with this workflow attached, redirect.
+      const r2 = await fetch('/.netlify/functions/workspace-chats-create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflow_id: w.id }),
+      });
+      const j2 = await r2.json();
+      if (!r2.ok) { alert('Failed: ' + (j2.error || 'unknown')); return; }
+      location.href = `/workspace/chat/?id=${j2.id}`;
+    });
+    document.getElementById('wf-use-tabular')?.addEventListener('click', () => {
+      // Carry the workflow id through to the reviews page so the new
+      // review modal pre-fills its columns.
+      location.href = `/workspace/reviews/?prefill=${w.id}`;
+    });
+    document.getElementById('wf-delete')?.addEventListener('click', async () => {
+      if (!confirm(`Delete "${w.title}"? This cannot be undone.`)) return;
+      await fetch('/.netlify/functions/workspace-workflows-delete', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: w.id }),
+      });
+      location.href = '/workspace/workflows/';
+    });
+  }
+
+  // ============================================================
+  // EDITOR
+  // ============================================================
+  async function renderEditor(id) {
+    let initial = { title: '', description: '', kind: 'chat', prompt_md: '', columns_config: [], practice_area: '' };
+    const newKind = params.get('new');
+    if (newKind === 'tabular') initial.kind = 'tabular';
+    if (id) {
+      const r = await fetch(`/.netlify/functions/workspace-workflows-get?id=${encodeURIComponent(id)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) { main.innerHTML = `<div class="ws-wrap"><div class="ws-empty">${escapeHtml(j.error || 'Failed')}</div></div>`; return; }
+      if (j.workflow.user_id !== userId) {
+        main.innerHTML = '<div class="ws-wrap"><div class="ws-empty">You can\'t edit a curated workflow. Make a copy instead.</div></div>';
+        return;
+      }
+      initial = j.workflow;
+    }
+
+    main.innerHTML = `
+      <div class="ws-wrap">
+        <header class="ws-head">
+          <div>
+            <div class="ws-kicker"><a href="/workspace/workflows/" class="lib-back">← Workflows</a></div>
+            <h1 class="ws-title">${id ? 'Edit workflow' : 'New workflow'}</h1>
+          </div>
+        </header>
+        <section class="ws-card">
+          <label class="rv-field">
+            <span class="rv-field-label">Title</span>
+            <input type="text" id="wf-title" maxlength="200" value="${escapeHtml(initial.title || '')}" placeholder="e.g. FL MSA review checklist" />
+          </label>
+          <label class="rv-field">
+            <span class="rv-field-label">Description (optional)</span>
+            <textarea id="wf-desc" rows="2" placeholder="What this workflow is for, when to use it…">${escapeHtml(initial.description || '')}</textarea>
+          </label>
+          <label class="rv-field">
+            <span class="rv-field-label">Practice area (optional tag)</span>
+            <input type="text" id="wf-practice" maxlength="100" value="${escapeHtml(initial.practice_area || '')}" placeholder="e.g. NDA review, FL real estate" />
+          </label>
+          <div class="rv-field">
+            <span class="rv-field-label">Kind</span>
+            <div class="wf-kind-picker">
+              <label class="wf-kind-opt"><input type="radio" name="wf-kind" value="chat" ${initial.kind === 'chat' ? 'checked' : ''} /> Chat — sets a system prompt for new chats</label>
+              <label class="wf-kind-opt"><input type="radio" name="wf-kind" value="tabular" ${initial.kind === 'tabular' ? 'checked' : ''} /> Tabular — saves a column config for tabular reviews</label>
+            </div>
+          </div>
+
+          <div id="wf-chat-fields" class="rv-field" ${initial.kind === 'chat' ? '' : 'hidden'}>
+            <span class="rv-field-label">System prompt body (markdown)</span>
+            <textarea id="wf-prompt" rows="14" placeholder="You are a senior associate reviewing this MSA. Walk through these checks one by one: governing law, IP assignment, indemnification scope, liability cap, termination triggers…">${escapeHtml(initial.prompt_md || '')}</textarea>
+          </div>
+
+          <div id="wf-tabular-fields" class="rv-field" ${initial.kind === 'tabular' ? '' : 'hidden'}>
+            <span class="rv-field-label">Columns</span>
+            <div id="wf-cols-edit" class="rv-cols"></div>
+            <button type="button" id="wf-add-col" class="rv-add-col">+ Add column</button>
+          </div>
+
+          <div class="ws-head-actions" style="margin-top:18px">
+            <button id="wf-save" class="ws-btn">${id ? 'Save changes' : 'Create'}</button>
+            <a href="/workspace/workflows/" class="ws-btn-secondary">Cancel</a>
+          </div>
+        </section>
+      </div>
+    `;
+
+    const colsEl = document.getElementById('wf-cols-edit');
+    let colIdx = 0;
+    function addCol(c) {
+      const id2 = colIdx++;
+      colsEl.insertAdjacentHTML('beforeend', `
+        <div class="rv-col-row" data-col="${id2}">
+          <input type="text" class="rv-col-name" placeholder="Column name" value="${escapeHtml(c?.name || '')}" />
+          <textarea class="rv-col-prompt" rows="2" placeholder="Prompt for this column">${escapeHtml(c?.prompt || '')}</textarea>
+          <button type="button" class="rv-col-del" aria-label="Remove">×</button>
+        </div>`);
+    }
+    if (initial.columns_config && initial.columns_config.length) {
+      for (const c of initial.columns_config) addCol(c);
+    } else if (initial.kind === 'tabular') {
+      addCol();
+    }
+    document.getElementById('wf-add-col').addEventListener('click', () => addCol());
+    colsEl.addEventListener('click', (e) => {
+      if (e.target.classList.contains('rv-col-del')) {
+        e.target.closest('.rv-col-row')?.remove();
+      }
+    });
+
+    // Toggle visible field set on kind change
+    document.querySelectorAll('input[name="wf-kind"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        const k = document.querySelector('input[name="wf-kind"]:checked').value;
+        document.getElementById('wf-chat-fields').hidden = (k !== 'chat');
+        document.getElementById('wf-tabular-fields').hidden = (k !== 'tabular');
+        if (k === 'tabular' && colsEl.children.length === 0) addCol();
+      });
+    });
+
+    document.getElementById('wf-save').addEventListener('click', async () => {
+      const title = document.getElementById('wf-title').value.trim();
+      const description = document.getElementById('wf-desc').value.trim();
+      const practice = document.getElementById('wf-practice').value.trim();
+      const kind = document.querySelector('input[name="wf-kind"]:checked').value;
+      const prompt_md = document.getElementById('wf-prompt').value;
+      const columns_config = Array.from(colsEl.querySelectorAll('.rv-col-row')).map((r) => ({
+        name: r.querySelector('.rv-col-name').value.trim(),
+        prompt: r.querySelector('.rv-col-prompt').value.trim(),
+      })).filter((c) => c.prompt);
+
+      if (!title) { alert('Title required'); return; }
+
+      const btn = document.getElementById('wf-save');
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      const payload = { id: id || undefined, title, description, kind, practice_area: practice };
+      if (kind === 'chat') payload.prompt_md = prompt_md;
+      else payload.columns_config = columns_config;
+
+      const r = await fetch('/.netlify/functions/workspace-workflows-save', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert('Failed: ' + (j.error || 'unknown')); btn.disabled = false; btn.textContent = id ? 'Save changes' : 'Create'; return; }
+      location.href = `/workspace/workflows/?id=${j.workflow.id}`;
+    });
+  }
+
+  // ============================================================
+  if (editMode) renderEditor(wfId);
+  else if (wfId) renderViewMode(wfId);
+  else renderListView();
+</script>
+</body>
+</html>

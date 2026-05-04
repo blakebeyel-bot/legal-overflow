@@ -173,7 +173,7 @@
   // ============================================================
   // NEW REVIEW MODAL
   // ============================================================
-  async function openNewReviewModal() {
+  async function openNewReviewModal(opts = {}) {
     const overlay = document.createElement('div');
     overlay.className = 'attach-modal';
     overlay.innerHTML = `
@@ -240,13 +240,17 @@
     const sel = overlay.querySelector('#rv-model');
     sel.innerHTML = models.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === 'claude-sonnet-4-5' ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
 
-    // Initial column row
+    // Initial column row. If we have prefilled columns from a
+    // workflow, use those; otherwise the NDA-review starter set.
     const colsEl = overlay.querySelector('#rv-cols');
-    const presets = [
+    const presets = (opts.prefillCols && opts.prefillCols.length) ? opts.prefillCols : [
       { name: 'Term length', prompt: 'What is the term length of this agreement? Quote the relevant clause.' },
       { name: 'Governing law', prompt: 'What is the governing law / choice of law clause? State the jurisdiction.' },
       { name: 'Liability cap', prompt: 'Is there a cap on liability? If so, state the cap (amount or formula). Quote the clause.' },
     ];
+    if (opts.prefillTitle) {
+      overlay.querySelector('#rv-title').value = opts.prefillTitle + ' — ' + new Date().toLocaleDateString();
+    }
     let colIdx = 0;
     function addColumn(preset) {
       const id = colIdx++;
@@ -454,7 +458,21 @@
   // ROUTE
   // ============================================================
   if (reviewId) renderGridView(reviewId);
-  else renderListView();
+  else {
+    await renderListView();
+    // If we arrived from a "Use in review" workflow link, open the
+    // new-review modal pre-filled with the workflow's columns.
+    const prefillId = new URL(location.href).searchParams.get('prefill');
+    if (prefillId) {
+      const r = await fetch(`/.netlify/functions/workspace-workflows-get?id=${encodeURIComponent(prefillId)}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (r.ok && j.workflow?.kind === 'tabular') {
+        await openNewReviewModal({ prefillCols: j.workflow.columns_config || [], prefillTitle: j.workflow.title });
+      }
+    }
+  }
 </script>
 </body>
 </html>

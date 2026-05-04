@@ -1,0 +1,253 @@
+---
+// Admin workflow curation. Operators publish curated FL-specific
+// playbooks here that show up for every approved user (badged
+// "Curated" in their workflows list).
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Workflows · Admin — Legal Overflow</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/workspace/">Workspace</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <a href="/admin/users/" class="nav-sub">Admin</a>
+  </div>
+</header>
+
+<div class="adm-tab-strip">
+  <a class="adm-tab" href="/admin/users/">Users</a>
+  <a class="adm-tab" href="/admin/articles/">Articles</a>
+  <a class="adm-tab active" href="/admin/workflows/">Workflows</a>
+</div>
+
+<main id="adm-main"></main>
+
+<footer class="foot">
+  <p class="foot-bar-disclosure">
+    <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+    The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+    Before you decide, ask for written information about the lawyer's qualifications and experience.
+    No representation is made that the quality of the legal services to be performed is greater than
+    the quality of legal services performed by other lawyers.
+  </p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span></div>
+</footer>
+
+<script>
+  import { getSupabase } from '../../lib/supabase';
+  const supabase = getSupabase();
+
+  // Two-layer admin gate (matches /admin/users/ pattern).
+  document.body.style.visibility = 'hidden';
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/admin/workflows/';
+    throw new Error('not signed in');
+  }
+  const { data: meProfile } = await supabase
+    .from('profiles').select('tier').eq('id', session.user.id).single();
+  if (meProfile?.tier !== 'admin') {
+    location.href = '/';
+    throw new Error('admin only');
+  }
+  document.body.style.visibility = '';
+
+  const accessToken = session.access_token;
+  const main = document.getElementById('adm-main');
+  const params = new URL(location.href).searchParams;
+  const editId = params.get('id');
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  }
+
+  async function renderList() {
+    main.innerHTML = `
+      <div class="ws-wrap">
+        <header class="ws-head">
+          <div>
+            <div class="ws-kicker">Admin · Curated workflows</div>
+            <h1 class="ws-title">Curated playbooks.</h1>
+            <p class="ws-sub">Workflows you publish here appear in every approved user's <code>/workspace/workflows/</code> page badged "Curated".</p>
+          </div>
+          <div class="ws-head-actions">
+            <a href="/admin/workflows/?id=new" class="ws-btn">+ New curated workflow</a>
+          </div>
+        </header>
+        <section class="ws-card">
+          <div id="adm-wf-grid" class="lib-grid"><div class="ws-empty">Loading…</div></div>
+        </section>
+        <p class="ws-foot"><a href="/admin/users/">← Admin users</a></p>
+      </div>
+    `;
+    await loadList();
+  }
+
+  async function loadList() {
+    const r = await fetch('/.netlify/functions/admin-workflows-list', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    const grid = document.getElementById('adm-wf-grid');
+    if (!r.ok) { grid.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed')}</div>`; return; }
+    if (!j.workflows?.length) { grid.innerHTML = '<div class="ws-empty">No curated workflows yet.</div>'; return; }
+    grid.innerHTML = j.workflows.map((w) => {
+      const kindLabel = w.kind === 'tabular' ? 'Tabular' : 'Chat';
+      const pub = w.is_published ? '<span class="wf-card-curated">Published</span>' : '<span class="wf-card-kind" style="background:rgba(0,0,0,.06)">Draft</span>';
+      return `<a href="/admin/workflows/?id=${w.id}" class="proj-card">
+        <div class="wf-card-row">
+          <span class="wf-card-kind">${kindLabel}</span>
+          ${pub}
+          ${w.practice_area ? `<span class="wf-card-practice">${escapeHtml(w.practice_area)}</span>` : ''}
+        </div>
+        <div class="proj-card-name">${escapeHtml(w.title)}</div>
+        ${w.description ? `<div class="proj-card-desc">${escapeHtml(w.description)}</div>` : ''}
+      </a>`;
+    }).join('');
+  }
+
+  async function renderEditor(id) {
+    let initial = { title: '', description: '', kind: 'chat', prompt_md: '', columns_config: [], practice_area: '', is_published: true };
+    const isNew = id === 'new';
+    if (!isNew && id) {
+      const r = await fetch('/.netlify/functions/admin-workflows-list', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const j = await r.json();
+      initial = (j.workflows || []).find((w) => w.id === id) || initial;
+    }
+    main.innerHTML = `
+      <div class="ws-wrap">
+        <header class="ws-head">
+          <div>
+            <div class="ws-kicker"><a href="/admin/workflows/" class="lib-back">← Curated workflows</a></div>
+            <h1 class="ws-title">${isNew ? 'New curated workflow' : 'Edit workflow'}</h1>
+          </div>
+          ${!isNew && initial.id ? `<div class="ws-head-actions"><button id="adm-wf-delete" class="ws-btn-secondary">Delete</button></div>` : ''}
+        </header>
+        <section class="ws-card">
+          <label class="rv-field"><span class="rv-field-label">Title</span>
+            <input type="text" id="adm-wf-title" maxlength="200" value="${escapeHtml(initial.title)}" placeholder="e.g. FL MSA review checklist" />
+          </label>
+          <label class="rv-field"><span class="rv-field-label">Description</span>
+            <textarea id="adm-wf-desc" rows="2" placeholder="Help text shown on the user's workflow card.">${escapeHtml(initial.description || '')}</textarea>
+          </label>
+          <label class="rv-field"><span class="rv-field-label">Practice area tag</span>
+            <input type="text" id="adm-wf-practice" maxlength="100" value="${escapeHtml(initial.practice_area || '')}" placeholder="e.g. NDA review" />
+          </label>
+          <div class="rv-field"><span class="rv-field-label">Kind</span>
+            <div class="wf-kind-picker">
+              <label class="wf-kind-opt"><input type="radio" name="adm-wf-kind" value="chat" ${initial.kind === 'chat' ? 'checked' : ''} /> Chat</label>
+              <label class="wf-kind-opt"><input type="radio" name="adm-wf-kind" value="tabular" ${initial.kind === 'tabular' ? 'checked' : ''} /> Tabular</label>
+            </div>
+          </div>
+          <div class="rv-field">
+            <label class="wf-kind-opt"><input type="checkbox" id="adm-wf-pub" ${initial.is_published !== false ? 'checked' : ''} /> Published (visible to all approved users)</label>
+          </div>
+          <div id="adm-wf-chat-fields" class="rv-field" ${initial.kind === 'chat' ? '' : 'hidden'}>
+            <span class="rv-field-label">System prompt</span>
+            <textarea id="adm-wf-prompt" rows="14" placeholder="System prompt body…">${escapeHtml(initial.prompt_md || '')}</textarea>
+          </div>
+          <div id="adm-wf-tabular-fields" class="rv-field" ${initial.kind === 'tabular' ? '' : 'hidden'}>
+            <span class="rv-field-label">Columns</span>
+            <div id="adm-wf-cols" class="rv-cols"></div>
+            <button type="button" id="adm-wf-add-col" class="rv-add-col">+ Add column</button>
+          </div>
+          <div class="ws-head-actions" style="margin-top:18px">
+            <button id="adm-wf-save" class="ws-btn">${isNew ? 'Create' : 'Save'}</button>
+            <a href="/admin/workflows/" class="ws-btn-secondary">Cancel</a>
+          </div>
+        </section>
+      </div>
+    `;
+    const colsEl = document.getElementById('adm-wf-cols');
+    let colIdx = 0;
+    const addCol = (c) => {
+      const id2 = colIdx++;
+      colsEl.insertAdjacentHTML('beforeend', `
+        <div class="rv-col-row" data-col="${id2}">
+          <input type="text" class="rv-col-name" value="${escapeHtml(c?.name || '')}" placeholder="Column name" />
+          <textarea class="rv-col-prompt" rows="2" placeholder="Prompt">${escapeHtml(c?.prompt || '')}</textarea>
+          <button type="button" class="rv-col-del" aria-label="Remove">×</button>
+        </div>`);
+    };
+    if (initial.columns_config?.length) for (const c of initial.columns_config) addCol(c);
+    else if (initial.kind === 'tabular') addCol();
+    document.getElementById('adm-wf-add-col').addEventListener('click', () => addCol());
+    colsEl.addEventListener('click', (e) => {
+      if (e.target.classList.contains('rv-col-del')) e.target.closest('.rv-col-row')?.remove();
+    });
+    document.querySelectorAll('input[name="adm-wf-kind"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        const k = document.querySelector('input[name="adm-wf-kind"]:checked').value;
+        document.getElementById('adm-wf-chat-fields').hidden = (k !== 'chat');
+        document.getElementById('adm-wf-tabular-fields').hidden = (k !== 'tabular');
+        if (k === 'tabular' && colsEl.children.length === 0) addCol();
+      });
+    });
+
+    document.getElementById('adm-wf-save').addEventListener('click', async () => {
+      const title = document.getElementById('adm-wf-title').value.trim();
+      const description = document.getElementById('adm-wf-desc').value.trim();
+      const practice = document.getElementById('adm-wf-practice').value.trim();
+      const kind = document.querySelector('input[name="adm-wf-kind"]:checked').value;
+      const prompt_md = document.getElementById('adm-wf-prompt').value;
+      const is_published = document.getElementById('adm-wf-pub').checked;
+      const columns_config = Array.from(colsEl.querySelectorAll('.rv-col-row')).map((r) => ({
+        name: r.querySelector('.rv-col-name').value.trim(),
+        prompt: r.querySelector('.rv-col-prompt').value.trim(),
+      })).filter((c) => c.prompt);
+      if (!title) { alert('Title required'); return; }
+      const payload = { id: isNew ? undefined : id, title, description, kind, practice_area: practice, is_published };
+      if (kind === 'chat') payload.prompt_md = prompt_md;
+      else payload.columns_config = columns_config;
+      const btn = document.getElementById('adm-wf-save');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const r = await fetch('/.netlify/functions/admin-workflows-save', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert('Failed: ' + (j.error || 'unknown')); btn.disabled = false; btn.textContent = isNew ? 'Create' : 'Save'; return; }
+      location.href = '/admin/workflows/';
+    });
+
+    document.getElementById('adm-wf-delete')?.addEventListener('click', async () => {
+      if (!confirm('Delete this curated workflow?')) return;
+      await fetch('/.netlify/functions/admin-workflows-delete', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      location.href = '/admin/workflows/';
+    });
+  }
+
+  if (editId) renderEditor(editId);
+  else renderList();
+</script>
+</body>
+</html>

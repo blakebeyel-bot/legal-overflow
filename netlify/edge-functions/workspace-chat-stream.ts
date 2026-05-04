@@ -446,9 +446,23 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   if (content.length > 50_000) return json({ error: 'Message too long' }, 400);
 
   // Verify chat ownership
-  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model`);
+  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id`);
   const chat = chats[0];
   if (!chat) return json({ error: 'Chat not found' }, 404);
+
+  // If the chat is bound to a workflow, fetch its prompt_md and use
+  // it as the system prompt instead of the default. The workflow must
+  // be visible to this user (own or system+published).
+  let workflowSystemPrompt: string | null = null;
+  if (chat.workflow_id) {
+    try {
+      const wfRows = await sbSelect(`workspace_workflows?id=eq.${chat.workflow_id}&or=(user_id.eq.${user.id},and(user_id.is.null,is_published.eq.true))&select=prompt_md,kind`);
+      const wf = wfRows[0];
+      if (wf?.kind === 'chat' && wf.prompt_md) workflowSystemPrompt = wf.prompt_md;
+    } catch (err) {
+      console.error('[chat-stream] workflow lookup failed:', err);
+    }
+  }
 
   // Resolve model. Provider is inferred from the id prefix so any new
   // model the providers ship works without a code change.
@@ -523,12 +537,14 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
 
       let acc = '';
       try {
-        // Compose the system prompt + any attached document context.
-        // The attached docs are inlined verbatim under fenced markers
-        // so the model can quote and cite them precisely.
+        // Compose the system prompt. Order:
+        //   1. Workflow override if the chat is bound to one, else the
+        //      default conversational legal-research prompt.
+        //   2. Plus any attached document context inlined verbatim.
+        const baseSystem = workflowSystemPrompt || SYSTEM_PROMPT;
         const fullSystem = attachmentContext
-          ? `${SYSTEM_PROMPT}\n\nThe user has attached the following documents to this conversation. Read them carefully before answering. When citing them, use the document filename:\n${attachmentContext}`
-          : SYSTEM_PROMPT;
+          ? `${baseSystem}\n\nThe user has attached the following documents to this conversation. Read them carefully before answering. When citing them, use the document filename:\n${attachmentContext}`
+          : baseSystem;
         console.log(`[chat-stream] starting model=${modelId} provider=${provider} keySource=${source} messages=${messages.length} attachments=${attachmentMeta.length} attachChars=${attachmentContext.length}`);
         let gen: AsyncGenerator<{ delta: string }>;
         if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: fullSystem, messages });

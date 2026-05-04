@@ -1,31 +1,32 @@
 /**
- * POST /api/workspace-chats-create
- *   body: { project_id?: uuid, model?: string }
- * Returns: { id }
+ * POST /api/workspace-workflows-delete
+ *   body: { id }
+ *
+ * User can only delete workflows they own. System workflows (user_id
+ * NULL) cannot be deleted by users — only by admins via the
+ * admin-workflows-save endpoint with is_published=false (which
+ * effectively unpublishes them).
  */
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
 
 export default async (req) => {
-  if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
+  if (req.method !== 'POST' && req.method !== 'DELETE') return json({ error: 'POST/DELETE only' }, 405);
   const auth = await requireUser(req.headers.get('Authorization'));
   if (auth.error) return json({ error: auth.error }, auth.status);
   const approval = await checkUserApproval(auth.user.id);
   if (!approval.approved) return json({ error: 'Account pending approval', pending_approval: true }, 403);
 
   const body = await req.json().catch(() => ({}));
+  if (!body.id) return json({ error: 'Missing id' }, 400);
+
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('workspace_chats')
-    .insert({
-      user_id: auth.user.id,
-      project_id: body.project_id || null,
-      workflow_id: body.workflow_id || null,
-      model: body.model || 'claude-sonnet-4-5',
-    })
-    .select('id')
-    .single();
+  const { error } = await supabase
+    .from('workspace_workflows')
+    .delete()
+    .eq('id', body.id)
+    .eq('user_id', auth.user.id);
   if (error) return json({ error: error.message }, 500);
-  return json({ id: data.id });
+  return json({ ok: true });
 };
 
 function json(obj, status = 200) {

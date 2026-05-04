@@ -19,6 +19,7 @@ export default async (req) => {
   if (typeof body.title === 'string') patch.title = body.title.slice(0, 200);
   if (typeof body.model === 'string') patch.model = body.model;
   if ('project_id' in body) patch.project_id = body.project_id || null;
+  if ('workflow_id' in body) patch.workflow_id = body.workflow_id || null;
   if (Object.keys(patch).length === 0) return json({ ok: true });
 
   const supabase = getSupabaseAdmin();
