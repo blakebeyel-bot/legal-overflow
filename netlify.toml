@@ -90,6 +90,12 @@
 [functions."workspace-tr-run-background"]
   timeout = 900
 
+# Redline: LLM call + Fly.io LibreOffice round-trip. Should finish in
+# well under 5 min for typical docs but the background slot allows
+# headroom for large files.
+[functions."workspace-redline-run-background"]
+  timeout = 900
+
 # Daily 3 AM UTC purge of user uploads older than 30 days. Implements
 # the data-retention promise in /legal/privacy/ (sections 4 + 5) and
 # Florida Rule 4-1.6 confidentiality minimization. Auth gate uses the

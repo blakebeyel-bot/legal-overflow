@@ -391,6 +391,29 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .lib-card-name { font-family: var(--sans); font-size: 14px; line-height: 1.4; font-weight: 500; min-height: 38px; word-break: break-word; }
 .lib-card-meta { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); letter-spacing: .03em; margin-top: 6px; }
 .lib-card-date { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 4px; }
+.lib-card-redline {
+  display: block; width: 100%;
+  margin-top: 0; padding: 6px 12px;
+  border: none; border-top: 1px solid var(--rule-soft);
+  background: transparent; color: var(--accent-deep);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  cursor: pointer; text-align: center;
+  transition: background .15s ease, color .15s ease;
+}
+.lib-card-redline:hover { background: var(--accent-deep); color: var(--paper); }
+.lib-card { display: flex; flex-direction: column; }
+.lib-card-link { flex: 1; }
+
+/* Redline modal */
+.rdln-explainer { font-size: 13px; color: var(--ink-2); line-height: 1.5; margin: 0 0 14px; }
+.rdln-status {
+  margin-top: 12px; padding: 10px 14px;
+  border-radius: 6px; font-size: 13px; line-height: 1.5;
+}
+.rdln-status.is-running { background: rgba(56,98,170,.08); color: #3862aa; border: 1px solid rgba(56,98,170,.25); }
+.rdln-status.is-done    { background: rgba(10,125,87,.08); color: #0a7d57; border: 1px solid rgba(10,125,87,.25); }
+.rdln-status.is-error   { background: rgba(178,34,34,.06); color: #722;    border: 1px solid rgba(178,34,34,.25); }
+.rdln-status.is-warn    { background: rgba(184,127,0,.10); color: #b87f00; border: 1px solid rgba(184,127,0,.25); }
 
 .lib-uploads {
   position: fixed; right: 24px; bottom: 24px;

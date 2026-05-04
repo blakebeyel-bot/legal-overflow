@@ -152,6 +152,7 @@
         status === 'skipped' ? 'preview unavailable' :
         '—';
       const date = new Date(d.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const isDocx = (d.original_filename || '').toLowerCase().endsWith('.docx');
       return `<div class="lib-card" data-id="${d.id}">
         <div class="lib-card-head">
           <span class="lib-badge">${badge}</span>
@@ -162,8 +163,17 @@
           <div class="lib-card-meta">${formatBytes(d.size_bytes)} · ${escapeHtml(statusLabel)}</div>
           <div class="lib-card-date">${date}</div>
         </a>
+        ${isDocx ? `<button type="button" class="lib-card-redline" data-redline="${d.id}" data-name="${escapeHtml(d.filename)}">Redline…</button>` : ''}
       </div>`;
     }).join('');
+
+    els.grid.querySelectorAll('[data-redline]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openRedlineModal(btn.dataset.redline, btn.dataset.name);
+      });
+    });
 
     els.grid.querySelectorAll('[data-del]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
@@ -252,6 +262,114 @@
       row.classList.add('is-error');
       row.querySelector('.lib-upload-status').textContent = `Failed: ${err.message}`;
     }
+  }
+
+  // ---- Redline modal ----
+  function openRedlineModal(docId, docName) {
+    const overlay = document.createElement('div');
+    overlay.className = 'attach-modal';
+    overlay.innerHTML = `
+      <div class="attach-modal-inner" style="width:min(560px,92vw)">
+        <header class="attach-modal-head">
+          <h2 class="attach-modal-title">Redline: ${escapeHtml(docName)}</h2>
+          <button type="button" class="attach-modal-close" data-close>×</button>
+        </header>
+        <div class="attach-modal-body">
+          <p class="rdln-explainer">Describe what to redline. The AI will produce a list of edits and the LibreOffice service will apply them as Word tracked changes. Output is a new version of this document with red strikethrough deletes and colored insertions, ready to download and accept/reject in Word.</p>
+          <label class="rv-field">
+            <span class="rv-field-label">Concerns</span>
+            <textarea id="rdln-concerns" rows="6" placeholder="e.g. We need governing law to be Florida (not Delaware). Cap on liability should be 12 months of fees, not unlimited. IP assignment must be 'work made for hire' with backup assignment language. Termination for convenience needs 60 days notice."></textarea>
+          </label>
+          <div id="rdln-status" class="rdln-status" hidden></div>
+        </div>
+        <footer class="attach-modal-foot">
+          <a id="rdln-download" class="ws-btn-secondary" hidden>Download redlined .docx</a>
+          <button type="button" class="ws-btn" id="rdln-go">Generate redlines</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('[data-close]').addEventListener('click', close);
+
+    const concernsEl = overlay.querySelector('#rdln-concerns');
+    const statusEl = overlay.querySelector('#rdln-status');
+    const goBtn = overlay.querySelector('#rdln-go');
+    const dlEl = overlay.querySelector('#rdln-download');
+    concernsEl.focus();
+
+    goBtn.addEventListener('click', async () => {
+      const concerns = concernsEl.value.trim();
+      if (!concerns) return;
+      goBtn.disabled = true;
+      goBtn.textContent = 'Submitting…';
+      statusEl.hidden = false;
+      statusEl.className = 'rdln-status is-running';
+      statusEl.textContent = 'Submitting…';
+
+      const r = await fetch('/.netlify/functions/workspace-redline-create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document_id: docId, concerns }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        statusEl.className = 'rdln-status is-error';
+        statusEl.textContent = 'Failed: ' + (j.error || 'unknown');
+        goBtn.disabled = false;
+        goBtn.textContent = 'Generate redlines';
+        return;
+      }
+      const runId = j.run_id;
+      goBtn.textContent = 'Working…';
+      statusEl.textContent = 'Generating edits…';
+
+      // Poll
+      let polls = 0;
+      while (polls < 120) {   // max 5 min
+        await new Promise((r2) => setTimeout(r2, 2500));
+        polls++;
+        const sr = await fetch(`/.netlify/functions/workspace-redline-status?id=${runId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const sj = await sr.json();
+        if (!sr.ok) continue;
+        const run = sj.run;
+        if (run.status === 'running') statusEl.textContent = 'Generating edits + applying tracked changes…';
+        if (run.status === 'complete') {
+          if (run.edits_count === 0) {
+            statusEl.className = 'rdln-status is-warn';
+            statusEl.textContent = run.edits_summary || 'No edits suggested.';
+            goBtn.disabled = false;
+            goBtn.textContent = 'Generate redlines';
+            return;
+          }
+          const version = sj.version;
+          statusEl.className = 'rdln-status is-done';
+          statusEl.innerHTML = `<strong>${run.edits_count} edits applied.</strong><br>${escapeHtml(run.edits_summary || '')}`;
+          // Build a signed download URL
+          const { data: signedUrl } = await supabase.storage
+            .from('library')
+            .createSignedUrl(version.storage_path, 600);
+          if (signedUrl?.signedUrl) {
+            dlEl.href = signedUrl.signedUrl;
+            dlEl.download = `${docName.replace(/\.docx$/i, '')} (redlined v${version.version_number}).docx`;
+            dlEl.hidden = false;
+          }
+          goBtn.textContent = 'Done';
+          loadDocs();
+          return;
+        }
+        if (run.status === 'error') {
+          statusEl.className = 'rdln-status is-error';
+          statusEl.textContent = 'Error: ' + (run.status_detail || 'unknown');
+          goBtn.disabled = false;
+          goBtn.textContent = 'Try again';
+          return;
+        }
+      }
+      statusEl.className = 'rdln-status is-warn';
+      statusEl.textContent = 'Timed out. The job may still be running — check the document version history later.';
+    });
   }
 
   els.uploadBtn.addEventListener('click', () => els.uploadInput.click());
