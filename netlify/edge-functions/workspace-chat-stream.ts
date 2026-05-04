@@ -440,6 +440,7 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const chatId = body.chat_id;
   const content = String(body.content || '').trim();
   const requestedModel = body.model;
+  const attachmentIds: string[] = Array.isArray(body.attachments) ? body.attachments.filter((x: any) => typeof x === 'string') : [];
   if (!chatId) return json({ error: 'Missing chat_id' }, 400);
   if (!content) return json({ error: 'Empty message' }, 400);
   if (content.length > 50_000) return json({ error: 'Message too long' }, 400);
@@ -458,9 +459,42 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const { key, source } = await resolveProviderKey(user.id, provider);
   if (!key) return json({ error: `No API key for ${provider}. Add yours in /account/.` }, 400);
 
+  // ---- Resolve attached library documents ----
+  // For each attachment id we look up the current_version's
+  // extracted_text and inline it as system context. Cap each doc at
+  // 200k chars so a single huge upload can't blow up the context
+  // window. The extraction was done at upload time so this is just a
+  // quick DB read.
+  let attachmentContext = '';
+  const attachmentMeta: { id: string; filename: string; chars: number }[] = [];
+  if (attachmentIds.length > 0) {
+    try {
+      // Get the docs (filtered to user-owned)
+      const idList = attachmentIds.map((id) => `"${id}"`).join(',');
+      const docs = await sbSelect(`workspace_documents?id=in.(${idList})&user_id=eq.${user.id}&deleted_at=is.null&select=id,filename,current_version_id`);
+      for (const d of docs as any[]) {
+        if (!d.current_version_id) continue;
+        const versions = await sbSelect(`workspace_document_versions?id=eq.${d.current_version_id}&select=extracted_text,extraction_status`);
+        const v = versions[0];
+        if (!v?.extracted_text) {
+          attachmentMeta.push({ id: d.id, filename: d.filename, chars: 0 });
+          continue;
+        }
+        const PER_DOC_CAP = 200_000;
+        let text = v.extracted_text;
+        if (text.length > PER_DOC_CAP) text = text.slice(0, PER_DOC_CAP) + '\n[...truncated]';
+        attachmentMeta.push({ id: d.id, filename: d.filename, chars: text.length });
+        attachmentContext += `\n\n=== ATTACHED DOCUMENT: ${d.filename} ===\n\n${text}\n\n=== END OF ${d.filename} ===\n`;
+      }
+    } catch (err) {
+      console.error('[chat-stream] attachment resolve failed:', err);
+    }
+  }
+
   // Persist user message + create assistant placeholder
   const userMsgRow = await sbInsert('workspace_chat_messages', {
     chat_id: chatId, role: 'user', content, status: 'complete',
+    attachments: attachmentMeta,
   });
 
   // Load history (excluding the just-inserted user msg, we'll add it explicitly)
@@ -489,12 +523,18 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
 
       let acc = '';
       try {
-        console.log(`[chat-stream] starting model=${modelId} provider=${provider} keySource=${source} messages=${messages.length}`);
+        // Compose the system prompt + any attached document context.
+        // The attached docs are inlined verbatim under fenced markers
+        // so the model can quote and cite them precisely.
+        const fullSystem = attachmentContext
+          ? `${SYSTEM_PROMPT}\n\nThe user has attached the following documents to this conversation. Read them carefully before answering. When citing them, use the document filename:\n${attachmentContext}`
+          : SYSTEM_PROMPT;
+        console.log(`[chat-stream] starting model=${modelId} provider=${provider} keySource=${source} messages=${messages.length} attachments=${attachmentMeta.length} attachChars=${attachmentContext.length}`);
         let gen: AsyncGenerator<{ delta: string }>;
-        if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: SYSTEM_PROMPT, messages });
-        else if (provider === 'openai') gen = streamOpenAI({ key, model: modelId, system: SYSTEM_PROMPT, messages });
-        else if (provider === 'xai') gen = streamXAI({ key, model: modelId, system: SYSTEM_PROMPT, messages });
-        else gen = streamGoogle({ key, model: modelId, system: SYSTEM_PROMPT, messages });
+        if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: fullSystem, messages });
+        else if (provider === 'openai') gen = streamOpenAI({ key, model: modelId, system: fullSystem, messages });
+        else if (provider === 'xai') gen = streamXAI({ key, model: modelId, system: fullSystem, messages });
+        else gen = streamGoogle({ key, model: modelId, system: fullSystem, messages });
 
         for await (const chunk of gen) {
           if (chunk.delta) {

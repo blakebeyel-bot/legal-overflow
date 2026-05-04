@@ -1,0 +1,274 @@
+---
+// Workspace document library — uploads persist here, can be re-attached
+// to multiple chats, and the chat reads their extracted text directly.
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Library — Legal Overflow</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/workspace/" class="is-active">Workspace</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <a href="/account/" class="nav-sub">Account</a>
+  </div>
+</header>
+
+<main class="ws-wrap">
+  <header class="ws-head">
+    <div>
+      <div class="ws-kicker">Library</div>
+      <h1 class="ws-title">Document library.</h1>
+      <p class="ws-sub">Uploads stay here. Attach the same doc to as many chats as you want, no re-upload.</p>
+    </div>
+    <div class="ws-head-actions">
+      <button id="upload-btn" class="ws-btn">Upload document</button>
+      <input type="file" id="upload-input" hidden multiple
+        accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" />
+    </div>
+  </header>
+
+  <div class="lib-toolbar">
+    <input id="lib-search" type="search" placeholder="Search filename…" />
+    <a href="/workspace/" class="lib-back">← Workspace home</a>
+  </div>
+
+  <section class="ws-card">
+    <div id="lib-grid" class="lib-grid">
+      <div class="ws-empty">Loading…</div>
+    </div>
+  </section>
+
+  <div id="upload-progress" class="lib-uploads"></div>
+</main>
+
+<footer class="foot">
+  <p class="foot-bar-disclosure">
+    <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+    The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+    Before you decide, ask for written information about the lawyer's qualifications and experience.
+    No representation is made that the quality of the legal services to be performed is greater than
+    the quality of legal services performed by other lawyers.
+  </p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span></div>
+</footer>
+
+<script>
+  import { getSupabase } from '../../../lib/supabase';
+  const supabase = getSupabase();
+
+  document.body.style.visibility = 'hidden';
+  let session = null;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    session = data?.session;
+    if (!session) {
+      location.href = '/login/?redirect=/workspace/library/';
+      throw new Error('not signed in');
+    }
+    const { data: profile } = await supabase
+      .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
+    if (!profile?.approved_at) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('pending approval');
+    }
+    document.body.style.visibility = '';
+  } catch (err) {
+    if (err && !['not signed in', 'pending approval'].includes(err.message)) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Library error</h1><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap">${(err && err.message ? err.message : String(err)).replace(/[<>&]/g,(c)=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
+    }
+    throw err;
+  }
+
+  const accessToken = session.access_token;
+  const userId = session.user.id;
+  const els = {
+    grid: document.getElementById('lib-grid'),
+    search: document.getElementById('lib-search'),
+    uploadBtn: document.getElementById('upload-btn'),
+    uploadInput: document.getElementById('upload-input'),
+    uploadProgress: document.getElementById('upload-progress'),
+  };
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  }
+  function formatBytes(n) {
+    if (!n) return '—';
+    const u = ['B','KB','MB','GB'];
+    let i = 0; let v = n;
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v < 10 ? 1 : 0)} ${u[i]}`;
+  }
+  function fileTypeBadge(mime, name) {
+    const ext = (name || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf' || /pdf/i.test(mime)) return 'PDF';
+    if (ext === 'docx' || /wordprocessing/i.test(mime)) return 'DOCX';
+    if (ext === 'doc') return 'DOC';
+    if (ext === 'txt' || /^text\/plain/.test(mime)) return 'TXT';
+    if (ext === 'md' || /markdown/.test(mime)) return 'MD';
+    return ext ? ext.toUpperCase() : '?';
+  }
+
+  let allDocs = [];
+  function renderGrid(docs) {
+    if (!docs?.length) {
+      els.grid.innerHTML = '<div class="ws-empty">No documents yet. Click "Upload document" above.</div>';
+      return;
+    }
+    els.grid.innerHTML = docs.map((d) => {
+      const badge = fileTypeBadge(d.file_type, d.original_filename);
+      const status = d.current_version?.extraction_status || 'unknown';
+      const statusLabel =
+        status === 'done' ? `${(d.current_version?.extracted_chars || 0).toLocaleString()} chars` :
+        status === 'pending' || status === 'running' ? 'extracting…' :
+        status === 'failed' ? 'preview unavailable' :
+        status === 'skipped' ? 'preview unavailable' :
+        '—';
+      const date = new Date(d.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      return `<div class="lib-card" data-id="${d.id}">
+        <div class="lib-card-head">
+          <span class="lib-badge">${badge}</span>
+          <button type="button" class="lib-card-del" data-del="${d.id}" data-name="${escapeHtml(d.filename)}" aria-label="Delete">×</button>
+        </div>
+        <a href="/workspace/library/?id=${d.id}" class="lib-card-link">
+          <div class="lib-card-name">${escapeHtml(d.filename)}</div>
+          <div class="lib-card-meta">${formatBytes(d.size_bytes)} · ${escapeHtml(statusLabel)}</div>
+          <div class="lib-card-date">${date}</div>
+        </a>
+      </div>`;
+    }).join('');
+
+    els.grid.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.del;
+        const name = btn.dataset.name;
+        if (!confirm(`Delete "${name}"? You can recover it from operator if you change your mind.`)) return;
+        btn.disabled = true;
+        const r = await fetch('/.netlify/functions/workspace-library-delete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          alert('Delete failed: ' + (j.error || 'unknown'));
+          btn.disabled = false;
+          return;
+        }
+        loadDocs();
+      });
+    });
+  }
+
+  async function loadDocs() {
+    const q = els.search.value.trim();
+    const r = await fetch('/.netlify/functions/workspace-library-list' + (q ? `?q=${encodeURIComponent(q)}` : ''), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      els.grid.innerHTML = `<div class="ws-empty">Failed to load: ${escapeHtml(j.error || 'unknown')}</div>`;
+      return;
+    }
+    allDocs = j.documents || [];
+    renderGrid(allDocs);
+  }
+
+  // ---- Upload flow: direct-to-Storage then register ----
+  async function uploadOne(file) {
+    const docId = crypto.randomUUID();
+    const versionId = crypto.randomUUID();
+    const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+    const storagePath = `${userId}/${docId}/${versionId}.${ext}`;
+
+    // Render a temporary upload row
+    const tempId = 'up-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    els.uploadProgress.insertAdjacentHTML('beforeend', `
+      <div class="lib-upload" data-temp="${tempId}">
+        <span class="lib-upload-name">${escapeHtml(file.name)}</span>
+        <span class="lib-upload-status">Uploading…</span>
+      </div>`);
+    const row = els.uploadProgress.querySelector(`[data-temp="${tempId}"]`);
+
+    try {
+      const { error: upErr } = await supabase.storage
+        .from('library')
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (upErr) throw new Error(`Storage upload: ${upErr.message}`);
+
+      row.querySelector('.lib-upload-status').textContent = 'Extracting text…';
+
+      const r = await fetch('/.netlify/functions/workspace-library-register', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          original_filename: file.name,
+          file_type: file.type || 'application/octet-stream',
+          size_bytes: file.size,
+          storage_path: storagePath,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+
+      row.classList.add('is-done');
+      row.querySelector('.lib-upload-status').textContent =
+        j.extraction.status === 'done' ? `Ready · ${(j.extraction.chars || 0).toLocaleString()} chars` :
+        j.extraction.status === 'skipped' ? 'Ready · no text preview' :
+        'Ready · text extraction failed';
+      setTimeout(() => row.remove(), 4000);
+      loadDocs();
+    } catch (err) {
+      row.classList.add('is-error');
+      row.querySelector('.lib-upload-status').textContent = `Failed: ${err.message}`;
+    }
+  }
+
+  els.uploadBtn.addEventListener('click', () => els.uploadInput.click());
+  els.uploadInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    for (const f of files) await uploadOne(f);
+  });
+
+  // Search debounced
+  let searchTimer = null;
+  els.search.addEventListener('input', () => {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadDocs, 200);
+  });
+
+  loadDocs();
+</script>
+</body>
+</html>

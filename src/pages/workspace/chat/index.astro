@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="/styles.css" />
 <link rel="stylesheet" href="/workspace.css" />
 </head>
-<body>
+<body class="chat-page">
 <div id="grain"></div>
 
 <header class="nav">
@@ -38,12 +38,21 @@
   </div>
 </header>
 
+<!-- Collapse / expand the top nav so the chat has more vertical room.
+     Sits flush along the bottom of the nav when expanded; floats at
+     the top of the viewport when collapsed. -->
+<button id="nav-toggle" class="nav-toggle" type="button" aria-label="Hide navigation" title="Hide navigation">
+  <span class="nav-toggle-arrow">▲</span>
+</button>
+
 <main class="chat-shell">
   <aside class="chat-rail">
     <a href="/workspace/" class="chat-rail-back">← Workspace</a>
     <button id="new-chat" class="chat-rail-new">+ New chat</button>
     <div id="rail-list" class="chat-rail-list"></div>
   </aside>
+  <!-- Draggable resize handle between sidebar and chat. -->
+  <div id="rail-resize" class="rail-resize" role="separator" aria-label="Resize sidebar" aria-orientation="vertical" tabindex="0"></div>
 
   <section class="chat-main">
     <header class="chat-head">
@@ -58,11 +67,40 @@
       <div class="chat-empty">Ask something. The legal research desk is open.</div>
     </div>
 
+    <div id="composer-attachments" class="composer-attachments"></div>
     <form id="composer" class="chat-composer">
+      <button type="button" id="composer-paperclip" class="composer-paperclip" aria-label="Attach document" title="Attach document from library">📎</button>
       <textarea id="composer-input" rows="2" placeholder="Ask a legal research question…"></textarea>
       <button type="submit" id="composer-send" class="ws-btn">Send</button>
     </form>
     <p class="chat-discl">Output is AI-generated and not legal advice. Verify every citation before relying on it.</p>
+
+    <!-- Attach modal (hidden by default) -->
+    <div id="attach-modal" class="attach-modal" hidden>
+      <div class="attach-modal-inner">
+        <header class="attach-modal-head">
+          <h2 class="attach-modal-title">Attach document</h2>
+          <button type="button" id="attach-close" class="attach-modal-close" aria-label="Close">×</button>
+        </header>
+        <div class="attach-modal-body">
+          <div class="attach-upload-row">
+            <button type="button" id="attach-upload-btn" class="ws-btn">+ Upload new</button>
+            <input type="file" id="attach-upload-input" hidden multiple
+              accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" />
+            <span class="attach-upload-hint">Goes into your library and auto-attaches</span>
+          </div>
+          <div id="attach-upload-progress" class="attach-upload-progress"></div>
+          <input id="attach-search" class="attach-search" type="search" placeholder="Search your library…" />
+          <div id="attach-list" class="attach-list">
+            <div class="ws-empty">Loading…</div>
+          </div>
+        </div>
+        <footer class="attach-modal-foot">
+          <a href="/workspace/library/" class="lib-back">Manage library →</a>
+          <button type="button" id="attach-confirm" class="ws-btn" disabled>Attach selected</button>
+        </footer>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -122,6 +160,16 @@
     send: document.getElementById('composer-send'),
     railList: document.getElementById('rail-list'),
     newChat: document.getElementById('new-chat'),
+    paperclip: document.getElementById('composer-paperclip'),
+    attachments: document.getElementById('composer-attachments'),
+    attachModal: document.getElementById('attach-modal'),
+    attachClose: document.getElementById('attach-close'),
+    attachSearch: document.getElementById('attach-search'),
+    attachList: document.getElementById('attach-list'),
+    attachConfirm: document.getElementById('attach-confirm'),
+    attachUploadBtn: document.getElementById('attach-upload-btn'),
+    attachUploadInput: document.getElementById('attach-upload-input'),
+    attachUploadProgress: document.getElementById('attach-upload-progress'),
   };
 
   // Models are fetched live from /api/workspace-models-list which pulls
@@ -226,7 +274,10 @@
   function bubble(role, content, opts = {}) {
     const cls = role === 'user' ? 'msg user' : 'msg asst';
     const meta = opts.meta ? `<div class="msg-meta">${escapeHtml(opts.meta)}</div>` : '';
-    return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}><div class="msg-body">${renderMarkdownInline(content)}</div>${meta}</div>`;
+    const attachments = Array.isArray(opts.attachments) && opts.attachments.length
+      ? `<div class="msg-attach-row">${opts.attachments.map((a) => `<span class="msg-attach">📎 ${escapeHtml(a.filename || a.name || 'attachment')}</span>`).join('')}</div>`
+      : '';
+    return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}><div class="msg-body">${renderMarkdownInline(content)}${attachments}</div>${meta}</div>`;
   }
   function scrollToBottom() {
     els.messages.scrollTop = els.messages.scrollHeight;
@@ -247,7 +298,7 @@
     }
     els.messages.innerHTML = msgs
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => bubble(m.role, m.content || ''))
+      .map((m) => bubble(m.role, m.content || '', { attachments: m.attachments || [] }))
       .join('');
     scrollToBottom();
   }
@@ -367,15 +418,22 @@
     }
   }
 
-  async function sendMessage(text) {
+  async function sendMessage(text, opts = {}) {
     if (sending || !text.trim()) return;
     sending = true;
     els.send.disabled = true;
     els.input.disabled = true;
 
-    // optimistic user bubble
+    const attachmentIds = opts.attachments || [];
+    const attachmentNames = opts.attachmentNames || [];
+
+    // optimistic user bubble — include attachment chips if any
     if (els.messages.querySelector('.chat-empty')) els.messages.innerHTML = '';
-    els.messages.insertAdjacentHTML('beforeend', bubble('user', text));
+    const attachLabel = attachmentNames.length
+      ? `<div class="msg-attach-row">${attachmentNames.map((a) => `<span class="msg-attach">📎 ${escapeHtml(a.filename)}</span>`).join('')}</div>`
+      : '';
+    els.messages.insertAdjacentHTML('beforeend',
+      `<div class="msg user" data-role="user"><div class="msg-body">${renderMarkdownInline(text)}${attachLabel}</div></div>`);
     scrollToBottom();
 
     // assistant bubble: msg-text gets re-rendered with live markdown
@@ -458,7 +516,12 @@
       const res = await fetch('/api/workspace-chat-stream', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, content: text, model: els.model.value }),
+        body: JSON.stringify({
+          chat_id: chatId,
+          content: text,
+          model: els.model.value,
+          attachments: attachmentIds,
+        }),
       });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
@@ -539,11 +602,279 @@
     }
   }
 
+  // ---- Attachment state + library picker ----
+  // attachedDocs: array of { id, filename } currently attached to the
+  // next message. Cleared after sendMessage. The chat doesn't yet
+  // persist attachments per-message; that's a Phase 2.5 enhancement.
+  let attachedDocs = [];
+
+  function renderAttachmentChips() {
+    if (attachedDocs.length === 0) {
+      els.attachments.innerHTML = '';
+      return;
+    }
+    els.attachments.innerHTML = attachedDocs.map((a) => `
+      <span class="composer-chip" data-attach-id="${a.id}">
+        📎 ${escapeHtml(a.filename)}
+        <button type="button" class="composer-chip-x" data-detach="${a.id}" aria-label="Remove">×</button>
+      </span>
+    `).join('');
+    els.attachments.querySelectorAll('[data-detach]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const id = b.dataset.detach;
+        attachedDocs = attachedDocs.filter((a) => a.id !== id);
+        renderAttachmentChips();
+      });
+    });
+  }
+
+  let libraryDocs = [];
+  let pickedIds = new Set();
+  function renderLibraryList(docs) {
+    if (!docs?.length) {
+      els.attachList.innerHTML = '<div class="ws-empty">No documents in your library yet. Upload some at <a href="/workspace/library/">/workspace/library/</a>.</div>';
+      els.attachConfirm.disabled = true;
+      return;
+    }
+    els.attachList.innerHTML = docs.map((d) => {
+      const sel = pickedIds.has(d.id) ? ' is-selected' : '';
+      const status = d.current_version?.extraction_status || 'unknown';
+      const meta = status === 'done' ? `${(d.current_version?.extracted_chars || 0).toLocaleString()} chars`
+                : status === 'pending' || status === 'running' ? 'extracting…'
+                : 'no preview';
+      return `<div class="attach-item${sel}" data-pick="${d.id}" data-name="${escapeHtml(d.filename)}">
+        <span class="attach-item-name">${escapeHtml(d.filename)}</span>
+        <span class="attach-item-meta">${escapeHtml(meta)}</span>
+      </div>`;
+    }).join('');
+    els.attachList.querySelectorAll('[data-pick]').forEach((row) => {
+      row.addEventListener('click', () => {
+        const id = row.dataset.pick;
+        if (pickedIds.has(id)) pickedIds.delete(id);
+        else pickedIds.add(id);
+        row.classList.toggle('is-selected');
+        els.attachConfirm.disabled = pickedIds.size === 0;
+      });
+    });
+    els.attachConfirm.disabled = pickedIds.size === 0;
+  }
+
+  async function loadLibraryForPicker(query = '') {
+    const r = await fetch('/.netlify/functions/workspace-library-list' + (query ? `?q=${encodeURIComponent(query)}` : ''), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      els.attachList.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
+      return;
+    }
+    libraryDocs = j.documents || [];
+    renderLibraryList(libraryDocs);
+  }
+
+  function openAttachModal() {
+    pickedIds = new Set(attachedDocs.map((a) => a.id));
+    els.attachModal.hidden = false;
+    els.attachSearch.value = '';
+    loadLibraryForPicker();
+    els.attachSearch.focus();
+  }
+  function closeAttachModal() {
+    els.attachModal.hidden = true;
+  }
+  els.paperclip.addEventListener('click', openAttachModal);
+  els.attachClose.addEventListener('click', closeAttachModal);
+  els.attachModal.addEventListener('click', (e) => {
+    if (e.target === els.attachModal) closeAttachModal();
+  });
+  let attachSearchTimer = null;
+  els.attachSearch.addEventListener('input', () => {
+    if (attachSearchTimer) clearTimeout(attachSearchTimer);
+    attachSearchTimer = setTimeout(() => loadLibraryForPicker(els.attachSearch.value.trim()), 200);
+  });
+  els.attachConfirm.addEventListener('click', () => {
+    attachedDocs = libraryDocs
+      .filter((d) => pickedIds.has(d.id))
+      .map((d) => ({ id: d.id, filename: d.filename }));
+    renderAttachmentChips();
+    closeAttachModal();
+  });
+
+  // ---- Upload-from-modal flow ----
+  // User picks a file inside the attach modal → we upload it directly
+  // to Supabase Storage (just like the library page does) → call
+  // workspace-library-register to create DB rows + extract text →
+  // auto-select the new doc so the user can hit "Attach selected"
+  // immediately without browsing back through the list.
+  async function uploadFromModal(file) {
+    const docId = crypto.randomUUID();
+    const versionId = crypto.randomUUID();
+    const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+    const storagePath = `${session.user.id}/${docId}/${versionId}.${ext}`;
+
+    const tempId = 'modal-up-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    els.attachUploadProgress.insertAdjacentHTML('beforeend', `
+      <div class="lib-upload" data-temp="${tempId}">
+        <span class="lib-upload-name">${escapeHtml(file.name)}</span>
+        <span class="lib-upload-status">Uploading…</span>
+      </div>`);
+    const row = els.attachUploadProgress.querySelector(`[data-temp="${tempId}"]`);
+
+    try {
+      const { error: upErr } = await supabase.storage
+        .from('library')
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (upErr) throw new Error(`Storage upload: ${upErr.message}`);
+
+      row.querySelector('.lib-upload-status').textContent = 'Extracting text…';
+
+      const r = await fetch('/.netlify/functions/workspace-library-register', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          original_filename: file.name,
+          file_type: file.type || 'application/octet-stream',
+          size_bytes: file.size,
+          storage_path: storagePath,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+
+      row.classList.add('is-done');
+      row.querySelector('.lib-upload-status').textContent = 'Ready · auto-attached';
+      setTimeout(() => row.remove(), 3500);
+
+      // Push the new doc to the library list (top), auto-select it,
+      // and re-render so the user can immediately confirm.
+      const newDoc = {
+        id: j.document.id,
+        filename: j.document.filename,
+        file_type: j.document.file_type,
+        size_bytes: j.document.size_bytes,
+        updated_at: j.document.updated_at,
+        current_version: {
+          id: j.version.id,
+          extraction_status: j.version.extraction_status,
+          extracted_chars: j.version.extracted_chars,
+        },
+      };
+      libraryDocs = [newDoc, ...libraryDocs.filter((d) => d.id !== newDoc.id)];
+      pickedIds.add(newDoc.id);
+      renderLibraryList(libraryDocs);
+    } catch (err) {
+      row.classList.add('is-error');
+      row.querySelector('.lib-upload-status').textContent = `Failed: ${err.message}`;
+    }
+  }
+
+  els.attachUploadBtn.addEventListener('click', () => els.attachUploadInput.click());
+  els.attachUploadInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    for (const f of files) await uploadFromModal(f);
+  });
+
+  // ---- Resizable sidebar ----
+  // Drag the slim handle between sidebar and chat to widen or shrink
+  // the sidebar. Layout uses a CSS variable --rail-width on the chat
+  // shell, so the chat area auto-fills the rest. Persists across
+  // reloads in localStorage.
+  const RAIL_KEY = 'workspace.rail.width';
+  const RAIL_MIN = 160;
+  const RAIL_MAX = 480;
+  const RAIL_DEFAULT = 240;
+  const shellEl = document.querySelector('.chat-shell');
+  const resizeEl = document.getElementById('rail-resize');
+  function applyRail(px) {
+    const clamped = Math.min(RAIL_MAX, Math.max(RAIL_MIN, Math.round(px)));
+    shellEl.style.setProperty('--rail-width', clamped + 'px');
+    return clamped;
+  }
+  applyRail(parseInt(localStorage.getItem(RAIL_KEY) || RAIL_DEFAULT, 10) || RAIL_DEFAULT);
+  let dragging = false;
+  resizeEl.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    // Sidebar starts at the left edge of the chat-shell, which itself
+    // is centered with max-width 1400. Offset accordingly.
+    const rect = shellEl.getBoundingClientRect();
+    const desired = e.clientX - rect.left;
+    applyRail(desired);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    const current = shellEl.style.getPropertyValue('--rail-width').replace('px', '');
+    try { localStorage.setItem(RAIL_KEY, current); } catch {}
+  });
+  // Keyboard nudge: Left/Right when handle is focused.
+  resizeEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const delta = e.key === 'ArrowRight' ? 16 : -16;
+    const cur = parseInt(shellEl.style.getPropertyValue('--rail-width') || RAIL_DEFAULT, 10);
+    const next = applyRail(cur + delta);
+    try { localStorage.setItem(RAIL_KEY, next); } catch {}
+  });
+
+  // ---- Auto-hiding top nav ----
+  // The nav slides out of view shortly after page load to give the
+  // chat maximum vertical room. Move the cursor near the top of the
+  // viewport — or scroll up — to bring it back. Hides again ~400ms
+  // after the cursor leaves the trigger zone, like macOS menubar.
+  const TOP_ZONE = 80;        // px from viewport top that triggers reveal
+  const HIDE_DELAY = 500;     // ms after mouse leaves the zone before hiding
+  const FIRST_HIDE_DELAY = 1500;  // initial delay before the nav auto-hides on page load
+  let hideTimer = null;
+  function showNav() {
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    document.body.classList.remove('nav-collapsed');
+  }
+  function scheduleHide(delay = HIDE_DELAY) {
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      document.body.classList.add('nav-collapsed');
+      hideTimer = null;
+    }, delay);
+  }
+  // Show on initial load, then auto-hide after a moment so the user
+  // sees the nav exists before it disappears.
+  scheduleHide(FIRST_HIDE_DELAY);
+  // Mouse near top of viewport pulls the nav down.
+  window.addEventListener('mousemove', (e) => {
+    if (e.clientY <= TOP_ZONE) showNav();
+    else if (!hideTimer) scheduleHide();
+  });
+  // If cursor leaves the window entirely while nav is up, hide it.
+  document.addEventListener('mouseleave', () => scheduleHide(200));
+  // Keep the nav visible while the cursor is over it (so submenus or
+  // the Account button don't disappear under the user).
+  document.querySelector('.nav')?.addEventListener('mouseenter', showNav);
+  // Also show whenever an input/textarea is focused inside the nav
+  // (defensive — there's nothing focusable there today, but if we
+  // ever add a search input it should keep the nav up).
+  document.querySelector('.nav')?.addEventListener('focusin', showNav);
+  // Hide the (now redundant) chevron toggle — auto-hide replaces it.
+  document.getElementById('nav-toggle')?.remove();
+
   els.composer.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = els.input.value;
     els.input.value = '';
-    sendMessage(text);
+    const attachmentIds = attachedDocs.map((a) => a.id);
+    const wasAttached = attachedDocs.slice();
+    attachedDocs = [];
+    renderAttachmentChips();
+    sendMessage(text, { attachments: attachmentIds, attachmentNames: wasAttached });
   });
   els.input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
