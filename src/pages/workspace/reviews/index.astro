@@ -1,0 +1,460 @@
+---
+// Tabular reviews. List view at /workspace/reviews/, grid view at
+// /workspace/reviews/?id=<uuid>. Same page, the JS branches on the
+// query param.
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Reviews — Legal Overflow</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/workspace/" class="is-active">Workspace</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <a href="/account/" class="nav-sub">Account</a>
+  </div>
+</header>
+
+<main id="page-main"></main>
+
+<!-- Modal templates rendered into the page via JS so we don't carry
+     non-React conditional Astro logic. -->
+
+<footer class="foot">
+  <p class="foot-bar-disclosure">
+    <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+    The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+    Before you decide, ask for written information about the lawyer's qualifications and experience.
+    No representation is made that the quality of the legal services to be performed is greater than
+    the quality of legal services performed by other lawyers.
+  </p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.04<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span></div>
+</footer>
+
+<script>
+  import { getSupabase } from '../../../lib/supabase';
+  const supabase = getSupabase();
+
+  document.body.style.visibility = 'hidden';
+  let session;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    session = data?.session;
+    if (!session) {
+      const here = location.pathname + location.search;
+      location.href = '/login/?redirect=' + encodeURIComponent(here);
+      throw new Error('not signed in');
+    }
+    const { data: profile } = await supabase
+      .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
+    if (!profile?.approved_at) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('pending approval');
+    }
+    document.body.style.visibility = '';
+  } catch (err) {
+    if (err && !['not signed in','pending approval'].includes(err.message)) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Reviews error</h1><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap">${(err.message || String(err)).replace(/[<>&]/g,(c)=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
+    }
+    throw err;
+  }
+
+  const accessToken = session.access_token;
+  const main = document.getElementById('page-main');
+  const reviewId = new URL(location.href).searchParams.get('id');
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  }
+
+  // ============================================================
+  // LIST VIEW
+  // ============================================================
+  async function renderListView() {
+    main.innerHTML = `
+      <div class="ws-wrap">
+        <header class="ws-head">
+          <div>
+            <div class="ws-kicker">Tabular reviews</div>
+            <h1 class="ws-title">Document review grids.</h1>
+            <p class="ws-sub">Pick documents, define columns, get a grid of LLM-extracted answers with verbatim citations.</p>
+          </div>
+          <div class="ws-head-actions">
+            <button id="new-review-btn" class="ws-btn">New review</button>
+          </div>
+        </header>
+        <section class="ws-card">
+          <header class="ws-card-head">
+            <h2 class="ws-card-title">Recent reviews</h2>
+          </header>
+          <div id="reviews-list" class="ws-list"><div class="ws-empty">Loading…</div></div>
+        </section>
+        <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
+      </div>
+    `;
+    document.getElementById('new-review-btn').addEventListener('click', openNewReviewModal);
+    await loadReviewsList();
+  }
+
+  async function loadReviewsList() {
+    const r = await fetch('/.netlify/functions/workspace-tr-list', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    const listEl = document.getElementById('reviews-list');
+    if (!r.ok) {
+      listEl.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
+      return;
+    }
+    if (!j.reviews?.length) {
+      listEl.innerHTML = '<div class="ws-empty">No reviews yet. Click "New review" to start one.</div>';
+      return;
+    }
+    listEl.innerHTML = j.reviews.map((rv) => {
+      const colCount = (rv.columns_config || []).length;
+      const date = new Date(rv.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      const statusClass = rv.status === 'complete' ? 'rv-status-done' :
+                         rv.status === 'running' ? 'rv-status-run' :
+                         rv.status === 'error' ? 'rv-status-err' :
+                         rv.status === 'partial' ? 'rv-status-part' : 'rv-status-pen';
+      return `<div class="ws-row-wrap">
+        <a href="/workspace/reviews/?id=${rv.id}" class="ws-row">
+          <span class="ws-row-title">${escapeHtml(rv.title)}</span>
+          <span class="ws-row-meta">
+            <span class="rv-status-pill ${statusClass}">${escapeHtml(rv.status)}</span>
+            ${colCount} cols · ${date}
+          </span>
+        </a>
+        <button type="button" class="ws-row-del" data-del="${rv.id}" data-title="${escapeHtml(rv.title)}" aria-label="Delete">×</button>
+      </div>`;
+    }).join('');
+    listEl.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const id = btn.dataset.del; const title = btn.dataset.title;
+        if (!confirm(`Delete review "${title}"? This cannot be undone.`)) return;
+        btn.disabled = true;
+        await fetch('/.netlify/functions/workspace-tr-delete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        loadReviewsList();
+      });
+    });
+  }
+
+  // ============================================================
+  // NEW REVIEW MODAL
+  // ============================================================
+  async function openNewReviewModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'attach-modal';
+    overlay.innerHTML = `
+      <div class="attach-modal-inner rv-modal">
+        <header class="attach-modal-head">
+          <h2 class="attach-modal-title">New tabular review</h2>
+          <button type="button" class="attach-modal-close" data-close>×</button>
+        </header>
+        <div class="attach-modal-body">
+          <label class="rv-field">
+            <span class="rv-field-label">Title</span>
+            <input type="text" id="rv-title" maxlength="200" placeholder="e.g. NDA portfolio scan — 2026 Q1" />
+          </label>
+
+          <div class="rv-field">
+            <span class="rv-field-label">Documents</span>
+            <div id="rv-doc-list" class="rv-doc-list"><div class="ws-empty">Loading library…</div></div>
+          </div>
+
+          <div class="rv-field">
+            <span class="rv-field-label">Columns</span>
+            <div id="rv-cols" class="rv-cols"></div>
+            <button type="button" id="rv-add-col" class="rv-add-col">+ Add column</button>
+          </div>
+
+          <label class="rv-field">
+            <span class="rv-field-label">Model</span>
+            <select id="rv-model"></select>
+          </label>
+        </div>
+        <footer class="attach-modal-foot">
+          <span class="rv-foot-hint" id="rv-cost-hint"></span>
+          <button type="button" class="ws-btn" id="rv-run">Run review</button>
+        </footer>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('[data-close]').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    // Load library + models in parallel
+    const [libRes, mdlRes] = await Promise.all([
+      fetch('/.netlify/functions/workspace-library-list', { headers: { Authorization: `Bearer ${accessToken}` } }),
+      fetch('/.netlify/functions/workspace-models-list', { headers: { Authorization: `Bearer ${accessToken}` } }),
+    ]);
+    const libJson = await libRes.json();
+    const mdlJson = await mdlRes.json();
+
+    const docs = libJson.documents || [];
+    const docList = overlay.querySelector('#rv-doc-list');
+    if (!docs.length) {
+      docList.innerHTML = '<div class="ws-empty">No documents in your library. <a href="/workspace/library/">Upload some →</a></div>';
+    } else {
+      docList.innerHTML = docs.map((d) => `
+        <label class="rv-doc-item">
+          <input type="checkbox" data-doc="${d.id}" />
+          <span class="rv-doc-name">${escapeHtml(d.filename)}</span>
+          <span class="rv-doc-meta">${(d.current_version?.extracted_chars || 0).toLocaleString()} chars</span>
+        </label>`).join('');
+    }
+
+    const models = mdlJson.models || [];
+    const sel = overlay.querySelector('#rv-model');
+    sel.innerHTML = models.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === 'claude-sonnet-4-5' ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
+
+    // Initial column row
+    const colsEl = overlay.querySelector('#rv-cols');
+    const presets = [
+      { name: 'Term length', prompt: 'What is the term length of this agreement? Quote the relevant clause.' },
+      { name: 'Governing law', prompt: 'What is the governing law / choice of law clause? State the jurisdiction.' },
+      { name: 'Liability cap', prompt: 'Is there a cap on liability? If so, state the cap (amount or formula). Quote the clause.' },
+    ];
+    let colIdx = 0;
+    function addColumn(preset) {
+      const id = colIdx++;
+      colsEl.insertAdjacentHTML('beforeend', `
+        <div class="rv-col-row" data-col="${id}">
+          <input type="text" class="rv-col-name" placeholder="Column name" value="${escapeHtml(preset?.name || '')}" />
+          <textarea class="rv-col-prompt" rows="2" placeholder="Prompt: what should the AI extract or answer for this column?">${escapeHtml(preset?.prompt || '')}</textarea>
+          <button type="button" class="rv-col-del" data-del-col="${id}" aria-label="Remove">×</button>
+        </div>`);
+    }
+    for (const p of presets) addColumn(p);
+    overlay.querySelector('#rv-add-col').addEventListener('click', () => addColumn());
+    colsEl.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.dataset && t.dataset.delCol != null) {
+        const row = t.closest('.rv-col-row');
+        row?.remove();
+      }
+    });
+
+    // Cost hint updates as user toggles checkboxes / adds cols
+    const costHint = overlay.querySelector('#rv-cost-hint');
+    function updateCost() {
+      const docCount = overlay.querySelectorAll('input[data-doc]:checked').length;
+      const colCount = overlay.querySelectorAll('.rv-col-row').length;
+      const cells = docCount * colCount;
+      costHint.textContent = `${docCount} docs × ${colCount} columns = ${cells} cells`;
+    }
+    overlay.addEventListener('input', updateCost);
+    overlay.addEventListener('change', updateCost);
+    updateCost();
+
+    // Run
+    overlay.querySelector('#rv-run').addEventListener('click', async () => {
+      const title = overlay.querySelector('#rv-title').value.trim();
+      if (!title) { alert('Title required'); return; }
+      const docIds = Array.from(overlay.querySelectorAll('input[data-doc]:checked')).map((i) => i.dataset.doc);
+      if (!docIds.length) { alert('Pick at least one document'); return; }
+      const cols = Array.from(overlay.querySelectorAll('.rv-col-row')).map((row) => ({
+        name: row.querySelector('.rv-col-name').value.trim(),
+        prompt: row.querySelector('.rv-col-prompt').value.trim(),
+      })).filter((c) => c.prompt);
+      if (!cols.length) { alert('Add at least one column with a prompt'); return; }
+      const model = sel.value;
+
+      const btn = overlay.querySelector('#rv-run');
+      btn.disabled = true;
+      btn.textContent = 'Creating…';
+
+      const r = await fetch('/.netlify/functions/workspace-tr-create', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, columns: cols, document_ids: docIds, model }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        alert('Failed: ' + (j.error || 'unknown'));
+        btn.disabled = false;
+        btn.textContent = 'Run review';
+        return;
+      }
+      // Navigate to grid view
+      location.href = `/workspace/reviews/?id=${j.review_id}`;
+    });
+  }
+
+  // ============================================================
+  // GRID VIEW (single review)
+  // ============================================================
+  let gridState = null;   // { review, cells, documents }
+  async function renderGridView(id) {
+    main.innerHTML = `
+      <div class="rv-shell">
+        <header class="rv-head">
+          <a href="/workspace/reviews/" class="rv-back">← All reviews</a>
+          <h1 class="rv-title" id="rv-grid-title">Loading…</h1>
+          <div class="rv-head-meta">
+            <span id="rv-status-pill" class="rv-status-pill rv-status-pen">…</span>
+            <span id="rv-counter" class="rv-counter"></span>
+          </div>
+        </header>
+        <div class="rv-grid-wrap"><div id="rv-grid"></div></div>
+      </div>
+      <div id="rv-cell-detail" class="attach-modal" hidden></div>
+    `;
+    await loadGrid(id);
+    // Poll while running. Stop when complete/error/partial.
+    pollLoop(id);
+  }
+
+  async function loadGrid(id) {
+    const r = await fetch(`/.netlify/functions/workspace-tr-get?id=${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      main.innerHTML = `<div class="ws-wrap"><div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div></div>`;
+      return;
+    }
+    gridState = j;
+    drawGrid();
+  }
+
+  function drawGrid() {
+    if (!gridState) return;
+    const { review, cells, documents } = gridState;
+    document.getElementById('rv-grid-title').textContent = review.title;
+    const pill = document.getElementById('rv-status-pill');
+    pill.className = 'rv-status-pill ' + (
+      review.status === 'complete' ? 'rv-status-done' :
+      review.status === 'running' ? 'rv-status-run' :
+      review.status === 'error' ? 'rv-status-err' :
+      review.status === 'partial' ? 'rv-status-part' : 'rv-status-pen'
+    );
+    pill.textContent = review.status;
+
+    const total = cells.length;
+    const done = cells.filter((c) => c.status === 'complete').length;
+    const errs = cells.filter((c) => c.status === 'error').length;
+    document.getElementById('rv-counter').textContent =
+      `${done}/${total} cells${errs ? ` · ${errs} failed` : ''}`;
+
+    const cols = review.columns_config || [];
+    const cellMap = {};
+    for (const c of cells) cellMap[`${c.document_id}|${c.column_index}`] = c;
+
+    const head = `<thead><tr>
+      <th class="rv-th rv-th-doc">Document</th>
+      ${cols.map((c) => `<th class="rv-th"><div class="rv-th-name">${escapeHtml(c.name || `Column ${c.index + 1}`)}</div><div class="rv-th-prompt">${escapeHtml(c.prompt.slice(0, 120))}${c.prompt.length > 120 ? '…' : ''}</div></th>`).join('')}
+    </tr></thead>`;
+
+    const rows = documents.map((d) => `
+      <tr>
+        <td class="rv-td-doc">
+          <div class="rv-doc-row-name">${escapeHtml(d.filename)}</div>
+        </td>
+        ${cols.map((c) => {
+          const cell = cellMap[`${d.id}|${c.index}`];
+          return renderCell(cell);
+        }).join('')}
+      </tr>`).join('');
+
+    document.getElementById('rv-grid').innerHTML = `<table class="rv-grid">${head}<tbody>${rows}</tbody></table>`;
+
+    // Wire cell click → detail modal
+    document.querySelectorAll('.rv-cell[data-cell]').forEach((td) => {
+      td.addEventListener('click', () => openCellDetail(td.dataset.cell));
+    });
+  }
+
+  function renderCell(cell) {
+    if (!cell) return '<td class="rv-cell rv-cell-pending">—</td>';
+    if (cell.status === 'pending') return '<td class="rv-cell rv-cell-pending">queued</td>';
+    if (cell.status === 'running') return '<td class="rv-cell rv-cell-running"><span class="rv-spin"></span>thinking…</td>';
+    if (cell.status === 'error') return `<td class="rv-cell rv-cell-error" data-cell="${cell.id}" title="${escapeHtml(cell.status_detail || 'failed')}">error</td>`;
+    const ans = cell.content || '';
+    const hasQuote = Array.isArray(cell.citations) && cell.citations.length > 0;
+    return `<td class="rv-cell rv-cell-done" data-cell="${cell.id}">
+      <div class="rv-cell-answer">${escapeHtml(ans)}</div>
+      ${hasQuote ? '<div class="rv-cell-cite">▸ source</div>' : ''}
+    </td>`;
+  }
+
+  function openCellDetail(cellId) {
+    const cell = (gridState?.cells || []).find((c) => c.id === cellId);
+    if (!cell) return;
+    const doc = (gridState?.documents || []).find((d) => d.id === cell.document_id);
+    const col = (gridState?.review?.columns_config || [])[cell.column_index];
+    const cite = (cell.citations || [])[0];
+    const detail = document.getElementById('rv-cell-detail');
+    detail.hidden = false;
+    detail.innerHTML = `
+      <div class="attach-modal-inner">
+        <header class="attach-modal-head">
+          <h2 class="attach-modal-title">Cell detail</h2>
+          <button type="button" class="attach-modal-close" data-close>×</button>
+        </header>
+        <div class="attach-modal-body rv-detail-body">
+          <div class="rv-detail-meta">
+            <strong>${escapeHtml(doc?.filename || '?')}</strong> · ${escapeHtml(col?.name || '?')}
+          </div>
+          <div class="rv-detail-q"><span class="rv-detail-label">Question</span><div>${escapeHtml(col?.prompt || '')}</div></div>
+          <div class="rv-detail-a"><span class="rv-detail-label">Answer</span><div>${escapeHtml(cell.content || '')}</div></div>
+          ${cite ? `<div class="rv-detail-quote"><span class="rv-detail-label">Source quote ${cite.page ? `(p. ${cite.page})` : ''}</span><blockquote>${escapeHtml(cite.quote || '')}</blockquote></div>` : ''}
+          ${cell.status === 'error' && cell.status_detail ? `<div class="rv-detail-err"><span class="rv-detail-label">Error</span><pre>${escapeHtml(cell.status_detail)}</pre></div>` : ''}
+        </div>
+      </div>`;
+    detail.querySelector('[data-close]').addEventListener('click', () => detail.hidden = true);
+    detail.addEventListener('click', (e) => { if (e.target === detail) detail.hidden = true; });
+  }
+
+  let pollTimer = null;
+  async function pollLoop(id) {
+    if (pollTimer) clearTimeout(pollTimer);
+    if (!gridState) return;
+    const status = gridState.review?.status;
+    if (status === 'complete' || status === 'error' || status === 'partial') return;
+    pollTimer = setTimeout(async () => {
+      await loadGrid(id);
+      pollLoop(id);
+    }, 2500);
+  }
+
+  // ============================================================
+  // ROUTE
+  // ============================================================
+  if (reviewId) renderGridView(reviewId);
+  else renderListView();
+</script>
+</body>
+</html>

@@ -413,6 +413,81 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 }
 .composer-paperclip:hover { border-color: var(--ink); color: var(--ink); }
 
+/* ---------- Tabular reviews ---------- */
+.rv-status-pill {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+  margin-right: 8px;
+}
+.rv-status-done { background: rgba(10,125,87,.12); color: #0a7d57; }
+.rv-status-run  { background: rgba(56,98,170,.14); color: #3862aa; }
+.rv-status-err  { background: rgba(178,34,34,.14); color: #b22222; }
+.rv-status-part { background: rgba(184,127,0,.16); color: #b87f00; }
+.rv-status-pen  { background: rgba(0,0,0,.06);    color: var(--ink-3); }
+
+/* New-review modal */
+.rv-modal { width: min(720px, 92vw); max-height: 86vh; }
+.rv-field { display: block; margin-bottom: 16px; }
+.rv-field-label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.rv-field input[type="text"], .rv-field select, .rv-field textarea {
+  width: 100%; padding: 8px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  font-family: var(--sans); font-size: 13.5px;
+  background: var(--paper); color: var(--ink);
+}
+.rv-doc-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--rule-soft); border-radius: 6px; padding: 4px; }
+.rv-doc-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+.rv-doc-item:hover { background: var(--paper-2); }
+.rv-doc-name { flex: 1; font-size: 13px; }
+.rv-doc-meta { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.rv-cols { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.rv-col-row { display: grid; grid-template-columns: 1fr 2fr 28px; gap: 8px; align-items: stretch; }
+.rv-col-row .rv-col-name { padding: 6px 10px; border: 1px solid var(--rule-soft); border-radius: 4px; font-size: 13px; }
+.rv-col-row .rv-col-prompt { padding: 6px 10px; border: 1px solid var(--rule-soft); border-radius: 4px; font-size: 12.5px; resize: vertical; min-height: 44px; }
+.rv-col-del { background: transparent; border: 1px solid var(--rule-soft); border-radius: 4px; cursor: pointer; color: var(--ink-3); font-size: 14px; }
+.rv-col-del:hover { background: #b22222; color: white; border-color: #b22222; }
+.rv-add-col { background: transparent; border: 1px dashed var(--rule-soft); border-radius: 4px; padding: 6px 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); cursor: pointer; }
+.rv-add-col:hover { color: var(--ink); border-color: var(--ink); }
+.rv-foot-hint { font-family: var(--mono); font-size: 11px; color: var(--ink-3); flex: 1; }
+
+/* Grid view */
+.rv-shell { padding: 24px 32px 60px; max-width: 100%; overflow-x: auto; }
+.rv-head { display: flex; align-items: baseline; gap: 18px; margin-bottom: 18px; flex-wrap: wrap; }
+.rv-back { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); text-decoration: none; }
+.rv-back:hover { color: var(--ink); }
+.rv-title { font-family: var(--serif); font-weight: 400; font-size: 28px; margin: 0; color: var(--ink); }
+.rv-head-meta { display: flex; align-items: center; gap: 8px; }
+.rv-counter { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.rv-grid-wrap { border: 1px solid var(--rule-soft); border-radius: 8px; background: var(--paper); overflow: auto; max-width: 100%; }
+.rv-grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rv-grid th, .rv-grid td { padding: 10px 12px; border-bottom: 1px solid var(--rule-soft); border-right: 1px solid var(--rule-soft); vertical-align: top; }
+.rv-grid th:last-child, .rv-grid td:last-child { border-right: none; }
+.rv-grid tr:last-child td { border-bottom: none; }
+.rv-th { background: var(--paper-2); text-align: left; font-weight: 500; min-width: 200px; max-width: 320px; }
+.rv-th-doc { width: 220px; }
+.rv-th-name { font-family: var(--serif); font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+.rv-th-prompt { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: .02em; line-height: 1.45; max-height: 28px; overflow: hidden; }
+.rv-td-doc { background: var(--paper-2); position: sticky; left: 0; z-index: 1; }
+.rv-doc-row-name { font-weight: 500; word-break: break-word; }
+
+.rv-cell { cursor: default; transition: background .12s ease; }
+.rv-cell-done { cursor: pointer; }
+.rv-cell-done:hover { background: var(--paper-2); }
+.rv-cell-pending, .rv-cell-running { color: var(--ink-3); font-family: var(--mono); font-size: 11px; }
+.rv-cell-error { color: #b22222; font-family: var(--mono); font-size: 11px; cursor: pointer; }
+.rv-cell-answer { line-height: 1.45; word-break: break-word; }
+.rv-cell-cite { margin-top: 6px; font-family: var(--mono); font-size: 10px; color: var(--accent-deep); letter-spacing: .03em; }
+.rv-spin { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3862aa; margin-right: 6px; animation: rvpulse 1.2s ease-in-out infinite; vertical-align: middle; }
+@keyframes rvpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* Cell detail modal */
+.rv-detail-body { display: flex; flex-direction: column; gap: 14px; }
+.rv-detail-meta { font-size: 13px; color: var(--ink-2); }
+.rv-detail-label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+.rv-detail-q div, .rv-detail-a div { font-size: 14px; line-height: 1.55; }
+.rv-detail-quote blockquote { margin: 0; padding: 12px 16px; border-left: 3px solid var(--accent-deep); background: var(--paper-2); font-size: 13.5px; line-height: 1.55; font-style: italic; }
+.rv-detail-err pre { background: rgba(178,34,34,.06); padding: 10px; border-radius: 4px; font-size: 11.5px; overflow-x: auto; }
+
 /* ---------- Account / BYOK ---------- */
 .acct-byok-intro p { font-size: 14px; line-height: 1.55; color: var(--ink-2); margin: 0 0 16px; }
 .acct-byok-rows { display: flex; flex-direction: column; gap: 18px; }

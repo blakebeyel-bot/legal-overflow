@@ -86,6 +86,10 @@
 [functions."workspace-chat-send"]
   timeout = 300
 
+# Tabular reviews fanout: N×M LLM calls, runs background up to 15 min.
+[functions."workspace-tr-run-background"]
+  timeout = 900
+
 # Daily 3 AM UTC purge of user uploads older than 30 days. Implements
 # the data-retention promise in /legal/privacy/ (sections 4 + 5) and
 # Florida Rule 4-1.6 confidentiality minimization. Auth gate uses the
