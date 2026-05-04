@@ -80,6 +80,12 @@
 [functions."upload-playbook"]
   timeout = 120
 
+# Workspace chat streaming. AWS Lambda response-streaming caps at 15 min,
+# but typical chat responses finish well under 60s. Set 5 min to leave
+# headroom for very long responses without holding sockets open forever.
+[functions."workspace-chat-send"]
+  timeout = 300
+
 # Daily 3 AM UTC purge of user uploads older than 30 days. Implements
 # the data-retention promise in /legal/privacy/ (sections 4 + 5) and
 # Florida Rule 4-1.6 confidentiality minimization. Auth gate uses the
