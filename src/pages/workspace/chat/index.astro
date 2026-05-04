@@ -72,19 +72,38 @@
   const supabase = getSupabase();
 
   document.body.style.visibility = 'hidden';
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    const here = location.pathname + location.search;
-    location.href = '/login/?redirect=' + encodeURIComponent(here);
-    throw new Error('not signed in');
+  let session = null;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    session = data?.session || null;
+    if (!session) {
+      const here = location.pathname + location.search;
+      location.href = '/login/?redirect=' + encodeURIComponent(here);
+      throw new Error('not signed in');
+    }
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
+    if (profileErr) throw profileErr;
+    if (!profile) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">No profile</h1><p>We could not find a profile for your account. Try signing out and creating the account again.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('no profile');
+    }
+    if (!profile.approved_at) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('pending approval');
+    }
+    document.body.style.visibility = '';
+  } catch (err) {
+    if (err && err.message && !['pending approval','no profile','not signed in'].includes(err.message)) {
+      console.error('Workspace chat gate failed:', err);
+      document.body.style.visibility = '';
+      document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Workspace error</h1><p>The chat failed to load. Open your browser console for details.</p><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap;word-break:break-word">${(err && err.message ? err.message : String(err)).replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
+    }
+    throw err;
   }
-  const { data: profile } = await supabase
-    .from('profiles').select('approved_at').eq('id', session.user.id).single();
-  if (!profile?.approved_at) {
-    document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval. We review every signup before granting workspace access.</p><p><a href="/">Back to homepage</a></p></main>';
-    throw new Error('pending approval');
-  }
-  document.body.style.visibility = '';
 
   const accessToken = session.access_token;
   const chatId = new URL(location.href).searchParams.get('id');
@@ -105,18 +124,55 @@
     newChat: document.getElementById('new-chat'),
   };
 
-  // Model catalog mirrors netlify/lib/llm-providers.js (kept in sync by hand).
-  const MODELS = [
+  // Models are fetched live from /api/workspace-models-list which pulls
+  // each provider's current model catalog. The list updates whenever
+  // a provider ships a new model (cache TTL 1h server, 24h browser).
+  // Fallback list keeps the dropdown usable if the API fails.
+  const MODEL_CACHE_KEY = 'workspace.models.v4';   // bump on dropdown shape changes
+  const MODEL_CACHE_TTL = 24 * 60 * 60 * 1000;
+  const FALLBACK_MODELS = [
     { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic' },
-    { id: 'claude-opus-4-5', label: 'Claude Opus 4.5', provider: 'anthropic' },
-    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic' },
-    { id: 'gpt-5', label: 'GPT-5', provider: 'openai' },
-    { id: 'gpt-5-mini', label: 'GPT-5 mini', provider: 'openai' },
-    { id: 'gpt-4.1', label: 'GPT-4.1', provider: 'openai' },
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google' },
+    { id: 'gpt-5-mini',        label: 'GPT-5 mini',        provider: 'openai' },
+    { id: 'gemini-2.5-flash',  label: 'Gemini 2.5 Flash',  provider: 'google' },
   ];
-  els.model.innerHTML = MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+  function renderModelOptions(models, current) {
+    const byProvider = { anthropic: [], openai: [], google: [], xai: [] };
+    for (const m of models) (byProvider[m.provider] || []).push(m);
+    const optGroup = (label, items) =>
+      items.length
+        ? `<optgroup label="${label}">${items.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === current ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}</optgroup>`
+        : '';
+    els.model.innerHTML =
+      optGroup('Anthropic', byProvider.anthropic) +
+      optGroup('OpenAI', byProvider.openai) +
+      optGroup('Google', byProvider.google) +
+      optGroup('xAI', byProvider.xai);
+  }
+  function loadCachedModels() {
+    try {
+      const raw = localStorage.getItem(MODEL_CACHE_KEY);
+      if (!raw) return null;
+      const { models, ts } = JSON.parse(raw);
+      if (!Array.isArray(models) || Date.now() - ts > MODEL_CACHE_TTL) return null;
+      return models;
+    } catch { return null; }
+  }
+  async function refreshModels(currentSelection) {
+    try {
+      const r = await fetch('/.netlify/functions/workspace-models-list', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok || !Array.isArray(j.models)) return;
+      const models = j.models;
+      renderModelOptions(models, currentSelection || els.model.value);
+      try { localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ models, ts: Date.now() })); } catch {}
+    } catch (err) {
+      console.warn('models refresh failed', err);
+    }
+  }
+  // Show cached or fallback immediately; refresh in background.
+  renderModelOptions(loadCachedModels() || FALLBACK_MODELS, null);
 
   let chat = null;
   let messages = [];
@@ -126,11 +182,44 @@
   function escapeHtml(s) {
     return String(s ?? '').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
   }
-  function renderMarkdownInline(text) {
-    // Very small inline formatter: bold **x**, italic *x*, line breaks.
-    let out = escapeHtml(text);
-    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  function renderMarkdownInline(text, opts = {}) {
+    // Inline-only markdown: bold, italic, inline code, line breaks,
+    // plus a safety net for headings (we ask the model NOT to use
+    // them, but if one slips through we render as a styled span
+    // rather than leaving raw `#` characters visible).
+    //
+    // While streaming (opts.optimistic) we render any UNCLOSED
+    // trailing marker as if it were already closed — `**foo` becomes
+    // <strong>foo</strong>. When the closing pair arrives, the
+    // formatting is unchanged and the marker characters never
+    // appeared. This is what eliminates the `**` flash.
+    let out = escapeHtml(text || '');
+    // 0. Headings (safety net — the model is instructed not to use these).
+    //    Match `#`, `##`, `###` at start of a line; turn into a styled span.
+    out = out.replace(/^(#{1,3})\s+([^\n]*)$/gm, (_m, hashes, body) => {
+      const level = hashes.length;
+      const cls = level === 1 ? 'msg-h1' : (level === 2 ? 'msg-h2' : 'msg-h3');
+      return `<span class="${cls}">${body}</span>`;
+    });
+    // 1. Closed bold pairs first (greedy on `**`s, lazy on inner text).
+    out = out.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+    if (opts.optimistic) {
+      // 2. Unclosed trailing bold opener — render as open <strong>.
+      out = out.replace(/\*\*([^*\n]*)$/, '<strong>$1</strong>');
+    }
+    // 3. Closed italic pairs (single `*`, not part of `**`).
+    out = out.replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
+    if (opts.optimistic) {
+      // 4. Unclosed trailing italic opener.
+      out = out.replace(/(^|[^*])\*([^*\n]*)$/, '$1<em>$2</em>');
+    }
+    // 5. Closed inline code spans.
+    out = out.replace(/`([^`\n]+?)`/g, '<code>$1</code>');
+    if (opts.optimistic) {
+      // 6. Unclosed trailing code span.
+      out = out.replace(/`([^`\n]*)$/, '<code>$1</code>');
+    }
+    // 7. Line breaks.
     out = out.replace(/\n/g, '<br>');
     return out;
   }
@@ -143,42 +232,139 @@
     els.messages.scrollTop = els.messages.scrollHeight;
   }
 
+  // Per-chat content cache. Stores chat metadata + messages keyed by
+  // chat id, so reload-on-an-existing-chat renders instantly from
+  // localStorage instead of waiting for the network round-trip. The
+  // server fetch runs in the background and silently overwrites the
+  // cache when it returns. Only complete (non-streaming) messages are
+  // cached.
+  const CHAT_CACHE_KEY = 'workspace.chat.' + chatId;
+
+  function renderMessages(msgs) {
+    if (!msgs?.length) {
+      els.messages.innerHTML = '<div class="chat-empty">Ask something. The legal research desk is open.</div>';
+      return;
+    }
+    els.messages.innerHTML = msgs
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => bubble(m.role, m.content || ''))
+      .join('');
+    scrollToBottom();
+  }
+
+  function applyChatMeta(meta) {
+    if (!meta) return;
+    els.title.value = meta.title || '';
+    els.title.placeholder = 'Untitled chat';
+    if (meta.model) els.model.value = meta.model;
+  }
+
+  function loadChatFromCache() {
+    try {
+      const raw = localStorage.getItem(CHAT_CACHE_KEY);
+      if (!raw) return false;
+      const cached = JSON.parse(raw);
+      if (!cached?.messages) return false;
+      chat = cached.chat || null;
+      messages = cached.messages || [];
+      applyChatMeta(chat);
+      renderMessages(messages);
+      return true;
+    } catch { return false; }
+  }
+
   async function loadChat() {
     const r = await fetch(`/.netlify/functions/workspace-chats-get?id=${encodeURIComponent(chatId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const j = await r.json();
     if (!r.ok) {
-      els.messages.innerHTML = `<div class="chat-empty">Failed to load chat: ${escapeHtml(j.error || 'unknown')}</div>`;
+      // If we already painted from cache, leave the cache visible and
+      // surface the error in the title; otherwise show the empty
+      // state with the error.
+      if (!chat) {
+        els.messages.innerHTML = `<div class="chat-empty">Failed to load chat: ${escapeHtml(j.error || 'unknown')}</div>`;
+      }
       return;
     }
     chat = j.chat;
     messages = j.messages || [];
-    els.title.value = chat.title || '';
-    els.title.placeholder = 'Untitled chat';
-    if (chat.model) els.model.value = chat.model;
-    if (!messages.length) {
-      els.messages.innerHTML = '<div class="chat-empty">Ask something. The legal research desk is open.</div>';
-    } else {
-      els.messages.innerHTML = messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => bubble(m.role, m.content || ''))
-        .join('');
-      scrollToBottom();
-    }
+    applyChatMeta(chat);
+    renderMessages(messages);
+    // Update cache with fresh data.
+    try {
+      localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages }));
+    } catch {}
   }
 
-  async function loadRail() {
-    const r = await fetch('/.netlify/functions/workspace-chats-list?limit=30', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const j = await r.json();
-    if (!r.ok) return;
-    els.railList.innerHTML = (j.chats || []).map((c) => {
+  // Cache the sidebar list in localStorage. The cache renders
+  // instantly on reload so the sidebar isn't blank during the network
+  // round-trip; the live list overwrites it as soon as the fetch
+  // returns. Per-user key so multi-account testing works cleanly.
+  const RAIL_CACHE_KEY = 'workspace.rail.' + (session.user?.id || 'anon');
+  function renderRail(chats) {
+    els.railList.innerHTML = (chats || []).map((c) => {
       const title = c.title || 'Untitled';
       const cls = c.id === chatId ? 'rail-row is-active' : 'rail-row';
-      return `<a href="/workspace/chat/?id=${c.id}" class="${cls}" title="${escapeHtml(title)}">${escapeHtml(title)}</a>`;
+      return `<div class="rail-row-wrap">
+        <a href="/workspace/chat/?id=${c.id}" class="${cls}" title="${escapeHtml(title)}">${escapeHtml(title)}</a>
+        <button type="button" class="rail-row-del" data-del="${c.id}" data-title="${escapeHtml(title)}" aria-label="Delete chat" title="Delete">×</button>
+      </div>`;
     }).join('');
+
+    // Wire delete buttons. If the user deletes the CURRENTLY-OPEN
+    // chat, send them back to the workspace landing.
+    els.railList.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.del;
+        const t = btn.dataset.title;
+        if (!confirm(`Delete "${t}"? This cannot be undone.`)) return;
+        btn.disabled = true;
+        const r = await fetch('/.netlify/functions/workspace-chats-delete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          alert('Delete failed: ' + (j.error || 'unknown'));
+          btn.disabled = false;
+          return;
+        }
+        try { localStorage.removeItem(RAIL_CACHE_KEY); } catch {}
+        if (id === chatId) {
+          location.href = '/workspace/';
+          return;
+        }
+        loadRail();
+      });
+    });
+  }
+  function renderRailFromCache() {
+    try {
+      const raw = localStorage.getItem(RAIL_CACHE_KEY);
+      if (!raw) return false;
+      const cached = JSON.parse(raw);
+      if (!Array.isArray(cached) || cached.length === 0) return false;
+      renderRail(cached);
+      return true;
+    } catch { return false; }
+  }
+  async function loadRail() {
+    try {
+      const r = await fetch('/.netlify/functions/workspace-chats-list?limit=30', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) return;
+      const chats = j.chats || [];
+      renderRail(chats);
+      try { localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify(chats)); } catch {}
+    } catch (err) {
+      console.error('rail load failed', err);
+    }
   }
 
   async function sendMessage(text) {
@@ -192,16 +378,84 @@
     els.messages.insertAdjacentHTML('beforeend', bubble('user', text));
     scrollToBottom();
 
-    // assistant bubble (will fill in via stream)
+    // assistant bubble: msg-text gets re-rendered with live markdown
+    // every drainer frame, so bold/italic/code formatting appears
+    // progressively as the response streams (no raw `**` showing then
+    // disappearing). The drainer ticks at most ~60Hz so the renders
+    // are cheap even for long responses.
     const asstId = 'pending-' + Date.now();
-    els.messages.insertAdjacentHTML('beforeend', `<div class="msg asst" data-pending="${asstId}"><div class="msg-body"><span class="cursor">▍</span></div></div>`);
-    const asstEl = els.messages.querySelector(`[data-pending="${asstId}"] .msg-body`);
+    els.messages.insertAdjacentHTML('beforeend', `<div class="msg asst" data-pending="${asstId}"><div class="msg-body"><span class="msg-text"></span><span class="cursor">▍</span></div></div>`);
+    const asstWrap = els.messages.querySelector(`[data-pending="${asstId}"] .msg-body`);
+    const asstText = asstWrap.querySelector('.msg-text');
+    const asstCursor = asstWrap.querySelector('.cursor');
+    let displayed = '';   // chars actually shown to user (drained from smoothBuffer)
     scrollToBottom();
 
     let acc = '';
     let titleFromServer = null;
+
+    // Smoothing queue. Tokens from the model arrive in bursts (Anthropic
+    // batches tokens server-side, OpenAI sends 1-3 at a time). Pushing
+    // them straight into the DOM gives a stuttery feel. Instead we
+    // buffer the inbound text and drain it at ~60fps with an adaptive
+    // chunk size: when the buffer is small we drain slowly (1 char per
+    // frame); when it's large we drain faster so we never lag too far
+    // behind. Same trick the major chat UIs use to make streaming
+    // feel like a steady typewriter.
+    let smoothBuffer = '';
+    let streamFinished = false;
+    let drainerRunning = false;
+    // Base draw rate, chars/sec. Conversational pace.
+    const BASE_CHARS_PER_SEC = 35;
+    let charBudget = 0;   // fractional chars not yet drawn
+    function startDrainer() {
+      if (drainerRunning) return;
+      drainerRunning = true;
+      let lastTime = performance.now();
+      function tick(now) {
+        const elapsed = now - lastTime;
+        lastTime = now;
+        if (smoothBuffer.length === 0) {
+          if (streamFinished) {
+            drainerRunning = false;
+            return;
+          }
+          requestAnimationFrame(tick);
+          return;
+        }
+        // Time-based budget for precise CPS control. At BASE we add
+        // (BASE * elapsed / 1000) chars to the budget each frame, then
+        // draw floor(budget) chars and keep the fractional remainder.
+        // This gives exactly BASE_CHARS_PER_SEC over time, regardless
+        // of frame rate (60fps, 30fps, even bursty frames).
+        let rate = BASE_CHARS_PER_SEC;
+        // Catch-up: if the API has run far ahead (large buffer),
+        // accelerate gently so we don't lag visibly behind. Caps at
+        // ~3x base so reading rhythm stays steady.
+        if (smoothBuffer.length > 600) rate = BASE_CHARS_PER_SEC * 3;
+        else if (smoothBuffer.length > 300) rate = BASE_CHARS_PER_SEC * 2;
+        else if (smoothBuffer.length > 120) rate = BASE_CHARS_PER_SEC * 1.4;
+        charBudget += (rate * elapsed) / 1000;
+        const chunkSize = Math.min(Math.floor(charBudget), smoothBuffer.length);
+        if (chunkSize > 0) {
+          charBudget -= chunkSize;
+          const chunk = smoothBuffer.slice(0, chunkSize);
+          smoothBuffer = smoothBuffer.slice(chunkSize);
+          displayed += chunk;
+          // Live markdown with optimistic open-marker rendering so
+          // `**` becomes bold immediately, no flash.
+          asstText.innerHTML = renderMarkdownInline(displayed, { optimistic: true });
+          scrollToBottom();
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
     try {
-      const res = await fetch('/.netlify/functions/workspace-chat-send', {
+      // Use the Edge Function path — Netlify edge runtime streams Web
+      // Response bodies natively without the chunk-batching that
+      // regular Netlify Functions can introduce.
+      const res = await fetch('/api/workspace-chat-stream', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, content: text, model: els.model.value }),
@@ -234,8 +488,10 @@
             els.keySource.textContent = evt.key_source === 'user' ? 'using your key' : '';
           } else if (event === 'text' && evt.delta) {
             acc += evt.delta;
-            asstEl.innerHTML = renderMarkdownInline(acc) + '<span class="cursor">▍</span>';
-            scrollToBottom();
+            // Push into the smoothing buffer; the rAF drainer will
+            // dispense it to the DOM at a steady rate.
+            smoothBuffer += evt.delta;
+            startDrainer();
           } else if (event === 'done') {
             titleFromServer = evt.title;
           } else if (event === 'error') {
@@ -243,9 +499,36 @@
           }
         }
       }
-      asstEl.innerHTML = renderMarkdownInline(acc);
+      // Stream finished. Wait for the smoothing buffer to fully drain
+      // (so the user sees the last few chars typed in) before
+      // applying the final markdown render.
+      streamFinished = true;
+      while (smoothBuffer.length > 0) {
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      asstCursor.remove();
+      // If no content was received at all, surface a clear fallback
+      // (some models — especially Gemini — silently return empty
+      // bodies under their own safety filters even when the stream
+      // technically "completes" without an error event).
+      if (acc.length === 0) {
+        asstWrap.innerHTML = '<span class="msg-error">No response received. The model may have refused or hit a content filter. Try rephrasing or switching models.</span>';
+        return;
+      }
+      // Final render — no hideOpenMarkers because the response is
+      // complete; any orphan `*` should display as-is.
+      asstText.innerHTML = renderMarkdownInline(acc);
+      // Append to in-memory cache so reload reflects the new turn.
+      messages.push({ role: 'user', content: text, status: 'complete' });
+      messages.push({ role: 'assistant', content: acc, status: 'complete' });
+      try {
+        localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages }));
+      } catch {}
     } catch (err) {
-      asstEl.innerHTML = `<span class="msg-error">Error: ${escapeHtml(err.message || String(err))}</span>`;
+      // Make the drainer exit so it's not spinning in the background.
+      streamFinished = true;
+      asstWrap.innerHTML = `<span class="msg-error">${escapeHtml(err.message || String(err))}</span>`;
+      console.error('Chat send error:', err);
     } finally {
       sending = false;
       els.send.disabled = false;
@@ -296,8 +579,15 @@
     if (j.id) location.href = `/workspace/chat/?id=${j.id}`;
   });
 
-  await loadChat();
-  loadRail();
+  // Render BOTH sidebar and chat content from localStorage cache
+  // immediately so reload feels instant. The server fetch then runs
+  // in parallel and silently overwrites if anything changed.
+  loadChatFromCache();
+  renderRailFromCache();
+  Promise.all([
+    loadChat().then(() => refreshModels(chat?.model)),
+    loadRail(),
+  ]);
   els.input.focus();
 </script>
 </body>

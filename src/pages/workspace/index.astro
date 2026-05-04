@@ -76,25 +76,110 @@
 
   const supabase = getSupabase();
 
-  // Auth gate: signed-in + approved. Hide body until both pass.
+  // Auth gate: signed-in + approved. We hide the body upfront so a
+  // non-approved user never glimpses the workspace UI shell. Anything
+  // that throws below MUST land in the catch and reveal an error
+  // panel — otherwise the page sits blank forever and the user has no
+  // idea why.
   document.body.style.visibility = 'hidden';
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    location.href = '/login/?redirect=/workspace/';
-    throw new Error('not signed in — redirecting');
+  let session = null;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    session = data?.session || null;
+    if (!session) {
+      location.href = '/login/?redirect=/workspace/';
+      throw new Error('not signed in — redirecting');
+    }
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles').select('tier, approved_at').eq('id', session.user.id).maybeSingle();
+    if (profileErr) throw profileErr;
+    if (!profile) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">No profile</h1><p>We could not find a profile for your account. This usually means signup did not finish. Try signing out and creating the account again, or contact the operator.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('no profile');
+    }
+    if (!profile.approved_at) {
+      document.body.style.visibility = '';
+      document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval. We review every signup before granting workspace access.</p><p><a href="/">Back to homepage</a></p></main>';
+      throw new Error('pending approval');
+    }
+    document.body.style.visibility = '';
+  } catch (err) {
+    // If something unexpected blew up, surface it instead of leaving
+    // a blank page. Re-throw at the end so dev tools still see it.
+    if (err && err.message && !['pending approval','no profile','not signed in — redirecting'].includes(err.message)) {
+      console.error('Workspace gate failed:', err);
+      document.body.style.visibility = '';
+      document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Workspace error</h1><p>The workspace failed to load. Open your browser console for full details.</p><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap;word-break:break-word">${(err && err.message ? err.message : String(err)).replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]))}</pre><p><a href="/">Back to homepage</a></p></main>`;
+    }
+    throw err;
   }
-  const { data: profile } = await supabase
-    .from('profiles').select('tier, approved_at').eq('id', session.user.id).single();
-  if (!profile?.approved_at) {
-    document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval. We review every signup before granting workspace access. You will receive an email when approved.</p><p><a href="/">Back to homepage</a></p></main>';
-    throw new Error('pending approval');
-  }
-  document.body.style.visibility = '';
 
   const chatList = document.getElementById('chat-list');
   const newChatBtn = document.getElementById('new-chat');
   const accessToken = session.access_token;
 
+  // Same localStorage cache key as the chat page. Renders immediately
+  // on reload so the chat list is never visibly empty during the
+  // network round-trip; the fresh fetch overwrites it.
+  const RAIL_CACHE_KEY = 'workspace.rail.' + (session.user?.id || 'anon');
+
+  function renderChats(chats) {
+    if (!chats?.length) {
+      chatList.innerHTML = '<div class="ws-empty">No chats yet. Click "New chat" above to start one.</div>';
+      return;
+    }
+    chatList.innerHTML = chats.map((c) => {
+      const title = (c.title || 'Untitled chat').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
+      const date = new Date(c.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      // Delete button is a sibling button (not nested inside the
+      // anchor) so clicking it doesn't trigger row navigation.
+      return `<div class="ws-row-wrap">
+        <a href="/workspace/chat/?id=${c.id}" class="ws-row">
+          <span class="ws-row-title">${title}</span>
+          <span class="ws-row-meta">${c.model || ''} · ${date}</span>
+        </a>
+        <button type="button" class="ws-row-del" data-del="${c.id}" data-title="${title}" aria-label="Delete chat" title="Delete chat">×</button>
+      </div>`;
+    }).join('');
+
+    // Wire delete handlers
+    chatList.querySelectorAll('[data-del]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.del;
+        const title = btn.dataset.title;
+        if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+        btn.disabled = true;
+        const r = await fetch('/.netlify/functions/workspace-chats-delete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          alert('Delete failed: ' + (j.error || 'unknown'));
+          btn.disabled = false;
+          return;
+        }
+        // Invalidate cache and refetch
+        try { localStorage.removeItem(RAIL_CACHE_KEY); } catch {}
+        loadChats();
+      });
+    });
+  }
+  function renderFromCache() {
+    try {
+      const raw = localStorage.getItem(RAIL_CACHE_KEY);
+      if (!raw) return false;
+      const cached = JSON.parse(raw);
+      if (!Array.isArray(cached) || cached.length === 0) return false;
+      renderChats(cached);
+      return true;
+    } catch { return false; }
+  }
   async function loadChats() {
     const r = await fetch('/.netlify/functions/workspace-chats-list', {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -104,18 +189,9 @@
       chatList.innerHTML = `<div class="ws-empty">Failed to load chats: ${j.error || 'unknown'}</div>`;
       return;
     }
-    if (!j.chats?.length) {
-      chatList.innerHTML = '<div class="ws-empty">No chats yet. Click "New chat" above to start one.</div>';
-      return;
-    }
-    chatList.innerHTML = j.chats.map((c) => {
-      const title = (c.title || 'Untitled chat').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
-      const date = new Date(c.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-      return `<a href="/workspace/chat/?id=${c.id}" class="ws-row">
-        <span class="ws-row-title">${title}</span>
-        <span class="ws-row-meta">${c.model || ''} · ${date}</span>
-      </a>`;
-    }).join('');
+    const chats = j.chats || [];
+    renderChats(chats);
+    try { localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify(chats)); } catch {}
   }
 
   async function createChat() {
@@ -135,6 +211,8 @@
   }
 
   newChatBtn.addEventListener('click', createChat);
+  // Show cached list instantly, then refresh from server.
+  renderFromCache();
   loadChats();
 </script>
 </body>

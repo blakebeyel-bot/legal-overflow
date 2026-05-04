@@ -86,11 +86,14 @@ async function* streamAnthropic({ apiKey, model, system, messages, maxTokens, te
 
 // ---- OpenAI ---------------------------------------------------------------
 
-async function* streamOpenAI({ apiKey, model, system, messages, maxTokens, temperature }) {
+async function* streamOpenAI({ apiKey, model, system, messages, maxTokens }) {
   const oaMessages = [];
   if (system) oaMessages.push({ role: 'system', content: system });
   for (const m of messages) oaMessages.push({ role: m.role, content: m.content });
 
+  // GPT-5 era models reject the old `max_tokens` and only accept the
+  // default temperature. Use max_completion_tokens (newer name) and
+  // omit temperature so it stays at OpenAI's required default.
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -100,8 +103,7 @@ async function* streamOpenAI({ apiKey, model, system, messages, maxTokens, tempe
     body: JSON.stringify({
       model,
       messages: oaMessages,
-      max_tokens: maxTokens ?? 4096,
-      temperature: temperature ?? 0.4,
+      max_completion_tokens: maxTokens ?? 4096,
       stream: true,
       stream_options: { include_usage: true },
     }),

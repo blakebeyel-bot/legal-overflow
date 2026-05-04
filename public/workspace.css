@@ -26,11 +26,22 @@
 .ws-card-title { font-family: var(--serif); font-weight: 400; font-size: 20px; margin: 0; color: var(--ink); }
 
 .ws-list { display: flex; flex-direction: column; }
-.ws-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 14px 4px; border-bottom: 1px solid var(--rule-soft); text-decoration: none; color: var(--ink); transition: background .15s ease; }
-.ws-row:last-child { border-bottom: none; }
+.ws-row-wrap { position: relative; border-bottom: 1px solid var(--rule-soft); }
+.ws-row-wrap:last-child { border-bottom: none; }
+.ws-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 14px 40px 14px 4px; text-decoration: none; color: var(--ink); transition: background .15s ease; }
 .ws-row:hover { background: rgba(0,0,0,.02); }
 .ws-row-title { font-size: 15px; line-height: 1.4; flex: 1; }
 .ws-row-meta { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); }
+.ws-row-del {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  width: 26px; height: 26px; border-radius: 50%;
+  border: none; background: transparent; color: var(--ink-3);
+  font-size: 16px; line-height: 1; cursor: pointer;
+  opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease;
+}
+.ws-row-wrap:hover .ws-row-del { opacity: 1; }
+.ws-row-del:hover { background: #b22222; color: white; }
+.ws-row-del:disabled { opacity: .3; cursor: not-allowed; }
 
 .ws-empty { padding: 30px 0; text-align: center; color: var(--ink-3); font-size: 14px; }
 .ws-foot { margin-top: 32px; font-size: 13px; color: var(--ink-3); }
@@ -62,13 +73,24 @@
 }
 .chat-rail-new:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .chat-rail-list { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+.rail-row-wrap { position: relative; }
 .rail-row {
-  display: block; padding: 8px 10px; border-radius: 4px;
+  display: block; padding: 8px 28px 8px 10px; border-radius: 4px;
   font-size: 13px; color: var(--ink-2); text-decoration: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rail-row:hover { background: rgba(0,0,0,.04); color: var(--ink); }
 .rail-row.is-active { background: var(--ink); color: var(--paper); }
+.rail-row-del {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  border: none; background: transparent; color: var(--ink-3);
+  font-size: 13px; line-height: 1; cursor: pointer;
+  opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease;
+}
+.rail-row-wrap:hover .rail-row-del { opacity: 1; }
+.rail-row-del:hover { background: #b22222; color: white; }
+.rail-row.is-active + .rail-row-del { color: var(--paper); }
 
 .chat-main { display: flex; flex-direction: column; min-width: 0; }
 .chat-head {
@@ -78,9 +100,10 @@
 }
 .chat-title-input {
   flex: 1; border: none; background: transparent;
-  font-family: var(--serif); font-size: 18px; color: var(--ink);
+  font-family: var(--serif); font-size: 22px; line-height: 1.1; letter-spacing: -.01em; color: var(--ink);
   padding: 4px 0; outline: none;
 }
+.chat-title-input::placeholder { color: var(--ink-3); font-style: italic; }
 .chat-title-input:focus { border-bottom: 1px solid var(--rule-soft); }
 .chat-head-right { display: flex; align-items: center; gap: 10px; }
 .chat-model-select {
@@ -101,14 +124,51 @@
   margin-top: 60px;
 }
 
-.msg { max-width: 800px; }
-.msg.user { align-self: flex-end; background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: 12px 12px 2px 12px; }
-.msg.user .msg-body { font-size: 14.5px; line-height: 1.55; }
+/* Messages match the site's body type system. Same font (Geist sans),
+   same size cadence as article body, slightly looser line-height for
+   conversational reading. The user-message bubble is a softer "ink-on-
+   paper-2" treatment instead of a hard dark bubble so it visually
+   harmonizes with the rest of the site. */
+.msg { max-width: 800px; font-family: var(--sans); }
+.msg.user {
+  align-self: flex-end;
+  background: var(--paper-2);
+  color: var(--ink);
+  padding: 12px 18px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px 8px 2px 8px;
+}
+.msg.user .msg-body {
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -.005em;
+}
 .msg.asst { align-self: flex-start; max-width: 100%; padding: 4px 0; }
-.msg.asst .msg-body { font-size: 15px; line-height: 1.65; color: var(--ink); }
+.msg.asst .msg-body {
+  font-family: var(--sans);
+  font-size: 15.5px;
+  line-height: 1.65;
+  letter-spacing: -.005em;
+  color: var(--ink);
+}
 .msg-body strong { font-weight: 600; }
 .msg-body em { font-style: italic; }
-.msg-error { color: #b22222; font-style: italic; }
+.msg-body code { font-family: var(--mono); font-size: 13px; background: rgba(0,0,0,.05); padding: 1px 5px; border-radius: 3px; }
+.msg-body .msg-h1 { display: block; font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.1; margin: 14px 0 6px; color: var(--ink); letter-spacing: -.012em; }
+.msg-body .msg-h2 { display: block; font-family: var(--serif); font-weight: 500; font-size: 19px; line-height: 1.1; margin: 12px 0 4px; color: var(--ink); letter-spacing: -.01em; }
+.msg-body .msg-h3 { display: block; font-family: var(--sans); font-weight: 600; font-size: 15.5px; margin: 10px 0 4px; color: var(--ink); }
+.msg-error {
+  display: inline-block;
+  color: #722;
+  background: rgba(178,34,34,.08);
+  border: 1px solid rgba(178,34,34,.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-style: italic;
+}
 .cursor { display: inline-block; width: 8px; animation: blink 1s steps(2,start) infinite; color: var(--accent-deep); }
 @keyframes blink { to { visibility: hidden; } }
 
@@ -121,7 +181,7 @@
 .chat-composer textarea {
   flex: 1; padding: 12px 14px;
   border: 1px solid var(--rule-soft); border-radius: 6px;
-  font-family: var(--sans); font-size: 14.5px; line-height: 1.55;
+  font-family: var(--sans); font-size: 15px; line-height: 1.55; letter-spacing: -.005em;
   background: var(--paper); color: var(--ink);
   resize: vertical; min-height: 44px; max-height: 240px;
 }

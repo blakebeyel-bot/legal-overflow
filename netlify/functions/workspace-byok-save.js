@@ -6,7 +6,7 @@
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
 import { encryptForStorage, fingerprintForDisplay } from '../lib/encryption.js';
 
-const VALID = new Set(['anthropic', 'openai', 'google']);
+const VALID = new Set(['anthropic', 'openai', 'google', 'xai']);
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);

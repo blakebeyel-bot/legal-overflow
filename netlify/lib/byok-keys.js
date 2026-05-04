@@ -16,16 +16,40 @@
 import { getSupabaseAdmin } from './supabase-admin.js';
 import { decryptFromStorage } from './encryption.js';
 
+// Netlify's AI Gateway auto-injects ANTHROPIC_API_KEY and OPENAI_API_KEY
+// with JWT proxy tokens that fail 401 against the providers' APIs
+// directly. We read the LO_-prefixed direct keys first, and fall back
+// to the bare names only when the value matches a real provider key
+// prefix. Same pattern as netlify/lib/anthropic.js and the citation
+// verifier.
 const SERVER_KEY_ENV = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  google: 'GOOGLE_AI_API_KEY',
+  anthropic: ['LO_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'],
+  openai: ['LO_OPENAI_API_KEY', 'OPENAI_API_KEY'],
+  google: ['GOOGLE_AI_API_KEY'],
+  xai: ['XAI_API_KEY'],
 };
+
+function pickServerKey(provider) {
+  const candidates = SERVER_KEY_ENV[provider] || [];
+  for (const name of candidates) {
+    const v = process.env[name];
+    if (!v) continue;
+    // Skip Netlify AI-Gateway JWT proxies. Real provider keys start
+    // with recognizable prefixes; anything else is a Gateway token.
+    if (provider === 'anthropic' && !v.startsWith('sk-ant-')) continue;
+    if (provider === 'openai'    && !v.startsWith('sk-'))     continue;
+    if (provider === 'google'    && !v.startsWith('AIza'))    continue;
+    if (provider === 'xai'       && !v.startsWith('xai-'))    continue;
+    return v;
+  }
+  return null;
+}
 
 export async function resolveProviderKey({ userId, provider }) {
   if (!SERVER_KEY_ENV[provider]) {
     return { key: null, source: 'none', error: `Unknown provider: ${provider}` };
   }
+  // ---- 0. (in legacy code below) try user BYOK first, then fall back ----
 
   // 1. Try user's stored BYOK key first.
   if (userId) {
@@ -53,7 +77,7 @@ export async function resolveProviderKey({ userId, provider }) {
   }
 
   // 2. Fall back to server-wide env var.
-  const serverKey = process.env[SERVER_KEY_ENV[provider]];
+  const serverKey = pickServerKey(provider);
   if (serverKey) return { key: serverKey, source: 'server' };
 
   return { key: null, source: 'none' };
