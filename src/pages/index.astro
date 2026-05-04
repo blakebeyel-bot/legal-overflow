@@ -1,15 +1,47 @@
 ---
-import { getCollection } from 'astro:content';
+import { createClient } from '@supabase/supabase-js';
 import { phArt, formatDate, trackLabel, trackClass } from '../lib/phArt';
 import ArticleSection from '../partials/article-section.astro';
 import Consent from '../partials/consent.astro';
 import DownloadGate from '../partials/download-gate.astro';
 
-const all = (await getCollection('articles', ({ data }) => !data.draft))
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+// Articles are now read from Supabase at build time. The DB row shape
+// is mapped onto the same { slug, data: { ... } } shape the rest of
+// the code expects so partials don't need changes.
+const SUPABASE_URL = import.meta.env.SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const featured = all.find(a => a.data.featured) ?? all[0];
-const gridArticles = all.filter(a => a.slug !== featured?.slug);
+let all = [];
+if (SUPABASE_URL && SUPABASE_KEY) {
+  const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data, error } = await sb
+    .from('articles')
+    .select('*')
+    .eq('status', 'published')
+    .order('date', { ascending: false });
+  if (error) {
+    console.error('[index.astro] supabase error:', error.message);
+  } else {
+    all = (data || []).map((a) => ({
+      slug: a.slug,
+      data: {
+        title: a.title,
+        dek: a.dek,
+        kind: a.kind,
+        track: a.track,
+        readMinutes: a.read_minutes,
+        date: new Date(a.date),
+        topic: a.topic,
+        cover: a.cover,
+        cover_image_url: a.cover_image_url,
+        featured: a.featured,
+      },
+    }));
+  }
+}
+
+const featured = all.find((a) => a.data.featured) ?? all[0];
+const gridArticles = all.filter((a) => a.slug !== featured?.slug);
 ---
 <!doctype html>
 <html lang="en">
@@ -866,12 +898,19 @@ State X (UPC-based)
       <div><h5>Read</h5><a href="#articles">Resources</a><a href="#skills">Skills</a><a href="#services">Services</a><a href="#articles">Latest</a></div>
       <div><h5>About</h5><a href="/about/">Author</a><a href="/about/">Editorial standards</a><a href="/about/">Corrections</a></div>
       <div><h5>Elsewhere</h5><a href="#">Mastodon</a><a href="#">LinkedIn</a><a href="#">RSS</a><a href="#">Email</a></div>
-      <div><h5>Fine print</h5><a href="#">Not legal advice</a><a href="#">Privacy</a><a href="#">Colophon</a></div>
+      <div><h5>Fine print</h5><a href="/legal/disclaimer/">Disclaimer</a><a href="/legal/privacy/">Privacy</a><a href="/legal/terms/">Terms</a></div>
     </div>
+    <p class="foot-bar-disclosure">
+      <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+      The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+      Before you decide, ask for written information about the lawyer's qualifications and experience.
+      No representation is made that the quality of the legal services to be performed is greater than
+      the quality of legal services performed by other lawyers.
+    </p>
     <p class="foot-disclaimer">Claude™ and Claude Skills are trademarks of Anthropic PBC. GPT is a trademark of OpenAI. Gemini is a trademark of Google LLC. Westlaw is a trademark of Thomson Reuters. Legal Overflow is an independent publication and is not affiliated with, endorsed by, or sponsored by any of these companies.</p>
     <div class="foot-bot">
       <span>© 2026 Legal Overflow · Built by hand in Cocoa, Florida</span>
-      <span class="foot-version">v2026.04 · last deploy 2h ago</span>
+      <span class="foot-version">v2026.04 · last deploy 2h ago<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span>
     </div>
   </footer>
 

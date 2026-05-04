@@ -1,0 +1,418 @@
+---
+// Admin · Articles · Editor.
+// /admin/articles/edit/        → new article (no ?id query)
+// /admin/articles/edit/?id=... → edit existing article
+//
+// Reads/saves through admin-{get,save}-article. Uploads images via
+// admin-upload-image and inserts the returned URL into the markdown body.
+// Admin-only (the underlying APIs check tier='admin').
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin · Article editor — Legal Overflow</title>
+<meta name="robots" content="noindex,nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  .ed-wrap { max-width: 1280px; margin: 32px auto 80px; padding: 0 32px; }
+  .ed-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 12px; }
+  .ed-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 16px; flex-wrap: wrap; }
+  .ed-title { font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; letter-spacing: -.012em; margin: 0; }
+  .ed-status-pill { padding: 3px 10px; border-radius: 999px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .ed-status-pill.draft { background: rgba(180,83,9,.15); color: #b45309; }
+  .ed-status-pill.published { background: var(--accent-tint); color: var(--accent-deep); }
+
+  .ed-grid { display: grid; grid-template-columns: 1fr 320px; gap: 28px; margin-top: 24px; }
+  @media (max-width: 1000px) { .ed-grid { grid-template-columns: 1fr; } }
+
+  .ed-card { background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 8px; padding: 20px 22px; }
+  .ed-card h3 { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 14px; font-weight: 500; }
+
+  .ed-field { margin-bottom: 16px; }
+  .ed-field label { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  .ed-input, .ed-textarea, .ed-select {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: 6px;
+    background: var(--paper); color: var(--ink-1); font-family: var(--sans); font-size: 14px;
+    outline: none; transition: border-color .15s ease;
+  }
+  .ed-input:focus, .ed-textarea:focus, .ed-select:focus { border-color: var(--ink); }
+  .ed-textarea { resize: vertical; min-height: 100px; }
+  .ed-textarea.body { font-family: var(--mono); font-size: 13.5px; line-height: 1.55; min-height: 600px; }
+
+  .ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ed-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  .ed-help { font-size: 12px; color: var(--ink-3); margin-top: 4px; line-height: 1.45; }
+
+  .ed-actions { display: flex; flex-direction: column; gap: 10px; }
+  .ed-btn { padding: 11px 18px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ink); border-radius: 6px; cursor: pointer; }
+  .ed-btn.primary { background: var(--ink); color: var(--paper); }
+  .ed-btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .ed-btn.secondary { background: var(--paper); color: var(--ink-1); border-color: var(--rule); }
+  .ed-btn.secondary:hover { border-color: var(--ink); }
+  .ed-btn.danger { background: var(--paper); color: #b3532f; border-color: rgba(179,83,47,.4); }
+  .ed-btn.danger:hover { background: #b3532f; color: var(--paper); border-color: #b3532f; }
+
+  .ed-image-strip { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .ed-image-strip input[type=file] { font-size: 12px; }
+
+  .ed-toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 18px; background: var(--ink); color: var(--paper); border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .2s ease; pointer-events: none; z-index: 1000; }
+  .ed-toast.show { opacity: 1; }
+  .ed-toast.error { background: #b3532f; }
+
+  .ed-back-link { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-3); text-decoration: none; }
+  .ed-back-link:hover { color: var(--ink-1); }
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/agents/">Agents</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/admin/articles/">Admin</a>
+  </nav>
+</header>
+
+<main class="ed-wrap">
+  <a href="/admin/articles/" class="ed-back-link">← Back to articles</a>
+  <div class="ed-title-row" style="margin-top: 12px;">
+    <div>
+      <div class="ed-kicker">Admin · article editor</div>
+      <h1 class="ed-title" id="ed-title">New article</h1>
+    </div>
+    <span id="ed-status-pill" class="ed-status-pill draft">Draft</span>
+  </div>
+
+  <div class="ed-grid">
+    <!-- LEFT — main editor -->
+    <div>
+      <div class="ed-card">
+        <div class="ed-field">
+          <label for="ed-f-title">Title</label>
+          <input type="text" id="ed-f-title" class="ed-input" placeholder="A short, declarative headline" maxlength="240" />
+        </div>
+        <div class="ed-field">
+          <label for="ed-f-dek">Dek (subhead)</label>
+          <textarea id="ed-f-dek" class="ed-textarea" rows="2" maxlength="600" placeholder="One or two sentences. Plain HTML allowed for &lt;em&gt; emphasis."></textarea>
+          <div class="ed-help">Plain HTML for inline emphasis is OK (e.g. &lt;em&gt;italic&lt;/em&gt;). Keep it under ~30 words.</div>
+        </div>
+        <div class="ed-field">
+          <label for="ed-f-slug">Slug</label>
+          <input type="text" id="ed-f-slug" class="ed-input" placeholder="kebab-case-url-slug" />
+          <div class="ed-help">Auto-generated from title. Edit if needed. Must be unique across all articles. Lowercase letters, digits, hyphens only.</div>
+        </div>
+        <div class="ed-field">
+          <label for="ed-f-body">Body (markdown)</label>
+          <textarea id="ed-f-body" class="ed-textarea body" placeholder="# Heading
+
+Markdown body. Standard syntax — *italic*, **bold**, [links](https://...), images, code fences, etc.
+
+Insert images via the panel on the right; the URL will be appended to the bottom of the body."></textarea>
+          <div class="ed-help">Standard CommonMark + GFM. Images uploaded via the right-hand panel are appended at the bottom — cut and paste them where you want.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — sidebar (metadata + actions) -->
+    <div>
+      <div class="ed-card">
+        <h3>Publishing</h3>
+        <div class="ed-actions">
+          <button type="button" class="ed-btn secondary" id="ed-save-draft">Save draft</button>
+          <button type="button" class="ed-btn primary" id="ed-save-publish">Save &amp; publish</button>
+          <button type="button" class="ed-btn danger" id="ed-delete" style="display:none;">Delete article</button>
+        </div>
+        <div class="ed-help" style="margin-top: 10px;">Publishing triggers a site rebuild via Netlify Build Hook (if configured). New articles appear publicly in ~30-60s.</div>
+      </div>
+
+      <div class="ed-card" style="margin-top: 16px;">
+        <h3>Metadata</h3>
+        <div class="ed-row">
+          <div class="ed-field">
+            <label for="ed-f-track">Track</label>
+            <select id="ed-f-track" class="ed-select">
+              <option value="legal">Legal</option>
+              <option value="business">Business</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+          <div class="ed-field">
+            <label for="ed-f-kind">Kind</label>
+            <input type="text" id="ed-f-kind" class="ed-input" value="Essay" placeholder="Essay / Case Study / Field Note…" />
+          </div>
+        </div>
+        <div class="ed-row">
+          <div class="ed-field">
+            <label for="ed-f-read">Read time (min)</label>
+            <input type="number" id="ed-f-read" class="ed-input" min="1" max="60" value="5" />
+          </div>
+          <div class="ed-field">
+            <label for="ed-f-topic">Topic</label>
+            <input type="text" id="ed-f-topic" class="ed-input" value="General" />
+          </div>
+        </div>
+        <div class="ed-field">
+          <label for="ed-f-date">Publish date</label>
+          <input type="date" id="ed-f-date" class="ed-input" />
+        </div>
+        <div class="ed-field">
+          <label class="ed-checkbox-row" style="display:flex; align-items:center; gap:8px; text-transform:none; letter-spacing:0; font-size:13px; color:var(--ink-2); cursor:pointer;">
+            <input type="checkbox" id="ed-f-featured" />
+            <span>Featured article (shown larger on home page)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="ed-card" style="margin-top: 16px;">
+        <h3>Cover image</h3>
+        <div class="ed-field">
+          <label for="ed-f-cover-url">Cover image URL</label>
+          <input type="text" id="ed-f-cover-url" class="ed-input" placeholder="https://… or upload below" />
+          <div class="ed-help">Leave blank to use the placeholder pattern (set below).</div>
+        </div>
+        <div class="ed-field">
+          <label for="ed-f-cover">Placeholder pattern (used if no URL)</label>
+          <select id="ed-f-cover" class="ed-select">
+            <option>ph-a</option><option selected>ph-b</option><option>ph-c</option><option>ph-d</option>
+            <option>ph-e</option><option>ph-f</option><option>ph-g</option><option>ph-h</option>
+            <option>ph-i</option><option>ph-j</option><option>ph-k</option><option>ph-l</option><option>ph-m</option>
+          </select>
+        </div>
+        <div class="ed-field">
+          <label>Upload cover image</label>
+          <div class="ed-image-strip">
+            <input type="file" id="ed-cover-file" accept="image/*" />
+            <button type="button" class="ed-btn secondary" id="ed-cover-upload" style="padding:6px 12px; font-size:10.5px;">Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ed-card" style="margin-top: 16px;">
+        <h3>Inline images</h3>
+        <div class="ed-help" style="margin-top: -6px; margin-bottom: 12px;">Upload an image; the URL is appended to the bottom of the body as <code>![alt](url)</code>. Move it where you want.</div>
+        <div class="ed-image-strip">
+          <input type="file" id="ed-inline-file" accept="image/*" />
+          <button type="button" class="ed-btn secondary" id="ed-inline-upload" style="padding:6px 12px; font-size:10.5px;">Upload &amp; insert</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="ed-toast" class="ed-toast"></div>
+
+<script>
+  import { getSupabase } from '../../../../lib/supabase';
+  const supabase = getSupabase();
+
+  // Admin gate — non-admin signed-in users get redirected away before
+  // the editor renders.
+  document.body.style.visibility = 'hidden';
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/admin/articles/edit/';
+    throw new Error('not signed in');
+  }
+  const { data: meProfile } = await supabase
+    .from('profiles').select('tier').eq('id', session.user.id).single();
+  if (meProfile?.tier !== 'admin') {
+    location.href = '/';
+    throw new Error('admin only');
+  }
+  document.body.style.visibility = '';
+
+  const params = new URLSearchParams(location.search);
+  const articleId = params.get('id') || null;
+  let currentArticle = null;
+
+  const $ = (id) => document.getElementById(id);
+  const fields = {
+    title: $('ed-f-title'),
+    dek: $('ed-f-dek'),
+    slug: $('ed-f-slug'),
+    body: $('ed-f-body'),
+    track: $('ed-f-track'),
+    kind: $('ed-f-kind'),
+    read: $('ed-f-read'),
+    topic: $('ed-f-topic'),
+    date: $('ed-f-date'),
+    featured: $('ed-f-featured'),
+    coverUrl: $('ed-f-cover-url'),
+    cover: $('ed-f-cover'),
+  };
+  const titleEl = $('ed-title');
+  const statusPill = $('ed-status-pill');
+  const toast = $('ed-toast');
+
+  function showToast(msg, isError = false) {
+    toast.textContent = msg;
+    toast.classList.toggle('error', isError);
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+
+  function setStatusPill(status) {
+    statusPill.className = 'ed-status-pill ' + status;
+    statusPill.textContent = status === 'published' ? 'Published' : 'Draft';
+  }
+
+  function slugify(s) {
+    return String(s).toLowerCase().trim().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  // Auto-fill slug from title until user manually edits slug.
+  let slugManual = false;
+  fields.slug.addEventListener('input', () => { slugManual = true; });
+  fields.title.addEventListener('input', () => {
+    if (!slugManual) fields.slug.value = slugify(fields.title.value);
+  });
+
+  // Default date to today
+  fields.date.value = new Date().toISOString().slice(0, 10);
+
+  async function loadExisting() {
+    if (!articleId) {
+      $('ed-delete').style.display = 'none';
+      return;
+    }
+    const res = await fetch(`/.netlify/functions/admin-get-article?id=${encodeURIComponent(articleId)}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) {
+      showToast('Could not load article', true);
+      return;
+    }
+    const { article } = await res.json();
+    currentArticle = article;
+    titleEl.textContent = 'Edit article';
+    setStatusPill(article.status);
+    fields.title.value = article.title || '';
+    fields.dek.value = article.dek || '';
+    fields.slug.value = article.slug || '';
+    slugManual = true;
+    fields.body.value = article.body_md || '';
+    fields.track.value = article.track || 'legal';
+    fields.kind.value = article.kind || 'Essay';
+    fields.read.value = article.read_minutes || 5;
+    fields.topic.value = article.topic || 'General';
+    fields.date.value = article.date || new Date().toISOString().slice(0, 10);
+    fields.featured.checked = !!article.featured;
+    fields.coverUrl.value = article.cover_image_url || '';
+    fields.cover.value = article.cover || 'ph-b';
+    $('ed-delete').style.display = '';
+  }
+
+  function buildPayload(status) {
+    return {
+      id: articleId,
+      slug: fields.slug.value || slugify(fields.title.value),
+      title: fields.title.value,
+      dek: fields.dek.value,
+      kind: fields.kind.value || 'Essay',
+      track: fields.track.value || 'legal',
+      read_minutes: parseInt(fields.read.value, 10) || 5,
+      topic: fields.topic.value || 'General',
+      cover: fields.cover.value || 'ph-b',
+      cover_image_url: fields.coverUrl.value.trim() || null,
+      featured: !!fields.featured.checked,
+      status,
+      body_md: fields.body.value,
+      date: fields.date.value || new Date().toISOString().slice(0, 10),
+      trigger_rebuild: status === 'published',
+    };
+  }
+
+  async function save(status) {
+    if (!fields.title.value.trim()) return showToast('Title is required', true);
+    const payload = buildPayload(status);
+    if (!payload.slug) return showToast('Slug is required', true);
+    try {
+      const res = await fetch('/.netlify/functions/admin-save-article', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return showToast(data.error || 'Save failed', true);
+      currentArticle = data.article;
+      setStatusPill(currentArticle.status);
+      const rebuildSuffix = data.rebuild_triggered ? ' Rebuild triggered.' : '';
+      showToast(`Saved.${rebuildSuffix}`);
+      // If we just created a new article, swap the URL so the page now shows ?id=
+      if (!articleId && currentArticle?.id) {
+        const url = new URL(location.href);
+        url.searchParams.set('id', currentArticle.id);
+        history.replaceState({}, '', url.toString());
+        location.reload();
+      }
+    } catch (err) { showToast(err.message, true); }
+  }
+
+  $('ed-save-draft').addEventListener('click', () => save('draft'));
+  $('ed-save-publish').addEventListener('click', () => save('published'));
+
+  $('ed-delete').addEventListener('click', async () => {
+    if (!articleId) return;
+    if (!confirm('Delete this article? This cannot be undone.')) return;
+    const res = await fetch('/.netlify/functions/admin-delete-article', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: articleId }),
+    });
+    if (res.ok) location.href = '/admin/articles/';
+    else showToast('Delete failed', true);
+  });
+
+  // ---- Image uploads ----
+  async function uploadImage(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('slug', fields.slug.value || 'misc');
+    const res = await fetch('/.netlify/functions/admin-upload-image', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data.url;
+  }
+
+  $('ed-cover-upload').addEventListener('click', async () => {
+    const file = $('ed-cover-file').files?.[0];
+    if (!file) return showToast('Pick a file first', true);
+    try {
+      const url = await uploadImage(file);
+      fields.coverUrl.value = url;
+      showToast('Cover uploaded.');
+    } catch (err) { showToast(err.message, true); }
+  });
+
+  $('ed-inline-upload').addEventListener('click', async () => {
+    const file = $('ed-inline-file').files?.[0];
+    if (!file) return showToast('Pick a file first', true);
+    try {
+      const url = await uploadImage(file);
+      const alt = (file.name.replace(/\.[^.]+$/, '') || 'image').replace(/[-_]/g, ' ');
+      const snippet = `\n\n![${alt}](${url})\n\n`;
+      fields.body.value = (fields.body.value || '').trimEnd() + snippet;
+      $('ed-inline-file').value = '';
+      showToast('Image inserted at bottom of body.');
+    } catch (err) { showToast(err.message, true); }
+  });
+
+  loadExisting();
+</script>
+</body>
+</html>

@@ -1,17 +1,49 @@
 ---
-import { getCollection, render } from 'astro:content';
+// Article display page. Reads from public.articles in Supabase at
+// BUILD TIME via getStaticPaths(). Replaces the previous content-
+// collection-based version. Edits/new articles via /admin/articles/
+// trigger a Netlify rebuild that regenerates these pages.
+//
+// Markdown body is rendered to HTML using `marked` so we don't need
+// Astro's content collection pipeline (which only reads from disk).
+import { createClient } from '@supabase/supabase-js';
+import { marked } from 'marked';
 import { phArt, formatDate, trackLabel } from '../../lib/phArt';
 import Consent from '../../partials/consent.astro';
 import DownloadGate from '../../partials/download-gate.astro';
 
 export async function getStaticPaths() {
-  const articles = await getCollection('articles', ({ data }) => !data.draft);
-  return articles.map(a => ({ params: { slug: a.slug }, props: { entry: a } }));
+  const url = import.meta.env.SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = import.meta.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.warn('[articles/[...slug]] Supabase env not configured at build — generating no article pages');
+    return [];
+  }
+  const sb = createClient(url, key);
+  const { data, error } = await sb
+    .from('articles')
+    .select('*')
+    .eq('status', 'published');
+  if (error) {
+    console.error('[articles/[...slug]] supabase error:', error.message);
+    return [];
+  }
+  return (data || []).map((a) => ({ params: { slug: a.slug }, props: { entry: a } }));
 }
 
 const { entry } = Astro.props;
-const { Content } = await render(entry);
-const d = entry.data;
+const d = {
+  title: entry.title,
+  dek: entry.dek,
+  kind: entry.kind,
+  topic: entry.topic,
+  readMinutes: entry.read_minutes,
+  date: entry.date ? new Date(entry.date) : new Date(),
+  track: entry.track,
+  cover: entry.cover,
+  cover_image_url: entry.cover_image_url,
+};
+const bodyHtml = marked.parse(entry.body_md || '', { breaks: false, gfm: true });
 ---
 <!doctype html>
 <html lang="en">
@@ -24,21 +56,11 @@ const d = entry.data;
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js" is:inline></script>
   <link rel="stylesheet" href="/site-anim.css" />
   <script src="/site-anim.js" defer></script>
 </head>
 <body>
   <div id="grain"></div>
-  <script is:inline>
-    if (window.netlifyIdentity) {
-      window.netlifyIdentity.on("init", user => {
-        if (!user) {
-          window.netlifyIdentity.on("login", () => { document.location.href = "/admin/"; });
-        }
-      });
-    }
-  </script>
 
   <header class="nav">
     <a href="/" class="brand" aria-label="Legal Overflow home">
@@ -73,21 +95,23 @@ const d = entry.data;
     <h1 class="article-title" set:html={d.title}></h1>
     <p class="article-dek" set:html={d.dek}></p>
     <div class="article-meta">
-      <span><strong>By</strong> Blake Beyel</span>
       <span><strong>Published</strong> {formatDate(d.date)}</span>
       <span><strong>Track</strong> {trackLabel(d.track)}</span>
     </div>
   </section>
 
   <div class="article-cover">
-    <div class={`ph ${d.cover}`}>
-      <Fragment set:html={phArt[d.cover]} />
-    </div>
+    {d.cover_image_url
+      ? <img src={d.cover_image_url} alt="" style="width:100%;height:auto;display:block;border-radius:8px;" />
+      : (
+        <div class={`ph ${d.cover}`}>
+          <Fragment set:html={phArt[d.cover]} />
+        </div>
+      )
+    }
   </div>
 
-  <article class="article-body">
-    <Content />
-  </article>
+  <article class="article-body" set:html={bodyHtml}></article>
 
   <div class="article-end">
     <span>— {formatDate(d.date)} —</span>
@@ -102,10 +126,18 @@ const d = entry.data;
       </div>
       <div><h5>Read</h5><a href="/#articles">Resources</a><a href="/#skills">Skills</a></div>
       <div><h5>About</h5><a href="/about/">Author</a></div>
+      <div><h5>Fine print</h5><a href="/legal/disclaimer/">Disclaimer</a><a href="/legal/privacy/">Privacy</a><a href="/legal/terms/">Terms</a></div>
     </div>
+    <p class="foot-bar-disclosure">
+      <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+      The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+      Before you decide, ask for written information about the lawyer's qualifications and experience.
+      No representation is made that the quality of the legal services to be performed is greater than
+      the quality of legal services performed by other lawyers.
+    </p>
     <div class="foot-base">
-      <span>© 2026 Legal Overflow · Blake Beyel</span>
-      <span>Published in public</span>
+      <span>© 2026 Legal Overflow</span>
+      <span>Published in public<a href="/admin/users/" class="foot-admin-link" aria-label="Admin"></a></span>
     </div>
   </footer>
 

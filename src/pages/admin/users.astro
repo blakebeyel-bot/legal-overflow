@@ -1,0 +1,338 @@
+---
+// Admin user-management page. Lists every signed-up user; lets the
+// operator approve/revoke, set custom review + citation caps, change
+// tier, and leave a note. Admin-only — the page itself is reachable
+// by anyone, but the underlying API endpoints reject non-admin tokens
+// so a non-admin loading this page sees an empty / unauthorized state.
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin · Users — Legal Overflow</title>
+<meta name="robots" content="noindex,nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  .adm-wrap { max-width: 1280px; margin: 40px auto 80px; padding: 0 32px; }
+  .adm-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 12px; }
+  .adm-title { font-family: var(--serif); font-weight: 400; font-size: 40px; line-height: 1.05; letter-spacing: -.012em; margin: 0 0 8px; }
+  .adm-sub { font-size: 14.5px; color: var(--ink-3); margin: 0 0 28px; max-width: 76ch; }
+  /* Shared tab strip across all admin pages — Users / Articles, etc.
+     Each tab is a real <a> so the URL bar reflects the active page. */
+  .adm-tab-strip { display: flex; gap: 0; border-bottom: 1px solid var(--rule-soft); margin: 0 0 28px; }
+  .adm-tab {
+    display: inline-block;
+    padding: 12px 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .adm-tab:hover { color: var(--ink-1); }
+  .adm-tab.active { color: var(--ink-1); border-bottom-color: var(--ink-1); }
+
+  .adm-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+  .adm-filter { display: flex; gap: 6px; padding: 4px; background: var(--paper-2); border: 1px solid var(--rule-soft); border-radius: 999px; }
+  .adm-filter button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    padding: 6px 14px; border: 1px solid transparent; background: transparent; color: var(--ink-2);
+    border-radius: 999px; cursor: pointer;
+  }
+  .adm-filter button.active { background: var(--ink); color: var(--paper); }
+  .adm-search { flex: 1; max-width: 280px; padding: 8px 12px; font-size: 13px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); }
+  .adm-stats { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-left: auto; }
+  .adm-table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 8px; overflow: hidden; }
+  .adm-table th, .adm-table td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  .adm-table th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); background: var(--paper-2); }
+  .adm-table tr:last-child td { border-bottom: none; }
+  .adm-row.pending { background: rgba(180, 83, 9, .04); }
+  .adm-email { font-weight: 500; }
+  .adm-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .adm-status-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .adm-status-pill.approved { background: var(--accent-tint); color: var(--accent-deep); border: 1px solid color-mix(in oklab, var(--accent-deep) 30%, transparent); }
+  .adm-status-pill.pending { background: rgba(180, 83, 9, .1); color: #b45309; border: 1px solid rgba(180, 83, 9, .3); }
+  .adm-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .adm-btn { padding: 6px 12px; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; border: 1px solid var(--rule); background: var(--paper); color: var(--ink-1); border-radius: 6px; cursor: pointer; }
+  .adm-btn:hover { border-color: var(--ink); }
+  .adm-btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .adm-btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .adm-btn.danger { color: #b3532f; border-color: #b3532f; background: var(--paper); }
+  .adm-btn.danger:hover { background: #b3532f; color: var(--paper); }
+  .adm-cap-input { width: 60px; padding: 4px 6px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); }
+  .adm-tier-select { padding: 4px 8px; font-family: var(--mono); font-size: 11px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); cursor: pointer; }
+  .adm-cap-cell { display: flex; flex-direction: column; gap: 4px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .adm-cap-cell .num { color: var(--ink-1); font-weight: 500; font-size: 12.5px; }
+  .adm-empty { padding: 60px; text-align: center; font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+  .adm-toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 18px; background: var(--ink); color: var(--paper); border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+  .adm-toast.show { opacity: 1; }
+  .adm-toast.error { background: #b3532f; }
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/agents/">Agents</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/admin/users/" aria-current="page">Admin</a>
+  </nav>
+</header>
+
+<main class="adm-wrap">
+  <div class="adm-kicker">Admin</div>
+  <h1 class="adm-title">User access &amp; quotas</h1>
+  <p class="adm-sub">Approve new signups, revoke access, override per-user review or citation caps. All actions hit the database directly via authenticated admin endpoints.</p>
+
+  <div class="adm-tab-strip">
+    <a class="adm-tab active" href="/admin/users/">Users</a>
+    <a class="adm-tab" href="/admin/articles/">Articles</a>
+  </div>
+
+  <div class="adm-toolbar">
+    <div class="adm-filter" id="adm-filter">
+      <button data-filter="all" class="active">All</button>
+      <button data-filter="pending">Pending</button>
+      <button data-filter="approved">Approved</button>
+    </div>
+    <input type="search" id="adm-search" class="adm-search" placeholder="Search email…" />
+    <div class="adm-stats" id="adm-stats">—</div>
+  </div>
+
+  <table class="adm-table">
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Status</th>
+        <th>Tier</th>
+        <th>Reviews (used / cap)</th>
+        <th>Citations (used / cap)</th>
+        <th>Joined</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="adm-tbody">
+      <tr><td colspan="7" class="adm-empty">Loading…</td></tr>
+    </tbody>
+  </table>
+</main>
+
+<div id="adm-toast" class="adm-toast"></div>
+
+<script>
+  import { getSupabase } from '../../lib/supabase';
+
+  const supabase = getSupabase();
+  const tbody = document.getElementById('adm-tbody');
+  const stats = document.getElementById('adm-stats');
+  const search = document.getElementById('adm-search');
+  const toast = document.getElementById('adm-toast');
+  let users = [];
+  let filter = 'all';
+
+  // Two-layer gate:
+  //  (a) signed-in (else send to /login/)
+  //  (b) tier='admin' on the user's profile row (else send home).
+  // Hide the page body until the gate passes so non-admins never see
+  // the admin UI shell — even briefly. Supabase RLS lets a user read
+  // their own profile row only, so this query can't leak others' data.
+  document.body.style.visibility = 'hidden';
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/admin/users/';
+    throw new Error('not signed in — redirecting');
+  }
+  const { data: meProfile } = await supabase
+    .from('profiles').select('tier').eq('id', session.user.id).single();
+  if (meProfile?.tier !== 'admin') {
+    location.href = '/';
+    throw new Error('admin only — redirecting');
+  }
+  document.body.style.visibility = '';
+
+  function showToast(msg, isError = false) {
+    toast.textContent = msg;
+    toast.classList.toggle('error', isError);
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+
+  async function loadUsers() {
+    try {
+      const res = await fetch('/.netlify/functions/admin-list-users', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.status === 403) {
+        tbody.innerHTML = '<tr><td colspan="7" class="adm-empty">Admin only. Your account does not have admin privileges.</td></tr>';
+        return;
+      }
+      if (!res.ok) {
+        tbody.innerHTML = `<tr><td colspan="7" class="adm-empty">Error loading users (HTTP ${res.status})</td></tr>`;
+        return;
+      }
+      const data = await res.json();
+      users = data.users || [];
+      render();
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="7" class="adm-empty">Network error: ${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  const TIER_DEFAULTS = { trial: 3, standard: 25, pro: 100, admin: 9999, enterprise: '∞' };
+  function effectiveCap(override, tier) {
+    if (override != null) return override;
+    return TIER_DEFAULTS[tier] ?? 3;
+  }
+
+  function render() {
+    const q = (search.value || '').toLowerCase().trim();
+    const list = users.filter(u => {
+      if (q && !(u.email || '').toLowerCase().includes(q)) return false;
+      if (filter === 'pending') return !u.approved_at;
+      if (filter === 'approved') return !!u.approved_at;
+      return true;
+    });
+    const pending = users.filter(u => !u.approved_at).length;
+    const approved = users.length - pending;
+    stats.textContent = `${pending} pending · ${approved} approved · ${users.length} total`;
+
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="adm-empty">No users match.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(u => {
+      const isPending = !u.approved_at;
+      const reviewCap = effectiveCap(u.review_cap_override, u.tier);
+      const citationCap = effectiveCap(u.citation_cap_override, u.tier);
+      const joined = u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+      const tiers = ['trial','standard','pro','admin','enterprise']
+        .map(t => `<option value="${t}"${t === u.tier ? ' selected' : ''}>${t}</option>`).join('');
+      return `
+        <tr class="adm-row ${isPending ? 'pending' : ''}" data-id="${escapeHtml(u.id)}">
+          <td>
+            <div class="adm-email">${escapeHtml(u.email || '—')}</div>
+            <div class="adm-meta">${escapeHtml(u.id.slice(0, 8))}…</div>
+          </td>
+          <td><span class="adm-status-pill ${isPending ? 'pending' : 'approved'}">${isPending ? 'Pending' : 'Approved'}</span></td>
+          <td>
+            <select class="adm-tier-select" data-action="set-tier" data-id="${escapeHtml(u.id)}">${tiers}</select>
+          </td>
+          <td>
+            <div class="adm-cap-cell">
+              <span class="num">${u.reviews_used} / ${reviewCap}</span>
+              <span>cap override:
+                <input type="number" min="0" class="adm-cap-input" data-action="review-cap" data-id="${escapeHtml(u.id)}"
+                  value="${u.review_cap_override ?? ''}" placeholder="—" />
+              </span>
+            </div>
+          </td>
+          <td>
+            <div class="adm-cap-cell">
+              <span class="num">${u.citations_used} / ${citationCap}</span>
+              <span>cap override:
+                <input type="number" min="0" class="adm-cap-input" data-action="citation-cap" data-id="${escapeHtml(u.id)}"
+                  value="${u.citation_cap_override ?? ''}" placeholder="—" />
+              </span>
+            </div>
+          </td>
+          <td class="adm-meta">${joined}</td>
+          <td>
+            <div class="adm-actions">
+              ${isPending
+                ? `<button class="adm-btn primary" data-action="approve" data-id="${escapeHtml(u.id)}">Approve</button>`
+                : `<button class="adm-btn danger" data-action="revoke" data-id="${escapeHtml(u.id)}">Revoke</button>`}
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  async function updateUser(userId, payload) {
+    try {
+      const res = await fetch('/.netlify/functions/admin-update-user', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: userId, ...payload }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || `Update failed (HTTP ${res.status})`, true);
+        return;
+      }
+      showToast('Saved.');
+      // Refresh just this user's row
+      const idx = users.findIndex(u => u.id === userId);
+      if (idx >= 0 && data.user) {
+        users[idx] = { ...users[idx], ...data.user };
+        render();
+      } else {
+        await loadUsers();
+      }
+    } catch (e) {
+      showToast(e.message || 'Network error', true);
+    }
+  }
+
+  // Event delegation for all row actions
+  tbody.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    if (action === 'approve') updateUser(id, { approve: true });
+    else if (action === 'revoke') {
+      if (!confirm('Revoke this user\'s access? They will be blocked from running new agents.')) return;
+      updateUser(id, { approve: false });
+    }
+  });
+
+  tbody.addEventListener('change', (e) => {
+    const el = e.target;
+    if (!el.dataset?.action) return;
+    const id = el.dataset.id;
+    if (el.dataset.action === 'set-tier') {
+      updateUser(id, { tier: el.value });
+    } else if (el.dataset.action === 'review-cap') {
+      const v = el.value === '' ? null : parseInt(el.value, 10);
+      updateUser(id, { review_cap_override: v });
+    } else if (el.dataset.action === 'citation-cap') {
+      const v = el.value === '' ? null : parseInt(el.value, 10);
+      updateUser(id, { citation_cap_override: v });
+    }
+  });
+
+  document.getElementById('adm-filter').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-filter]');
+    if (!btn) return;
+    document.querySelectorAll('#adm-filter button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filter = btn.dataset.filter;
+    render();
+  });
+
+  search.addEventListener('input', render);
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  loadUsers();
+</script>
+</body>
+</html>

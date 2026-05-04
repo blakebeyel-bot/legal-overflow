@@ -1,0 +1,328 @@
+---
+// Admin · Articles list. Reads from /api/admin-list-articles. Each row
+// links to the editor (/admin/articles/edit/?id=...). "New article"
+// button creates a draft via the editor.
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin · Articles — Legal Overflow</title>
+<meta name="robots" content="noindex,nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  .adm-wrap { max-width: 1280px; margin: 40px auto 80px; padding: 0 32px; }
+  .adm-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 12px; }
+  .adm-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 16px; flex-wrap: wrap; }
+  .adm-title { font-family: var(--serif); font-weight: 400; font-size: 40px; line-height: 1.05; letter-spacing: -.012em; margin: 0; }
+  .adm-sub { font-size: 14.5px; color: var(--ink-3); margin: 0 0 24px; max-width: 76ch; }
+  /* Shared tab strip across all admin pages — Users / Articles, etc. */
+  .adm-tab-strip { display: flex; gap: 0; border-bottom: 1px solid var(--rule-soft); margin: 0 0 28px; }
+  .adm-tab {
+    display: inline-block;
+    padding: 12px 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .adm-tab:hover { color: var(--ink-1); }
+  .adm-tab.active { color: var(--ink-1); border-bottom-color: var(--ink-1); }
+  .adm-btn { padding: 10px 18px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .adm-btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .adm-btn.secondary { background: var(--paper); color: var(--ink-1); border-color: var(--rule); }
+  .adm-btn.secondary:hover { border-color: var(--ink); background: var(--paper); color: var(--ink-1); }
+  .adm-btn.danger { background: var(--paper); color: #b3532f; border-color: #b3532f; }
+  .adm-btn.danger:hover { background: #b3532f; color: var(--paper); }
+
+  /* Article cards — replaces the prior grid that collapsed on narrow
+     viewports. Each row is a card with a title block on the left and
+     compact metadata + actions on the right. Stays scannable down to
+     mobile widths. */
+  .a-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+  .a-search { flex: 1; max-width: 320px; padding: 8px 12px; font-size: 13px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); }
+  .a-filter { display: flex; gap: 0; padding: 0; background: var(--paper-2); border: 1px solid var(--rule-soft); border-radius: 999px; overflow: hidden; }
+  .a-filter button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    padding: 7px 14px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer;
+  }
+  .a-filter button.active { background: var(--ink); color: var(--paper); }
+  .a-stats { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-left: auto; }
+
+  .a-list { display: flex; flex-direction: column; gap: 12px; }
+  .a-card {
+    display: flex; align-items: stretch; gap: 24px;
+    padding: 18px 22px; border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper);
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .a-card:hover { border-color: var(--rule); box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .a-card.draft { border-left: 3px solid #b45309; }
+  .a-card.published { border-left: 3px solid var(--accent-deep); }
+  .a-card-main { flex: 1; min-width: 0; }   /* min-width:0 so flex child can shrink under truncated text */
+  .a-title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .a-title {
+    font-family: var(--serif); font-size: 19px; line-height: 1.3;
+    color: var(--ink-1); font-weight: 400; letter-spacing: -.005em;
+  }
+  .a-status {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .a-status.draft     { background: rgba(180,83,9,.12); color: #b45309; }
+  .a-status.published { background: var(--accent-tint); color: var(--accent-deep); }
+  .a-dek {
+    font-size: 13.5px; line-height: 1.5; color: var(--ink-3);
+    margin: 4px 0 10px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .a-meta {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  .a-meta-item strong { color: var(--ink-2); margin-right: 4px; font-weight: 500; }
+  .a-card-actions {
+    display: flex; flex-direction: column; gap: 6px;
+    flex-shrink: 0; align-items: stretch; min-width: 110px;
+  }
+  .a-card-actions a, .a-card-actions button {
+    padding: 7px 12px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+    border: 1px solid var(--rule); background: var(--paper); color: var(--ink-1);
+    border-radius: 4px; cursor: pointer; text-decoration: none;
+    text-align: center; transition: all .12s ease;
+  }
+  .a-card-actions a.primary  { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .a-card-actions a.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .a-card-actions a:hover    { border-color: var(--ink-1); }
+  .a-card-actions button.danger { color: #b3532f; border-color: rgba(179,83,47,.4); }
+  .a-card-actions button.danger:hover { background: #b3532f; color: var(--paper); border-color: #b3532f; }
+
+  .adm-empty { padding: 60px; text-align: center; font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+  .adm-toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 18px; background: var(--ink); color: var(--paper); border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+  .adm-toast.show { opacity: 1; }
+  .adm-toast.error { background: #b3532f; }
+
+  @media (max-width: 720px) {
+    .a-card { flex-direction: column; gap: 14px; }
+    .a-card-actions { flex-direction: row; width: 100%; }
+    .a-card-actions a, .a-card-actions button { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/agents/">Agents</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/admin/users/">Admin</a>
+  </nav>
+</header>
+
+<main class="adm-wrap">
+  <div class="adm-kicker">Admin · articles</div>
+  <div class="adm-title-row">
+    <h1 class="adm-title">Articles</h1>
+    <a href="/admin/articles/edit/" class="adm-btn">+ New article</a>
+  </div>
+  <p class="adm-sub">Draft, edit, and publish articles. Published articles appear on the public site after the next site rebuild.</p>
+
+  <div class="adm-tab-strip">
+    <a class="adm-tab" href="/admin/users/">Users</a>
+    <a class="adm-tab active" href="/admin/articles/">Articles</a>
+  </div>
+
+  <div class="a-toolbar">
+    <div class="a-filter" id="a-filter">
+      <button data-filter="all" class="active">All</button>
+      <button data-filter="published">Published</button>
+      <button data-filter="draft">Drafts</button>
+    </div>
+    <input type="search" id="a-search" class="a-search" placeholder="Search title or topic…" />
+    <div class="a-stats" id="a-stats">—</div>
+  </div>
+
+  <div id="a-list" class="a-list"><div class="adm-empty">Loading…</div></div>
+</main>
+
+<div id="adm-toast" class="adm-toast"></div>
+
+<script>
+  import { getSupabase } from '../../lib/supabase';
+
+  const supabase = getSupabase();
+  const list = document.getElementById('a-list');
+  const toast = document.getElementById('adm-toast');
+  const stats = document.getElementById('a-stats');
+  const search = document.getElementById('a-search');
+  let articles = [];
+  let filter = 'all';
+
+  // Admin gate — same pattern as /admin/users/. Hide the body until the
+  // tier='admin' check passes; redirect non-admins so they never see
+  // the admin UI shell.
+  document.body.style.visibility = 'hidden';
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/admin/articles/';
+    throw new Error('not signed in');
+  }
+  const { data: meProfile } = await supabase
+    .from('profiles').select('tier').eq('id', session.user.id).single();
+  if (meProfile?.tier !== 'admin') {
+    location.href = '/';
+    throw new Error('admin only');
+  }
+  document.body.style.visibility = '';
+
+  function showToast(msg, isError = false) {
+    toast.textContent = msg;
+    toast.classList.toggle('error', isError);
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+  function fmtDate(d) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  // Strip HTML tags from dek text but unescape entities so authors who
+  // wrote <em>word</em> in the dek see "word" not the raw tags.
+  function plainDek(s) {
+    if (!s) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = s;
+    return tmp.textContent || tmp.innerText || '';
+  }
+  function statusLabel(s) {
+    return s === 'published' ? 'Published' : 'Draft';
+  }
+  function trackLabel(t) {
+    return t === 'business' ? 'Business' : t === 'both' ? 'Legal & Business' : 'Legal';
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/.netlify/functions/admin-list-articles', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.status === 403) {
+        list.innerHTML = '<div class="adm-empty">Admin only. Your account does not have admin privileges.</div>';
+        return;
+      }
+      const data = await res.json();
+      articles = data.articles || [];
+      render();
+    } catch (err) {
+      list.innerHTML = `<div class="adm-empty">Error loading: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function render() {
+    const q = (search.value || '').toLowerCase().trim();
+    const filtered = articles.filter(a => {
+      if (filter === 'published' && a.status !== 'published') return false;
+      if (filter === 'draft' && a.status !== 'draft') return false;
+      if (q) {
+        const blob = `${a.title || ''} ${a.topic || ''} ${a.kind || ''} ${a.slug || ''}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const total = articles.length;
+    const drafts = articles.filter(a => a.status === 'draft').length;
+    const published = total - drafts;
+    stats.textContent = `${published} published · ${drafts} draft · ${total} total`;
+
+    if (filtered.length === 0) {
+      list.innerHTML = `<div class="adm-empty">${total === 0
+        ? 'No articles yet. Click <strong>+ New article</strong> to start.'
+        : 'No articles match the current filters.'}</div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map(a => {
+      const dek = plainDek(a.dek);
+      const dekHtml = dek ? `<div class="a-dek">${escapeHtml(dek)}</div>` : '';
+      const viewLink = a.status === 'published'
+        ? `<a href="/articles/${encodeURIComponent(a.slug)}/" target="_blank" rel="noopener">View ↗</a>`
+        : '';
+      return `
+        <div class="a-card ${a.status}">
+          <div class="a-card-main">
+            <div class="a-title-row">
+              <span class="a-title">${escapeHtml(a.title || '(untitled)')}</span>
+              <span class="a-status ${a.status}">${statusLabel(a.status)}</span>
+            </div>
+            ${dekHtml}
+            <div class="a-meta">
+              <span class="a-meta-item"><strong>Track:</strong>${escapeHtml(trackLabel(a.track))}</span>
+              <span class="a-meta-item"><strong>Kind:</strong>${escapeHtml(a.kind || '—')}</span>
+              <span class="a-meta-item"><strong>Topic:</strong>${escapeHtml(a.topic || '—')}</span>
+              <span class="a-meta-item"><strong>Date:</strong>${escapeHtml(fmtDate(a.date))}</span>
+              ${a.featured ? `<span class="a-meta-item" style="color:var(--accent-deep);"><strong>★</strong>Featured</span>` : ''}
+            </div>
+          </div>
+          <div class="a-card-actions">
+            <a href="/admin/articles/edit/?id=${encodeURIComponent(a.id)}" class="primary">Edit</a>
+            ${viewLink}
+            <button data-action="delete" data-id="${escapeHtml(a.id)}" data-title="${escapeHtml(a.title || '(untitled)')}" class="danger">Delete</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // Filter pills
+  document.getElementById('a-filter').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-filter]');
+    if (!btn) return;
+    document.querySelectorAll('#a-filter button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filter = btn.dataset.filter;
+    render();
+  });
+  search.addEventListener('input', render);
+
+  // Delete (event delegation)
+  list.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action="delete"]');
+    if (!btn) return;
+    if (!confirm(`Delete "${btn.dataset.title}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch('/.netlify/functions/admin-delete-article', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: btn.dataset.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'Delete failed', true); return; }
+      showToast('Deleted.');
+      load();
+    } catch (err) { showToast(err.message, true); }
+  });
+
+  load();
+</script>
+</body>
+</html>

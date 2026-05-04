@@ -1,19 +1,12 @@
-import { defineCollection, z } from 'astro:content';
+// Content collections were retired in favor of database-backed articles
+// (migration 0013 + admin UI at /admin/articles/). The src/content/articles/
+// markdown files were imported via tools/articles/import-existing.mjs and
+// can be deleted from disk after verifying the public site renders the
+// DB articles correctly.
+//
+// We keep this file (empty collections export) so Astro's content
+// pipeline doesn't error if any other code still imports from
+// 'astro:content'. If nothing references content collections anywhere,
+// this file can be deleted along with the src/content/articles/ directory.
 
-const articles = defineCollection({
-  type: 'content',
-  schema: z.object({
-    title: z.string(),
-    dek: z.string(),
-    kind: z.string(),
-    track: z.enum(['legal', 'business', 'both']),
-    readMinutes: z.number(),
-    date: z.date(),
-    topic: z.string(),
-    cover: z.enum(['ph-a', 'ph-b', 'ph-c', 'ph-d', 'ph-e', 'ph-f', 'ph-g', 'ph-h', 'ph-i', 'ph-j', 'ph-k', 'ph-l', 'ph-m']).default('ph-b'),
-    featured: z.boolean().default(false),
-    draft: z.boolean().default(false),
-  }),
-});
-
-export const collections = { articles };
+export const collections = {};
