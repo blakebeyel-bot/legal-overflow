@@ -14,7 +14,10 @@
 import { getSupabaseAdmin } from '../lib/supabase-admin.js';
 import { resolveProviderKey } from '../lib/byok-keys.js';
 import { completeText, findModel } from '../lib/llm-providers.js';
-import { TABULAR_SYSTEM, buildCellPrompt, parseCellResponse } from '../lib/tabular-prompt.js';
+import {
+  TABULAR_SYSTEM, buildCellPrompt, parseCellResponse,
+  TABULAR_REDLINE_SYSTEM, buildRedlineCellPrompt, parseRedlineCellResponse,
+} from '../lib/tabular-prompt.js';
 
 const CONCURRENCY = 3;       // simultaneous LLM calls per fanout
 const PER_CELL_TIMEOUT_MS = 90_000;
@@ -134,48 +137,63 @@ async function runOneCell({ supabase, cell, review, modelInfo, key, docByid, tex
   const column = (review.columns_config || [])[cell.column_index];
   if (!column) throw new Error(`Column ${cell.column_index} not found on review`);
 
-  const userPrompt = buildCellPrompt({
-    documentText: text,
-    documentName: doc.filename,
-    columnPrompt: column.prompt,
-  });
-
+  const isRedline = review.kind === 'redline';
   const t0 = Date.now();
   const { text: raw, usage } = await withTimeout(
     completeText({
       provider: modelInfo.provider,
       model: modelInfo.id,
       apiKey: key,
-      system: TABULAR_SYSTEM,
-      messages: [{ role: 'user', content: userPrompt }],
-      maxTokens: 600,
+      system: isRedline ? TABULAR_REDLINE_SYSTEM : TABULAR_SYSTEM,
+      messages: [{
+        role: 'user',
+        content: isRedline
+          ? buildRedlineCellPrompt({ documentText: text, documentName: doc.filename, columnPrompt: column.prompt })
+          : buildCellPrompt({ documentText: text, documentName: doc.filename, columnPrompt: column.prompt }),
+      }],
+      maxTokens: isRedline ? 1200 : 600,
       temperature: 0.2,
     }),
     PER_CELL_TIMEOUT_MS,
     `Cell timed out after ${PER_CELL_TIMEOUT_MS}ms`,
   );
 
-  const parsed = parseCellResponse(raw);
-  const citations = parsed.quote ? [{
-    quote: parsed.quote,
-    page: parsed.page,
-    document_id: cell.document_id,
-    document_name: doc.filename,
-    not_in_document: parsed.not_in_document,
-  }] : [];
+  const update = {
+    status: 'complete',
+    prompt_tokens: usage.input || null,
+    completion_tokens: usage.output || null,
+  };
 
-  await supabase.from('workspace_tabular_cells')
-    .update({
-      status: 'complete',
-      content: parsed.answer,
-      citations,
-      prompt_tokens: usage.input || null,
-      completion_tokens: usage.output || null,
-      status_detail: parsed.parse_error ? `Parse warning: ${parsed.parse_error}` : null,
-    })
-    .eq('id', cell.id);
+  if (isRedline) {
+    const parsed = parseRedlineCellResponse(raw);
+    update.content = parsed.rationale;     // we put the rationale in the visible "content" so the existing grid column shows something useful
+    update.redline_find = parsed.find || null;
+    update.redline_replace = parsed.replace;
+    update.redline_rationale = parsed.rationale;
+    update.redline_status = 'pending';
+    update.citations = parsed.find ? [{
+      quote: parsed.find,
+      document_id: cell.document_id,
+      document_name: doc.filename,
+      not_in_document: parsed.not_in_document,
+    }] : [];
+    if (parsed.parse_error) update.status_detail = `Parse warning: ${parsed.parse_error}`;
+    if (parsed.not_in_document) update.status_detail = (update.status_detail || '') + ' (concern not present in document)';
+  } else {
+    const parsed = parseCellResponse(raw);
+    update.content = parsed.answer;
+    update.citations = parsed.quote ? [{
+      quote: parsed.quote,
+      page: parsed.page,
+      document_id: cell.document_id,
+      document_name: doc.filename,
+      not_in_document: parsed.not_in_document,
+    }] : [];
+    if (parsed.parse_error) update.status_detail = `Parse warning: ${parsed.parse_error}`;
+  }
 
-  console.log(`[tr-fanout] cell ${cell.id} ok in ${Date.now() - t0}ms`);
+  await supabase.from('workspace_tabular_cells').update(update).eq('id', cell.id);
+  console.log(`[tr-fanout] cell ${cell.id} ok (${review.kind}) in ${Date.now() - t0}ms`);
 }
 
 async function markAllCellsError(supabase, reviewId, msg) {

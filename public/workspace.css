@@ -604,6 +604,377 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .rv-spin { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3862aa; margin-right: 6px; animation: rvpulse 1.2s ease-in-out infinite; vertical-align: middle; }
 @keyframes rvpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 
+/* New-review modal: kind picker */
+.rv-kind-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rv-kind-opt {
+  display: block; padding: 12px 14px;
+  border: 1px solid var(--rule-soft); border-radius: 6px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.rv-kind-opt:has(input:checked) { border-color: var(--accent-deep); background: rgba(184,127,0,.04); }
+.rv-kind-opt input { margin-right: 6px; }
+.rv-kind-title { font-family: var(--serif); font-size: 16px; color: var(--ink); margin-bottom: 4px; display: inline-block; }
+.rv-kind-desc { font-size: 12px; color: var(--ink-2); line-height: 1.45; }
+
+/* Redline-mode grid cells */
+.rv-grid-redline .rv-cell { vertical-align: top; min-width: 220px; max-width: 280px; padding: 10px; }
+.rv-cell-redline { cursor: pointer; position: relative; }
+.rv-cell-redline.is-accepted { background: rgba(10,125,87,.04); border-left: 3px solid #0a7d57; }
+.rv-cell-redline.is-rejected { background: rgba(178,34,34,.04); border-left: 3px solid #b22222; opacity: .7; }
+.rv-cell-rationale { font-size: 12.5px; line-height: 1.45; color: var(--ink); margin-bottom: 6px; }
+.rv-cell-mini-diff { display: grid; grid-template-columns: 1fr 16px 1fr; gap: 4px; align-items: start; font-family: var(--mono); font-size: 10.5px; line-height: 1.4; margin-bottom: 8px; }
+.rv-cell-find { background: rgba(178,34,34,.06); padding: 4px 6px; border-radius: 3px; color: var(--ink-2); }
+.rv-cell-replace { background: rgba(10,125,87,.06); padding: 4px 6px; border-radius: 3px; color: var(--ink-2); }
+.rv-cell-arrow { text-align: center; color: var(--ink-3); padding-top: 2px; }
+.rv-cell-actions { display: flex; gap: 4px; }
+.rv-cell-acc, .rv-cell-rej {
+  flex: 1; padding: 3px 0; font-size: 12px;
+  border: 1px solid var(--rule-soft); border-radius: 3px;
+  background: var(--paper); color: var(--ink-3); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.rv-cell-acc:hover, .rv-cell-acc.is-on { background: #0a7d57; color: white; border-color: #0a7d57; }
+.rv-cell-rej:hover, .rv-cell-rej.is-on { background: #b22222; color: white; border-color: #b22222; }
+.rv-cell-na { color: var(--ink-3); font-size: 12px; padding: 12px; }
+
+/* Per-doc finalize column */
+.rv-th-actions { width: 110px; text-align: center; }
+.rv-td-actions { vertical-align: top; padding: 10px; text-align: center; }
+.rv-finalize-btn {
+  padding: 6px 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 4px;
+  cursor: pointer; white-space: nowrap;
+}
+.rv-finalize-btn:hover:not(:disabled) { background: var(--accent-deep); border-color: var(--accent-deep); }
+.rv-finalize-btn:disabled { opacity: .35; cursor: not-allowed; }
+.rv-finalized-link {
+  display: block; margin-top: 6px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--accent-deep);
+  cursor: pointer; text-decoration: none;
+}
+.rv-finalized-link:hover { text-decoration: underline; }
+
+/* Cell detail modal — redline variant with split panes */
+.rv-redline-detail { width: min(1100px, 96vw); max-height: 88vh; }
+.rv-redline-detail-body { display: grid; grid-template-columns: 380px 1fr; gap: 0; padding: 0; height: 80vh; }
+.rv-redline-side { border-right: 1px solid var(--rule-soft); padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.rv-redline-side p { font-size: 13.5px; line-height: 1.55; color: var(--ink); margin: 4px 0 0; }
+.rv-redline-from, .rv-redline-to { margin: 4px 0 0; padding: 10px 14px; border-radius: 4px; font-size: 13px; line-height: 1.5; font-style: normal; }
+.rv-redline-from { background: rgba(178,34,34,.06); border-left: 3px solid #b22222; }
+.rv-redline-to { background: rgba(10,125,87,.06); border-left: 3px solid #0a7d57; }
+.rv-redline-actions { display: flex; gap: 8px; margin-top: auto; }
+.rv-redline-actions button { flex: 1; padding: 8px 14px; font-size: 13px; }
+.rv-redline-preview { padding: 18px 20px; overflow-y: auto; background: var(--paper-2); }
+.rv-doc-preview { background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 6px; padding: 24px 32px; margin-top: 6px; line-height: 1.6; font-size: 13.5px; color: var(--ink); max-height: 70vh; overflow-y: auto; }
+.rv-doc-preview p { margin: 0 0 10px; }
+.rv-doc-preview h1, .rv-doc-preview h2, .rv-doc-preview h3 { font-family: var(--serif); margin: 16px 0 8px; }
+.rv-doc-highlight {
+  background: #fff59d;
+  padding: 1px 3px; border-radius: 2px;
+  box-shadow: 0 0 0 2px #ffeb3b inset;
+  cursor: help;
+}
+.rv-doc-nofind {
+  background: rgba(184,127,0,.10); border-left: 3px solid #b87f00;
+  padding: 8px 12px; margin: 0 0 10px;
+  font-size: 12px; color: #b87f00;
+}
+
+@media (max-width: 900px) {
+  .rv-redline-detail-body { grid-template-columns: 1fr; height: 80vh; }
+  .rv-redline-side { border-right: none; border-bottom: 1px solid var(--rule-soft); }
+}
+
+/* View tabs (Document / Grid) and per-doc tabs */
+.rv-view-tabs { margin-bottom: 14px; }
+.rv-viewbar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--rule-soft); }
+.rv-viewpills { display: flex; gap: 4px; padding: 3px; background: var(--paper-2); border-radius: 6px; }
+.rv-viewpill {
+  padding: 6px 14px;
+  background: transparent; border: none; border-radius: 4px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  color: var(--ink-3); cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.rv-viewpill.is-active { background: var(--ink); color: var(--paper); }
+.rv-viewpill:not(.is-active):hover { color: var(--ink); }
+
+.rv-doctabs { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+.rv-doctab {
+  padding: 5px 12px;
+  background: var(--paper); border: 1px solid var(--rule-soft); border-radius: 4px;
+  font-size: 12.5px; color: var(--ink-2); cursor: pointer;
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.rv-doctab.is-active { background: var(--accent-deep); color: var(--paper); border-color: var(--accent-deep); }
+.rv-doctab:not(.is-active):hover { border-color: var(--ink); color: var(--ink); }
+
+/* Inline document view (default for both kinds).
+   Fixed height that fits within the viewport so the page itself
+   still scrolls (header/tabs/footer reachable via browser scroll).
+   Inside, the sidebar and doc panel each have their own scroll —
+   three scrollbars total. */
+.rv-docview {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  grid-template-rows: 1fr;
+  gap: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft); border-radius: 8px;
+  height: 75vh;
+  min-height: 540px;
+  overflow: hidden;
+}
+.rv-docview-side {
+  border-right: 1px solid var(--rule-soft);
+  background: var(--paper-2);
+  display: flex; flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.rv-docview-side-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-shrink: 0;
+}
+.rv-docview-counter { color: var(--accent-deep); }
+.rv-docview-side .rv-live-findings { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; }
+.rv-docview-side-foot {
+  border-top: 1px solid var(--rule-soft);
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Main doc area — scrolls internally with a wide, visible
+   scrollbar so it reads as a primary scroll target instead of a
+   hidden one. */
+.rv-docview-main {
+  position: relative;
+  min-height: 0;
+  overflow-y: scroll;        /* always show scrollbar so it doesn't shift content */
+  padding: 24px 32px;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
+
+  /* Firefox */
+  scrollbar-width: auto;
+  scrollbar-color: rgba(0,0,0,.4) rgba(0,0,0,.06);
+}
+/* Chromium / WebKit — make the doc panel scrollbar look like the
+   browser's native (wide, visible thumb). */
+.rv-docview-main::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+.rv-docview-main::-webkit-scrollbar-track {
+  background: rgba(0,0,0,.04);
+  border-left: 1px solid var(--rule-soft);
+}
+.rv-docview-main::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,.35);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+.rv-docview-main::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,.55);
+  background-clip: content-box;
+}
+.rv-live-finding-pending { opacity: .7; border-style: dashed; }
+
+@media (max-width: 760px) {
+  .rv-docview { grid-template-columns: 1fr; height: auto; }
+  .rv-docview-side { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--rule-soft); }
+}
+
+/* Live preview — full-screen "scanning the document" view */
+.rv-live-modal { padding: 0; }
+.rv-live-inner {
+  width: 100vw; height: 100vh;
+  background: var(--paper);
+  display: flex; flex-direction: column;
+}
+.rv-live-head {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--paper-2);
+}
+.rv-live-close {
+  background: transparent; border: none; color: var(--ink-3); cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+  padding: 4px 8px;
+}
+.rv-live-close:hover { color: var(--ink); }
+.rv-live-title { flex: 1; margin: 0; font-family: var(--serif); font-size: 18px; color: var(--ink); }
+.rv-live-progress { font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .04em; }
+.rv-live-body {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 360px 1fr;
+}
+.rv-live-side {
+  border-right: 1px solid var(--rule-soft);
+  background: var(--paper-2);
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+.rv-live-side-head {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 8px;
+}
+.rv-live-findings { display: flex; flex-direction: column; gap: 10px; }
+.rv-live-finding {
+  padding: 10px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 6px;
+  background: var(--paper);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.rv-live-finding:hover { border-color: var(--ink); }
+.rv-live-finding.is-accepted { border-left: 3px solid #0a7d57; background: rgba(10,125,87,.04); }
+.rv-live-finding.is-rejected { border-left: 3px solid #b22222; background: rgba(178,34,34,.04); opacity: .65; }
+.rv-live-finding-na { opacity: .55; }
+.rv-live-finding-na-text { font-style: italic; font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+.rv-live-finding-col { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--accent-deep); margin-bottom: 4px; }
+.rv-live-finding-rationale { font-size: 12.5px; line-height: 1.45; color: var(--ink); margin-bottom: 6px; }
+.rv-live-finding-diff { display: grid; grid-template-columns: 1fr 14px 1fr; gap: 4px; align-items: start; font-family: var(--mono); font-size: 10px; line-height: 1.4; margin-bottom: 8px; }
+.rv-live-finding-from { background: rgba(178,34,34,.06); padding: 4px 6px; border-radius: 3px; color: var(--ink-2); }
+.rv-live-finding-to { background: rgba(10,125,87,.06); padding: 4px 6px; border-radius: 3px; color: var(--ink-2); }
+.rv-live-finding-arrow { text-align: center; color: var(--ink-3); }
+.rv-live-finding-actions { display: flex; gap: 4px; }
+.rv-live-finding-actions button { flex: 1; padding: 4px 0; }
+
+.rv-live-doc {
+  position: relative;
+  overflow-y: auto;
+  padding: 28px 36px;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
+}
+.rv-live-doc-body {
+  background: var(--paper);
+  max-width: 720px; margin: 0 auto;
+  padding: 40px 56px;
+  border: 1px solid var(--rule-soft); border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.04);
+  font-size: 14px; line-height: 1.7;
+  max-height: none;
+  overflow: visible;
+  height: auto;        /* let content drive height; the parent .rv-docview-main scrolls */
+}
+.rv-live-doc-body .rv-doc-preview-page {
+  /* The HTML mammoth produced may not have margins on its outer
+     elements; ensure paragraphs flow naturally and the doc body
+     can grow as tall as needed inside the scrolling parent. */
+  min-height: 100%;
+}
+
+/* Scanner sweep — visible while at least one cell is running */
+.rv-live-scanner {
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.rv-live-scanner.is-active::before {
+  content: '';
+  position: absolute; left: 5%; right: 5%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent-deep) 50%, transparent 100%);
+  box-shadow: 0 0 20px var(--accent-deep);
+  opacity: .55;
+  animation: rv-scan-sweep 4s ease-in-out infinite;
+}
+@keyframes rv-scan-sweep {
+  0%   { top: 0; opacity: 0; }
+  10%  { opacity: .55; }
+  50%  { top: 50vh; opacity: .55; }
+  90%  { opacity: .55; }
+  100% { top: 100vh; opacity: 0; }
+}
+
+/* Persistent finding highlights in the doc body */
+.rv-doc-finding-highlight {
+  background: #fff59d;
+  padding: 1px 2px; border-radius: 2px;
+  box-shadow: 0 0 0 2px #ffeb3b inset;
+  cursor: help;
+  transition: background .3s, box-shadow .3s;
+}
+.rv-doc-finding-highlight.is-accepted {
+  background: rgba(10,125,87,.18);
+  box-shadow: 0 0 0 2px #0a7d57 inset;
+}
+.rv-doc-finding-highlight.is-rejected {
+  background: rgba(178,34,34,.10);
+  box-shadow: 0 0 0 1px #b22222 inset;
+  text-decoration: line-through;
+  text-decoration-color: rgba(178,34,34,.5);
+  opacity: .6;
+}
+.rv-doc-finding-highlight.is-extraction {
+  background: rgba(56,98,170,.12);
+  box-shadow: 0 0 0 2px rgba(56,98,170,.5) inset;
+}
+.rv-doc-finding-highlight.is-pulse {
+  animation: rv-finding-pulse 1.6s ease-out 1;
+}
+@keyframes rv-finding-pulse {
+  0%   { background: #ffd54f; box-shadow: 0 0 0 6px rgba(255,213,79,.6) inset, 0 0 16px rgba(255,213,79,.7); transform: scale(1.02); }
+  50%  { background: #fff59d; box-shadow: 0 0 0 4px rgba(255,213,79,.3) inset, 0 0 8px rgba(255,213,79,.4); transform: scale(1); }
+  100% { background: #fff59d; box-shadow: 0 0 0 2px #ffeb3b inset; transform: scale(1); }
+}
+
+/* Flash on click — a vivid orange burst that fades back to whatever
+   color the highlight currently is (pending/accepted/rejected/
+   extraction). User clicks a finding in the sidebar, the highlight
+   in the doc body briefly flares so the eye locks onto it. */
+.rv-doc-finding-highlight.is-flash {
+  animation: rv-finding-flash 1.6s ease-out 1;
+  position: relative;
+  z-index: 5;
+}
+@keyframes rv-finding-flash {
+  0%   {
+    background: #ff6f00;
+    box-shadow: 0 0 0 5px #ff6f00 inset, 0 0 0 6px rgba(255,111,0,.55), 0 0 28px rgba(255,111,0,.85);
+    transform: scale(1.06);
+    color: white;
+  }
+  35%  {
+    background: #ffa726;
+    box-shadow: 0 0 0 4px #ff8f00 inset, 0 0 0 4px rgba(255,143,0,.35), 0 0 18px rgba(255,143,0,.6);
+    transform: scale(1.03);
+    color: var(--ink);
+  }
+  100% {
+    /* leave properties untouched at the end so the persistent color
+       (set on the static class — yellow/green/red/blue) takes back
+       over without a jarring switch */
+    transform: scale(1);
+  }
+}
+
+/* Live-preview button on the row */
+.rv-watch-btn {
+  display: block;
+  margin-bottom: 6px;
+  padding: 5px 10px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  background: var(--paper); color: var(--accent-deep);
+  border: 1px solid var(--accent-deep); border-radius: 4px;
+  cursor: pointer; white-space: nowrap;
+}
+.rv-watch-btn:hover { background: var(--accent-deep); color: var(--paper); }
+
+@media (max-width: 760px) {
+  .rv-live-body { grid-template-columns: 1fr; }
+  .rv-live-side { border-right: none; border-bottom: 1px solid var(--rule-soft); max-height: 35vh; }
+}
+
 /* Cell detail modal */
 .rv-detail-body { display: flex; flex-direction: column; gap: 14px; }
 .rv-detail-meta { font-size: 13px; color: var(--ink-2); }

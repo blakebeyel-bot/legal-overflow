@@ -32,10 +32,27 @@ export default async (req) => {
   const docIds = Array.isArray(body.document_ids) ? body.document_ids.slice(0, MAX_DOCS) : [];
   const model = String(body.model || 'claude-sonnet-4-5').slice(0, 100);
   const projectId = body.project_id || null;
+  const kind = String(body.kind || 'extraction');
 
   if (!title) return json({ error: 'Missing title' }, 400);
   if (!columns.length) return json({ error: 'At least one column required' }, 400);
   if (!docIds.length) return json({ error: 'At least one document required' }, 400);
+  if (kind !== 'extraction' && kind !== 'redline') return json({ error: 'kind must be extraction or redline' }, 400);
+
+  // Redline reviews require all docs to be .docx (the redline engine
+  // does find/replace at the .docx XML level; PDFs are not yet
+  // supported).
+  if (kind === 'redline') {
+    const supabase0 = (await import('../lib/supabase-admin.js')).getSupabaseAdmin();
+    const { data: nonDocx } = await supabase0
+      .from('workspace_documents')
+      .select('id, original_filename')
+      .in('id', docIds)
+      .not('original_filename', 'ilike', '%.docx');
+    if (nonDocx && nonDocx.length) {
+      return json({ error: `Redline reviews require all documents to be .docx (Word). These are not: ${nonDocx.map((d) => d.original_filename).join(', ')}` }, 400);
+    }
+  }
 
   // Normalize columns: each must have a name and a prompt.
   const normCols = columns.map((c, i) => ({
@@ -71,6 +88,7 @@ export default async (req) => {
       title,
       columns_config: normCols,
       model,
+      kind,
       status: 'pending',
     })
     .select('*')

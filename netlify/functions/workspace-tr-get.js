@@ -28,7 +28,7 @@ export default async (req) => {
 
   const { data: cells, error: cErr } = await supabase
     .from('workspace_tabular_cells')
-    .select('id, document_id, column_index, content, citations, status, status_detail, updated_at')
+    .select('id, document_id, column_index, content, citations, status, status_detail, updated_at, redline_find, redline_replace, redline_rationale, redline_status')
     .eq('review_id', id);
   if (cErr) return json({ error: cErr.message }, 500);
 
@@ -40,7 +40,18 @@ export default async (req) => {
         .in('id', docIds)
     : { data: [] };
 
-  return json({ review, cells: cells || [], documents: docs || [] });
+  // For redline reviews, also pull the per-doc finalization records so
+  // the UI can show "v3 finalized" badges + download links.
+  let finalizations = [];
+  if (review.kind === 'redline' && docIds.length) {
+    const { data } = await supabase
+      .from('workspace_tabular_doc_finalizations')
+      .select('document_id, version_id, edits_applied, finalized_at, version:version_id (id, version_number, storage_path, display_name)')
+      .eq('review_id', id);
+    finalizations = data || [];
+  }
+
+  return json({ review, cells: cells || [], documents: docs || [], finalizations });
 };
 
 function json(obj, status = 200) {

@@ -15,8 +15,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
 <link rel="stylesheet" href="/workspace.css" />
+<!-- mammoth.js for in-doc redline preview (renders .docx → HTML
+     client-side so we can highlight where each edit lands) -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
 </head>
-<body>
+<body class="review-page">
 <div id="grain"></div>
 
 <header class="nav">
@@ -87,7 +90,10 @@
 
   const accessToken = session.access_token;
   const main = document.getElementById('page-main');
-  const reviewId = new URL(location.href).searchParams.get('id');
+  const url = new URL(location.href);
+  const reviewId = url.searchParams.get('id');
+  const initialView = url.searchParams.get('view');     // 'doc' | 'grid' | null
+  const initialDocId = url.searchParams.get('doc');     // selected doc in doc view
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -176,6 +182,7 @@
   async function openNewReviewModal(opts = {}) {
     const overlay = document.createElement('div');
     overlay.className = 'attach-modal';
+    const initialKind = opts.prefillKind || 'extraction';
     overlay.innerHTML = `
       <div class="attach-modal-inner rv-modal">
         <header class="attach-modal-head">
@@ -183,18 +190,32 @@
           <button type="button" class="attach-modal-close" data-close>×</button>
         </header>
         <div class="attach-modal-body">
+          <div class="rv-field">
+            <span class="rv-field-label">Kind</span>
+            <div class="rv-kind-picker">
+              <label class="rv-kind-opt"><input type="radio" name="rv-kind" value="extraction" ${initialKind === 'extraction' ? 'checked' : ''} />
+                <div class="rv-kind-title">Extraction</div>
+                <div class="rv-kind-desc">Each cell answers "what does this say?" with a verbatim quote. Good for due diligence summaries.</div>
+              </label>
+              <label class="rv-kind-opt"><input type="radio" name="rv-kind" value="redline" ${initialKind === 'redline' ? 'checked' : ''} />
+                <div class="rv-kind-title">Redline</div>
+                <div class="rv-kind-desc">Each cell proposes a tracked-changes edit. Accept/reject per cell, finalize per doc as a clean .docx. <strong>Requires .docx files.</strong></div>
+              </label>
+            </div>
+          </div>
+
           <label class="rv-field">
             <span class="rv-field-label">Title</span>
             <input type="text" id="rv-title" maxlength="200" placeholder="e.g. NDA portfolio scan — 2026 Q1" />
           </label>
 
           <div class="rv-field">
-            <span class="rv-field-label">Documents</span>
+            <span class="rv-field-label" id="rv-docs-label">Documents</span>
             <div id="rv-doc-list" class="rv-doc-list"><div class="ws-empty">Loading library…</div></div>
           </div>
 
           <div class="rv-field">
-            <span class="rv-field-label">Columns</span>
+            <span class="rv-field-label" id="rv-cols-label">Columns</span>
             <div id="rv-cols" class="rv-cols"></div>
             <button type="button" id="rv-add-col" class="rv-add-col">+ Add column</button>
           </div>
@@ -223,11 +244,25 @@
     const libJson = await libRes.json();
     const mdlJson = await mdlRes.json();
 
-    const docs = libJson.documents || [];
-    const docList = overlay.querySelector('#rv-doc-list');
-    if (!docs.length) {
-      docList.innerHTML = '<div class="ws-empty">No documents in your library. <a href="/workspace/library/">Upload some →</a></div>';
-    } else {
+    const allDocs = libJson.documents || [];
+    function getCurrentKind() {
+      return overlay.querySelector('input[name="rv-kind"]:checked')?.value || 'extraction';
+    }
+    function visibleDocs() {
+      const kind = getCurrentKind();
+      if (kind !== 'redline') return allDocs;
+      return allDocs.filter((d) => (d.original_filename || '').toLowerCase().endsWith('.docx'));
+    }
+    function renderDocList() {
+      const docList = overlay.querySelector('#rv-doc-list');
+      const docs = visibleDocs();
+      const kind = getCurrentKind();
+      if (!docs.length) {
+        docList.innerHTML = kind === 'redline'
+          ? '<div class="ws-empty">No .docx files in your library. Redlining requires Word documents — <a href="/workspace/library/">upload one →</a></div>'
+          : '<div class="ws-empty">No documents in your library. <a href="/workspace/library/">Upload some →</a></div>';
+        return;
+      }
       docList.innerHTML = docs.map((d) => `
         <label class="rv-doc-item">
           <input type="checkbox" data-doc="${d.id}" />
@@ -235,19 +270,28 @@
           <span class="rv-doc-meta">${(d.current_version?.extracted_chars || 0).toLocaleString()} chars</span>
         </label>`).join('');
     }
+    renderDocList();
 
     const models = mdlJson.models || [];
     const sel = overlay.querySelector('#rv-model');
     sel.innerHTML = models.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === 'claude-sonnet-4-5' ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
 
-    // Initial column row. If we have prefilled columns from a
-    // workflow, use those; otherwise the NDA-review starter set.
+    // Initial column row. Presets vary by kind. For extraction we
+    // pre-fill with NDA-review-style questions; for redline we
+    // pre-fill with concern descriptions that produce edits.
     const colsEl = overlay.querySelector('#rv-cols');
-    const presets = (opts.prefillCols && opts.prefillCols.length) ? opts.prefillCols : [
+    const extractionPresets = [
       { name: 'Term length', prompt: 'What is the term length of this agreement? Quote the relevant clause.' },
       { name: 'Governing law', prompt: 'What is the governing law / choice of law clause? State the jurisdiction.' },
       { name: 'Liability cap', prompt: 'Is there a cap on liability? If so, state the cap (amount or formula). Quote the clause.' },
     ];
+    const redlinePresets = [
+      { name: 'Governing law → Florida', prompt: 'If the governing law is anything other than Florida, find the worst-positioned governing-law sentence and propose changing it to Florida.' },
+      { name: 'Liability cap', prompt: 'If there is no liability cap, find the most relevant liability/indemnification clause and propose adding a cap of 12 months of fees. If there is an unreasonable cap (e.g. unlimited), propose tightening it.' },
+      { name: 'Termination notice', prompt: 'If the termination-for-convenience clause requires fewer than 60 days notice, propose changing the notice period to 60 days.' },
+    ];
+    const presets = (opts.prefillCols && opts.prefillCols.length) ? opts.prefillCols
+      : (initialKind === 'redline' ? redlinePresets : extractionPresets);
     if (opts.prefillTitle) {
       overlay.querySelector('#rv-title').value = opts.prefillTitle + ' — ' + new Date().toLocaleDateString();
     }
@@ -271,14 +315,38 @@
       }
     });
 
-    // Cost hint updates as user toggles checkboxes / adds cols
+    // Cost hint updates as user toggles checkboxes / adds cols.
+    // Also relabels columns -> "Concerns" for redline mode and the
+    // run button to "Run redline review".
     const costHint = overlay.querySelector('#rv-cost-hint');
+    const colsLabel = overlay.querySelector('#rv-cols-label');
+    const docsLabel = overlay.querySelector('#rv-docs-label');
+    const runBtn = overlay.querySelector('#rv-run');
     function updateCost() {
+      const kind = getCurrentKind();
       const docCount = overlay.querySelectorAll('input[data-doc]:checked').length;
       const colCount = overlay.querySelectorAll('.rv-col-row').length;
       const cells = docCount * colCount;
-      costHint.textContent = `${docCount} docs × ${colCount} columns = ${cells} cells`;
+      costHint.textContent = `${docCount} docs × ${colCount} ${kind === 'redline' ? 'concerns' : 'columns'} = ${cells} cells`;
+      colsLabel.textContent = kind === 'redline' ? 'Concerns (one per column)' : 'Columns';
+      docsLabel.textContent = kind === 'redline' ? 'Documents (.docx only)' : 'Documents';
+      runBtn.textContent = kind === 'redline' ? 'Run redline review' : 'Run review';
     }
+    // Re-render doc list and presets when kind toggles
+    overlay.querySelectorAll('input[name="rv-kind"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        renderDocList();
+        // Re-fill column presets if user hasn't customized them
+        const allEmpty = Array.from(colsEl.querySelectorAll('.rv-col-prompt')).every((t) => !t.value.trim());
+        if (allEmpty) {
+          colsEl.innerHTML = '';
+          colIdx = 0;
+          const k = getCurrentKind();
+          for (const p of (k === 'redline' ? redlinePresets : extractionPresets)) addColumn(p);
+        }
+        updateCost();
+      });
+    });
     overlay.addEventListener('input', updateCost);
     overlay.addEventListener('change', updateCost);
     updateCost();
@@ -300,10 +368,11 @@
       btn.disabled = true;
       btn.textContent = 'Creating…';
 
+      const kind = getCurrentKind();
       const r = await fetch('/.netlify/functions/workspace-tr-create', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, columns: cols, document_ids: docIds, model }),
+        body: JSON.stringify({ title, columns: cols, document_ids: docIds, model, kind }),
       });
       const j = await r.json();
       if (!r.ok) {
@@ -312,15 +381,21 @@
         btn.textContent = 'Run review';
         return;
       }
-      // Navigate to grid view
-      location.href = `/workspace/reviews/?id=${j.review_id}`;
+      // For redline reviews, drop straight into the live document view
+      // (it auto-streams findings as cells complete). For extraction
+      // reviews, the grid is more useful.
+      const viewParam = kind === 'redline' ? `&view=doc&doc=${docIds[0]}` : '';
+      location.href = `/workspace/reviews/?id=${j.review_id}${viewParam}`;
     });
   }
 
   // ============================================================
-  // GRID VIEW (single review)
+  // GRID VIEW (single review) — also handles the document view
   // ============================================================
-  let gridState = null;   // { review, cells, documents }
+  let gridState = null;   // { review, cells, documents, finalizations }
+  let currentView = 'grid';      // 'grid' | 'doc'
+  let currentDocId = null;       // for doc view
+
   async function renderGridView(id) {
     main.innerHTML = `
       <div class="rv-shell">
@@ -333,12 +408,12 @@
             <button id="rv-export" type="button" class="ws-btn-secondary" title="Download as CSV (opens in Excel)">Export CSV</button>
           </div>
         </header>
-        <div class="rv-grid-wrap"><div id="rv-grid"></div></div>
+        <div id="rv-view-tabs" class="rv-view-tabs"></div>
+        <div id="rv-view-body"></div>
       </div>
       <div id="rv-cell-detail" class="attach-modal" hidden></div>
     `;
     await loadGrid(id);
-    // Poll while running. Stop when complete/error/partial.
     pollLoop(id);
 
     document.getElementById('rv-export')?.addEventListener('click', async () => {
@@ -378,7 +453,39 @@
   function drawGrid() {
     if (!gridState) return;
     const { review, cells, documents } = gridState;
+    const isRedline = review.kind === 'redline';
     document.getElementById('rv-grid-title').textContent = review.title;
+
+    // Decide initial view: explicit ?view= wins, else default to
+    // Document view for both kinds. The grid is now the alternate
+    // "compact summary" view; the doc-and-findings layout is the
+    // primary experience.
+    if (!currentView) {
+      currentView = (initialView === 'doc' || initialView === 'grid')
+        ? initialView
+        : 'doc';
+    }
+    if (!currentDocId) {
+      currentDocId = initialDocId || (documents[0]?.id || null);
+    }
+    drawViewTabs();
+
+    // Three scrollbars on doc view: page itself, sidebar findings,
+    // doc panel. Each independent. The body is NOT locked.
+    document.body.classList.remove('is-locked');
+
+    if (currentView === 'doc') {
+      drawDocView();
+      drawStatusHead();
+      return;
+    }
+    drawGridTable();
+    drawStatusHead();
+  }
+
+  function drawStatusHead() {
+    const { review, cells } = gridState;
+    const isRedline = review.kind === 'redline';
     const pill = document.getElementById('rv-status-pill');
     pill.className = 'rv-status-pill ' + (
       review.status === 'complete' ? 'rv-status-done' :
@@ -386,47 +493,446 @@
       review.status === 'error' ? 'rv-status-err' :
       review.status === 'partial' ? 'rv-status-part' : 'rv-status-pen'
     );
-    pill.textContent = review.status;
+    pill.textContent = (isRedline ? 'redline · ' : '') + review.status;
 
     const total = cells.length;
     const done = cells.filter((c) => c.status === 'complete').length;
     const errs = cells.filter((c) => c.status === 'error').length;
-    document.getElementById('rv-counter').textContent =
-      `${done}/${total} cells${errs ? ` · ${errs} failed` : ''}`;
+    let counter = `${done}/${total} cells${errs ? ` · ${errs} failed` : ''}`;
+    if (isRedline) {
+      const accepted = cells.filter((c) => c.redline_status === 'accepted').length;
+      const rejected = cells.filter((c) => c.redline_status === 'rejected').length;
+      counter += ` · ${accepted} accepted · ${rejected} rejected`;
+    }
+    document.getElementById('rv-counter').textContent = counter;
+  }
 
+  function drawViewTabs() {
+    const { review, documents } = gridState;
+    const tabsEl = document.getElementById('rv-view-tabs');
+    if (!tabsEl) return;
+    tabsEl.style.display = '';
+    const docTabs = (currentView === 'doc')
+      ? `<div class="rv-doctabs">${documents.map((d) => `
+          <button type="button" class="rv-doctab${d.id === currentDocId ? ' is-active' : ''}" data-doctab="${d.id}">${escapeHtml(d.filename)}</button>
+        `).join('')}</div>`
+      : '';
+    tabsEl.innerHTML = `
+      <div class="rv-viewbar">
+        <div class="rv-viewpills">
+          <button type="button" class="rv-viewpill${currentView === 'doc' ? ' is-active' : ''}" data-view="doc">Document</button>
+          <button type="button" class="rv-viewpill${currentView === 'grid' ? ' is-active' : ''}" data-view="grid">Grid</button>
+        </div>
+        ${docTabs}
+      </div>`;
+    tabsEl.querySelectorAll('[data-view]').forEach((b) => {
+      b.addEventListener('click', () => switchView(b.dataset.view));
+    });
+    tabsEl.querySelectorAll('[data-doctab]').forEach((b) => {
+      b.addEventListener('click', () => switchDoc(b.dataset.doctab));
+    });
+  }
+
+  function switchView(v) {
+    if (v === currentView) return;
+    currentView = v;
+    // Update URL without reload
+    const u = new URL(location.href);
+    u.searchParams.set('view', v);
+    if (v === 'doc' && currentDocId) u.searchParams.set('doc', currentDocId); else u.searchParams.delete('doc');
+    history.replaceState(null, '', u.toString());
+    drawGrid();
+  }
+  function switchDoc(docId) {
+    if (docId === currentDocId) return;
+    currentDocId = docId;
+    const u = new URL(location.href);
+    u.searchParams.set('doc', docId);
+    history.replaceState(null, '', u.toString());
+    drawGrid();
+  }
+
+  // ---- Inline document view (default for both kinds) ----
+  function drawDocView() {
+    const { review, cells, documents, finalizations } = gridState;
+    const isRedline = review.kind === 'redline';
+    const docId = currentDocId || documents[0]?.id;
+    if (!docId) return;
+    const doc = documents.find((d) => d.id === docId);
+    const cellsForDoc = cells.filter((c) => c.document_id === docId);
+    const cols = review.columns_config || [];
+    const fin = (finalizations || []).find((f) => f.document_id === docId);
+
+    const total = cellsForDoc.length;
+    const done = cellsForDoc.filter((c) => c.status === 'complete').length;
+    const accepted = cellsForDoc.filter((c) => c.redline_status === 'accepted').length;
+    const pending = cellsForDoc.filter((c) => c.status === 'pending' || c.status === 'running').length;
+
+    const body = document.getElementById('rv-view-body');
+    body.innerHTML = `
+      <div class="rv-docview">
+        <aside class="rv-docview-side">
+          <div class="rv-docview-side-head">
+            <span>${isRedline ? 'Findings' : 'Answers'}</span>
+            <span class="rv-docview-counter">${done}/${total}${pending > 0 ? ' · scanning' : ''}</span>
+          </div>
+          <div id="rv-docview-findings" class="rv-live-findings"></div>
+          ${isRedline ? `
+          <div class="rv-docview-side-foot">
+            <button type="button" id="rv-docview-finalize" class="ws-btn"${accepted === 0 ? ' disabled' : ''}>
+              ${accepted ? `Apply ${accepted} accepted` : 'Apply accepted'}
+            </button>
+            ${fin ? `<a class="rv-finalized-link" data-final-version="${fin.version_id}" data-storage-path="${escapeHtml(fin.version?.storage_path || '')}" data-doc-name="${escapeHtml(doc.filename)}">v${fin.version?.version_number || ''} ↓</a>` : ''}
+          </div>` : ''}
+        </aside>
+        <main class="rv-docview-main">
+          <div id="rv-live-scanner" class="rv-live-scanner${pending > 0 ? ' is-active' : ''}"></div>
+          <div id="rv-live-doc-body" class="rv-doc-preview rv-live-doc-body"><div class="ws-empty">Loading document…</div></div>
+        </main>
+      </div>`;
+
+    // Render the doc body once per doc switch (cache hit on repeat).
+    renderDocViewBody(docId);
+    refreshDocViewFindings();
+
+    document.getElementById('rv-docview-finalize')?.addEventListener('click', async () => {
+      const r = await fetch('/.netlify/functions/workspace-tr-finalize-doc', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_id: review.id, document_id: docId }),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert('Failed: ' + (j.error || 'unknown')); return; }
+      const sb = (await import('../../../lib/supabase')).getSupabase();
+      const { data: signed } = await sb.storage.from('library').createSignedUrl(j.version.storage_path, 600);
+      if (signed?.signedUrl) {
+        const link = document.createElement('a');
+        link.href = signed.signedUrl;
+        link.download = `${doc.filename.replace(/\.docx$/i, '')} (final).docx`;
+        link.click();
+      }
+      await loadGrid(review.id);
+    });
+
+    body.querySelectorAll('[data-final-version]').forEach((a) => {
+      a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const path = a.dataset.storagePath; if (!path) return;
+        const sb = (await import('../../../lib/supabase')).getSupabase();
+        const { data } = await sb.storage.from('library').createSignedUrl(path, 600);
+        if (data?.signedUrl) {
+          const link = document.createElement('a');
+          link.href = data.signedUrl;
+          link.download = `${a.dataset.docName.replace(/\.docx$/i, '')} (final).docx`;
+          link.click();
+        }
+      });
+    });
+  }
+
+  // Cache mammoth-rendered HTML per doc; track which cells we've
+  // already pulse-highlighted so re-renders don't re-pulse.
+  const _seenCellPulses = new Set();
+  async function renderDocViewBody(docId) {
+    const target = document.getElementById('rv-live-doc-body');
+    if (!target) return;
+    try {
+      let html = _docPreviewCache[docId];
+      if (!html) {
+        const supa = (await import('../../../lib/supabase')).getSupabase();
+        const { data: versions } = await supa
+          .from('workspace_document_versions')
+          .select('storage_path')
+          .eq('document_id', docId)
+          .eq('source', 'upload')
+          .order('version_number', { ascending: true })
+          .limit(1);
+        const path = versions?.[0]?.storage_path;
+        if (!path) throw new Error('Original version not found');
+        const { data: signed } = await supa.storage.from('library').createSignedUrl(path, 600);
+        const res = await fetch(signed.signedUrl);
+        const ab = await res.arrayBuffer();
+        const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
+        html = result.value || '';
+        _docPreviewCache[docId] = html;
+      }
+      target.innerHTML = `<div class="rv-doc-preview-page">${html}</div>`;
+      refreshDocViewFindings();
+    } catch (err) {
+      target.innerHTML = `<div class="ws-empty">Preview failed: ${escapeHtml(err.message || String(err))}</div>`;
+    }
+  }
+
+  function refreshDocViewFindings() {
+    if (!gridState || currentView !== 'doc') return;
+    const { review, cells } = gridState;
+    const isRedline = review.kind === 'redline';
+    const docId = currentDocId;
+    if (!docId) return;
+    const cellsForDoc = cells.filter((c) => c.document_id === docId);
+    const cols = review.columns_config || [];
+
+    // Sidebar list
+    const findingsEl = document.getElementById('rv-docview-findings');
+    if (findingsEl) {
+      const findings = cellsForDoc.sort((a, b) => a.column_index - b.column_index);
+      findingsEl.innerHTML = findings.map((c) => {
+        const col = cols[c.column_index];
+        if (c.status === 'pending' || c.status === 'running') {
+          return `<div class="rv-live-finding rv-live-finding-pending">
+            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <div class="rv-live-finding-na-text"><span class="rv-spin"></span>Analyzing…</div>
+          </div>`;
+        }
+        if (c.status === 'error') {
+          return `<div class="rv-live-finding rv-live-finding-na" title="${escapeHtml(c.status_detail || '')}">
+            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <div class="rv-live-finding-na-text">Error</div>
+          </div>`;
+        }
+
+        if (isRedline) {
+          const status = c.redline_status || 'pending';
+          const stClass = status === 'accepted' ? ' is-accepted' : status === 'rejected' ? ' is-rejected' : '';
+          if (!c.redline_find) {
+            return `<div class="rv-live-finding rv-live-finding-na" data-cell="${c.id}">
+              <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+              <div class="rv-live-finding-na-text">Not present in document</div>
+            </div>`;
+          }
+          return `<div class="rv-live-finding${stClass}" data-cell="${c.id}" data-find="${escapeHtml(c.redline_find)}">
+            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <div class="rv-live-finding-rationale">${escapeHtml(c.redline_rationale || c.content || '')}</div>
+            <div class="rv-live-finding-diff">
+              <div class="rv-live-finding-from">${escapeHtml(c.redline_find.slice(0, 200))}${c.redline_find.length > 200 ? '…' : ''}</div>
+              <div class="rv-live-finding-arrow">→</div>
+              <div class="rv-live-finding-to">${c.redline_replace ? escapeHtml(c.redline_replace.slice(0, 200)) + (c.redline_replace.length > 200 ? '…' : '') : '<em>(delete)</em>'}</div>
+            </div>
+            <div class="rv-live-finding-actions">
+              <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
+              <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
+            </div>
+          </div>`;
+        }
+
+        // Extraction mode: answer + verbatim quote (citation) highlighted in the doc.
+        const cite = (c.citations || [])[0];
+        if (!cite || !cite.quote) {
+          return `<div class="rv-live-finding rv-live-finding-na" data-cell="${c.id}">
+            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <div class="rv-live-finding-rationale">${escapeHtml(c.content || '')}</div>
+          </div>`;
+        }
+        return `<div class="rv-live-finding" data-cell="${c.id}" data-find="${escapeHtml(cite.quote)}">
+          <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+          <div class="rv-live-finding-rationale">${escapeHtml(c.content || '')}</div>
+          <div class="rv-live-finding-diff" style="grid-template-columns: 1fr">
+            <div class="rv-live-finding-from">${escapeHtml(cite.quote.slice(0, 240))}${cite.quote.length > 240 ? '…' : ''}${cite.page ? ` <span style="color:var(--ink-3);font-style:italic">(p. ${cite.page})</span>` : ''}</div>
+          </div>
+        </div>`;
+      }).join('');
+
+      findingsEl.querySelectorAll('[data-cell-action]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const cellId = btn.dataset.cell;
+          const status = btn.dataset.cellAction;
+          await fetch('/.netlify/functions/workspace-tr-cell-update', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: cellId, redline_status: status }),
+          });
+          const cell = gridState.cells.find((x) => x.id === cellId);
+          if (cell) cell.redline_status = status;
+          drawGrid();
+        });
+      });
+      findingsEl.querySelectorAll('[data-find]').forEach((row) => {
+        row.addEventListener('click', () => {
+          const find = row.dataset.find;
+          const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
+          if (!span) return;
+          span.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          // Trigger a one-shot flash animation. Remove + force reflow
+          // before re-adding so successive clicks restart the
+          // animation instead of being ignored.
+          span.classList.remove('is-flash');
+          void span.offsetWidth;
+          span.classList.add('is-flash');
+          setTimeout(() => span.classList.remove('is-flash'), 1800);
+        });
+      });
+    }
+
+    // Update doc body highlights. For redline mode, highlight
+    // c.redline_find. For extraction mode, highlight the quote from
+    // citations[0].
+    const body = document.getElementById('rv-live-doc-body');
+    if (body && body.querySelector('.rv-doc-preview-page')) {
+      for (const c of cellsForDoc) {
+        if (c.status !== 'complete') continue;
+        const findText = isRedline ? c.redline_find : (c.citations || [])[0]?.quote;
+        if (!findText) continue;
+        const existing = body.querySelector(`[data-cell="${c.id}"]`);
+        if (existing) {
+          existing.className = isRedline
+            ? `rv-doc-finding-highlight is-${c.redline_status || 'pending'}`
+            : 'rv-doc-finding-highlight is-extraction';
+          continue;
+        }
+        const isPulse = !_seenCellPulses.has(c.id);
+        _seenCellPulses.add(c.id);
+        // Synthesize a cell-shaped object that highlightLiveFinding accepts
+        const cellWrap = isRedline ? c : { id: c.id, redline_find: findText, redline_status: 'extraction', redline_rationale: c.content || '' };
+        highlightLiveFinding(body, cellWrap, isPulse);
+      }
+    }
+
+    // Scanner active iff any cell still pending
+    const scanner = document.getElementById('rv-live-scanner');
+    if (scanner) {
+      const stillRunning = cellsForDoc.some((c) => c.status === 'pending' || c.status === 'running');
+      scanner.classList.toggle('is-active', stillRunning);
+    }
+  }
+
+  function drawGridTable() {
+    const { review, cells, documents, finalizations } = gridState;
+    const isRedline = review.kind === 'redline';
     const cols = review.columns_config || [];
     const cellMap = {};
     for (const c of cells) cellMap[`${c.document_id}|${c.column_index}`] = c;
 
+    // Index per-doc finalizations for the row buttons
+    const finalByDoc = {};
+    for (const f of (finalizations || [])) finalByDoc[f.document_id] = f;
+
+    const headLabel = isRedline ? 'Concerns' : 'Columns';
     const head = `<thead><tr>
       <th class="rv-th rv-th-doc">Document</th>
-      ${cols.map((c) => `<th class="rv-th"><div class="rv-th-name">${escapeHtml(c.name || `Column ${c.index + 1}`)}</div><div class="rv-th-prompt">${escapeHtml(c.prompt.slice(0, 120))}${c.prompt.length > 120 ? '…' : ''}</div></th>`).join('')}
+      ${cols.map((c) => `<th class="rv-th"><div class="rv-th-name">${escapeHtml(c.name || `Column ${c.index + 1}`)}</div><div class="rv-th-prompt">${escapeHtml((c.prompt || '').slice(0, 120))}${(c.prompt || '').length > 120 ? '…' : ''}</div></th>`).join('')}
+      ${isRedline ? '<th class="rv-th rv-th-actions">Apply</th>' : ''}
     </tr></thead>`;
 
-    const rows = documents.map((d) => `
-      <tr>
-        <td class="rv-td-doc">
-          <div class="rv-doc-row-name">${escapeHtml(d.filename)}</div>
-        </td>
-        ${cols.map((c) => {
-          const cell = cellMap[`${d.id}|${c.index}`];
-          return renderCell(cell);
-        }).join('')}
-      </tr>`).join('');
+    const rows = documents.map((d) => {
+      const docCells = cells.filter((c) => c.document_id === d.id);
+      const accepted = docCells.filter((c) => c.redline_status === 'accepted').length;
+      const fin = finalByDoc[d.id];
+      const finalCol = isRedline ? `
+        <td class="rv-td-actions">
+          <button type="button" class="rv-watch-btn" data-watch-doc="${d.id}" data-doc-name="${escapeHtml(d.filename)}">Live preview</button>
+          <button type="button" class="rv-finalize-btn" data-finalize-doc="${d.id}" ${accepted === 0 ? 'disabled' : ''}>
+            Apply ${accepted}
+          </button>
+          ${fin ? `<a class="rv-finalized-link" data-final-version="${fin.version_id}" data-storage-path="${escapeHtml(fin.version?.storage_path || '')}" data-doc-name="${escapeHtml(d.filename)}">v${fin.version?.version_number || ''} ↓</a>` : ''}
+        </td>` : '';
+      return `<tr data-doc-row="${d.id}">
+        <td class="rv-td-doc"><div class="rv-doc-row-name">${escapeHtml(d.filename)}</div></td>
+        ${cols.map((c) => renderCell(cellMap[`${d.id}|${c.index}`], isRedline)).join('')}
+        ${finalCol}
+      </tr>`;
+    }).join('');
 
-    document.getElementById('rv-grid').innerHTML = `<table class="rv-grid">${head}<tbody>${rows}</tbody></table>`;
+    document.getElementById('rv-view-body').innerHTML = `<div class="rv-grid-wrap"><table class="rv-grid${isRedline ? ' rv-grid-redline' : ''}">${head}<tbody>${rows}</tbody></table></div>`;
 
     // Wire cell click → detail modal
     document.querySelectorAll('.rv-cell[data-cell]').forEach((td) => {
-      td.addEventListener('click', () => openCellDetail(td.dataset.cell));
+      td.addEventListener('click', (e) => {
+        if (e.target.closest('.rv-cell-actions')) return;   // ignore clicks on accept/reject buttons
+        openCellDetail(td.dataset.cell);
+      });
     });
+
+    // Wire per-cell accept/reject (redline only)
+    if (isRedline) {
+      document.querySelectorAll('[data-cell-action]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const td = btn.closest('[data-cell]');
+          const cellId = td?.dataset.cell;
+          const status = btn.dataset.cellAction;
+          if (!cellId) return;
+          const r = await fetch('/.netlify/functions/workspace-tr-cell-update', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: cellId, redline_status: status }),
+          });
+          if (!r.ok) { alert('Failed'); return; }
+          const cell = gridState.cells.find((c) => c.id === cellId);
+          if (cell) cell.redline_status = status;
+          drawGrid();
+        });
+      });
+
+      document.querySelectorAll('[data-finalize-doc]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const docId = btn.dataset.finalizeDoc;
+          btn.disabled = true; btn.textContent = '…';
+          const r = await fetch('/.netlify/functions/workspace-tr-finalize-doc', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ review_id: review.id, document_id: docId }),
+          });
+          const j = await r.json();
+          if (!r.ok) { alert('Finalize failed: ' + (j.error || 'unknown')); btn.disabled = false; return; }
+          await loadGrid(review.id);
+        });
+      });
+
+      document.querySelectorAll('[data-final-version]').forEach((a) => {
+        a.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const path = a.dataset.storagePath;
+          if (!path) return;
+          const sb = (await import('../../../lib/supabase')).getSupabase();
+          const { data } = await sb.storage.from('library').createSignedUrl(path, 600);
+          if (data?.signedUrl) {
+            const link = document.createElement('a');
+            link.href = data.signedUrl;
+            link.download = `${a.dataset.docName.replace(/\.docx$/i, '')} (final).docx`;
+            link.click();
+          }
+        });
+      });
+
+      // Wire "Live preview" buttons
+      document.querySelectorAll('[data-watch-doc]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openLivePreview(btn.dataset.watchDoc, btn.dataset.docName);
+        });
+      });
+    }
   }
 
-  function renderCell(cell) {
+  function renderCell(cell, isRedline) {
     if (!cell) return '<td class="rv-cell rv-cell-pending">—</td>';
     if (cell.status === 'pending') return '<td class="rv-cell rv-cell-pending">queued</td>';
     if (cell.status === 'running') return '<td class="rv-cell rv-cell-running"><span class="rv-spin"></span>thinking…</td>';
     if (cell.status === 'error') return `<td class="rv-cell rv-cell-error" data-cell="${cell.id}" title="${escapeHtml(cell.status_detail || 'failed')}">error</td>`;
+
+    if (isRedline) {
+      const find = cell.redline_find || '';
+      const replace = cell.redline_replace || '';
+      const rationale = cell.redline_rationale || cell.content || '';
+      const status = cell.redline_status || 'pending';
+      if (!find) {
+        return `<td class="rv-cell rv-cell-na" data-cell="${cell.id}" title="${escapeHtml(cell.status_detail || '')}"><em>not in document</em></td>`;
+      }
+      const stClass = status === 'accepted' ? ' is-accepted' : status === 'rejected' ? ' is-rejected' : '';
+      return `<td class="rv-cell rv-cell-redline${stClass}" data-cell="${cell.id}">
+        <div class="rv-cell-rationale">${escapeHtml(rationale)}</div>
+        <div class="rv-cell-mini-diff">
+          <div class="rv-cell-find">${escapeHtml(find.slice(0, 140))}${find.length > 140 ? '…' : ''}</div>
+          <div class="rv-cell-arrow">→</div>
+          <div class="rv-cell-replace">${replace ? escapeHtml(replace.slice(0, 140)) + (replace.length > 140 ? '…' : '') : '<em>(delete)</em>'}</div>
+        </div>
+        <div class="rv-cell-actions">
+          <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted">✓</button>
+          <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected">×</button>
+        </div>
+      </td>`;
+    }
+
     const ans = cell.content || '';
     const hasQuote = Array.isArray(cell.citations) && cell.citations.length > 0;
     return `<td class="rv-cell rv-cell-done" data-cell="${cell.id}">
@@ -440,9 +946,69 @@
     if (!cell) return;
     const doc = (gridState?.documents || []).find((d) => d.id === cell.document_id);
     const col = (gridState?.review?.columns_config || [])[cell.column_index];
-    const cite = (cell.citations || [])[0];
+    const isRedline = gridState?.review?.kind === 'redline';
     const detail = document.getElementById('rv-cell-detail');
     detail.hidden = false;
+
+    if (isRedline) {
+      detail.innerHTML = `
+        <div class="attach-modal-inner rv-redline-detail">
+          <header class="attach-modal-head">
+            <h2 class="attach-modal-title">${escapeHtml(doc?.filename || '?')} · ${escapeHtml(col?.name || '?')}</h2>
+            <button type="button" class="attach-modal-close" data-close>×</button>
+          </header>
+          <div class="attach-modal-body rv-redline-detail-body">
+            <div class="rv-redline-side">
+              <div class="rv-redline-rationale">
+                <span class="rv-detail-label">Concern</span>
+                <p>${escapeHtml(col?.prompt || '')}</p>
+                <span class="rv-detail-label">Rationale</span>
+                <p>${escapeHtml(cell.redline_rationale || cell.content || '')}</p>
+              </div>
+              <div class="rv-redline-diff">
+                <span class="rv-detail-label">From</span>
+                <blockquote class="rv-redline-from">${escapeHtml(cell.redline_find || '')}</blockquote>
+                <span class="rv-detail-label">To</span>
+                <blockquote class="rv-redline-to">${cell.redline_replace ? escapeHtml(cell.redline_replace) : '<em>(deletion)</em>'}</blockquote>
+              </div>
+              <div class="rv-redline-actions">
+                <button type="button" class="rv-cell-acc${cell.redline_status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${cell.id}">✓ Accept</button>
+                <button type="button" class="rv-cell-rej${cell.redline_status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${cell.id}">× Reject</button>
+              </div>
+            </div>
+            <div class="rv-redline-preview">
+              <span class="rv-detail-label">In-document preview</span>
+              <div id="rv-doc-preview" class="rv-doc-preview"><div class="ws-empty">Loading document…</div></div>
+            </div>
+          </div>
+        </div>`;
+      detail.querySelector('[data-close]').addEventListener('click', () => detail.hidden = true);
+      detail.addEventListener('click', (e) => { if (e.target === detail) detail.hidden = true; });
+
+      // Wire accept/reject from inside the modal
+      detail.querySelectorAll('[data-cell-action]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const status = btn.dataset.cellAction;
+          await fetch('/.netlify/functions/workspace-tr-cell-update', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: cell.id, redline_status: status }),
+          });
+          cell.redline_status = status;
+          // Toggle visual state
+          detail.querySelector('.rv-cell-acc').classList.toggle('is-on', status === 'accepted');
+          detail.querySelector('.rv-cell-rej').classList.toggle('is-on', status === 'rejected');
+          drawGrid();
+        });
+      });
+
+      // Render the document preview with the edit highlighted
+      renderDocPreview(doc, cell);
+      return;
+    }
+
+    // Extraction mode (unchanged)
+    const cite = (cell.citations || [])[0];
     detail.innerHTML = `
       <div class="attach-modal-inner">
         <header class="attach-modal-head">
@@ -463,16 +1029,376 @@
     detail.addEventListener('click', (e) => { if (e.target === detail) detail.hidden = true; });
   }
 
+  // ---- In-doc preview ----
+  // Fetch the original .docx for this document, run mammoth.js
+  // (loaded via CDN in the head) to convert it to HTML, then locate
+  // the cell's redline_find string in the rendered HTML and wrap it
+  // in a highlight span so the user sees exactly where the edit
+  // lands. Scrolls the container so the highlight is centered.
+  const _docPreviewCache = {};
+  async function renderDocPreview(doc, cell) {
+    const target = document.getElementById('rv-doc-preview');
+    if (!target) return;
+    try {
+      let html = _docPreviewCache[doc.id];
+      if (!html) {
+        const supa = (await import('../../../lib/supabase')).getSupabase();
+        // Get the ORIGINAL upload version (we want the unmodified
+        // text so the find string matches verbatim).
+        const { data: versions } = await supa
+          .from('workspace_document_versions')
+          .select('storage_path, source')
+          .eq('document_id', doc.id)
+          .eq('source', 'upload')
+          .order('version_number', { ascending: true })
+          .limit(1);
+        const path = versions?.[0]?.storage_path;
+        if (!path) { target.innerHTML = '<div class="ws-empty">Original version not found.</div>'; return; }
+        const { data: signed } = await supa.storage.from('library').createSignedUrl(path, 600);
+        if (!signed?.signedUrl) { target.innerHTML = '<div class="ws-empty">Could not load document.</div>'; return; }
+        const res = await fetch(signed.signedUrl);
+        const ab = await res.arrayBuffer();
+        if (typeof window.mammoth === 'undefined') {
+          target.innerHTML = '<div class="ws-empty">Preview engine failed to load.</div>';
+          return;
+        }
+        const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
+        html = result.value || '';
+        _docPreviewCache[doc.id] = html;
+      }
+      target.innerHTML = `<div class="rv-doc-preview-page">${html}</div>`;
+
+      // Highlight the find_text in the rendered HTML
+      const findText = cell.redline_find;
+      if (findText) {
+        highlightFindIn(target, findText, cell.redline_replace || '');
+      }
+    } catch (err) {
+      target.innerHTML = `<div class="ws-empty">Preview failed: ${escapeHtml(err.message || String(err))}</div>`;
+    }
+  }
+
+  function highlightFindIn(container, find, replace) {
+    // Walk text nodes, locate the first occurrence of the find
+    // string, wrap it in a highlight span with the replacement
+    // shown as a tooltip.
+    const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const candidates = [];
+    let node;
+    while ((node = treeWalker.nextNode())) {
+      candidates.push(node);
+    }
+    // Try exact match first; if not found, normalize whitespace.
+    const tryMatch = (haystackFn) => {
+      for (const t of candidates) {
+        const idx = haystackFn(t.nodeValue || '').indexOf(haystackFn(find));
+        if (idx !== -1) {
+          // Found in this text node — split and wrap
+          const text = t.nodeValue;
+          const realIdx = (t.nodeValue.indexOf(find) !== -1) ? t.nodeValue.indexOf(find) : idx;
+          const before = text.slice(0, realIdx);
+          const matched = text.slice(realIdx, realIdx + find.length);
+          const after = text.slice(realIdx + find.length);
+          const span = document.createElement('span');
+          span.className = 'rv-doc-highlight';
+          span.title = replace ? `→ ${replace.slice(0, 240)}` : '(delete)';
+          span.textContent = matched;
+          const parent = t.parentNode;
+          parent.insertBefore(document.createTextNode(before), t);
+          parent.insertBefore(span, t);
+          parent.insertBefore(document.createTextNode(after), t);
+          parent.removeChild(t);
+          // Scroll into view
+          setTimeout(() => span.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+          return true;
+        }
+      }
+      return false;
+    };
+    if (tryMatch((s) => s)) return;
+    // Whitespace-normalized fallback
+    if (tryMatch((s) => s.replace(/\s+/g, ' '))) return;
+    // Couldn't find — show a banner
+    const banner = document.createElement('div');
+    banner.className = 'rv-doc-nofind';
+    banner.textContent = `Could not locate "${find.slice(0, 100)}${find.length > 100 ? '…' : ''}" in the rendered preview. The redline engine may still find it in the .docx.`;
+    container.prepend(banner);
+  }
+
   let pollTimer = null;
   async function pollLoop(id) {
     if (pollTimer) clearTimeout(pollTimer);
     if (!gridState) return;
     const status = gridState.review?.status;
-    if (status === 'complete' || status === 'error' || status === 'partial') return;
+    if (status === 'complete' || status === 'error' || status === 'partial') {
+      // One last refresh in case the inline doc view is open.
+      if (livePreviewState) refreshLivePreview();
+      if (currentView === 'doc') refreshDocViewFindings();
+      return;
+    }
     pollTimer = setTimeout(async () => {
       await loadGrid(id);
+      if (livePreviewState) refreshLivePreview();
+      if (currentView === 'doc') refreshDocViewFindings();
       pollLoop(id);
     }, 2500);
+  }
+
+  // ---- Live preview ----
+  // Full-screen view of one document with findings streaming in as
+  // the LLM completes each cell. The doc renders once via mammoth,
+  // and each new finding gets a pulse animation when it arrives.
+  // Sidebar lists findings; click to scroll, accept/reject inline.
+  let livePreviewState = null;   // { docId, overlay, seenCellIds: Set }
+
+  function openLivePreview(docId, docName) {
+    const overlay = document.createElement('div');
+    overlay.className = 'attach-modal rv-live-modal';
+    overlay.innerHTML = `
+      <div class="rv-live-inner">
+        <header class="rv-live-head">
+          <button type="button" class="rv-live-close" data-close>← Back to grid</button>
+          <h2 class="rv-live-title">${escapeHtml(docName)}</h2>
+          <div class="rv-live-progress" id="rv-live-progress">…</div>
+          <button type="button" id="rv-live-finalize" class="ws-btn">Apply accepted</button>
+        </header>
+        <div class="rv-live-body">
+          <aside class="rv-live-side">
+            <div class="rv-live-side-head">Findings</div>
+            <div id="rv-live-findings" class="rv-live-findings"></div>
+          </aside>
+          <main class="rv-live-doc">
+            <div id="rv-live-scanner" class="rv-live-scanner"></div>
+            <div id="rv-live-doc-body" class="rv-doc-preview rv-live-doc-body"><div class="ws-empty">Loading document…</div></div>
+          </main>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('[data-close]').addEventListener('click', closeLivePreview);
+
+    livePreviewState = { docId, docName, overlay, seenCellIds: new Set() };
+
+    // Fetch + render the document body once
+    renderLiveDocBody(docId);
+    refreshLivePreview();
+
+    overlay.querySelector('#rv-live-finalize').addEventListener('click', async () => {
+      const review = gridState?.review;
+      const acceptedCount = (gridState?.cells || []).filter(
+        (c) => c.document_id === docId && c.redline_status === 'accepted',
+      ).length;
+      if (!acceptedCount) { alert('Mark at least one finding as accepted first.'); return; }
+      const btn = overlay.querySelector('#rv-live-finalize');
+      btn.disabled = true; btn.textContent = 'Applying…';
+      const r = await fetch('/.netlify/functions/workspace-tr-finalize-doc', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_id: review.id, document_id: docId }),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert('Failed: ' + (j.error || 'unknown')); btn.disabled = false; btn.textContent = 'Apply accepted'; return; }
+      // Trigger download
+      const sb = (await import('../../../lib/supabase')).getSupabase();
+      const { data: signed } = await sb.storage.from('library').createSignedUrl(j.version.storage_path, 600);
+      if (signed?.signedUrl) {
+        const link = document.createElement('a');
+        link.href = signed.signedUrl;
+        link.download = `${docName.replace(/\.docx$/i, '')} (final).docx`;
+        link.click();
+      }
+      btn.textContent = '✓ Applied';
+      await loadGrid(review.id);
+      refreshLivePreview();
+    });
+  }
+
+  function closeLivePreview() {
+    livePreviewState?.overlay?.remove();
+    livePreviewState = null;
+  }
+
+  async function renderLiveDocBody(docId) {
+    const target = document.getElementById('rv-live-doc-body');
+    if (!target) return;
+    try {
+      let html = _docPreviewCache[docId];
+      if (!html) {
+        const supa = (await import('../../../lib/supabase')).getSupabase();
+        const { data: versions } = await supa
+          .from('workspace_document_versions')
+          .select('storage_path')
+          .eq('document_id', docId)
+          .eq('source', 'upload')
+          .order('version_number', { ascending: true })
+          .limit(1);
+        const path = versions?.[0]?.storage_path;
+        if (!path) throw new Error('Original version not found');
+        const { data: signed } = await supa.storage.from('library').createSignedUrl(path, 600);
+        const res = await fetch(signed.signedUrl);
+        const ab = await res.arrayBuffer();
+        const result = await window.mammoth.convertToHtml({ arrayBuffer: ab });
+        html = result.value || '';
+        _docPreviewCache[docId] = html;
+      }
+      target.innerHTML = `<div class="rv-doc-preview-page">${html}</div>`;
+      // Now apply highlights for every existing complete redline cell
+      // for this doc.
+      refreshLivePreview();
+    } catch (err) {
+      target.innerHTML = `<div class="ws-empty">Preview failed: ${escapeHtml(err.message || String(err))}</div>`;
+    }
+  }
+
+  function refreshLivePreview() {
+    if (!livePreviewState || !gridState) return;
+    const { docId } = livePreviewState;
+    const review = gridState.review;
+    const cellsForDoc = gridState.cells.filter((c) => c.document_id === docId);
+    const cols = review.columns_config || [];
+
+    // Update progress bar
+    const total = cellsForDoc.length;
+    const done = cellsForDoc.filter((c) => c.status === 'complete').length;
+    const pendingDocCells = cellsForDoc.filter((c) => c.status === 'pending' || c.status === 'running').length;
+    const progressEl = document.getElementById('rv-live-progress');
+    if (progressEl) {
+      progressEl.textContent = pendingDocCells > 0
+        ? `Analyzing… ${done}/${total} concerns checked`
+        : `${done}/${total} concerns checked · ${cellsForDoc.filter((c) => c.redline_find).length} findings`;
+    }
+    const scanner = document.getElementById('rv-live-scanner');
+    if (scanner) scanner.classList.toggle('is-active', pendingDocCells > 0);
+
+    // Render findings sidebar
+    const findingsEl = document.getElementById('rv-live-findings');
+    if (findingsEl) {
+      const findings = cellsForDoc
+        .filter((c) => c.status === 'complete')
+        .sort((a, b) => a.column_index - b.column_index);
+      if (findings.length === 0 && pendingDocCells > 0) {
+        findingsEl.innerHTML = '<div class="ws-empty">Scanning the document…</div>';
+      } else if (findings.length === 0) {
+        findingsEl.innerHTML = '<div class="ws-empty">No findings.</div>';
+      } else {
+        findingsEl.innerHTML = findings.map((c) => {
+          const col = cols[c.column_index];
+          const status = c.redline_status || 'pending';
+          const stClass = status === 'accepted' ? ' is-accepted' : status === 'rejected' ? ' is-rejected' : '';
+          if (!c.redline_find) {
+            return `<div class="rv-live-finding rv-live-finding-na" data-cell="${c.id}">
+              <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+              <div class="rv-live-finding-na-text">Not present in document</div>
+            </div>`;
+          }
+          return `<div class="rv-live-finding${stClass}" data-cell="${c.id}" data-find="${escapeHtml(c.redline_find)}">
+            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <div class="rv-live-finding-rationale">${escapeHtml(c.redline_rationale || c.content || '')}</div>
+            <div class="rv-live-finding-diff">
+              <div class="rv-live-finding-from">${escapeHtml(c.redline_find.slice(0, 200))}${c.redline_find.length > 200 ? '…' : ''}</div>
+              <div class="rv-live-finding-arrow">→</div>
+              <div class="rv-live-finding-to">${c.redline_replace ? escapeHtml(c.redline_replace.slice(0, 200)) + (c.redline_replace.length > 200 ? '…' : '') : '<em>(delete)</em>'}</div>
+            </div>
+            <div class="rv-live-finding-actions">
+              <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
+              <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
+            </div>
+          </div>`;
+        }).join('');
+
+        findingsEl.querySelectorAll('[data-cell-action]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const cellId = btn.dataset.cell;
+            const status = btn.dataset.cellAction;
+            await fetch('/.netlify/functions/workspace-tr-cell-update', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: cellId, redline_status: status }),
+            });
+            const cell = gridState.cells.find((x) => x.id === cellId);
+            if (cell) cell.redline_status = status;
+            refreshLivePreview();
+          });
+        });
+
+        // Click finding → scroll to highlight in doc
+        findingsEl.querySelectorAll('[data-find]').forEach((row) => {
+          row.addEventListener('click', () => {
+            const find = row.dataset.find;
+            const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
+            span?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          });
+        });
+      }
+    }
+
+    // Highlight new findings on the doc body. Each cell that just
+    // completed and has a find_text gets wrapped in a span; existing
+    // ones stay highlighted with their accepted/rejected class.
+    const body = document.getElementById('rv-live-doc-body');
+    if (body && body.querySelector('.rv-doc-preview-page')) {
+      for (const c of cellsForDoc) {
+        if (!c.redline_find || c.status !== 'complete') continue;
+        const existing = body.querySelector(`[data-cell="${c.id}"]`);
+        if (existing) {
+          // Update class to reflect current redline_status
+          existing.className = `rv-doc-finding-highlight is-${c.redline_status || 'pending'}`;
+          continue;
+        }
+        // New finding — try to highlight in the doc with a pulse
+        const isPulse = !livePreviewState.seenCellIds.has(c.id);
+        livePreviewState.seenCellIds.add(c.id);
+        highlightLiveFinding(body, c, isPulse);
+      }
+    }
+
+    // Apply button counter
+    const accepted = cellsForDoc.filter((c) => c.redline_status === 'accepted').length;
+    const finalBtn = document.getElementById('rv-live-finalize');
+    if (finalBtn) {
+      finalBtn.textContent = accepted ? `Apply ${accepted} accepted` : 'Apply accepted';
+      finalBtn.disabled = accepted === 0;
+    }
+  }
+
+  function highlightLiveFinding(container, cell, pulse) {
+    const find = cell.redline_find;
+    if (!find) return;
+    const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const candidates = [];
+    let node;
+    while ((node = treeWalker.nextNode())) candidates.push(node);
+    for (const t of candidates) {
+      const text = t.nodeValue || '';
+      const idx = text.indexOf(find);
+      if (idx === -1) continue;
+      const before = text.slice(0, idx);
+      const matched = text.slice(idx, idx + find.length);
+      const after = text.slice(idx + find.length);
+      const span = document.createElement('span');
+      span.className = `rv-doc-finding-highlight is-${cell.redline_status || 'pending'}${pulse ? ' is-pulse' : ''}`;
+      span.dataset.cell = cell.id;
+      span.dataset.findingFind = find;
+      span.textContent = matched;
+      span.title = cell.redline_rationale || '';
+      const parent = t.parentNode;
+      parent.insertBefore(document.createTextNode(before), t);
+      parent.insertBefore(span, t);
+      parent.insertBefore(document.createTextNode(after), t);
+      parent.removeChild(t);
+      // Pulse + scroll if first time
+      if (pulse) {
+        setTimeout(() => span.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+        setTimeout(() => span.classList.remove('is-pulse'), 2200);
+      }
+      return;
+    }
+  }
+
+  // CSS.escape polyfill for older browsers
+  function cssEscape(s) {
+    if (window.CSS && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/["\\]/g, '\\$&');
   }
 
   // ============================================================

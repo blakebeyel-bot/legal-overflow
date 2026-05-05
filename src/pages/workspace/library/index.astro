@@ -152,7 +152,9 @@
         status === 'skipped' ? 'preview unavailable' :
         '—';
       const date = new Date(d.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-      const isDocx = (d.original_filename || '').toLowerCase().endsWith('.docx');
+      // Redline functionality moved into Tabular Reviews — kind=redline
+      // (Phase 7 consolidation). The library cards stay as a pure
+      // upload/view/delete surface.
       return `<div class="lib-card" data-id="${d.id}">
         <div class="lib-card-head">
           <span class="lib-badge">${badge}</span>
@@ -163,17 +165,8 @@
           <div class="lib-card-meta">${formatBytes(d.size_bytes)} · ${escapeHtml(statusLabel)}</div>
           <div class="lib-card-date">${date}</div>
         </a>
-        ${isDocx ? `<button type="button" class="lib-card-redline" data-redline="${d.id}" data-name="${escapeHtml(d.filename)}">Redline…</button>` : ''}
       </div>`;
     }).join('');
-
-    els.grid.querySelectorAll('[data-redline]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openRedlineModal(btn.dataset.redline, btn.dataset.name);
-      });
-    });
 
     els.grid.querySelectorAll('[data-del]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
