@@ -14,6 +14,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 </head>
 <body class="chat-page">
@@ -63,6 +65,10 @@
       </button>
       <div id="chat-project-popover" class="chat-project-popover" hidden></div>
       <div class="chat-head-right">
+        <label class="chat-privacy-toggle" id="chat-privacy-toggle" title="Privacy mode (FL Rule 4-1.6 / ABA Op. 512). Rewrites every message and attached document as an abstract hypothetical before sending — names, entities, dates, addresses, and amounts are stripped. The LLM never sees client-identifying content.">
+          <input type="checkbox" id="toggle-privacy" />
+          <span class="chat-privacy-toggle-label"><span class="chat-privacy-toggle-lock" aria-hidden="true">🔒</span> Privacy</span>
+        </label>
         <select id="model-select" class="chat-model-select" aria-label="Model"></select>
         <span id="key-source" class="chat-key-source" aria-live="polite"></span>
       </div>
@@ -73,6 +79,57 @@
     </div>
 
     <div id="composer-attachments" class="composer-attachments"></div>
+
+    <!-- Research-mode toolbar — sits directly above the composer so
+         the toggles are visually attached to the message the user is
+         about to send. State persists per-chat in workspace_chats. -->
+    <div id="research-bar" class="composer-research-bar">
+      <span class="research-state-label" aria-hidden="true">State:</span>
+      <select id="toggle-state" class="research-toggle-state" aria-label="State" title="Picks the state for any State-scoped toggle below. Federal toggles ignore this selection and always target U.S. sources."></select>
+
+      <span class="research-divider" aria-hidden="true">|</span>
+      <span class="research-group">
+        <span class="research-group-label">Statutes:</span>
+        <label class="research-toggle" title="State statute pre-grounding. Server pre-fetches the selected state's official code (state.gov → Cornell → Justia waterfall) and grounds the response in it.">
+          <input type="checkbox" id="toggle-state-statutes" />
+          <span class="research-toggle-label">State</span>
+        </label>
+        <label class="research-toggle" title="Federal statute pre-grounding. Server references the U.S. Code (law.cornell.edu/uscode + uscode.house.gov + Justia federal codes) and the CFR (ecfr.gov) for regulations.">
+          <input type="checkbox" id="toggle-federal-statutes" />
+          <span class="research-toggle-label">Federal</span>
+        </label>
+      </span>
+
+      <span class="research-divider" aria-hidden="true">|</span>
+      <span class="research-group">
+        <span class="research-group-label">Case law:</span>
+        <label class="research-toggle" title="State case-law pre-grounding. CourtListener search filtered to the selected state's appellate + supreme court IDs.">
+          <input type="checkbox" id="toggle-state-caselaw" />
+          <span class="research-toggle-label">State</span>
+        </label>
+        <label class="research-toggle" title="Federal case-law pre-grounding. CourtListener search across SCOTUS + every federal circuit. Cited cases verified by CourtListener citation-lookup.">
+          <input type="checkbox" id="toggle-federal-caselaw" />
+          <span class="research-toggle-label">Federal</span>
+        </label>
+      </span>
+
+      <span class="research-divider" aria-hidden="true">|</span>
+      <span class="research-group">
+        <span class="research-group-label">Bills:</span>
+        <label class="research-toggle" title="State legislative activity. LegiScan search scoped to the selected state. Cited statutes are also checked for pending or enacted state-level amendments.">
+          <input type="checkbox" id="toggle-state-bills" />
+          <span class="research-toggle-label">State</span>
+        </label>
+        <label class="research-toggle" title="Federal legislative activity. LegiScan search scoped to U.S. Congress (state=US). Cited federal statutes are checked for pending Congressional action.">
+          <input type="checkbox" id="toggle-federal-bills" />
+          <span class="research-toggle-label">Federal</span>
+        </label>
+      </span>
+
+      <span class="research-status" id="research-status"></span>
+      <button type="button" id="research-info" class="research-info" aria-label="What do these toggles do?" title="What do these toggles do?">i</button>
+    </div>
+
     <form id="composer" class="chat-composer">
       <button type="button" id="composer-paperclip" class="composer-paperclip" aria-label="Attach document" title="Attach document from library">📎</button>
       <textarea id="composer-input" rows="2" placeholder="Ask a legal research question…"></textarea>
@@ -104,6 +161,52 @@
           <a href="/workspace/library/" class="lib-back">Manage library →</a>
           <button type="button" id="attach-confirm" class="ws-btn" disabled>Attach selected</button>
         </footer>
+      </div>
+    </div>
+
+    <!-- Citation verification modal — opens when user clicks the
+         small Citations summary pill below an assistant message,
+         or any inline cite badge. Lists every detected citation
+         with its verification status, source URL, and (when
+         applicable) amendment notes from LegiScan. -->
+    <div id="cite-modal" class="cite-modal" hidden>
+      <div class="cite-modal-overlay"></div>
+      <div class="cite-modal-inner">
+        <header class="cite-modal-head">
+          <h2 class="cite-modal-title">Citation verification</h2>
+          <button type="button" class="cite-modal-close" data-cite-modal-close aria-label="Close">×</button>
+        </header>
+        <div class="cite-modal-body" id="cite-modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Privacy mode info modal — opens when the user clicks the
+         🔒 badge on an abstracted message. Explains the policy +
+         the technique + cites the bar guidance. -->
+    <div id="privacy-modal" class="cite-modal" hidden>
+      <div class="cite-modal-overlay"></div>
+      <div class="cite-modal-inner">
+        <header class="cite-modal-head">
+          <h2 class="cite-modal-title">🔒 Privacy mode — what just happened</h2>
+          <button type="button" class="cite-modal-close" data-privacy-modal-close aria-label="Close">×</button>
+        </header>
+        <div class="cite-modal-body">
+          <p>This chat is in <strong>Privacy mode</strong>. Before your message left the server, it was rewritten by an abstractor LLM into an abstract legal hypothetical:</p>
+          <ul style="font-size: 13px; line-height: 1.55; padding-left: 20px;">
+            <li><strong>Stripped:</strong> client and party names, entity names (companies, firms, agencies), street addresses, specific dates, dollar amounts, account / SSN / EIN / docket numbers, phone, email.</li>
+            <li><strong>Replaced with:</strong> role-based descriptors ("the CFO", "an insurance company", "last year").</li>
+            <li><strong>Preserved:</strong> the legal issue, jurisdiction, statutes, regulations, procedural posture, and abstract fact pattern.</li>
+          </ul>
+          <p>The original raw text was <strong>never written to our database</strong>. The version you see in your message bubble is the abstracted form — the same thing the LLM saw.</p>
+          <p>This is the gold-standard "fully abstracted hypothetical" technique used in legal research to comply with client-confidence rules. References:</p>
+          <ul style="font-size: 13px; line-height: 1.55; padding-left: 20px;">
+            <li>Florida Bar Ethics Op. 24-1 (Jan 19, 2024)</li>
+            <li>ABA Formal Op. 512 (July 29, 2024)</li>
+            <li>Florida R. Regulating Fla. Bar 4-1.6 (Confidentiality of Information)</li>
+            <li>ABA Model R. of Prof. Conduct 1.6</li>
+          </ul>
+          <p style="font-size: 12px; color: var(--ink-3);">Privacy mode is best-effort, not absolute. You should still review every prompt before sending. If the abstractor misclassifies something obvious, please flag it.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -272,8 +375,80 @@
       // 6. Unclosed trailing code span.
       out = out.replace(/`([^`\n]*)$/, '<code>$1</code>');
     }
+    // 6.1. Markdown links — render `[text](url)` and `[[N]](url)` /
+    // `[N](url)` footnote-style references as proper anchors. Long
+    // legal source URLs look noisy in prose; rendering them as small
+    // superscript footnote chips (for numeric labels) or hostname-
+    // only links (for bare URLs) keeps the response readable while
+    // preserving click-through. We use null-byte placeholders so the
+    // bare-URL pass below doesn't double-process URLs already inside
+    // an anchor tag.
+    const linkSlots: string[] = [];
+    // Footnote-style first: `[1](url)` or `[[1]](url)`
+    out = out.replace(/\[\[?\s*(\d+)\s*\]?\]\(([^)\s]+)\)/g, (_m, num, url) => {
+      const idx = linkSlots.length;
+      linkSlots.push(
+        `<sup class="msg-footref"><a href="${url}" target="_blank" rel="noopener" title="${url}">${num}</a></sup>`
+      );
+      return `L${idx}`;
+    });
+    // Generic markdown links `[text](url)` next.
+    out = out.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_m, txt, url) => {
+      const idx = linkSlots.length;
+      linkSlots.push(
+        `<a href="${url}" target="_blank" rel="noopener" class="msg-link">${txt}</a>`
+      );
+      return `L${idx}`;
+    });
+    if (opts.optimistic) {
+      // Unclosed link openers during streaming. The model writes
+      // `[1](https://...` token by token; before the closing `)`
+      // arrives, the URL chars would otherwise stream visibly into
+      // the response. We replace any TRAILING unclosed opener with
+      // a placeholder chip so the URL never flashes for the user.
+      // The closed-form regex above runs FIRST every render, so
+      // once the `)` arrives the placeholder is replaced by the
+      // real chip with the working URL on the next frame.
+      //
+      // Footnote opener: `[1](...` or `[[1]](...`
+      out = out.replace(/\[\[?\s*(\d+)\s*\]?\]\([^)\n]*$/, (_m, num) => {
+        const slotIdx = linkSlots.length;
+        linkSlots.push(
+          `<sup class="msg-footref msg-footref-pending"><a href="#" onclick="return false">${num}</a></sup>`
+        );
+        return `L${slotIdx}`;
+      });
+      // Generic-link opener: `[text](...`
+      out = out.replace(/\[([^\]\n]+)\]\([^)\n]*$/, (_m, linkTxt) => {
+        const slotIdx = linkSlots.length;
+        linkSlots.push(
+          `<a href="#" onclick="return false" class="msg-link msg-link-pending">${linkTxt}</a>`
+        );
+        return `L${slotIdx}`;
+      });
+      // Bracket opened with no closer yet — render contents only,
+      // hide the bracket itself so user doesn't see raw '['.
+      out = out.replace(/\[([^\]\n]*)$/, '<span class="msg-link-pending">$1</span>');
+    }
+    // Bare URLs — render as hostname only with the full URL on hover.
+    // Strips trailing punctuation that was accidentally captured.
+    out = out.replace(/https?:\/\/[^\s<]+/g, (url) => {
+      const trailMatch = url.match(/[.,;:!?)\]]+$/);
+      let trail = '';
+      if (trailMatch) { trail = trailMatch[0]; url = url.slice(0, -trail.length); }
+      let host = url;
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+      const idx = linkSlots.length;
+      linkSlots.push(
+        `<a href="${url}" target="_blank" rel="noopener" class="msg-url" title="${url}">${host}</a>`
+      );
+      return `L${idx}${trail}`;
+    });
     // 7. Line breaks.
     out = out.replace(/\n/g, '<br>');
+    // Restore link placeholders last so <br>/<strong>/<em>/<code>
+    // around them are already in place.
+    out = out.replace(/L(\d+)/g, (_m, idx) => linkSlots[parseInt(idx, 10)] || '');
     return out;
   }
   function bubble(role, content, opts = {}) {
@@ -282,8 +457,29 @@
     const attachments = Array.isArray(opts.attachments) && opts.attachments.length
       ? `<div class="msg-attach-row">${opts.attachments.map((a) => `<span class="msg-attach">📎 ${escapeHtml(a.filename || a.name || 'attachment')}</span>`).join('')}</div>`
       : '';
-    return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}><div class="msg-body">${renderMarkdownInline(content)}${attachments}</div>${meta}</div>`;
+    // Per-message Privacy badge was removed — the chat-wide visual
+    // (amber-tinted chat container + animated lock in the header)
+    // already conveys that Privacy mode is active. Keep the
+    // `data-privacy` attribute on the bubble for any tooling/CSS
+    // that might key off it later, but don't render any chrome.
+    const privacyAttr = opts.privacy_applied ? ' data-privacy="1"' : '';
+    // Copy button for assistant messages — sits in the message
+    // chrome and grabs the raw text from the bubble's data-src
+    // attribute so what gets copied is plain prose, not the
+    // rendered markdown (no asterisks, footnote numbers, etc.).
+    const copyBtn = role === 'assistant'
+      ? `<div class="msg-actions"><button type="button" class="msg-copy" aria-label="Copy response">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button></div>`
+      : '';
+    const dataSrc = role === 'assistant' ? ` data-src="${escapeAttr(content || '')}"` : '';
+    return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}${privacyAttr}${dataSrc}><div class="msg-body">${renderMarkdownInline(content)}${attachments}</div>${meta}${copyBtn}</div>`;
   }
+  function escapeAttr(s) {
+    return String(s ?? '').replace(/[<>&"'\n\r]/g, (c) => ({
+      '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;',
+      '\n': '&#10;', '\r': '&#13;',
+    }[c]));
+  }
+  const COPY_ICON_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="4" y="3" width="9" height="11" rx="1.5"/><path d="M3 5v8a1 1 0 001 1h7"/></svg>';
   function scrollToBottom() {
     els.messages.scrollTop = els.messages.scrollHeight;
   }
@@ -303,7 +499,7 @@
     }
     els.messages.innerHTML = msgs
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => bubble(m.role, m.content || '', { attachments: m.attachments || [] }))
+      .map((m) => bubble(m.role, m.content || '', { attachments: m.attachments || [], privacy_applied: !!m.privacy_applied }))
       .join('');
     scrollToBottom();
   }
@@ -314,6 +510,8 @@
     els.title.placeholder = 'Untitled chat';
     if (meta.model) els.model.value = meta.model;
     syncPillFromChat();
+    // Hydrate research-mode toggles from the persisted row
+    if (typeof hydrateLawSettings === 'function') hydrateLawSettings(meta.law_settings || {});
   }
 
   function loadChatFromCache() {
@@ -439,7 +637,7 @@
       ? `<div class="msg-attach-row">${attachmentNames.map((a) => `<span class="msg-attach">📎 ${escapeHtml(a.filename)}</span>`).join('')}</div>`
       : '';
     els.messages.insertAdjacentHTML('beforeend',
-      `<div class="msg user" data-role="user"><div class="msg-body">${renderMarkdownInline(text)}${attachLabel}</div></div>`);
+      `<div class="msg user" data-role="user" data-pending-user="1"><div class="msg-body">${renderMarkdownInline(text)}${attachLabel}</div></div>`);
     scrollToBottom();
 
     // assistant bubble: msg-text gets re-rendered with live markdown
@@ -448,15 +646,71 @@
     // disappearing). The drainer ticks at most ~60Hz so the renders
     // are cheap even for long responses.
     const asstId = 'pending-' + Date.now();
-    els.messages.insertAdjacentHTML('beforeend', `<div class="msg asst" data-pending="${asstId}"><div class="msg-body"><span class="msg-text"></span><span class="cursor">▍</span></div></div>`);
+    // Cursor handling: hidden by default. The spinner indicator is
+    // the activity marker until the first text token arrives, at
+    // which point the cursor reveals and blinks at the trailing
+    // edge of the streaming response. Applies to ALL chats now —
+    // research-mode and regular — since the heartbeat always runs.
+    els.messages.insertAdjacentHTML('beforeend', `<div class="msg asst" data-pending="${asstId}"><div class="msg-body"><span class="msg-text"></span><div class="msg-status" hidden><span class="msg-status-spinner" aria-hidden="true"></span><span class="msg-status-text"></span></div><span class="cursor" hidden>▍</span></div></div>`);
     const asstWrap = els.messages.querySelector(`[data-pending="${asstId}"] .msg-body`);
     const asstText = asstWrap.querySelector('.msg-text');
+    const asstStatus = asstWrap.querySelector('.msg-status');
+    const asstStatusText = asstWrap.querySelector('.msg-status-text');
     const asstCursor = asstWrap.querySelector('.cursor');
+    // Live "what we're doing right now" indicator — single line that
+    // fades between phases as the server reports progress. Disappears
+    // entirely once the model starts streaming text. The cursor keeps
+    // blinking throughout.
+    let pendingPhaseText = '';
+    function setPhase(message) {
+      if (!message) {
+        // Hide immediately — when text starts streaming we want a
+        // clean swap to the cursor, not an overlap.
+        asstStatus.hidden = true;
+        asstStatus.classList.remove('is-fading', 'is-entering');
+        return;
+      }
+      pendingPhaseText = message;
+      if (asstStatus.hidden) {
+        // First reveal — opacity goes 0 → 1.
+        asstStatusText.textContent = message;
+        asstStatus.hidden = false;
+        asstStatus.classList.add('is-entering');
+        void asstStatus.offsetWidth;       // force reflow so the transition runs
+        asstStatus.classList.remove('is-entering');
+        scrollToBottom();
+        return;
+      }
+      // Already visible — fade only the text out, swap, fade back in.
+      // Spinner keeps spinning the whole time.
+      asstStatus.classList.add('is-fading');
+      setTimeout(() => {
+        // Only apply the latest queued message in case multiple status
+        // events arrived within the fade window.
+        asstStatusText.textContent = pendingPhaseText;
+        asstStatus.classList.remove('is-fading');
+        scrollToBottom();
+      }, 180);
+    }
     let displayed = '';   // chars actually shown to user (drained from smoothBuffer)
     scrollToBottom();
 
+    // Show an immediate spinner indicator the moment the user clicks
+    // Send — BEFORE the fetch round-trip completes. Without this, the
+    // bubble looks frozen during the request (especially in Privacy
+    // mode where server-side abstraction can take 5-15s before the
+    // SSE stream opens). The first real status event from the server
+    // will replace this initial message via the same setPhase swap.
+    if (lawSettings.privacy_enabled) {
+      setPhase('🔒 Abstracting your message + attachments for privacy…');
+    } else {
+      setPhase('Sending…');
+    }
+
     let acc = '';
     let titleFromServer = null;
+    let asstMessageId = null;
+    let verifyingFlag = false;
 
     // Smoothing queue. Tokens from the model arrive in bursts (Anthropic
     // batches tokens server-side, OpenAI sends 1-3 at a time). Pushing
@@ -527,6 +781,7 @@
           content: text,
           model: els.model.value,
           attachments: attachmentIds,
+          law_settings: lawSettings,
         }),
       });
       if (!res.ok || !res.body) {
@@ -555,7 +810,47 @@
           try { evt = JSON.parse(data); } catch { continue; }
           if (event === 'start') {
             els.keySource.textContent = evt.key_source === 'user' ? 'using your key' : '';
+            // Privacy mode: replace the optimistic user bubble's text
+            // with the abstracted version that actually went out. The
+            // chat-wide privacy chrome (amber-tinted container + lock
+            // in the header) communicates the privacy state — no
+            // per-message badge needed.
+            if (evt.privacy_applied && evt.user_msg_content) {
+              const userBubble = els.messages.querySelector('[data-pending-user="1"]');
+              if (userBubble) {
+                const body = userBubble.querySelector('.msg-body');
+                const attachExisting = body.querySelector('.msg-attach-row');
+                if (body) {
+                  body.innerHTML = renderMarkdownInline(evt.user_msg_content) + (attachExisting ? attachExisting.outerHTML : '');
+                }
+                userBubble.removeAttribute('data-pending-user');
+                userBubble.setAttribute('data-privacy', '1');
+              }
+            } else {
+              // Clear pending marker for non-privacy sends
+              const userBubble = els.messages.querySelector('[data-pending-user="1"]');
+              if (userBubble) userBubble.removeAttribute('data-pending-user');
+            }
+          } else if (event === 'status') {
+            // Pre-grounding progress. evt.phase is one of
+            //   pregrounding | statutes | statutes_done |
+            //   caselaw | caselaw_done |
+            //   legiscan | legiscan_done |
+            //   thinking | streaming
+            // We show ONE current activity line — the spinner means
+            // "still working". Each new event replaces the current
+            // line with a fade transition. The 'streaming' phase
+            // hides the indicator entirely so the cursor + text
+            // takes over.
+            if (evt.phase === 'streaming') {
+              setPhase('');
+            } else if (evt.message) {
+              setPhase(evt.message);
+            }
           } else if (event === 'text' && evt.delta) {
+            // Reveal the cursor on the first text delta so it blinks
+            // at the trailing edge of the streaming response.
+            if (asstCursor.hidden) asstCursor.hidden = false;
             acc += evt.delta;
             // Push into the smoothing buffer; the rAF drainer will
             // dispense it to the DOM at a steady rate.
@@ -563,6 +858,8 @@
             startDrainer();
           } else if (event === 'done') {
             titleFromServer = evt.title;
+            asstMessageId = evt.message_id || null;
+            verifyingFlag = !!evt.verifying;
           } else if (event === 'error') {
             throw new Error(evt.error || 'stream error');
           }
@@ -587,6 +884,27 @@
       // Final render — no hideOpenMarkers because the response is
       // complete; any orphan `*` should display as-is.
       asstText.innerHTML = renderMarkdownInline(acc);
+      // Hide the phase indicator (defensive — server should have
+      // sent status:streaming on first text, but in case it missed).
+      setPhase('');
+      // Attach copy-button + data-src on the live bubble so the
+      // copy click handler can grab the raw plain text.
+      const bubbleEl = asstWrap.parentElement;
+      if (bubbleEl) {
+        bubbleEl.setAttribute('data-src', acc);
+        if (!bubbleEl.querySelector('.msg-actions')) {
+          bubbleEl.insertAdjacentHTML(
+            'beforeend',
+            `<div class="msg-actions"><button type="button" class="msg-copy" aria-label="Copy response">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button></div>`
+          );
+        }
+      }
+      // Kick off verification polling when the edge function flagged
+      // verifying=true on the "done" event. Polling decorates each
+      // detected citation with a status badge as results resolve.
+      if (verifyingFlag && asstMessageId) {
+        pollVerification(asstMessageId, asstWrap);
+      }
       // Append to in-memory cache so reload reflects the new turn.
       messages.push({ role: 'user', content: text, status: 'complete' });
       messages.push({ role: 'assistant', content: acc, status: 'complete' });
@@ -607,6 +925,463 @@
       if (titleFromServer) loadRail();
     }
   }
+
+  // ---- Research-mode toggles (statutes / case law / LegiScan) ----
+  // Per-chat persistent state. The toolbar is in the composer area,
+  // toggles are sent in the request body alongside `attachments`,
+  // and post-hoc verification badges render inline on the assistant
+  // response after streaming completes.
+  // First entry is "Federal" — selecting it switches research to
+  // federal-only mode (U.S. Code, SCOTUS, all circuits, Congress).
+  // For every state below, federal sources are ALWAYS included
+  // alongside the state-specific sources.
+  const US_STATES = [
+    ['US','— Federal (U.S. only) —'],
+    ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],
+    ['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],
+    ['DC','District of Columbia'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],
+    ['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],
+    ['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],
+    ['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],
+    ['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],
+    ['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],
+    ['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],
+    ['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
+    ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],
+    ['VT','Vermont'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],
+    ['WI','Wisconsin'],['WY','Wyoming'],
+  ];
+  const lawEls = {
+    bar: document.getElementById('research-bar'),
+    state: document.getElementById('toggle-state'),
+    stateLabel: document.querySelector('#research-bar .research-state-label'),
+    stateStatutes:   document.getElementById('toggle-state-statutes'),
+    federalStatutes: document.getElementById('toggle-federal-statutes'),
+    stateCaselaw:    document.getElementById('toggle-state-caselaw'),
+    federalCaselaw:  document.getElementById('toggle-federal-caselaw'),
+    stateBills:      document.getElementById('toggle-state-bills'),
+    federalBills:    document.getElementById('toggle-federal-bills'),
+    privacy:         document.getElementById('toggle-privacy'),
+    status: document.getElementById('research-status'),
+    info: document.getElementById('research-info'),
+  };
+  // Populate the state dropdown
+  if (lawEls.state && !lawEls.state.options.length) {
+    lawEls.state.innerHTML = US_STATES
+      .map(([code, name]) => `<option value="${code}">${escapeHtml(name)}</option>`)
+      .join('');
+    lawEls.state.value = 'FL';
+  }
+  let lawSettings = {
+    state: 'FL',
+    state_statutes_enabled: false,
+    federal_statutes_enabled: false,
+    state_caselaw_enabled: false,
+    federal_caselaw_enabled: false,
+    state_bills_enabled: false,
+    federal_bills_enabled: false,
+    privacy_enabled: false,
+  };
+  function anyStateToggleOn() {
+    return lawSettings.state_statutes_enabled || lawSettings.state_caselaw_enabled || lawSettings.state_bills_enabled;
+  }
+  function anyToggleOn() {
+    return lawSettings.state_statutes_enabled || lawSettings.federal_statutes_enabled
+        || lawSettings.state_caselaw_enabled  || lawSettings.federal_caselaw_enabled
+        || lawSettings.state_bills_enabled    || lawSettings.federal_bills_enabled;
+  }
+  function applyResearchUI() {
+    // The State picker is only relevant when at least one *State*
+    // toggle is on. Federal toggles don't read the state.
+    const showState = anyStateToggleOn();
+    if (lawEls.state) lawEls.state.hidden = !showState;
+    if (lawEls.stateLabel) lawEls.stateLabel.hidden = !showState;
+    // Show/hide dividers in the same beat so the bar collapses
+    // cleanly when nothing's on.
+    const anyOn = anyToggleOn();
+    lawEls.bar?.querySelectorAll('.research-divider').forEach((div) => {
+      div.hidden = !anyOn;
+    });
+    // Privacy mode: paint the entire chat container amber so the
+    // user has constant visual confirmation. Animation runs once
+    // when privacy first turns on, then settles into a steady tint.
+    const chatMain = document.querySelector('.chat-main');
+    if (chatMain) {
+      const wasOn = chatMain.classList.contains('is-privacy-on');
+      const nowOn = !!lawSettings.privacy_enabled;
+      chatMain.classList.toggle('is-privacy-on', nowOn);
+      if (nowOn && !wasOn) {
+        chatMain.classList.add('is-privacy-just-toggled');
+        setTimeout(() => chatMain.classList.remove('is-privacy-just-toggled'), 1400);
+      }
+    }
+  }
+  function hydrateLawSettings(persisted) {
+    // Backward compat: legacy settings used three combined toggles
+    // (statutes_enabled / case_law_enabled / legiscan_enabled). Map
+    // each legacy on-state to BOTH state + federal of the same kind
+    // since that was the previous behavior.
+    const legacyStat = !!persisted?.statutes_enabled;
+    const legacyCase = !!persisted?.case_law_enabled;
+    const legacyBill = !!persisted?.legiscan_enabled;
+    lawSettings = {
+      state: (persisted?.state && /^[A-Z]{2}$/.test(persisted.state)) ? persisted.state : 'FL',
+      state_statutes_enabled:   persisted?.state_statutes_enabled   !== undefined ? !!persisted.state_statutes_enabled   : legacyStat,
+      federal_statutes_enabled: persisted?.federal_statutes_enabled !== undefined ? !!persisted.federal_statutes_enabled : legacyStat,
+      state_caselaw_enabled:    persisted?.state_caselaw_enabled    !== undefined ? !!persisted.state_caselaw_enabled    : legacyCase,
+      federal_caselaw_enabled:  persisted?.federal_caselaw_enabled  !== undefined ? !!persisted.federal_caselaw_enabled  : legacyCase,
+      state_bills_enabled:      persisted?.state_bills_enabled      !== undefined ? !!persisted.state_bills_enabled      : legacyBill,
+      federal_bills_enabled:    persisted?.federal_bills_enabled    !== undefined ? !!persisted.federal_bills_enabled    : legacyBill,
+      privacy_enabled:          !!persisted?.privacy_enabled,
+    };
+    if (lawEls.state)           lawEls.state.value = lawSettings.state;
+    if (lawEls.stateStatutes)   lawEls.stateStatutes.checked = lawSettings.state_statutes_enabled;
+    if (lawEls.federalStatutes) lawEls.federalStatutes.checked = lawSettings.federal_statutes_enabled;
+    if (lawEls.stateCaselaw)    lawEls.stateCaselaw.checked = lawSettings.state_caselaw_enabled;
+    if (lawEls.federalCaselaw)  lawEls.federalCaselaw.checked = lawSettings.federal_caselaw_enabled;
+    if (lawEls.stateBills)      lawEls.stateBills.checked = lawSettings.state_bills_enabled;
+    if (lawEls.federalBills)    lawEls.federalBills.checked = lawSettings.federal_bills_enabled;
+    if (lawEls.privacy)         lawEls.privacy.checked = lawSettings.privacy_enabled;
+    applyResearchUI();
+    refreshLawStatusPill();
+  }
+  function refreshLawStatusPill() {
+    if (!lawEls.status) return;
+    const st = lawSettings.state;
+    const parts = [];
+    if (lawSettings.state_statutes_enabled)   parts.push(`${st} statutes`);
+    if (lawSettings.federal_statutes_enabled) parts.push('U.S. Code');
+    if (lawSettings.state_caselaw_enabled)    parts.push(`${st} cases`);
+    if (lawSettings.federal_caselaw_enabled)  parts.push('federal cases');
+    if (lawSettings.state_bills_enabled)      parts.push(`${st} bills`);
+    if (lawSettings.federal_bills_enabled)    parts.push('Congress bills');
+    if (lawSettings.privacy_enabled)          parts.unshift('🔒 privacy');
+    if (!parts.length) {
+      lawEls.status.hidden = true;
+      lawEls.status.textContent = '';
+      lawEls.bar?.classList.remove('is-active');
+      lawEls.bar?.classList.remove('is-privacy-on');
+    } else {
+      lawEls.status.hidden = false;
+      lawEls.status.textContent = `Research: ${parts.join(' · ')}`;
+      lawEls.bar?.classList.add('is-active');
+      lawEls.bar?.classList.toggle('is-privacy-on', lawSettings.privacy_enabled);
+    }
+  }
+  let lawSaveTimer = null;
+  function saveLawSettingsDebounced() {
+    if (lawSaveTimer) clearTimeout(lawSaveTimer);
+    lawSaveTimer = setTimeout(() => {
+      fetch('/.netlify/functions/workspace-chats-update', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: chatId, law_settings: lawSettings }),
+      }).catch(() => {});
+    }, 400);
+  }
+  function onLawToggleChange() {
+    lawSettings = {
+      state: lawEls.state?.value || 'FL',
+      state_statutes_enabled:   !!lawEls.stateStatutes?.checked,
+      federal_statutes_enabled: !!lawEls.federalStatutes?.checked,
+      state_caselaw_enabled:    !!lawEls.stateCaselaw?.checked,
+      federal_caselaw_enabled:  !!lawEls.federalCaselaw?.checked,
+      state_bills_enabled:      !!lawEls.stateBills?.checked,
+      federal_bills_enabled:    !!lawEls.federalBills?.checked,
+      privacy_enabled:          !!lawEls.privacy?.checked,
+    };
+    applyResearchUI();
+    refreshLawStatusPill();
+    saveLawSettingsDebounced();
+  }
+  [
+    lawEls.state, lawEls.stateStatutes, lawEls.federalStatutes,
+    lawEls.stateCaselaw, lawEls.federalCaselaw,
+    lawEls.stateBills, lawEls.federalBills,
+    lawEls.privacy,
+  ].forEach((el) => el?.addEventListener('change', onLawToggleChange));
+  lawEls.info?.addEventListener('click', () => {
+    alert(
+      'Research toolbar\n\n' +
+      'Each toggle is independent — mix and match freely.\n\n' +
+      '── STATUTES ──\n' +
+      '• State — Pre-fetches the selected state\'s official code (state.gov → Cornell → Justia). Cite-verified.\n' +
+      '• Federal — Pulls U.S. Code (Cornell uscode + uscode.house.gov + Justia /codes/us) and CFR (ecfr.gov). Cite-verified.\n\n' +
+      '── CASE LAW ──\n' +
+      '• State — CourtListener filtered to the state\'s appellate + supreme courts.\n' +
+      '• Federal — CourtListener across SCOTUS + every federal circuit.\n\n' +
+      '── BILLS ──\n' +
+      '• State — LegiScan scoped to the selected state. Triggers passive amendment-freshness check on cited state statutes.\n' +
+      '• Federal — LegiScan scoped to U.S. Congress. Triggers freshness check on cited U.S. Code sections.\n\n' +
+      '── PRIVACY ──\n' +
+      '🔒 Privacy mode rewrites your question and any attached documents as an abstract hypothetical before sending to the LLM. Names, entities, addresses, dates, dollar amounts, account numbers — anything that could identify your client or matter is stripped and replaced with role-based descriptors. The model never sees client-identifying content. Required for FL Rule 4-1.6 / ABA Op. 512 compliance when researching a real matter.\n\n' +
+      'The State picker only shows when at least one State-scoped toggle is on. Federal toggles ignore the state picker and always target U.S. sources.'
+    );
+  });
+
+  // ---- Verification polling + inline badges ----
+  // After an assistant message finishes streaming with research
+  // toggles on, we poll workspace-chat-message-get every 2.5s until
+  // verification.status === "complete", then inject inline cite
+  // badges next to each detected citation in the rendered DOM.
+  const STATUS_ICON = {
+    verified: '✓',
+    secondary: '⚠',
+    pending_amendment: '📝',
+    amended_enacted: '🔴',
+    unverified: '❌',
+    pending: '⌛',
+  };
+  function badgeHTML(cite) {
+    const status = cite.status || 'unverified';
+    const icon = STATUS_ICON[status] || '·';
+    const detail = JSON.stringify({
+      kind: cite.kind, status,
+      primary_url: cite.primary_url || null,
+      amendment_note: cite.amendment_note || null,
+      details: cite.details || null,
+    }).replace(/"/g, '&quot;');
+    return `<sup class="cite-badge cite-${status}" data-cite="${detail}" title="${escapeHtml(cite.amendment_note || status)}">${icon}</sup>`;
+  }
+  function decorateCitesInElement(el, cites) {
+    if (!el || !cites?.length) return;
+    let html = el.innerHTML;
+    // Sort descending so we modify from the end backwards (string
+    // indices won't shift). The cites already have spans in plain
+    // text; for HTML we re-find the raw substring once.
+    const sorted = [...cites].sort((a, b) => (b.span?.[0] ?? 0) - (a.span?.[0] ?? 0));
+    for (const c of sorted) {
+      if (!c.raw) continue;
+      // Find the LAST occurrence of c.raw in the rendered HTML
+      const idx = html.lastIndexOf(c.raw);
+      if (idx === -1) continue;
+      // Skip if this raw was already wrapped (avoid double-decoration)
+      const after = html.slice(idx + c.raw.length, idx + c.raw.length + 30);
+      if (after.startsWith('<sup class="cite-badge')) continue;
+      html = html.slice(0, idx + c.raw.length) + badgeHTML(c) + html.slice(idx + c.raw.length);
+    }
+    el.innerHTML = html;
+  }
+  async function pollVerification(messageId, asstWrap) {
+    if (!messageId || !asstWrap) return;
+    // Add a "Verifying citations…" pill to the assistant body
+    const pillId = 'verify-pill-' + messageId;
+    const txtEl = asstWrap.querySelector('.msg-text');
+    if (txtEl && !asstWrap.querySelector('#' + pillId)) {
+      asstWrap.insertAdjacentHTML('beforeend', `<div id="${pillId}" class="msg-verify-pill">⌛ Verifying citations…</div>`);
+    }
+    const maxTries = 24;     // 24 × 2.5s = 60s budget
+    for (let i = 0; i < maxTries; i++) {
+      await new Promise((r) => setTimeout(r, 2500));
+      let r, j;
+      try {
+        r = await fetch(`/.netlify/functions/workspace-chat-message-get?id=${encodeURIComponent(messageId)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        j = await r.json();
+      } catch { continue; }
+      if (!r.ok) continue;
+      const v = j.message?.verification;
+      if (!v) continue;
+      if (v.status === 'complete') {
+        if (txtEl) decorateCitesInElement(txtEl, v.cites || []);
+        const pill = document.getElementById(pillId);
+        if (pill) {
+          const cites = v.cites || [];
+          const counts = cites.reduce((a, c) => { a[c.status] = (a[c.status] || 0) + 1; return a; }, {});
+          const summary = Object.entries(counts).map(([k, n]) => `${STATUS_ICON[k] || '·'}${n}`).join(' ');
+          if (!cites.length) {
+            pill.outerHTML = '';
+          } else {
+            // Compact button — click expands a modal listing every
+            // verified citation with its source URL, status, and
+            // (if any) amendment note.
+            const dataAttr = escapeAttr(JSON.stringify(cites));
+            pill.outerHTML = `<button type="button" class="msg-verify-pill is-complete msg-verify-clickable" data-cites="${dataAttr}" title="Click for citation details">${summary}<span class="msg-verify-caret">▾</span></button>`;
+          }
+        }
+        return;
+      }
+      if (v.status === 'error') {
+        const pill = document.getElementById(pillId);
+        if (pill) pill.outerHTML = '<div class="msg-verify-pill is-error">⚠ Citation check failed</div>';
+        return;
+      }
+    }
+    // Timed out
+    const pill = document.getElementById(pillId);
+    if (pill) pill.outerHTML = '<div class="msg-verify-pill is-timeout">Citation check timed out</div>';
+  }
+  // ---- Citation popup modal ----
+  // Two entry points:
+  //   1. Click an inline cite badge in the response → opens modal
+  //      scrolled to that specific cite (highlighted).
+  //   2. Click the small Citations summary pill below the response
+  //      → opens modal with the FULL list of verified citations.
+  function openCiteModal(cites, focusIdx) {
+    if (!Array.isArray(cites) || !cites.length) return;
+    const modal = document.getElementById('cite-modal');
+    const body = document.getElementById('cite-modal-body');
+    if (!modal || !body) return;
+    const STATUS_LABEL = {
+      verified: 'Verified — primary authority',
+      secondary: 'Verified — secondary source',
+      pending_amendment: 'Pending amendment (still good law)',
+      amended_enacted: 'AMENDED by enacted bill — re-verify',
+      unverified: 'Could not verify',
+      pending: 'Verification in flight',
+    };
+    body.innerHTML = cites.map((c, i) => {
+      const icon = STATUS_ICON[c.status] || '·';
+      const statusLabel = STATUS_LABEL[c.status] || c.status || 'unknown';
+      const focusCls = (focusIdx != null && i === focusIdx) ? ' is-focus' : '';
+      const url = c.primary_url || '';
+      const urlHost = url ? (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } })() : '';
+      return `<div class="cite-modal-row cite-modal-row-${c.status}${focusCls}" data-idx="${i}">
+        <div class="cite-modal-icon">${icon}</div>
+        <div class="cite-modal-content">
+          <div class="cite-modal-raw">${escapeHtml(c.raw || '')}</div>
+          <div class="cite-modal-status">${escapeHtml(statusLabel)}${c.kind ? ` · ${escapeHtml(c.kind)}` : ''}</div>
+          ${c.amendment_note ? `<div class="cite-modal-note">${escapeHtml(c.amendment_note)}</div>` : ''}
+          ${url ? `<a href="${escapeAttr(url)}" target="_blank" rel="noopener" class="cite-modal-link">${escapeHtml(urlHost)} ↗</a>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    modal.hidden = false;
+    document.body.classList.add('cite-modal-open');
+    // Scroll the focused row into view
+    if (focusIdx != null) {
+      const row = body.querySelector(`[data-idx="${focusIdx}"]`);
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'instant' });
+    } else {
+      body.scrollTop = 0;
+    }
+  }
+  function closeCiteModal() {
+    const modal = document.getElementById('cite-modal');
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('cite-modal-open');
+  }
+
+  // Inline cite badge → open modal focused on this cite
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const badge = t.closest('.cite-badge');
+    if (!badge) return;
+    e.preventDefault();
+    // The badge has a data-cite single-cite blob, but to show the
+    // full list we need the parent message's full cite array. We
+    // get that from the verify-pill button's data-cites attribute.
+    const bubble = badge.closest('.msg.asst');
+    const pill = bubble?.querySelector('.msg-verify-pill[data-cites]');
+    let allCites = null;
+    if (pill) {
+      try { allCites = JSON.parse((pill.getAttribute('data-cites') || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'")); } catch {}
+    }
+    if (Array.isArray(allCites) && allCites.length) {
+      // Find the index of this badge's cite in the full list by raw
+      // text match, so we can scroll to it in the modal.
+      let detail;
+      try { detail = JSON.parse((badge.getAttribute('data-cite') || '{}').replace(/&quot;/g, '"')); } catch {}
+      const idx = allCites.findIndex((c) => c.raw === detail?.raw && c.status === detail?.status);
+      openCiteModal(allCites, idx >= 0 ? idx : null);
+    } else {
+      // Fallback: badge-only popup with the single cite's data
+      let detail;
+      try { detail = JSON.parse((badge.getAttribute('data-cite') || '{}').replace(/&quot;/g, '"')); } catch { detail = {}; }
+      openCiteModal([{ ...detail, raw: detail.raw || '(citation)' }], 0);
+    }
+  });
+
+  // Citations summary pill → open modal with full list
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const pill = t.closest('.msg-verify-pill.msg-verify-clickable');
+    if (!pill) return;
+    e.preventDefault();
+    let cites = null;
+    try { cites = JSON.parse((pill.getAttribute('data-cites') || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'")); } catch {}
+    if (Array.isArray(cites) && cites.length) openCiteModal(cites, null);
+  });
+
+  // Close modal: overlay click, close button, or Escape key
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (t.matches('[data-cite-modal-close]') || t.matches('#cite-modal') || t.classList.contains('cite-modal-overlay')) {
+      e.preventDefault();
+      closeCiteModal();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeCiteModal();
+      closePrivacyModal();
+    }
+  });
+
+  // Privacy mode info modal — open/close handlers.
+  function openPrivacyModal() {
+    const modal = document.getElementById('privacy-modal');
+    if (!modal) return;
+    modal.hidden = false;
+    document.body.classList.add('cite-modal-open');
+  }
+  function closePrivacyModal() {
+    const modal = document.getElementById('privacy-modal');
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('cite-modal-open');
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    // Lock icon in the chat header → open the policy modal.
+    // We stop propagation so the surrounding <label> doesn't toggle
+    // the checkbox state when the user just wants info.
+    if (t.classList.contains('chat-privacy-toggle-lock')) {
+      e.preventDefault();
+      e.stopPropagation();
+      openPrivacyModal();
+      return;
+    }
+    if (t.matches('[data-privacy-modal-close]') || (t.closest('#privacy-modal') && t.classList.contains('cite-modal-overlay'))) {
+      e.preventDefault();
+      closePrivacyModal();
+    }
+  });
+
+  // Copy-response button. Walks up to the closest .msg.asst,
+  // reads the raw text from data-src, writes it to the clipboard,
+  // and gives the user a brief "Copied!" confirmation.
+  document.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const btn = t.closest('.msg-copy');
+    if (!btn) return;
+    e.preventDefault();
+    const bubble = btn.closest('.msg.asst');
+    if (!bubble) return;
+    const src = bubble.getAttribute('data-src') || '';
+    if (!src) return;
+    try {
+      await navigator.clipboard.writeText(src);
+      const lbl = btn.querySelector('.msg-copy-label');
+      if (lbl) {
+        const original = lbl.textContent;
+        lbl.textContent = 'Copied!';
+        btn.classList.add('is-copied');
+        setTimeout(() => {
+          lbl.textContent = original;
+          btn.classList.remove('is-copied');
+        }, 1400);
+      }
+    } catch (err) {
+      console.error('Copy failed:', err);
+      alert('Could not copy — your browser may need clipboard permission.');
+    }
+  });
 
   // ---- Attachment state + library picker ----
   // attachedDocs: array of { id, filename } currently attached to the
@@ -977,43 +1752,10 @@
   });
 
   // ---- Auto-hiding top nav ----
-  // The nav slides out of view shortly after page load to give the
-  // chat maximum vertical room. Move the cursor near the top of the
-  // viewport — or scroll up — to bring it back. Hides again ~400ms
-  // after the cursor leaves the trigger zone, like macOS menubar.
-  const TOP_ZONE = 80;        // px from viewport top that triggers reveal
-  const HIDE_DELAY = 500;     // ms after mouse leaves the zone before hiding
-  const FIRST_HIDE_DELAY = 1500;  // initial delay before the nav auto-hides on page load
-  let hideTimer = null;
-  function showNav() {
-    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-    document.body.classList.remove('nav-collapsed');
-  }
-  function scheduleHide(delay = HIDE_DELAY) {
-    if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => {
-      document.body.classList.add('nav-collapsed');
-      hideTimer = null;
-    }, delay);
-  }
-  // Show on initial load, then auto-hide after a moment so the user
-  // sees the nav exists before it disappears.
-  scheduleHide(FIRST_HIDE_DELAY);
-  // Mouse near top of viewport pulls the nav down.
-  window.addEventListener('mousemove', (e) => {
-    if (e.clientY <= TOP_ZONE) showNav();
-    else if (!hideTimer) scheduleHide();
-  });
-  // If cursor leaves the window entirely while nav is up, hide it.
-  document.addEventListener('mouseleave', () => scheduleHide(200));
-  // Keep the nav visible while the cursor is over it (so submenus or
-  // the Account button don't disappear under the user).
-  document.querySelector('.nav')?.addEventListener('mouseenter', showNav);
-  // Also show whenever an input/textarea is focused inside the nav
-  // (defensive — there's nothing focusable there today, but if we
-  // ever add a search input it should keep the nav up).
-  document.querySelector('.nav')?.addEventListener('focusin', showNav);
-  // Hide the (now redundant) chevron toggle — auto-hide replaces it.
+  // The shared /nav-autohide.js script (loaded in <head>) handles
+  // inactivity-based reveal/hide for the top nav across all pages.
+  // No inline JS needed here anymore — just remove the old chevron
+  // toggle which auto-hide replaces.
   document.getElementById('nav-toggle')?.remove();
 
   els.composer.addEventListener('submit', (e) => {

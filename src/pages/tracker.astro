@@ -17,6 +17,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <style is:global>
 /* ================================================================
    DESIGN TOKENS — Legal Overflow Design System
@@ -45,6 +47,17 @@ body{
   font-family:var(--sans);font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
+  /* Page fade-in (mirror of /styles.css). */
+  opacity: 0;
+  transition: opacity 0.22s ease-out;
+  animation: page-fade-fallback 0s 1.8s forwards;
+}
+body.page-ready {
+  opacity: 1;
+  animation: none;
+}
+@keyframes page-fade-fallback {
+  to { opacity: 1; }
 }
 ::selection{background:var(--accent);color:var(--paper)}
 a{color:inherit;text-decoration:none}
@@ -140,6 +153,28 @@ input{font-family:inherit}
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--rule-soft);
+}
+/* Auto-hiding nav rules (must mirror /styles.css since tracker uses
+   its own inline CSS rather than the shared stylesheet). */
+body.nav-autohide > .nav {
+  transition: max-height .22s ease, opacity .22s ease, padding .22s ease, border-color .22s ease;
+  max-height: 120px;
+  overflow: hidden;
+}
+body.nav-autohide.nav-collapsed > .nav {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+}
+body.nav-autohide.nav-collapsed::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(to bottom, rgba(0,0,0,.08), transparent);
+  pointer-events: none;
+  z-index: 50;
 }
 .brand { display: flex; align-items: center; gap: 12px; color: var(--ink); }
 .brand-mark { width: 28px; height: 28px; color: var(--ink); transition: transform .6s ease; }

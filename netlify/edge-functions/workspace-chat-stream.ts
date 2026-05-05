@@ -13,6 +13,29 @@
 
 import type { Context } from 'https://edge.netlify.com/';
 
+// Research-mode helpers (statutes / case law / LegiScan toggles).
+// Plain ESM imports — Netlify bundles relative .js files into the
+// edge function at deploy time.
+import {
+  findState,
+  buildStatuteSystemBlock,
+  buildAllowedDomains,
+  STATE_TO_CL_COURTS,
+  STATE_TO_FEDERAL_COURTS,
+} from '../lib/state-statutes.js';
+import { fetchStatuteRoot } from '../lib/statute-fetcher.js';
+import {
+  searchCourtListenerOpinions,
+  buildCaseLawSystemBlock,
+} from '../lib/courtlistener-search.js';
+import {
+  searchLegiscanBills,
+  buildLegiscanSystemBlock,
+} from '../lib/legiscan-client.js';
+import { makeSupabaseREST } from '../lib/supabase-rest.js';
+import { generateContextualBeats, FALLBACK_BEATS } from '../lib/beat-generator.js';
+import { abstractContent } from '../lib/privacy-abstractor.js';
+
 // Provider inferred from model id prefix. New models from any
 // provider work without a code change as long as they follow the
 // existing naming conventions.
@@ -48,6 +71,12 @@ Substance:
 - Identify the governing rule, statute, or doctrine. Note the jurisdiction if it matters.
 - Flag any open factual questions before opining.
 - If you cite a case, statute, or rule, give the formal citation. If you do not have a verified citation, say so plainly and offer the underlying point in your own words. Never invent a citation.
+
+Citation formatting:
+- NEVER paste raw URLs into your prose. Long URLs look ugly and break readability.
+- When you have a source URL, use markdown link syntax: \`[descriptive text](url)\` for inline links, OR footnote-style: \`[1](url)\`, \`[2](url)\` for source references after a sentence.
+- When discussing a website by name, refer to it by hostname only ("at leg.state.fl.us" not "at https://www.leg.state.fl.us/statutes/index.cfm?...").
+- Prefer footnote-style superscript references over inline mentions of URLs whenever possible — keep the prose clean.
 
 You are not the user's lawyer and do not produce final-form legal advice. Treat the user as a peer who will independently verify what you give them.`;
 
@@ -211,7 +240,31 @@ async function* parseSSE(body: ReadableStream<Uint8Array>) {
   }
 }
 
-async function* streamAnthropic(opts: { key: string; model: string; system: string; messages: any[] }) {
+async function* streamAnthropic(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
+  const body: any = {
+    model: opts.model,
+    system: opts.system,
+    messages: opts.messages,
+    max_tokens: 4096,
+    temperature: 0.4,
+    stream: true,
+  };
+  // Anthropic's server-side web_search tool. When enabled, the model
+  // can issue searches on its own; results stream back as
+  // server_tool_use + web_search_tool_result content blocks. We
+  // intercept those to emit live status events to the user, so the
+  // indicator keeps updating ("Searching the web…", "Reading
+  // results…") instead of stalling on "Reasoning over sources".
+  if (opts.webSearch?.enabled) {
+    body.tools = [{
+      type: 'web_search_20250305',
+      name: 'web_search',
+      max_uses: 8,
+      ...(opts.webSearch.allowedDomains?.length
+        ? { allowed_domains: opts.webSearch.allowedDomains }
+        : {}),
+    }];
+  }
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -219,27 +272,66 @@ async function* streamAnthropic(opts: { key: string; model: string; system: stri
       'x-api-key': opts.key,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({
-      model: opts.model,
-      system: opts.system,
-      messages: opts.messages,
-      max_tokens: 4096,
-      temperature: 0.4,
-      stream: true,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${(await res.text()).slice(0, 400)}`);
+  // Track in-progress tool blocks so we can decode the search query
+  // from streamed input_json_delta chunks. A `server_tool_use` block
+  // emits its `input` field as a JSON-fragment stream; we accumulate
+  // until content_block_stop and then parse to grab `query`.
+  let activeToolBlock: { type: 'server_tool_use' | 'web_search_tool_result'; index: number; jsonAcc: string; resultCount?: number } | null = null;
   for await (const ev of parseSSE(res.body!)) {
     if (!ev.data) continue;
     let d: any;
     try { d = JSON.parse(ev.data); } catch { continue; }
+    // ---- Web-search tool lifecycle ----
+    if (d.type === 'content_block_start' && d.content_block?.type === 'server_tool_use' && d.content_block?.name === 'web_search') {
+      activeToolBlock = { type: 'server_tool_use', index: d.index, jsonAcc: '' };
+      // Generic "starting" message; will be replaced when we parse
+      // out the actual query below.
+      yield { type: 'status', message: 'Searching the web for relevant authority…' };
+      continue;
+    }
+    if (d.type === 'content_block_start' && d.content_block?.type === 'web_search_tool_result') {
+      // The actual content is in d.content_block.content (an array of
+      // results). Surface a count if available.
+      const results = Array.isArray(d.content_block?.content) ? d.content_block.content : [];
+      activeToolBlock = { type: 'web_search_tool_result', index: d.index, jsonAcc: '', resultCount: results.length };
+      yield {
+        type: 'status',
+        message: results.length
+          ? `Reading ${results.length} search result${results.length === 1 ? '' : 's'}…`
+          : 'Reading search results…',
+      };
+      continue;
+    }
+    if (d.type === 'content_block_delta' && d.delta?.type === 'input_json_delta' && activeToolBlock?.type === 'server_tool_use') {
+      activeToolBlock.jsonAcc += d.delta.partial_json || '';
+      continue;
+    }
+    if (d.type === 'content_block_stop' && activeToolBlock && d.index === activeToolBlock.index) {
+      // Tool input is complete — try to parse the JSON to extract
+      // the query so we can show "Searching for: <query>" instead of
+      // a generic message.
+      if (activeToolBlock.type === 'server_tool_use' && activeToolBlock.jsonAcc) {
+        try {
+          const input = JSON.parse(activeToolBlock.jsonAcc);
+          if (input?.query) {
+            const q = String(input.query).slice(0, 80);
+            yield { type: 'status', message: `Searching for "${q}"…` };
+          }
+        } catch { /* non-JSON or partial — ignore */ }
+      }
+      activeToolBlock = null;
+      continue;
+    }
     if (d.type === 'content_block_delta' && d.delta?.type === 'text_delta') {
-      yield { delta: d.delta.text };
+      yield { type: 'text', delta: d.delta.text };
     }
   }
 }
 
-async function* streamOpenAI(opts: { key: string; model: string; system: string; messages: any[] }) {
+async function* streamOpenAI(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
   const msgs: any[] = [];
   if (opts.system) msgs.push({ role: 'system', content: opts.system });
   msgs.push(...opts.messages);
@@ -257,6 +349,13 @@ async function* streamOpenAI(opts: { key: string; model: string; system: string;
     max_completion_tokens: 4096,
     stream: true,
   };
+  // OpenAI Chat Completions web search is model-specific. Only attach
+  // the tool for models that explicitly support it (gpt-4o-search-*,
+  // gpt-5-search-*, etc.). For non-search models the system prompt
+  // still nudges toward authoritative sources.
+  if (opts.webSearch?.enabled && /(-search-|search-preview|gpt-4o-search|gpt-5-search)/i.test(opts.model)) {
+    body.tools = [{ type: 'web_search_preview' }];
+  }
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.key}` },
@@ -272,29 +371,37 @@ async function* streamOpenAI(opts: { key: string; model: string; system: string;
   }
 }
 
-async function* streamXAI(opts: { key: string; model: string; system: string; messages: any[] }) {
-  // xAI is OpenAI-compatible. Same chat-completions schema, same SSE
-  // format. Different base URL and key prefix (xai-).
-  //
-  // Grok 4+ are reasoning models with internal "thinking" before
-  // emitting tokens — feels like a long delay in chat. Pass
-  // reasoning_effort='low' so the model skips extended reasoning and
-  // streams quickly. Earlier Grok 3 doesn't accept this param so we
-  // gate it on grok-4+.
-  const msgs: any[] = [];
-  if (opts.system) msgs.push({ role: 'system', content: opts.system });
-  msgs.push(...opts.messages);
-  // No reasoning_effort override for xAI either — let Grok reason at
-  // its natural pace. Legal reasoning is the value proposition; the
-  // delay is acceptable.
+async function* streamXAI(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
+  // xAI's Responses API (/v1/responses) — replaces the deprecated
+  // Live Search on /v1/chat/completions. Mirrors OpenAI's Responses
+  // shape closely:
+  //   - `instructions` carries the system prompt
+  //   - `input` is an array of {role, content} turns (or a string)
+  //   - `tools: [{ type: 'web_search' }]` opts into the built-in
+  //     web search tool. Note: any `search_parameters` field on
+  //     this endpoint is rejected with a 410 ("Live search is
+  //     deprecated"). Domain filtering for Grok falls back to the
+  //     system prompt's authoritative-source instructions.
+  //   - Streaming events are OpenAI-style: response.output_text.delta
+  //     carries the user-visible text deltas; other events (web search
+  //     in_progress / completed, reasoning, output_item lifecycle) are
+  //     silently consumed.
+  const input = opts.messages.map((m: any) => ({
+    role: m.role,
+    content: m.content,
+  }));
   const body: any = {
     model: opts.model,
-    messages: msgs,
-    max_tokens: 4096,
+    instructions: opts.system,
+    input,
+    max_output_tokens: 4096,
     temperature: 0.4,
     stream: true,
   };
-  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+  if (opts.webSearch?.enabled) {
+    body.tools = [{ type: 'web_search' }];
+  }
+  const res = await fetch('https://api.x.ai/v1/responses', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.key}` },
     body: JSON.stringify(body),
@@ -304,12 +411,24 @@ async function* streamXAI(opts: { key: string; model: string; system: string; me
     if (!ev.data || ev.data === '[DONE]') continue;
     let d: any;
     try { d = JSON.parse(ev.data); } catch { continue; }
-    const t = d.choices?.[0]?.delta?.content;
-    if (t) yield { delta: t };
+    // Surface live web-search activity as status events so the
+    // phase indicator stays current during the LLM's reasoning.
+    if (d.type === 'response.web_search_call.in_progress' || d.type === 'response.web_search_call.searching') {
+      yield { type: 'status', message: 'Searching the web for relevant authority…' };
+      continue;
+    }
+    if (d.type === 'response.web_search_call.completed') {
+      yield { type: 'status', message: 'Reading search results…' };
+      continue;
+    }
+    // User-visible text delta.
+    if (d.type === 'response.output_text.delta' && typeof d.delta === 'string') {
+      yield { type: 'text', delta: d.delta };
+    }
   }
 }
 
-async function* streamGoogle(opts: { key: string; model: string; system: string; messages: any[] }) {
+async function* streamGoogle(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(opts.key)}`;
   console.log(`[chat-stream] Google URL: ${url.replace(opts.key, '<REDACTED>')}`);
   const contents = opts.messages.map((m: any) => ({
@@ -319,6 +438,9 @@ async function* streamGoogle(opts: { key: string; model: string; system: string;
   const body: any = {
     contents,
     generationConfig: { maxOutputTokens: 4096, temperature: 0.4 },
+    // Google Search grounding. No domain restriction available; the
+    // system prompt's domain preferences carry the constraint.
+    ...(opts.webSearch?.enabled ? { tools: [{ google_search: {} }] } : {}),
     // Disable Gemini's default safety filters as fully as the API
     // allows. Their filters block legitimate legal content (case
     // discussions, criminal procedure questions, regulatory work)
@@ -441,14 +563,49 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const content = String(body.content || '').trim();
   const requestedModel = body.model;
   const attachmentIds: string[] = Array.isArray(body.attachments) ? body.attachments.filter((x: any) => typeof x === 'string') : [];
+  // Research-mode toggles — { statutes_enabled, case_law_enabled,
+  // legiscan_enabled, state }. All optional; default to off.
+  const lawSettingsRaw = body.law_settings && typeof body.law_settings === 'object' ? body.law_settings : {};
   if (!chatId) return json({ error: 'Missing chat_id' }, 400);
   if (!content) return json({ error: 'Empty message' }, 400);
   if (content.length > 50_000) return json({ error: 'Message too long' }, 400);
 
   // Verify chat ownership
-  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id`);
+  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id,law_settings`);
   const chat = chats[0];
   if (!chat) return json({ error: 'Chat not found' }, 404);
+
+  // Resolve law_settings — incoming body wins over the persisted row.
+  const persistedLaw = (chat.law_settings && typeof chat.law_settings === 'object') ? chat.law_settings : {};
+  const lawSrc = Object.keys(lawSettingsRaw).length ? lawSettingsRaw : persistedLaw;
+  const stateMeta = findState(lawSrc.state);
+  // New six-toggle shape. Backward-compat: legacy boolean fields
+  // (statutes_enabled / case_law_enabled / legiscan_enabled) map
+  // to BOTH state + federal of the same kind so older chats keep
+  // their previous behavior.
+  const legacyStat = lawSrc.statutes_enabled !== undefined ? !!lawSrc.statutes_enabled : false;
+  const legacyCase = lawSrc.case_law_enabled !== undefined ? !!lawSrc.case_law_enabled : false;
+  const legacyBill = lawSrc.legiscan_enabled !== undefined ? !!lawSrc.legiscan_enabled : false;
+  const lawSettings = {
+    state: stateMeta ? stateMeta.code : 'FL',
+    state_statutes_enabled:   lawSrc.state_statutes_enabled   !== undefined ? !!lawSrc.state_statutes_enabled   : legacyStat,
+    federal_statutes_enabled: lawSrc.federal_statutes_enabled !== undefined ? !!lawSrc.federal_statutes_enabled : legacyStat,
+    state_caselaw_enabled:    lawSrc.state_caselaw_enabled    !== undefined ? !!lawSrc.state_caselaw_enabled    : legacyCase,
+    federal_caselaw_enabled:  lawSrc.federal_caselaw_enabled  !== undefined ? !!lawSrc.federal_caselaw_enabled  : legacyCase,
+    state_bills_enabled:      lawSrc.state_bills_enabled      !== undefined ? !!lawSrc.state_bills_enabled      : legacyBill,
+    federal_bills_enabled:    lawSrc.federal_bills_enabled    !== undefined ? !!lawSrc.federal_bills_enabled    : legacyBill,
+    privacy_enabled:          !!lawSrc.privacy_enabled,
+  };
+  const privacyEnabled = lawSettings.privacy_enabled;
+  const anyToggleOn =
+    lawSettings.state_statutes_enabled || lawSettings.federal_statutes_enabled ||
+    lawSettings.state_caselaw_enabled  || lawSettings.federal_caselaw_enabled  ||
+    lawSettings.state_bills_enabled    || lawSettings.federal_bills_enabled;
+  // Persist the resolved settings on the chat row (idempotent —
+  // every send updates so the chat remembers the latest).
+  if (Object.keys(lawSettingsRaw).length) {
+    sbUpdate('workspace_chats', `id=eq.${chatId}`, { law_settings: lawSettings }).catch(() => {});
+  }
 
   // If the chat is bound to a workflow, fetch its prompt_md and use
   // it as the system prompt instead of the default. The workflow must
@@ -479,8 +636,14 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   // 200k chars so a single huge upload can't blow up the context
   // window. The extraction was done at upload time so this is just a
   // quick DB read.
+  // When Privacy mode is on, every doc's extracted_text gets passed
+  // through the abstractor before being inlined; if abstraction
+  // fails we abort the whole request rather than leak raw content.
   let attachmentContext = '';
   const attachmentMeta: { id: string; filename: string; chars: number }[] = [];
+  // Hold raw doc texts so we can abstract them in batch after the
+  // loop, then build attachmentContext from the abstracted versions.
+  const rawDocs: { id: string; filename: string; text: string }[] = [];
   if (attachmentIds.length > 0) {
     try {
       // Get the docs (filtered to user-owned)
@@ -498,17 +661,76 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
         let text = v.extracted_text;
         if (text.length > PER_DOC_CAP) text = text.slice(0, PER_DOC_CAP) + '\n[...truncated]';
         attachmentMeta.push({ id: d.id, filename: d.filename, chars: text.length });
-        attachmentContext += `\n\n=== ATTACHED DOCUMENT: ${d.filename} ===\n\n${text}\n\n=== END OF ${d.filename} ===\n`;
+        rawDocs.push({ id: d.id, filename: d.filename, text });
       }
     } catch (err) {
       console.error('[chat-stream] attachment resolve failed:', err);
     }
   }
 
-  // Persist user message + create assistant placeholder
+  // ---- Privacy mode abstraction (fail-closed) ----
+  // When Privacy mode is on, the user's raw message and each
+  // attached doc's extracted_text are rewritten as abstract
+  // hypotheticals before any of it is persisted or sent to the
+  // main LLM. Abstraction uses the same provider+model the user
+  // selected (so the raw text only crosses to one provider).
+  // If abstraction fails for ANY input, we abort the request
+  // entirely with an error — the original raw text never makes it
+  // to storage or to the LLM.
+  let privacyContent = content;
+  let privacyAbstractedDocCount = 0;
+  if (privacyEnabled) {
+    console.log(`[chat-stream] privacy ON — abstracting message (${content.length} chars) + ${rawDocs.length} doc(s)`);
+    try {
+      // Abstract the user's typed message
+      privacyContent = await abstractContent({
+        text: content, provider, model: modelId, apiKey: key,
+      });
+      console.log(`[chat-stream] privacy: msg abstracted ${content.length} → ${privacyContent.length} chars`);
+      // Abstract each attached doc's text in parallel
+      if (rawDocs.length) {
+        const abstractedTexts = await Promise.all(
+          rawDocs.map((d) => abstractContent({
+            text: d.text, provider, model: modelId, apiKey: key,
+          })),
+        );
+        for (let i = 0; i < rawDocs.length; i++) {
+          console.log(`[chat-stream] privacy: doc "${rawDocs[i].filename}" abstracted ${rawDocs[i].text.length} → ${abstractedTexts[i].length} chars`);
+          rawDocs[i].text = abstractedTexts[i];
+          privacyAbstractedDocCount++;
+        }
+      }
+    } catch (err) {
+      const msg = (err as any)?.message || String(err);
+      console.error('[chat-stream] privacy abstractor failed:', msg);
+      return json({
+        error: `Privacy mode could not abstract your message or attachments. Try again, or disable Privacy mode in the toolbar if you need to send this content verbatim. (Detail: ${msg.slice(0, 200)})`,
+        privacy_failed: true,
+      }, 502);
+    }
+  }
+
+  // Build attachment context from the (now abstracted, when applicable) docs.
+  // Privacy mode: mask the filename too. Filenames often contain client
+  // names, case captions, or matter numbers (e.g., "Smith_v_Jones_2024.docx",
+  // "Acme_MSA_v3.docx"). Replace with a neutral "Document N" label so the
+  // LLM never sees the original filename.
+  rawDocs.forEach((d, i) => {
+    const labelForLLM = privacyEnabled ? `Document ${String.fromCharCode(65 + i)}` : d.filename;
+    attachmentContext += `\n\n=== ATTACHED DOCUMENT: ${labelForLLM} ===\n\n${d.text}\n\n=== END OF ${labelForLLM} ===\n`;
+  });
+
+  // Persist user message + create assistant placeholder.
+  // CRITICAL: when Privacy mode is on, we store the ABSTRACTED
+  // content, never the original. The original is held in memory
+  // only as long as this request runs; nothing else writes it
+  // anywhere. This is the heart of the privacy guarantee.
   const userMsgRow = await sbInsert('workspace_chat_messages', {
-    chat_id: chatId, role: 'user', content, status: 'complete',
+    chat_id: chatId, role: 'user',
+    content: privacyContent,           // <-- abstracted when privacy is on
+    status: 'complete',
     attachments: attachmentMeta,
+    privacy_applied: privacyEnabled,
   });
 
   // Load history (excluding the just-inserted user msg, we'll add it explicitly)
@@ -516,10 +738,24 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const messages = (histRows as any[])
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({ role: m.role, content: m.content || '' }));
-  messages.push({ role: 'user', content });
+  // Use the abstracted content as the current user turn for the
+  // model — so the LLM only ever sees the hypothetical form.
+  messages.push({ role: 'user', content: privacyContent });
+
+  // ---- Research-mode pre-grounding ----
+  // Pre-grounding now runs INSIDE the stream's start() callback below
+  // so we can emit per-phase 'status' SSE events to the frontend
+  // while the user waits. The grounded context blocks are
+  // populated by the closures and read after Promise.all settles.
+  let statuteBlock = '';
+  let caseLawBlock = '';
+  let legiscanBlock = '';
 
   const asstRow = await sbInsert('workspace_chat_messages', {
     chat_id: chatId, role: 'assistant', content: '', status: 'streaming', model_used: modelId,
+    // Mark verification pending only when toggles are on, so the
+    // chat page knows to poll. Off-mode messages skip verification.
+    verification: anyToggleOn ? { status: 'pending', started_at: new Date().toISOString(), cites: [] } : null,
   });
 
   if (modelId !== chat.model) {
@@ -533,31 +769,313 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
       const send = (event: string, data: any) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
-      send('start', { message_id: asstRow.id, model: modelId, key_source: source });
+      send('start', {
+        message_id: asstRow.id,
+        model: modelId,
+        key_source: source,
+        // user_msg_content / privacy_applied let the frontend display
+        // the abstracted version of the user's message in the bubble
+        // (so the user sees what was actually sent, not what they
+        // typed). When privacy is off, both fields are absent and the
+        // frontend keeps showing the user's typed text.
+        user_msg_content: privacyEnabled ? privacyContent : undefined,
+        privacy_applied: privacyEnabled,
+        user_msg_id: userMsgRow.id,
+      });
+      if (privacyEnabled) {
+        const docsNote = privacyAbstractedDocCount
+          ? ` (and ${privacyAbstractedDocCount} doc${privacyAbstractedDocCount === 1 ? '' : 's'})`
+          : '';
+        send('status', { phase: 'privacy_done', message: `🔒 Question abstracted${docsNote}; client identifiers removed before sending` });
+      }
+
+      // ---- Heartbeat beat-generator (always on) ----
+      // Runs for EVERY chat message, regardless of research-mode
+      // toggles. Generates tailored "what we're doing now" phrases
+      // for this specific question; falls back to generic phrases
+      // on failure. Result is awaited just before the streaming
+      // loop and used to populate REASONING_BEATS.
+      const stateInfoForBeats = findState(lawSettings.state);
+      const beatsPromise: Promise<string[]> = generateContextualBeats({
+        query: content,
+        state: stateInfoForBeats?.code || null,
+        provider,
+        model: modelId,
+        apiKey: key,
+      })
+      .then((beats) => {
+        const isFallback = beats === FALLBACK_BEATS || (Array.isArray(beats) && beats.length === FALLBACK_BEATS.length && beats[0] === FALLBACK_BEATS[0]);
+        console.log(`[chat-stream] beat-gen ${isFallback ? 'fell back to generic' : 'tailored'} beats (${beats?.length || 0}): ${JSON.stringify(beats?.slice(0, 3))}`);
+        return beats;
+      })
+      .catch((err) => {
+        console.warn('[chat-stream] beat-gen rejected:', (err as any)?.message);
+        return FALLBACK_BEATS;
+      });
+
+      // ---- Research-mode pre-grounding (with progress events) ----
+      // Only runs when toggles are on. The heartbeat above runs
+      // regardless, so non-research chats also get the spinner +
+      // rotating phrases. State filtering is conditional on the
+      // jurisdiction toggle: when off, case law and bills run
+      // without a state filter (broader search) and statutes is
+      // skipped entirely (statutes inherently need a jurisdiction).
+      if (anyToggleOn) {
+        const stateInfo = findState(lawSettings.state);
+        const fedInfo = findState('US');
+        send('status', { phase: 'pregrounding', message: 'Starting research mode…' });
+        const sb = makeSupabaseREST({ url: SB_URL, serviceKey: SB_SERVICE_KEY });
+        const clKey = Deno.env.get('COURTLISTENER_TOKEN') || Deno.env.get('COURTLISTENER_API_KEY') || null;
+        const lsKey = Deno.env.get('LEGISCAN_API_KEY') || null;
+        const tasks: Promise<void>[] = [];
+        let statuteBlocks: string[] = [];     // accumulate state + federal statute blocks
+        let caseLawBlocks: string[] = [];     // accumulate state + federal case-law blocks
+        let legiscanBlocks: string[] = [];    // accumulate state + federal bill blocks
+
+        // ---- State Statutes ----
+        if (lawSettings.state_statutes_enabled && stateInfo) {
+          send('status', { phase: 'state_statutes', message: `Fetching ${stateInfo.name} statute sources…` });
+          tasks.push((async () => {
+            try {
+              const fetched = await fetchStatuteRoot({ state: stateInfo.code, sb });
+              statuteBlocks.push(buildStatuteSystemBlock(stateInfo, fetched));
+              send('status', {
+                phase: 'state_statutes_done',
+                message: fetched
+                  ? `${stateInfo.name} statute source ready (${fetched.primary})`
+                  : `${stateInfo.name} statute fetch fell through; will use web search`,
+              });
+            } catch (err) {
+              console.warn('[chat-stream] state statute failed:', (err as any)?.message);
+              statuteBlocks.push(buildStatuteSystemBlock(stateInfo, null));
+              send('status', { phase: 'state_statutes_done', message: `${stateInfo.name} statute fetch failed; using web search` });
+            }
+          })());
+        }
+
+        // ---- Federal Statutes ----
+        if (lawSettings.federal_statutes_enabled && fedInfo) {
+          send('status', { phase: 'fed_statutes', message: `Fetching U.S. Code (Cornell + uscode.house.gov)…` });
+          tasks.push((async () => {
+            try {
+              const fetched = await fetchStatuteRoot({ state: 'US', sb });
+              statuteBlocks.push(buildStatuteSystemBlock(fedInfo, fetched));
+              send('status', {
+                phase: 'fed_statutes_done',
+                message: fetched
+                  ? `U.S. Code source ready (${fetched.primary})`
+                  : `U.S. Code fetch fell through; will use web search`,
+              });
+            } catch (err) {
+              console.warn('[chat-stream] federal statute failed:', (err as any)?.message);
+              statuteBlocks.push(buildStatuteSystemBlock(fedInfo, null));
+              send('status', { phase: 'fed_statutes_done', message: `U.S. Code fetch failed; using web search` });
+            }
+          })());
+        }
+
+        // ---- State Case Law ----
+        if (lawSettings.state_caselaw_enabled && stateInfo && clKey) {
+          const courts = STATE_TO_CL_COURTS[stateInfo.code] || [];
+          send('status', { phase: 'state_caselaw', message: `Searching CourtListener (${stateInfo.name} courts)…` });
+          tasks.push((async () => {
+            try {
+              const opinions = await searchCourtListenerOpinions({ query: content, courts, limit: 5, apiKey: clKey });
+              if (opinions.length) {
+                caseLawBlocks.push(buildCaseLawSystemBlock({ query: content, results: opinions, source: `courtlistener (${stateInfo.code} state courts)` }));
+              }
+              send('status', {
+                phase: 'state_caselaw_done',
+                message: opinions.length
+                  ? `Found ${opinions.length} ${stateInfo.name} opinion${opinions.length === 1 ? '' : 's'}`
+                  : `No CourtListener matches in ${stateInfo.name} courts`,
+              });
+            } catch (err) {
+              console.warn('[chat-stream] state case-law failed:', (err as any)?.message);
+              send('status', { phase: 'state_caselaw_done', message: `${stateInfo.name} case-law fetch failed` });
+            }
+          })());
+        }
+
+        // ---- Federal Case Law ----
+        if (lawSettings.federal_caselaw_enabled && clKey) {
+          const fedCourts = STATE_TO_CL_COURTS['US'] || ['scotus'];
+          send('status', { phase: 'fed_caselaw', message: `Searching CourtListener (SCOTUS + all federal circuits)…` });
+          tasks.push((async () => {
+            try {
+              const opinions = await searchCourtListenerOpinions({ query: content, courts: fedCourts, limit: 5, apiKey: clKey });
+              if (opinions.length) {
+                caseLawBlocks.push(buildCaseLawSystemBlock({ query: content, results: opinions, source: 'courtlistener (federal courts)' }));
+              }
+              send('status', {
+                phase: 'fed_caselaw_done',
+                message: opinions.length
+                  ? `Found ${opinions.length} federal opinion${opinions.length === 1 ? '' : 's'}`
+                  : `No CourtListener matches in federal courts`,
+              });
+            } catch (err) {
+              console.warn('[chat-stream] federal case-law failed:', (err as any)?.message);
+              send('status', { phase: 'fed_caselaw_done', message: `Federal case-law fetch failed` });
+            }
+          })());
+        }
+
+        // ---- State Bills ----
+        if (lawSettings.state_bills_enabled && stateInfo && lsKey) {
+          send('status', { phase: 'state_bills', message: `Pulling recent ${stateInfo.name} bills from LegiScan…` });
+          tasks.push((async () => {
+            try {
+              const bills = await searchLegiscanBills({ query: content, state: stateInfo.code, apiKey: lsKey, limit: 6 });
+              legiscanBlocks.push(buildLegiscanSystemBlock({ query: content, state: stateInfo.code, results: bills }));
+              send('status', {
+                phase: 'state_bills_done',
+                message: bills.length
+                  ? `Found ${bills.length} recent ${stateInfo.name} bill${bills.length === 1 ? '' : 's'}`
+                  : `No matching ${stateInfo.name} bills`,
+              });
+            } catch (err) {
+              console.warn('[chat-stream] state bills failed:', (err as any)?.message);
+              send('status', { phase: 'state_bills_done', message: `LegiScan ${stateInfo.code} lookup failed` });
+            }
+          })());
+        }
+
+        // ---- Federal Bills ----
+        if (lawSettings.federal_bills_enabled && lsKey) {
+          send('status', { phase: 'fed_bills', message: `Pulling recent Congress bills from LegiScan…` });
+          tasks.push((async () => {
+            try {
+              const bills = await searchLegiscanBills({ query: content, state: 'US', apiKey: lsKey, limit: 6 });
+              legiscanBlocks.push(buildLegiscanSystemBlock({ query: content, state: 'US (Congress)', results: bills }));
+              send('status', {
+                phase: 'fed_bills_done',
+                message: bills.length
+                  ? `Found ${bills.length} recent Congress bill${bills.length === 1 ? '' : 's'}`
+                  : `No matching Congress bills`,
+              });
+            } catch (err) {
+              console.warn('[chat-stream] federal bills failed:', (err as any)?.message);
+              send('status', { phase: 'fed_bills_done', message: `LegiScan Congress lookup failed` });
+            }
+          })());
+        }
+
+        await Promise.all(tasks);
+        statuteBlock = statuteBlocks.join('\n\n---\n\n');
+        caseLawBlock = caseLawBlocks.join('\n\n---\n\n');
+        legiscanBlock = legiscanBlocks.join('\n\n---\n\n');
+        send('status', { phase: 'thinking', message: 'Reasoning over sources…' });
+      }
 
       let acc = '';
       try {
         // Compose the system prompt. Order:
         //   1. Workflow override if the chat is bound to one, else the
         //      default conversational legal-research prompt.
-        //   2. Plus any attached document context inlined verbatim.
+        //   2. Attached document context inlined verbatim.
+        //   3. Research-mode context blocks (statute / case law /
+        //      LegiScan) when the corresponding toggles are on.
         const baseSystem = workflowSystemPrompt || SYSTEM_PROMPT;
-        const fullSystem = attachmentContext
-          ? `${baseSystem}\n\nThe user has attached the following documents to this conversation. Read them carefully before answering. When citing them, use the document filename:\n${attachmentContext}`
-          : baseSystem;
-        console.log(`[chat-stream] starting model=${modelId} provider=${provider} keySource=${source} messages=${messages.length} attachments=${attachmentMeta.length} attachChars=${attachmentContext.length}`);
-        let gen: AsyncGenerator<{ delta: string }>;
-        if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: fullSystem, messages });
-        else if (provider === 'openai') gen = streamOpenAI({ key, model: modelId, system: fullSystem, messages });
-        else if (provider === 'xai') gen = streamXAI({ key, model: modelId, system: fullSystem, messages });
-        else gen = streamGoogle({ key, model: modelId, system: fullSystem, messages });
+        const promptParts: string[] = [baseSystem];
+        if (attachmentContext) {
+          promptParts.push(`The user has attached the following documents to this conversation. Read them carefully before answering. When citing them, use the document filename:\n${attachmentContext}`);
+        }
+        if (statuteBlock)  promptParts.push(statuteBlock);
+        if (caseLawBlock)  promptParts.push(caseLawBlock);
+        if (legiscanBlock) promptParts.push(legiscanBlock);
+        const fullSystem = promptParts.join('\n\n---\n\n');
 
-        for await (const chunk of gen) {
-          if (chunk.delta) {
-            acc += chunk.delta;
-            send('text', { delta: chunk.delta });
+        // Web-search opts piped to provider-specific tools when any
+        // research toggle is on. Allowed-domains list scopes search
+        // to the selected state + universal authoritative sources.
+        // The state is always honored for allowed_domains; federal
+        // domains are added unconditionally inside buildAllowedDomains.
+        const stateInfoLocal = findState(lawSettings.state);
+        const anyStatutes = lawSettings.state_statutes_enabled || lawSettings.federal_statutes_enabled;
+        const anyCaseLaw  = lawSettings.state_caselaw_enabled  || lawSettings.federal_caselaw_enabled;
+        const anyBills    = lawSettings.state_bills_enabled    || lawSettings.federal_bills_enabled;
+        const webSearch = anyToggleOn
+          ? {
+              enabled: true,
+              allowedDomains: buildAllowedDomains({
+                statutesOn: anyStatutes,
+                caseLawOn:  anyCaseLaw,
+                legiscanOn: anyBills,
+                state: stateInfoLocal,
+              }),
+            }
+          : undefined;
+
+        console.log(`[chat-stream] starting model=${modelId} provider=${provider} keySource=${source} messages=${messages.length} attachments=${attachmentMeta.length} attachChars=${attachmentContext.length} privacy=${lawSettings.privacy_enabled} toggles=${JSON.stringify({sSt:lawSettings.state_statutes_enabled,fSt:lawSettings.federal_statutes_enabled,sCa:lawSettings.state_caselaw_enabled,fCa:lawSettings.federal_caselaw_enabled,sBi:lawSettings.state_bills_enabled,fBi:lawSettings.federal_bills_enabled,st:lawSettings.state})}`);
+        let gen: AsyncGenerator<{ delta: string }>;
+        if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: fullSystem, messages, webSearch });
+        else if (provider === 'openai') gen = streamOpenAI({ key, model: modelId, system: fullSystem, messages, webSearch });
+        else if (provider === 'xai') gen = streamXAI({ key, model: modelId, system: fullSystem, messages, webSearch });
+        else gen = streamGoogle({ key, model: modelId, system: fullSystem, messages, webSearch });
+
+        // Heartbeat: rotate a sequence of "what we're doing now"
+        // messages every few seconds while waiting for the model's
+        // first token. ALWAYS on — fires for both research-mode and
+        // regular chats. Tailored to THIS specific question via the
+        // beat-generator; falls back to FALLBACK_BEATS while the
+        // tailored set is still pending or on generation failure.
+        let REASONING_BEATS: string[] = [...FALLBACK_BEATS];
+        let beatsResolved = false;
+        beatsPromise.then((beats) => { REASONING_BEATS = beats; beatsResolved = true; });
+        let beatIdx = 0;
+        let beatTimer: number | undefined;
+        let firstTextSent = false;
+        // Show the first phrase IMMEDIATELY so the user sees activity
+        // right away, even before the parallel beat-gen finishes.
+        // Pre-grounding may already have sent an earlier status; this
+        // overrides it with the heartbeat phrase, which is the right
+        // signal once pre-grounding is done.
+        send('status', { phase: 'thinking', message: REASONING_BEATS[0] });
+        const scheduleBeat = () => {
+          if (!REASONING_BEATS.length) return;
+          beatTimer = setTimeout(() => {
+            if (firstTextSent) return;
+            beatIdx = (beatIdx + 1) % REASONING_BEATS.length;
+            send('status', { phase: 'thinking', message: REASONING_BEATS[beatIdx] });
+            scheduleBeat();
+          }, 3800) as unknown as number;
+        };
+        const cancelBeat = () => {
+          if (beatTimer) { clearTimeout(beatTimer); beatTimer = undefined; }
+        };
+        scheduleBeat();
+
+        for await (const chunk of gen as AsyncGenerator<any>) {
+          // Streamers may yield two flavors:
+          //   { type: 'text', delta }    or legacy { delta }    — visible text
+          //   { type: 'status', message } — mid-flight tool /
+          //                                 search activity surfaced
+          //                                 to the user as a phase
+          //                                 indicator update.
+          if (chunk.type === 'status' && chunk.message) {
+            // Real tool activity arrived — pause the heartbeat (it
+            // would compete with the actual signal), forward, and
+            // restart so the rotation resumes after the tool finishes.
+            cancelBeat();
+            send('status', { phase: 'mid_search', message: chunk.message });
+            scheduleBeat();
+            continue;
+          }
+          const delta = chunk.delta || (chunk.type === 'text' ? chunk.delta : null);
+          if (delta) {
+            if (!firstTextSent) {
+              firstTextSent = true;
+              cancelBeat();
+              // Always send streaming status so the frontend hides
+              // the spinner indicator when text begins, regardless
+              // of research mode.
+              send('status', { phase: 'streaming', message: '' });
+            }
+            acc += delta;
+            send('text', { delta });
           }
         }
+        cancelBeat();
         console.log(`[chat-stream] complete model=${modelId} chars=${acc.length}`);
       } catch (err) {
         const msg = (err as any)?.message || String(err);
@@ -571,6 +1089,18 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
       // Persist final + maybe title
       sbUpdate('workspace_chat_messages', `id=eq.${asstRow.id}`, { content: acc, status: 'complete' }).catch(() => {});
 
+      // Fire-and-forget the post-hoc verification when any toggle
+      // is on. The chat page polls workspace-chat-message-get for
+      // the result and renders inline badges as cites resolve.
+      if (anyToggleOn) {
+        const baseUrl = Deno.env.get('URL') || Deno.env.get('DEPLOY_URL') || 'http://localhost:8888';
+        fetch(`${baseUrl}/.netlify/functions/workspace-chat-verify-background`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Internal-Trigger': 'chat-verify' },
+          body: JSON.stringify({ message_id: asstRow.id, law_settings: lawSettings }),
+        }).catch((err) => console.warn('[chat-stream] verify trigger failed:', err?.message));
+      }
+
       let title: string | null = chat.title;
       if (!title) {
         title = await generateTitle(provider, key, modelId, content, acc);
@@ -578,7 +1108,7 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
       }
       sbUpdate('workspace_chats', `id=eq.${chatId}`, { updated_at: new Date().toISOString() }).catch(() => {});
 
-      send('done', { message_id: asstRow.id, title });
+      send('done', { message_id: asstRow.id, title, verifying: anyToggleOn });
       controller.close();
     },
   });

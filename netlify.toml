@@ -94,6 +94,15 @@
 [functions."workspace-compare-run-background"]
   timeout = 600
 
+# Chat citation-verification background worker — extracts every
+# statute/case/URL citation from an assistant message and verifies
+# each via the appropriate waterfall (statute fetcher / CourtListener
+# / HEAD reachability). LegiScan amendment-freshness check runs on
+# top when configured. Typical run finishes in 5-30s; budget 5 min
+# for messages with many citations + slow external sites.
+[functions."workspace-chat-verify-background"]
+  timeout = 300
+
 # Redline: LLM call + Fly.io LibreOffice round-trip. Should finish in
 # well under 5 min for typical docs but the background slot allows
 # headroom for large files.

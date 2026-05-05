@@ -15,6 +15,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 </head>
 <body>
@@ -111,7 +113,11 @@
           </div>
         </header>
         <section class="ws-card">
-          <div id="wf-grid" class="lib-grid"><div class="ws-empty">Loading…</div></div>
+          <div id="wf-grid" class="lib-grid">
+            <div class="proj-card sk-list-item"><div class="sk-block sk-block-meta" style="width:30%; margin-bottom:14px"></div><div class="sk-block sk-block-title" style="width:70%"></div><div class="sk-block sk-block-meta" style="width:55%"></div></div>
+            <div class="proj-card sk-list-item"><div class="sk-block sk-block-meta" style="width:25%; margin-bottom:14px"></div><div class="sk-block sk-block-title" style="width:60%"></div><div class="sk-block sk-block-meta" style="width:45%"></div></div>
+            <div class="proj-card sk-list-item"><div class="sk-block sk-block-meta" style="width:35%; margin-bottom:14px"></div><div class="sk-block sk-block-title" style="width:80%"></div><div class="sk-block sk-block-meta" style="width:50%"></div></div>
+          </div>
         </section>
         <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
       </div>
@@ -119,16 +125,11 @@
     await loadWorkflows();
   }
 
-  async function loadWorkflows() {
-    const r = await fetch('/.netlify/functions/workspace-workflows-list', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const j = await r.json();
+  // Cache-first workflows list — paint from cache, refresh in background.
+  const WF_LIST_CACHE = 'workspace.workflows-list.' + (session.user?.id || 'anon');
+  function renderWorkflowsFromData(j) {
     const grid = document.getElementById('wf-grid');
-    if (!r.ok) {
-      grid.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
-      return;
-    }
+    if (!grid) return;
     if (!j.workflows?.length) {
       grid.innerHTML = '<div class="ws-empty">No workflows yet. Create one with the buttons above.</div>';
       return;
@@ -151,6 +152,27 @@
         </div>
       </a>`;
     }).join('');
+  }
+  async function loadWorkflows() {
+    const grid = document.getElementById('wf-grid');
+    let renderedSomething = false;
+    try {
+      const cached = JSON.parse(localStorage.getItem(WF_LIST_CACHE) || 'null');
+      if (cached) { renderWorkflowsFromData(cached); renderedSomething = true; }
+    } catch {}
+    try {
+      const r = await fetch('/.netlify/functions/workspace-workflows-list', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed to load');
+      renderWorkflowsFromData(j);
+      try { localStorage.setItem(WF_LIST_CACHE, JSON.stringify(j)); } catch {}
+    } catch (e) {
+      if (!renderedSomething && grid) {
+        grid.innerHTML = `<div class="ws-empty">${escapeHtml(e.message || 'Failed to load')}</div>`;
+      }
+    }
   }
 
   // ============================================================

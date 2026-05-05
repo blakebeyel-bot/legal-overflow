@@ -14,6 +14,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 </head>
 <body>
@@ -118,7 +120,11 @@
       <h2 class="ws-card-title">Recent chats</h2>
     </header>
     <div id="chat-list" class="ws-list">
-      <div class="ws-empty">Loading…</div>
+      <!-- Skeleton placeholder shown until cache renders or first
+           fetch completes. Replaces the old "Loading…" text. -->
+      <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:65%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:40%"></span></span></div></div>
+      <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:75%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:35%"></span></span></div></div>
+      <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:55%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:45%"></span></span></div></div>
     </div>
   </section>
 
@@ -419,74 +425,113 @@
   let reviewsCache = [];
   let comparesCache = [];
 
-  async function loadDashReviews() {
-    const el = document.getElementById('dash-reviews');
+  // ---- Cache-first fetch helper ----
+  // Renders the cached data instantly (no "Loading…" flash), then
+  // refreshes from the server in the background and re-renders. If
+  // there's no cache yet, renders a skeleton placeholder. The
+  // cache key is user-scoped so multi-account testing doesn't bleed.
+  const USER_TAG = '.' + (session.user?.id || 'anon');
+  function dashSkeletonRows(n) {
+    return Array.from({length: n}, () => `<li class="ws-dash-row">
+      <div class="sk-block sk-block-title" style="width:78%"></div>
+      <div class="sk-block sk-block-meta" style="width:42%"></div>
+    </li>`).join('');
+  }
+  async function cachedListLoad({ cacheKey, fetchUrl, renderData, skeleton, errorEl }) {
+    let renderedSomething = false;
     try {
-      const r = await fetch('/.netlify/functions/workspace-tr-list', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached) { renderData(cached); renderedSomething = true; }
+      }
+    } catch {}
+    if (!renderedSomething && typeof skeleton === 'function') skeleton();
+    try {
+      const r = await fetch(fetchUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'failed');
-      const items = (j.reviews || []).slice(0, 4);
-      reviewsCache = j.reviews || [];
-      if (!items.length) {
-        el.innerHTML = '<li class="ws-dash-empty">No reviews yet. <a href="/workspace/reviews/">Start one →</a></li>';
-      } else {
-        el.innerHTML = items.map((rv) => `<li class="ws-dash-row">
-          <a href="/workspace/reviews/?id=${rv.id}" class="ws-dash-row-link">
-            <span class="ws-dash-row-title">${escapeAttr(rv.title)}</span>
-            <span class="ws-dash-row-meta">${statusPill(rv.status)}<span class="ws-dash-row-time">${relTime(rv.updated_at)}</span></span>
-          </a>
-        </li>`).join('');
-      }
-      updatePendingStrip();
+      renderData(j);
+      try { localStorage.setItem(cacheKey, JSON.stringify(j)); } catch {}
     } catch (e) {
-      el.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
+      // Don't blow away cached content if we already had something visible.
+      if (!renderedSomething && errorEl) {
+        errorEl.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
+      }
     }
+  }
+
+  async function loadDashReviews() {
+    const el = document.getElementById('dash-reviews');
+    return cachedListLoad({
+      cacheKey: 'workspace.dash.reviews' + USER_TAG,
+      fetchUrl: '/.netlify/functions/workspace-tr-list',
+      skeleton: () => { el.innerHTML = dashSkeletonRows(3); },
+      errorEl: el,
+      renderData: (j) => {
+        const items = (j.reviews || []).slice(0, 4);
+        reviewsCache = j.reviews || [];
+        if (!items.length) {
+          el.innerHTML = '<li class="ws-dash-empty">No reviews yet. <a href="/workspace/reviews/">Start one →</a></li>';
+        } else {
+          el.innerHTML = items.map((rv) => `<li class="ws-dash-row">
+            <a href="/workspace/reviews/?id=${rv.id}" class="ws-dash-row-link">
+              <span class="ws-dash-row-title">${escapeAttr(rv.title)}</span>
+              <span class="ws-dash-row-meta">${statusPill(rv.status)}<span class="ws-dash-row-time">${relTime(rv.updated_at)}</span></span>
+            </a>
+          </li>`).join('');
+        }
+        updatePendingStrip();
+      },
+    });
   }
 
   async function loadDashCompares() {
     const el = document.getElementById('dash-compares');
-    try {
-      const r = await fetch('/.netlify/functions/workspace-compare-list', { headers: { Authorization: `Bearer ${accessToken}` } });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'failed');
-      const items = (j.runs || []).slice(0, 4);
-      comparesCache = j.runs || [];
-      if (!items.length) {
-        el.innerHTML = '<li class="ws-dash-empty">No comparisons yet. <a href="/workspace/compare/">Run one →</a></li>';
-      } else {
-        el.innerHTML = items.map((rv) => `<li class="ws-dash-row">
-          <a href="/workspace/compare/?id=${rv.id}" class="ws-dash-row-link">
-            <span class="ws-dash-row-title">${escapeAttr(rv.title)}</span>
-            <span class="ws-dash-row-meta">${statusPill(rv.status)}${rv.diffs_count ? `<span class="ws-dash-row-time">${rv.diffs_count} diffs</span>` : ''}<span class="ws-dash-row-time">${relTime(rv.updated_at)}</span></span>
-          </a>
-        </li>`).join('');
-      }
-      updatePendingStrip();
-    } catch (e) {
-      el.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
-    }
+    return cachedListLoad({
+      cacheKey: 'workspace.dash.compares' + USER_TAG,
+      fetchUrl: '/.netlify/functions/workspace-compare-list',
+      skeleton: () => { el.innerHTML = dashSkeletonRows(3); },
+      errorEl: el,
+      renderData: (j) => {
+        const items = (j.runs || []).slice(0, 4);
+        comparesCache = j.runs || [];
+        if (!items.length) {
+          el.innerHTML = '<li class="ws-dash-empty">No comparisons yet. <a href="/workspace/compare/">Run one →</a></li>';
+        } else {
+          el.innerHTML = items.map((rv) => `<li class="ws-dash-row">
+            <a href="/workspace/compare/?id=${rv.id}" class="ws-dash-row-link">
+              <span class="ws-dash-row-title">${escapeAttr(rv.title)}</span>
+              <span class="ws-dash-row-meta">${statusPill(rv.status)}${rv.diffs_count ? `<span class="ws-dash-row-time">${rv.diffs_count} diffs</span>` : ''}<span class="ws-dash-row-time">${relTime(rv.updated_at)}</span></span>
+            </a>
+          </li>`).join('');
+        }
+        updatePendingStrip();
+      },
+    });
   }
 
   async function loadDashLibrary() {
     const el = document.getElementById('dash-library');
-    try {
-      const r = await fetch('/.netlify/functions/workspace-library-list?limit=4', { headers: { Authorization: `Bearer ${accessToken}` } });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'failed');
-      const items = (j.documents || []).slice(0, 4);
-      if (!items.length) {
-        el.innerHTML = '<li class="ws-dash-empty">No documents yet. <a href="/workspace/library/">Upload →</a></li>';
-      } else {
-        el.innerHTML = items.map((d) => `<li class="ws-dash-row">
-          <a href="/workspace/library/?id=${d.id}" class="ws-dash-row-link">
-            <span class="ws-dash-row-title">${escapeAttr(d.filename)}</span>
-            <span class="ws-dash-row-meta">${d.size_bytes ? `<span class="ws-dash-row-time">${fmtBytes(d.size_bytes)}</span>` : ''}<span class="ws-dash-row-time">${relTime(d.updated_at)}</span></span>
-          </a>
-        </li>`).join('');
-      }
-    } catch (e) {
-      el.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
-    }
+    return cachedListLoad({
+      cacheKey: 'workspace.dash.library' + USER_TAG,
+      fetchUrl: '/.netlify/functions/workspace-library-list?limit=4',
+      skeleton: () => { el.innerHTML = dashSkeletonRows(3); },
+      errorEl: el,
+      renderData: (j) => {
+        const items = (j.documents || []).slice(0, 4);
+        if (!items.length) {
+          el.innerHTML = '<li class="ws-dash-empty">No documents yet. <a href="/workspace/library/">Upload →</a></li>';
+        } else {
+          el.innerHTML = items.map((d) => `<li class="ws-dash-row">
+            <a href="/workspace/library/?id=${d.id}" class="ws-dash-row-link">
+              <span class="ws-dash-row-title">${escapeAttr(d.filename)}</span>
+              <span class="ws-dash-row-meta">${d.size_bytes ? `<span class="ws-dash-row-time">${fmtBytes(d.size_bytes)}</span>` : ''}<span class="ws-dash-row-time">${relTime(d.updated_at)}</span></span>
+            </a>
+          </li>`).join('');
+        }
+      },
+    });
   }
 
   // Pending-work strip — surfaces in-flight background work so the

@@ -1,9 +1,10 @@
 /**
  * PATCH /api/workspace-chats-update
- *   body: { id, title?, model?, project_id? }
+ *   body: { id, title?, model?, project_id?, workflow_id?, law_settings? }
  * Updates the chat's editable fields. Only fields present in the body are touched.
  */
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
+import { findState } from '../lib/state-statutes.js';
 
 export default async (req) => {
   if (req.method !== 'POST' && req.method !== 'PATCH') return json({ error: 'POST/PATCH only' }, 405);
@@ -20,6 +21,22 @@ export default async (req) => {
   if (typeof body.model === 'string') patch.model = body.model;
   if ('project_id' in body) patch.project_id = body.project_id || null;
   if ('workflow_id' in body) patch.workflow_id = body.workflow_id || null;
+  if ('law_settings' in body && body.law_settings && typeof body.law_settings === 'object') {
+    // Whitelist + validate the seven known fields. Six toggles
+    // (state/federal × statutes/case-law/bills) plus the state.
+    const ls = body.law_settings;
+    const stateMeta = findState(ls.state);
+    patch.law_settings = {
+      state: stateMeta ? stateMeta.code : 'FL',
+      state_statutes_enabled:   !!ls.state_statutes_enabled,
+      federal_statutes_enabled: !!ls.federal_statutes_enabled,
+      state_caselaw_enabled:    !!ls.state_caselaw_enabled,
+      federal_caselaw_enabled:  !!ls.federal_caselaw_enabled,
+      state_bills_enabled:      !!ls.state_bills_enabled,
+      federal_bills_enabled:    !!ls.federal_bills_enabled,
+      privacy_enabled:          !!ls.privacy_enabled,
+    };
+  }
   if (Object.keys(patch).length === 0) return json({ ok: true });
 
   const supabase = getSupabaseAdmin();

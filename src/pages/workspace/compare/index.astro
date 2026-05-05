@@ -13,6 +13,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 </head>
 <body class="review-page">
@@ -105,7 +107,11 @@
           </div>
         </header>
         <section class="ws-card">
-          <div id="cmp-list" class="ws-list"><div class="ws-empty">Loading…</div></div>
+          <div id="cmp-list" class="ws-list">
+            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:65%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:38%"></span></span></div></div>
+            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:75%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:42%"></span></span></div></div>
+            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:55%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:35%"></span></span></div></div>
+          </div>
         </section>
         <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
       </div>
@@ -114,13 +120,12 @@
     await loadList();
   }
 
-  async function loadList() {
-    const r = await fetch('/.netlify/functions/workspace-compare-list', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const j = await r.json();
+  // Cache key for the compare list — user-scoped so multi-account
+  // testing doesn't bleed cache across users.
+  const CMP_LIST_CACHE = 'workspace.compare-list.' + (session.user?.id || 'anon');
+  function renderCmpListFromData(j) {
     const listEl = document.getElementById('cmp-list');
-    if (!r.ok) { listEl.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed')}</div>`; return; }
+    if (!listEl) return;
     if (!j.runs?.length) { listEl.innerHTML = '<div class="ws-empty">No comparisons yet. Click "New comparison" above to start one.</div>'; return; }
     listEl.innerHTML = j.runs.map((rv) => {
       const date = new Date(rv.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -145,9 +150,33 @@
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: btn.dataset.del }),
         });
+        try { localStorage.removeItem(CMP_LIST_CACHE); } catch {}
         loadList();
       });
     });
+  }
+  async function loadList() {
+    const listEl = document.getElementById('cmp-list');
+    let renderedSomething = false;
+    // 1. Render cache instantly
+    try {
+      const cached = JSON.parse(localStorage.getItem(CMP_LIST_CACHE) || 'null');
+      if (cached) { renderCmpListFromData(cached); renderedSomething = true; }
+    } catch {}
+    // 2. Fetch fresh
+    try {
+      const r = await fetch('/.netlify/functions/workspace-compare-list', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed');
+      renderCmpListFromData(j);
+      try { localStorage.setItem(CMP_LIST_CACHE, JSON.stringify(j)); } catch {}
+    } catch (e) {
+      if (!renderedSomething && listEl) {
+        listEl.innerHTML = `<div class="ws-empty">${escapeHtml(e.message || 'Failed')}</div>`;
+      }
+    }
   }
 
   // ============================================================

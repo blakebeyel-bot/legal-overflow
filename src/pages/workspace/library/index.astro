@@ -13,6 +13,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 </head>
 <body>
@@ -58,7 +60,10 @@
 
   <section class="ws-card">
     <div id="lib-grid" class="lib-grid">
-      <div class="ws-empty">Loading…</div>
+      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:75%"></div><div class="sk-block sk-block-meta" style="width:50%"></div></div>
+      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:60%"></div><div class="sk-block sk-block-meta" style="width:40%"></div></div>
+      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:80%"></div><div class="sk-block sk-block-meta" style="width:55%"></div></div>
+      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:50%"></div><div class="sk-block sk-block-meta" style="width:35%"></div></div>
     </div>
   </section>
 
@@ -192,18 +197,41 @@
     });
   }
 
+  // Cache-first library load: render previously-seen docs from
+  // localStorage instantly, then refresh from the server in the
+  // background. Only the unfiltered list is cached (search queries
+  // bypass cache and hit the server fresh).
+  const LIB_CACHE_KEY = 'workspace.library.' + (userId || 'anon');
   async function loadDocs() {
     const q = els.search.value.trim();
-    const r = await fetch('/.netlify/functions/workspace-library-list' + (q ? `?q=${encodeURIComponent(q)}` : ''), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      els.grid.innerHTML = `<div class="ws-empty">Failed to load: ${escapeHtml(j.error || 'unknown')}</div>`;
-      return;
+    let renderedSomething = false;
+    // Cache only applies to the unfiltered list view
+    if (!q) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(LIB_CACHE_KEY) || 'null');
+        if (cached?.documents) {
+          allDocs = cached.documents || [];
+          renderGrid(allDocs);
+          renderedSomething = true;
+        }
+      } catch {}
     }
-    allDocs = j.documents || [];
-    renderGrid(allDocs);
+    try {
+      const r = await fetch('/.netlify/functions/workspace-library-list' + (q ? `?q=${encodeURIComponent(q)}` : ''), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'unknown');
+      allDocs = j.documents || [];
+      renderGrid(allDocs);
+      if (!q) {
+        try { localStorage.setItem(LIB_CACHE_KEY, JSON.stringify(j)); } catch {}
+      }
+    } catch (e) {
+      if (!renderedSomething) {
+        els.grid.innerHTML = `<div class="ws-empty">Failed to load: ${escapeHtml(e.message || 'unknown')}</div>`;
+      }
+    }
   }
 
   // ---- Upload flow: direct-to-Storage then register ----

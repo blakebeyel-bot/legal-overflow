@@ -172,13 +172,18 @@ body.chat-page {
   display: flex;
   flex-direction: column;
 }
-body.chat-page > .nav {
+/* Auto-hiding nav — applies to any page that loads /nav-autohide.js
+   (which adds `body.nav-autohide`). The chat page also gets it via
+   the same body class for backward compatibility. */
+body.chat-page > .nav,
+body.nav-autohide > .nav {
   flex-shrink: 0;
   transition: max-height .22s ease, opacity .22s ease, padding .22s ease, border-color .22s ease;
   max-height: 120px;
   overflow: hidden;
 }
-body.chat-page.nav-collapsed > .nav {
+body.chat-page.nav-collapsed > .nav,
+body.nav-autohide.nav-collapsed > .nav {
   max-height: 0;
   opacity: 0;
   padding-top: 0;
@@ -189,7 +194,8 @@ body.chat-page.nav-collapsed > .nav {
 /* When the nav is auto-hidden, a thin hint strip appears at the very
    top of the viewport — a visual cue that the nav lives there and
    moving the cursor up will bring it back. */
-body.chat-page.nav-collapsed::before {
+body.chat-page.nav-collapsed::before,
+body.nav-autohide.nav-collapsed::before {
   content: '';
   position: fixed; top: 0; left: 0; right: 0;
   height: 3px;
@@ -416,6 +422,7 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   font-style: italic;
 }
 .cursor { display: inline-block; width: 8px; animation: blink 1s steps(2,start) infinite; color: var(--accent-deep); }
+.cursor[hidden] { display: none !important; }
 @keyframes blink { to { visibility: hidden; } }
 
 .chat-composer {
@@ -864,7 +871,7 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
    three scrollbars total. */
 .rv-docview {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: var(--rv-rail-width, 360px) 6px 1fr;
   grid-template-rows: 1fr;
   gap: 0;
   background: var(--paper);
@@ -872,6 +879,35 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   height: 75vh;
   min-height: 540px;
   overflow: hidden;
+}
+/* Drag handle between sidebar and main doc area. Slim by default,
+   thicker hover state for grab affordance. Sits in its own grid
+   column so the mouse never overlaps the sidebar's scrollbar. */
+.rv-rail-resize {
+  cursor: col-resize;
+  background: var(--rule-soft);
+  position: relative;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.rv-rail-resize:hover,
+.rv-rail-resize:focus {
+  background: var(--accent-deep);
+  outline: none;
+}
+/* Visual grip dots */
+.rv-rail-resize::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px; height: 32px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 1px;
+}
+.rv-rail-resize:hover::after,
+.rv-rail-resize:focus::after {
+  background: var(--paper);
 }
 .rv-docview-side {
   border-right: 1px solid var(--rule-soft);
@@ -883,7 +919,7 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .rv-docview-side-head {
   padding: 12px 16px;
   border-bottom: 1px solid var(--rule-soft);
-  font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
   display: flex; justify-content: space-between; align-items: center;
   flex-shrink: 0;
 }
@@ -966,16 +1002,16 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 }
 .rv-overview-loading, .rv-overview-error {
   padding: 14px;
-  font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em;
+  font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: .04em;
   border-bottom: 1px solid var(--rule-soft);
 }
 .rv-overview-error { color: #b22222; }
 .rv-overview-label {
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--ink-3); margin-bottom: 5px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 6px;
 }
 .rv-overview-summary { margin-bottom: 12px; }
-.rv-overview-summary-text { font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+.rv-overview-summary-text { font-size: 14px; line-height: 1.6; color: var(--ink); }
 .rv-overview-risks { display: flex; flex-direction: column; gap: 8px; }
 .rv-risk {
   padding: 8px 10px;
@@ -998,15 +1034,101 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .rv-risk-sev-high   { background: #b22222; color: white; }
 .rv-risk-sev-medium { background: #b87f00; color: white; }
 .rv-risk-sev-low    { background: var(--ink-3); color: white; }
-.rv-risk-title { font-family: var(--sans); font-size: 12px; font-weight: 500; color: var(--ink); flex: 1; line-height: 1.3; }
-.rv-risk-detail { font-size: 11.5px; line-height: 1.5; color: var(--ink-2); margin-bottom: 4px; }
+.rv-risk-title { font-family: var(--sans); font-size: 13.5px; font-weight: 500; color: var(--ink); flex: 1; line-height: 1.35; }
+.rv-risk-detail { font-size: 13px; line-height: 1.55; color: var(--ink-2); margin-bottom: 4px; }
 .rv-risk-quote {
-  font-family: var(--mono); font-size: 10.5px; line-height: 1.45;
-  color: var(--ink-3); padding: 4px 6px;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
+  color: var(--ink-3); padding: 5px 7px;
   background: rgba(0,0,0,.03); border-radius: 2px;
   border-left: 2px solid var(--rule-soft);
 }
 .rv-risk-page { color: var(--accent-deep); font-style: normal; }
+
+/* Risk action buttons + inline rewrite-suggestion form. Lets the
+   user spawn an AI rewrite of a flagged clause without leaving the
+   sidebar. */
+.rv-risk-actions { display: flex; gap: 6px; margin-top: 8px; }
+.rv-risk-suggest-btn {
+  padding: 5px 10px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  color: var(--ink-2); cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.rv-risk-suggest-btn:hover {
+  border-color: var(--accent-deep);
+  color: var(--accent-deep);
+  background: rgba(10,125,87,.04);
+}
+.rv-risk-suggest-form {
+  margin-top: 8px;
+  padding: 10px 10px 8px;
+  border: 1px dashed var(--accent-deep); border-radius: 6px;
+  background: rgba(10,125,87,.04);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rv-risk-suggest-input {
+  width: 100%; padding: 7px 9px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  font-family: var(--sans); font-size: 12.5px; line-height: 1.5;
+  background: var(--paper); color: var(--ink);
+  resize: vertical; min-height: 56px;
+}
+.rv-risk-suggest-input:focus { outline: none; border-color: var(--accent-deep); }
+.rv-risk-suggest-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.rv-risk-suggest-cancel {
+  padding: 4px 10px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  background: transparent; border: 1px solid var(--rule-soft); border-radius: 4px;
+  color: var(--ink-3); cursor: pointer;
+}
+.rv-risk-suggest-cancel:hover { color: var(--ink); }
+.rv-risk-suggest-go { padding: 4px 14px !important; font-size: 11px !important; }
+.rv-risk-suggest-status {
+  font-family: var(--mono); font-size: 10.5px;
+  padding: 6px 8px; border-radius: 3px;
+}
+.rv-risk-suggest-status.is-running { background: rgba(56,98,170,.10); color: #3862aa; }
+.rv-risk-suggest-status.is-error   { background: rgba(178,34,34,.10); color: #722; }
+.rv-risk-suggest-result {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 6px; border-top: 1px dashed var(--rule-soft);
+}
+.rv-risk-suggest-block { display: flex; flex-direction: column; gap: 4px; }
+.rv-risk-suggest-label {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.rv-risk-suggest-find {
+  background: rgba(178,34,34,.06);
+  border-left: 2px solid #c14040;
+  padding: 6px 8px; border-radius: 0 3px 3px 0;
+  font-family: var(--serif); font-size: 13px; line-height: 1.5;
+  color: var(--ink-2);
+}
+.rv-risk-suggest-replace {
+  background: rgba(10,125,87,.05);
+  border-left: 2px solid #4a8a64;
+  padding: 6px 8px; border-radius: 0 3px 3px 0;
+  font-family: var(--serif); font-size: 13.5px; line-height: 1.55;
+  color: var(--ink);
+}
+.rv-risk-suggest-copy {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 4px 10px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  color: var(--ink-2); cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.rv-risk-suggest-copy:hover { border-color: var(--ink); color: var(--ink); }
+.rv-risk-suggest-rationale {
+  font-size: 12px; line-height: 1.55; color: var(--ink-3);
+  font-style: italic;
+}
 
 /* Bulk action bar (Accept all / Reject all / Reset) above the
    findings list. */
@@ -1070,6 +1192,7 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 @media (max-width: 760px) {
   .rv-docview { grid-template-columns: 1fr; height: auto; }
   .rv-docview-side { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--rule-soft); }
+  .rv-rail-resize { display: none; }
 }
 
 /* Live preview — full-screen "scanning the document" view */
@@ -1119,15 +1242,15 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .rv-live-finding.is-accepted { border-left: 3px solid #0a7d57; background: rgba(10,125,87,.04); }
 .rv-live-finding.is-rejected { border-left: 3px solid #b22222; background: rgba(178,34,34,.04); opacity: .65; }
 .rv-live-finding-na { opacity: .55; }
-.rv-live-finding-na-text { font-style: italic; font-size: 12px; color: var(--ink-3); margin-top: 4px; }
-.rv-live-finding-col { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--accent-deep); margin-bottom: 4px; }
-.rv-live-finding-rationale { font-size: 12.5px; line-height: 1.45; color: var(--ink); margin-bottom: 6px; }
-.rv-live-finding-diff { display: grid; grid-template-columns: 1fr 14px 1fr; gap: 4px; align-items: start; font-family: var(--mono); font-size: 10px; line-height: 1.4; margin-bottom: 8px; }
-.rv-live-finding-from { background: rgba(178,34,34,.06); padding: 4px 6px; border-radius: 3px; color: var(--ink-2); }
-.rv-live-finding-to { background: rgba(10,125,87,.06); padding: 4px 6px; border-radius: 3px; color: var(--ink-2); }
+.rv-live-finding-na-text { font-style: italic; font-size: 13px; color: var(--ink-3); margin-top: 4px; }
+.rv-live-finding-col { font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; color: var(--accent-deep); margin-bottom: 5px; }
+.rv-live-finding-rationale { font-size: 14px; line-height: 1.55; color: var(--ink); margin-bottom: 8px; }
+.rv-live-finding-diff { display: grid; grid-template-columns: 1fr 14px 1fr; gap: 4px; align-items: start; font-family: var(--mono); font-size: 11.5px; line-height: 1.45; margin-bottom: 10px; }
+.rv-live-finding-from { background: rgba(178,34,34,.06); padding: 5px 7px; border-radius: 3px; color: var(--ink-2); }
+.rv-live-finding-to { background: rgba(10,125,87,.06); padding: 5px 7px; border-radius: 3px; color: var(--ink-2); }
 .rv-live-finding-arrow { text-align: center; color: var(--ink-3); }
 .rv-live-finding-actions { display: flex; gap: 4px; }
-.rv-live-finding-actions button { flex: 1; padding: 4px 0; }
+.rv-live-finding-actions button { flex: 1; padding: 5px 0; font-size: 11.5px; }
 
 .rv-live-doc {
   position: relative;
@@ -1145,6 +1268,58 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   max-height: none;
   overflow: visible;
   height: auto;        /* let content drive height; the parent .rv-docview-main scrolls */
+}
+
+/* Zoom toolbar — floats top-right inside .rv-docview-main. Three
+   compact buttons: − [ % ] +. Sticky so it stays in view while
+   scrolling the doc. */
+.rv-doc-zoom-bar {
+  position: sticky;
+  top: 8px;
+  margin-left: auto;
+  margin-right: 8px;
+  margin-bottom: -36px;       /* don't push the doc body down */
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.05);
+  overflow: hidden;
+  width: max-content;
+  font-family: var(--mono);
+  float: right;
+}
+.rv-doc-zoom-btn,
+.rv-doc-zoom-level {
+  border: none;
+  background: var(--paper);
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1;
+  transition: background .12s ease, color .12s ease;
+}
+.rv-doc-zoom-btn {
+  font-size: 16px;
+  font-weight: 500;
+  width: 32px;
+}
+.rv-doc-zoom-btn:hover,
+.rv-doc-zoom-level:hover {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+.rv-doc-zoom-level {
+  min-width: 56px;
+  text-align: center;
+  border-left: 1px solid var(--rule-soft);
+  border-right: 1px solid var(--rule-soft);
+  font-size: 11.5px;
+  letter-spacing: .04em;
 }
 .rv-live-doc-body .rv-doc-preview-page {
   /* The HTML mammoth produced may not have margins on its outer
@@ -1634,4 +1809,598 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   .cmp-doc-pickers { grid-template-columns: 1fr; }
   .cmp-doc-pickers .cmp-vs { display: none; }
   .cmp-diff-bodies { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Composer research toolbar (statutes / case law / bills toggles)
+   Lives directly above the chat composer in /workspace/chat/.
+   ============================================================ */
+.composer-research-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--rule-soft); border-radius: 6px;
+  background: var(--paper-2);
+  flex-wrap: wrap;
+  font-family: var(--mono); font-size: 11px;
+  transition: border-color .2s ease, background .2s ease;
+}
+.composer-research-bar.is-active {
+  border-color: var(--accent-deep);
+  background: rgba(56, 98, 170, 0.04);
+}
+.research-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 6px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 3px;
+}
+.research-toggle:hover { background: rgba(0, 0, 0, .04); }
+.research-toggle input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent-deep);
+}
+.research-toggle-label {
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.research-toggle input:checked + .research-toggle-label {
+  color: var(--ink); font-weight: 500;
+}
+.research-toggle-state {
+  font-family: var(--mono); font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--rule-soft); border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink); cursor: pointer;
+}
+.research-toggle-state:focus { outline: none; border-color: var(--accent-deep); }
+.research-toggle-state[hidden] { display: none !important; }
+.research-divider {
+  display: inline-block;
+  color: var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 300;
+  margin: 0 2px;
+  user-select: none;
+}
+.research-divider[hidden] { display: none !important; }
+.research-state-label {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.research-state-label[hidden] { display: none !important; }
+
+/* Each kind (Statutes / Case law / Bills) groups its State + Federal
+   toggles together. The label sits to the left of the pair. */
+.research-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.research-group-label {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+
+/* ============================================================
+   Privacy mode — chat-wide visual state
+   ============================================================
+   The Privacy toggle lives in the chat header (chat-privacy-toggle)
+   instead of the research bar. When on, the entire chat container
+   takes on an amber tint with a soft pulsing border, signaling to
+   the user that every message is being abstracted before sending.
+   No per-message badge needed — the chrome itself communicates it.
+*/
+
+/* Header toggle — sits next to the model selector */
+.chat-privacy-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  background: var(--paper);
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--ink-2);
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+}
+.chat-privacy-toggle:hover {
+  border-color: #d49a3a;
+}
+.chat-privacy-toggle input[type="checkbox"] {
+  margin: 0;
+  accent-color: #d49a3a;
+  cursor: pointer;
+}
+.chat-privacy-toggle input:checked ~ .chat-privacy-toggle-label {
+  color: #7a4f10;
+  font-weight: 600;
+}
+.chat-privacy-toggle:has(input:checked) {
+  background: #fdf3e0;
+  border-color: #d49a3a;
+}
+.chat-privacy-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.chat-privacy-toggle-lock {
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  transition: background .15s ease, transform .2s ease;
+}
+.chat-privacy-toggle-lock:hover {
+  background: rgba(212, 154, 58, 0.25);
+  transform: scale(1.1);
+}
+
+/* Chat-wide privacy state. Applied to .chat-main when toggle is on. */
+.chat-main.is-privacy-on {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(253, 243, 224, 0.55) 0%, rgba(253, 243, 224, 0.18) 60px, transparent 240px);
+}
+.chat-main.is-privacy-on::before {
+  /* Animated amber border ribbon along the top — subtle pulsing
+     sheen so the privacy state feels alive, not static. */
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg,
+    #d49a3a 0%,
+    #f6c878 25%,
+    #d49a3a 50%,
+    #f6c878 75%,
+    #d49a3a 100%);
+  background-size: 200% 100%;
+  animation: privacy-shimmer 4s linear infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+.chat-main.is-privacy-on::after {
+  /* Bottom edge marker — subtle but matches the top */
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: rgba(212, 154, 58, 0.4);
+  pointer-events: none;
+}
+@keyframes privacy-shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* When Privacy mode just toggled on, briefly flash the whole chat
+   so the user can't miss the visual change. */
+.chat-main.is-privacy-just-toggled {
+  animation: privacy-flash 1.4s ease-out 1;
+}
+@keyframes privacy-flash {
+  0%   { box-shadow: inset 0 0 0 0 rgba(212, 154, 58, 0); background-color: rgba(253, 243, 224, 0); }
+  20%  { box-shadow: inset 0 0 0 4px rgba(212, 154, 58, 0.5); background-color: rgba(253, 243, 224, 0.8); }
+  100% { box-shadow: inset 0 0 0 0 rgba(212, 154, 58, 0); background-color: transparent; }
+}
+
+/* Composer area inside privacy chat — slightly tinted so the user
+   knows what they're typing will be abstracted. */
+.chat-main.is-privacy-on .chat-composer {
+  border-color: #d49a3a;
+  background: #fdf8eb;
+}
+.chat-main.is-privacy-on #composer-input {
+  background: transparent;
+}
+.chat-main.is-privacy-on #composer-input::placeholder {
+  color: #b07c1e;
+  font-style: italic;
+}
+
+/* Subtle amber accent on user bubbles when privacy was applied to
+   that specific send. Independent of the chat-wide state — survives
+   even if the user toggles privacy off later. */
+.msg.user[data-privacy="1"] .msg-body {
+  border-left: 2px solid #d49a3a;
+  padding-left: 10px;
+}
+.research-status {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--accent-deep);
+  letter-spacing: .04em;
+}
+.research-info {
+  border: 1px solid var(--rule-soft); border-radius: 50%;
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--paper); cursor: pointer;
+  font-family: var(--serif); font-style: italic;
+  font-size: 11px; color: var(--ink-3);
+}
+.research-info:hover { border-color: var(--accent-deep); color: var(--accent-deep); }
+
+/* ============================================================
+   Inline citation verification badges
+   ============================================================ */
+.cite-badge {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  vertical-align: super;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+.cite-badge.cite-verified {
+  background: #e8f4ed; color: #1f5a37; border-color: #4a8a64;
+}
+.cite-badge.cite-secondary {
+  background: #fdf3e0; color: #7a4f10; border-color: #d49a3a;
+}
+.cite-badge.cite-pending_amendment {
+  background: #ffeacc; color: #8a4f1f; border-color: #e07f1f;
+}
+.cite-badge.cite-amended_enacted {
+  background: #fdecec; color: #8a1f1f; border-color: #c14040;
+  font-weight: 700;
+}
+.cite-badge.cite-unverified {
+  background: #fdecec; color: #8a1f1f; border-color: #c14040;
+}
+.cite-badge.cite-pending {
+  background: #f3f3f3; color: var(--ink-3); border-color: var(--rule-soft);
+}
+
+/* Citation verification summary pill — sits below an assistant
+   message, very compact. Click to expand the full citation
+   verification list in a modal. */
+.msg-verify-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px; padding: 2px 7px 2px 7px;
+  border: 1px solid var(--rule-soft); border-radius: 3px;
+  background: var(--paper-2);
+  font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+  letter-spacing: .03em;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+.msg-verify-pill.is-complete {
+  background: #e8f4ed; border-color: #4a8a64; color: #1f5a37;
+}
+.msg-verify-pill.is-error,
+.msg-verify-pill.is-timeout {
+  background: #fdf3e0; border-color: #d49a3a; color: #7a4f10;
+}
+.msg-verify-pill.msg-verify-clickable {
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.msg-verify-pill.msg-verify-clickable:hover {
+  border-color: #1f5a37;
+  background: #d8eadf;
+}
+.msg-verify-caret {
+  font-size: 8px;
+  margin-left: 2px;
+  opacity: .6;
+}
+
+/* Citation popup modal — fullscreen overlay with centered card. */
+.cite-modal[hidden] { display: none !important; }
+.cite-modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.cite-modal-overlay {
+  position: absolute; inset: 0;
+  background: rgba(20, 25, 35, 0.45);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+.cite-modal-inner {
+  position: relative;
+  width: min(640px, 100%);
+  max-height: 80vh;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft); border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .25);
+  overflow: hidden;
+}
+.cite-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--paper-2);
+}
+.cite-modal-title {
+  font-family: var(--serif); font-size: 16px; font-weight: 500;
+  margin: 0; color: var(--ink); letter-spacing: -.005em;
+}
+.cite-modal-close {
+  border: none; background: none; cursor: pointer;
+  font-size: 22px; line-height: 1; color: var(--ink-3);
+  padding: 0 4px;
+}
+.cite-modal-close:hover { color: var(--ink); }
+.cite-modal-body {
+  overflow-y: auto;
+  padding: 12px 18px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.cite-modal-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 5px;
+  background: var(--paper-2);
+  align-items: start;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.cite-modal-row.is-focus {
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 2px rgba(56, 98, 170, 0.12);
+}
+.cite-modal-row-verified         { border-left: 3px solid #4a8a64; }
+.cite-modal-row-secondary        { border-left: 3px solid #d49a3a; }
+.cite-modal-row-pending_amendment { border-left: 3px solid #e07f1f; }
+.cite-modal-row-amended_enacted  { border-left: 3px solid #c14040; background: #fdecec; }
+.cite-modal-row-unverified       { border-left: 3px solid #c14040; }
+.cite-modal-row-pending          { border-left: 3px solid var(--rule-soft); }
+.cite-modal-icon {
+  font-size: 16px;
+  text-align: center;
+  line-height: 1.4;
+}
+.cite-modal-content { min-width: 0; }
+.cite-modal-raw {
+  font-family: var(--serif); font-size: 14px; font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+.cite-modal-status {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--ink-3); text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.cite-modal-note {
+  font-size: 12px; line-height: 1.5;
+  padding: 6px 10px;
+  border-left: 2px solid var(--ink-3);
+  background: rgba(0,0,0,.03);
+  color: var(--ink-2);
+  margin-bottom: 6px;
+  border-radius: 0 3px 3px 0;
+}
+.cite-modal-link {
+  display: inline-block;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--accent-deep);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent-deep);
+  margin-top: 2px;
+  word-break: break-all;
+}
+.cite-modal-link:hover {
+  color: var(--ink);
+  border-bottom-style: solid;
+}
+body.cite-modal-open { overflow: hidden; }
+
+@media (max-width: 600px) {
+  .cite-modal { padding: 12px; }
+  .cite-modal-inner { max-height: 92vh; }
+}
+
+@media (max-width: 600px) {
+  .composer-research-bar { gap: 8px; padding: 6px 8px; }
+  .research-status { width: 100%; margin-left: 0; }
+}
+
+/* ============================================================
+   Inline links + footnote refs in chat responses
+   ============================================================ */
+.msg-footref {
+  display: inline-block;
+  margin: 0 1px 0 2px;
+  vertical-align: super;
+  line-height: 1;
+}
+.msg-footref a {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  background: var(--paper-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--accent-deep);
+  text-decoration: none;
+  letter-spacing: .04em;
+}
+.msg-footref a:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: var(--paper);
+}
+/* Pending state — used by the streaming-render optimistic
+   placeholder so the user sees a chip immediately instead of the
+   raw URL chars accumulating, before the closing `)` arrives.
+   Visually identical to the resolved chip, but slightly faded so
+   it's not interactive yet. */
+.msg-footref-pending a {
+  cursor: default;
+  opacity: 0.7;
+  background: var(--paper-2);
+}
+.msg-footref-pending a:hover {
+  background: var(--paper-2);
+  border-color: var(--rule-soft);
+  color: var(--accent-deep);
+}
+.msg-link-pending {
+  color: var(--accent-deep);
+  opacity: 0.7;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: default;
+}
+
+.msg-link {
+  color: var(--accent-deep);
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.msg-link:hover { color: var(--ink); }
+
+.msg-url {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  word-break: keep-all;
+}
+.msg-url:hover {
+  color: var(--accent-deep);
+  text-decoration-style: solid;
+}
+
+/* ============================================================
+   Phase indicator — Claude / ChatGPT-style "what's happening
+   right now" line. Single rotating spinner + a phase message
+   that fades between activities as the server reports progress.
+   Disappears entirely once the model starts streaming text.
+   ============================================================ */
+.msg-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 6px 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-3);
+  line-height: 1.2;
+  letter-spacing: .01em;
+  opacity: 1;
+  transition: opacity 0.22s ease;
+}
+/* The author rule above has the same specificity as the UA's
+   `[hidden] { display: none }`, but loads later, so it wins —
+   meaning `el.hidden = true` would NOT actually hide the
+   indicator. Explicit override below gives `[hidden]` higher
+   specificity (0,2,0 vs 0,1,0) so it wins. */
+.msg-status[hidden] { display: none !important; }
+/* Pop-in: applied briefly when the indicator first reveals. JS
+   adds the class while element has hidden=false, then removes it
+   on next frame so opacity transitions 0 → 1. */
+.msg-status.is-entering { opacity: 0; }
+/* Vanish: applied when the indicator is being hidden entirely.
+   The whole row fades out before display:none. */
+.msg-status.is-vanishing { opacity: 0; }
+
+.msg-status-spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--rule-soft);
+  border-top-color: var(--accent-deep);
+  border-radius: 50%;
+  animation: msg-status-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes msg-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+.msg-status-text {
+  display: inline-block;
+  opacity: 1;
+  transition: opacity 0.18s ease;
+}
+/* Text-only fade for phase swaps. The parent stays at opacity 1
+   so the spinner keeps spinning visibly while the text crossfades. */
+.msg-status.is-fading .msg-status-text { opacity: 0; }
+
+/* ============================================================
+   Copy-response button on assistant messages
+   ============================================================ */
+.msg-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--rule-soft);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.msg.asst:hover .msg-actions,
+.msg.asst:focus-within .msg-actions {
+  opacity: 1;
+}
+.msg-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.msg-copy:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.msg-copy.is-copied {
+  border-color: #4a8a64;
+  background: #e8f4ed;
+  color: #1f5a37;
+}
+.msg-copy svg {
+  flex-shrink: 0;
 }

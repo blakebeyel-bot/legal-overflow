@@ -109,16 +109,28 @@ Rules:
 - "page" is a 1-indexed page number from the [Page N] markers in the text. 0 if unknown.
 - "severity": high = could materially harm the user's client (unlimited liability, broad IP grant, sole jurisdiction in unfavorable forum). medium = noticeable but negotiable. low = stylistic or minor.
 - Do not invent issues. If a clause looks fine, do not flag it.
-- The user is a U.S. attorney; write in peer voice, not consumer voice.`;
+- The user is a U.S. attorney; write in peer voice, not consumer voice.
 
-export function buildOverviewPrompt({ documentText, documentName, clientRole, additionalContext }) {
+CRITICAL — DEDUPE WITH USER-DEFINED COLUMNS:
+The user has separately listed clauses they want flagged and addressed via the "columns" mechanism. Each column is a clause the user is already targeting. DO NOT include any risk in your output that overlaps with a user-defined column. The user is already getting a per-clause analysis on those topics; duplicating them in the red-flags list creates noise. If the only issues you can find are already covered by columns, return an empty risks array — that's the correct answer, not padding with low-priority items.
+
+To dedupe: read each column name and prompt carefully. If a risk you'd flag is conceptually the same clause, skip it. Examples of overlap:
+  - User column "Termination notice" → skip any risk titled "Short termination notice" / "Termination provisions" / similar
+  - User column "Indemnification cap" → skip any risk about indemnity scope or cap
+  - User column "Governing law" → skip jurisdiction / forum-selection risks
+The threshold for overlap is conceptual, not lexical. Lean toward dedupe — if in doubt, skip.`;
+
+export function buildOverviewPrompt({ documentText, documentName, clientRole, additionalContext, columns }) {
+  const columnBlock = (Array.isArray(columns) && columns.length)
+    ? `\n=== USER-DEFINED COLUMNS (skip these as red flags) ===\n${columns.map((c, i) => `Column ${i + 1}: "${c.name || '?'}" — ${c.prompt || ''}`).join('\n')}\n=== END OF COLUMNS ===\n`
+    : '';
   return `=== DOCUMENT: ${documentName} ===
 
 ${documentText}
 
 === END OF DOCUMENT ===
-${buildContextBlock({ clientRole, additionalContext })}
-Produce the JSON object only.`;
+${columnBlock}${buildContextBlock({ clientRole, additionalContext })}
+Produce the JSON object only. Remember: DO NOT include risks that overlap with the user-defined columns above.`;
 }
 
 export function parseOverviewResponse(raw) {

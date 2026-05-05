@@ -30,6 +30,245 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+  /* Page fade-in: starts invisible, fades to visible once
+     `page-ready` is added by /nav-autohide.js after DOMContentLoaded.
+     Gives every page a smooth load instead of the blank-then-pop
+     feeling. The fallback animation ensures content always shows
+     even if JS fails to run (max 1.5s before forced visible). */
+  opacity: 0;
+  transition: opacity 0.22s ease-out;
+  animation: page-fade-fallback 0s 1.8s forwards;
+}
+body.page-ready {
+  opacity: 1;
+  animation: none;       /* JS took over; fallback no longer needed */
+}
+@keyframes page-fade-fallback {
+  to { opacity: 1; }
+}
+
+/* Skeleton-loader utility — replace "Loading…" text with shaped
+   placeholders that pulse, so client-fetched lists feel like they're
+   filling in rather than popping. Use:
+     <div class="sk-row"><div class="sk-block sk-block-line"></div>…</div>
+*/
+.sk-block {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,.04) 0%,
+    rgba(0,0,0,.09) 50%,
+    rgba(0,0,0,.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s linear infinite;
+  border-radius: 4px;
+  height: 14px;
+}
+.sk-block-line   { height: 14px; margin: 6px 0; }
+.sk-block-title  { height: 18px; width: 60%; margin: 8px 0; }
+.sk-block-meta   { height: 11px; width: 30%; margin: 6px 0; }
+.sk-row {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Skeleton list — drop-in replacement for "Loading…" text. Renders
+   N stacked rows with a title + meta line. Use in places where the
+   final content is a list of items. The component's inner HTML is
+   set by a small JS helper (see sk_listSkeleton below — copied
+   inline into each page that uses it). */
+.sk-list .sk-row:last-child { border-bottom: none; }
+.sk-list-item .sk-block { display: block; }
+
+/* ============================================================
+   Site dialog system — toast + confirm modal
+   Replaces native alert()/confirm() with site-styled equivalents.
+   See /site-dialog.js for the JS API (siteToast, siteConfirm).
+   ============================================================ */
+
+/* Toast container — bottom-right corner */
+.site-toast-container {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 9999;
+  display: flex; flex-direction: column-reverse;
+  gap: 10px;
+  pointer-events: none;       /* container is just a positioning frame */
+  max-width: min(420px, calc(100vw - 48px));
+}
+.site-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: 22px 1fr 22px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--ink-3);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity .22s ease, transform .22s ease;
+}
+.site-toast.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.site-toast.is-leaving {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.site-toast-info    { border-left-color: var(--accent-deep); }
+.site-toast-success { border-left-color: #4a8a64; background: #e8f4ed; color: #1f5a37; }
+.site-toast-warn    { border-left-color: #d49a3a; background: #fdf3e0; color: #7a4f10; }
+.site-toast-error   { border-left-color: #c14040; background: #fdecec; color: #8a1f1f; }
+.site-toast-icon {
+  font-size: 16px;
+  text-align: center;
+  line-height: 1;
+}
+.site-toast-msg {
+  word-wrap: break-word;
+  min-width: 0;
+}
+.site-toast-close {
+  border: none; background: none; cursor: pointer;
+  width: 22px; height: 22px;
+  font-size: 18px; line-height: 1;
+  color: var(--ink-3);
+  border-radius: 3px;
+  padding: 0;
+  transition: background .15s ease, color .15s ease;
+}
+.site-toast-close:hover {
+  background: rgba(0,0,0,.08);
+  color: var(--ink);
+}
+
+/* Site confirm modal — centered, blurred backdrop */
+.site-confirm-overlay {
+  position: fixed; inset: 0;
+  z-index: 9998;
+  background: rgba(20, 25, 35, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.site-confirm-overlay.is-visible { opacity: 1; }
+.site-confirm-modal {
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px;
+  box-shadow: 0 14px 38px rgba(0,0,0,.28);
+  width: min(480px, 100%);
+  padding: 24px 26px 18px;
+  font-family: var(--sans);
+  transform: translateY(8px);
+  transition: transform .22s ease;
+}
+.site-confirm-overlay.is-visible .site-confirm-modal { transform: translateY(0); }
+.site-confirm-msg {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin-bottom: 22px;
+  word-wrap: break-word;
+}
+.site-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.site-confirm-cancel,
+.site-confirm-ok {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 9px 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.site-confirm-cancel {
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  color: var(--ink-2);
+}
+.site-confirm-cancel:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.site-confirm-ok {
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  color: var(--paper);
+}
+.site-confirm-ok:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+.site-confirm-ok.is-danger {
+  background: #c14040;
+  border-color: #c14040;
+}
+.site-confirm-ok.is-danger:hover {
+  background: #8a1f1f;
+  border-color: #8a1f1f;
+}
+
+/* ============================================================
+   Native <select> styling — closed-state polish so dropdowns
+   match the site design. (The opened popup is OS-controlled
+   and can't be styled without building a custom select.)
+   ============================================================ */
+select:not(.unstyled),
+.site-styled-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  padding: 7px 32px 7px 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+  /* Custom caret */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%235b6760' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 10px 6px;
+}
+select:not(.unstyled):hover,
+.site-styled-select:hover {
+  border-color: var(--ink);
+}
+select:not(.unstyled):focus,
+.site-styled-select:focus {
+  outline: none;
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 2px rgba(10, 125, 87, 0.12);
+}
+select:not(.unstyled):disabled {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -66,6 +305,34 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--rule-soft);
+}
+
+/* Auto-hiding nav — applies to any page that loads /nav-autohide.js
+   (which adds `body.nav-autohide`). The script collapses the nav
+   after a few seconds of inactivity, then re-reveals when the user
+   moves the cursor near the top of the viewport. Skipped on the
+   homepage. */
+body.nav-autohide > .nav {
+  transition: max-height .22s ease, opacity .22s ease, padding .22s ease, border-color .22s ease;
+  max-height: 120px;
+  overflow: hidden;
+}
+body.nav-autohide.nav-collapsed > .nav {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+}
+/* Thin hint strip at the very top while collapsed — visual cue that
+   the nav lives there and moving the cursor up will bring it back. */
+body.nav-autohide.nav-collapsed::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(to bottom, rgba(0,0,0,.08), transparent);
+  pointer-events: none;
+  z-index: 50;
 }
 .brand { display: flex; align-items: center; gap: 12px; color: var(--ink); }
 .brand-mark { width: 28px; height: 28px; color: var(--ink); transition: transform .6s ease; }

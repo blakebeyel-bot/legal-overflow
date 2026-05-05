@@ -260,6 +260,9 @@ async function runOneOverview({ supabase, overview, review, modelInfo, key, docB
         documentName: doc.filename,
         clientRole: review.client_role,
         additionalContext: review.additional_context,
+        // Pass user-defined columns so the model can dedupe red
+        // flags against clauses the user is already targeting.
+        columns: review.columns_config || [],
       }) }],
       maxTokens: 1500,
       temperature: 0.2,

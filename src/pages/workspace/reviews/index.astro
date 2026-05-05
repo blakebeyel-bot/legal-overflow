@@ -14,6 +14,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 <!-- mammoth.js for in-doc redline preview (renders .docx → HTML
      client-side so we can highlight where each edit lands) -->
@@ -99,6 +101,147 @@
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
   }
 
+  // ---- Resizable docview sidebar ----
+  // Same UX pattern as the chat page: drag the slim handle between
+  // the findings/analysis sidebar and the document preview to widen
+  // or shrink the sidebar. Persisted across reloads via localStorage.
+  // The width is applied as a CSS variable on .rv-docview each time
+  // it renders, so it survives doc-tab switches.
+  const RV_RAIL_KEY = 'workspace.rv-rail.width';
+  const RV_RAIL_MIN = 220;
+  const RV_RAIL_MAX = 640;
+  const RV_RAIL_DEFAULT = 360;
+  let rvRailWidth = (() => {
+    try {
+      const stored = parseInt(localStorage.getItem(RV_RAIL_KEY) || '', 10);
+      if (Number.isFinite(stored) && stored >= RV_RAIL_MIN && stored <= RV_RAIL_MAX) return stored;
+    } catch {}
+    return RV_RAIL_DEFAULT;
+  })();
+  function clampRvRail(px) {
+    return Math.min(RV_RAIL_MAX, Math.max(RV_RAIL_MIN, Math.round(px)));
+  }
+  // Delegated drag handler — works across re-renders because the
+  // .rv-docview element is rebuilt every time the user switches doc
+  // tabs. Hooks onto document-level mousedown/move/up.
+  let rvDragging = false;
+  let rvDragShell = null;
+  document.addEventListener('mousedown', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (!t.classList.contains('rv-rail-resize')) return;
+    e.preventDefault();
+    rvDragging = true;
+    rvDragShell = t.closest('.rv-docview');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!rvDragging || !rvDragShell) return;
+    const rect = rvDragShell.getBoundingClientRect();
+    const desired = e.clientX - rect.left;
+    rvRailWidth = clampRvRail(desired);
+    rvDragShell.style.setProperty('--rv-rail-width', rvRailWidth + 'px');
+  });
+  window.addEventListener('mouseup', () => {
+    if (!rvDragging) return;
+    rvDragging = false;
+    rvDragShell = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    try { localStorage.setItem(RV_RAIL_KEY, String(rvRailWidth)); } catch {}
+  });
+  // Keyboard nudge when the handle is focused.
+  document.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (!t.classList.contains('rv-rail-resize')) return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const delta = e.key === 'ArrowRight' ? 16 : -16;
+    rvRailWidth = clampRvRail(rvRailWidth + delta);
+    const shell = t.closest('.rv-docview');
+    if (shell) shell.style.setProperty('--rv-rail-width', rvRailWidth + 'px');
+    try { localStorage.setItem(RV_RAIL_KEY, String(rvRailWidth)); } catch {}
+  });
+
+  // ---- Document zoom (doc-view main pane) ----
+  // Three-button toolbar (− % +) floats top-right inside the doc
+  // pane. Adjusts the font-size of .rv-live-doc-body so text reflows
+  // naturally and stays sharp at any zoom level. Persists in
+  // localStorage as a percentage (default 100, range 60-220).
+  const RV_ZOOM_KEY = 'workspace.rv-doc-zoom';
+  const RV_ZOOM_MIN = 60;
+  const RV_ZOOM_MAX = 220;
+  const RV_ZOOM_STEP = 10;
+  const RV_ZOOM_DEFAULT = 100;
+  let rvDocZoom = (() => {
+    try {
+      const stored = parseInt(localStorage.getItem(RV_ZOOM_KEY) || '', 10);
+      if (Number.isFinite(stored) && stored >= RV_ZOOM_MIN && stored <= RV_ZOOM_MAX) return stored;
+    } catch {}
+    return RV_ZOOM_DEFAULT;
+  })();
+  function clampZoom(p) {
+    return Math.min(RV_ZOOM_MAX, Math.max(RV_ZOOM_MIN, Math.round(p / RV_ZOOM_STEP) * RV_ZOOM_STEP));
+  }
+  function applyDocZoom() {
+    // Base font-size is 14px (matches .rv-live-doc-body default).
+    // Multiply by zoom percentage / 100 to scale.
+    const docBody = document.getElementById('rv-live-doc-body');
+    if (docBody) docBody.style.fontSize = (rvDocZoom * 0.14).toFixed(2) + 'px';
+    const levelEl = document.querySelector('.rv-doc-zoom-level');
+    if (levelEl) levelEl.textContent = rvDocZoom + '%';
+    try { localStorage.setItem(RV_ZOOM_KEY, String(rvDocZoom)); } catch {}
+  }
+  function setZoom(next) {
+    rvDocZoom = clampZoom(next);
+    applyDocZoom();
+  }
+  // Click handlers (delegated — toolbar is rebuilt every doc-tab switch)
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const btn = t.closest('[data-zoom]');
+    if (!btn) return;
+    e.preventDefault();
+    const action = btn.getAttribute('data-zoom');
+    if (action === 'in')        setZoom(rvDocZoom + RV_ZOOM_STEP);
+    else if (action === 'out')  setZoom(rvDocZoom - RV_ZOOM_STEP);
+    else if (action === 'reset') setZoom(RV_ZOOM_DEFAULT);
+  });
+  // Keyboard shortcuts when focus is inside the doc-view (Ctrl/Cmd
+  // +/-/0). Don't hijack global browser zoom — only fire when the
+  // user is interacting with the review's doc pane.
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    // Only act when the doc pane is in the page — otherwise let
+    // the browser handle Cmd+/Cmd-/Cmd0 normally.
+    if (!document.querySelector('.rv-doc-zoom-bar')) return;
+    if (e.key === '=' || e.key === '+') {
+      e.preventDefault();
+      setZoom(rvDocZoom + RV_ZOOM_STEP);
+    } else if (e.key === '-') {
+      e.preventDefault();
+      setZoom(rvDocZoom - RV_ZOOM_STEP);
+    } else if (e.key === '0') {
+      e.preventDefault();
+      setZoom(RV_ZOOM_DEFAULT);
+    }
+  });
+  // Mouse-wheel zoom while holding Ctrl/Cmd over the doc pane.
+  // (Browsers natively do this for page zoom; we capture inside the
+  // doc area to scope it to the document only.)
+  document.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.closest('.rv-docview-main')) return;
+    e.preventDefault();
+    const dir = e.deltaY > 0 ? -1 : 1;
+    setZoom(rvDocZoom + dir * RV_ZOOM_STEP);
+  }, { passive: false });
+
   // ============================================================
   // LIST VIEW
   // ============================================================
@@ -119,7 +262,11 @@
           <header class="ws-card-head">
             <h2 class="ws-card-title">Recent reviews</h2>
           </header>
-          <div id="reviews-list" class="ws-list"><div class="ws-empty">Loading…</div></div>
+          <div id="reviews-list" class="ws-list">
+            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:60%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:38%"></span></span></div></div>
+            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:72%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:42%"></span></span></div></div>
+            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:50%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:35%"></span></span></div></div>
+          </div>
         </section>
         <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
       </div>
@@ -128,16 +275,13 @@
     await loadReviewsList();
   }
 
-  async function loadReviewsList() {
-    const r = await fetch('/.netlify/functions/workspace-tr-list', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const j = await r.json();
+  // Cache-first: render previously-seen reviews from localStorage
+  // instantly so the user never sees a "Loading…" flash. Then refresh
+  // from the server in the background and re-render.
+  const REVIEWS_LIST_CACHE = 'workspace.reviews-list.' + (session.user?.id || 'anon');
+  function renderReviewsListFromData(j) {
     const listEl = document.getElementById('reviews-list');
-    if (!r.ok) {
-      listEl.innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
-      return;
-    }
+    if (!listEl) return;
     if (!j.reviews?.length) {
       listEl.innerHTML = '<div class="ws-empty">No reviews yet. Click "New review" to start one.</div>';
       return;
@@ -171,9 +315,34 @@
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
         });
+        try { localStorage.removeItem(REVIEWS_LIST_CACHE); } catch {}
         loadReviewsList();
       });
     });
+  }
+  async function loadReviewsList() {
+    const listEl = document.getElementById('reviews-list');
+    let renderedSomething = false;
+    // 1. Render from cache instantly if present
+    try {
+      const cached = JSON.parse(localStorage.getItem(REVIEWS_LIST_CACHE) || 'null');
+      if (cached) { renderReviewsListFromData(cached); renderedSomething = true; }
+    } catch {}
+    // 2. Fetch fresh in background
+    try {
+      const r = await fetch('/.netlify/functions/workspace-tr-list', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed to load');
+      renderReviewsListFromData(j);
+      try { localStorage.setItem(REVIEWS_LIST_CACHE, JSON.stringify(j)); } catch {}
+    } catch (e) {
+      // If we already painted from cache, leave that visible. Otherwise show the error.
+      if (!renderedSomething && listEl) {
+        listEl.innerHTML = `<div class="ws-empty">${escapeHtml(e.message || 'Failed to load')}</div>`;
+      }
+    }
   }
 
   // ============================================================
@@ -657,6 +826,25 @@
   }
 
   // ---- Inline document view (only view in Phase 8+) ----
+  // Refresh just the counter + finalize button label/state in place,
+  // without rebuilding the findings list. Used after accept/reject
+  // clicks so the user's scroll position in the sidebar is preserved.
+  function updateRedlineSummary() {
+    if (!gridState) return;
+    const { cells } = gridState;
+    const docId = currentDocId;
+    if (!docId) return;
+    const cellsForDoc = cells.filter((c) => c.document_id === docId);
+    const accepted = cellsForDoc.filter((c) => c.redline_status === 'accepted').length;
+    const finBtn = document.getElementById('rv-docview-finalize');
+    if (finBtn) {
+      finBtn.disabled = accepted === 0;
+      finBtn.textContent = accepted
+        ? `Download with ${accepted} tracked change${accepted === 1 ? '' : 's'}`
+        : 'Download with tracked changes';
+    }
+  }
+
   function drawDocView() {
     const { review, cells, documents, finalizations, overviews } = gridState;
     const isRedline = review.kind === 'redline';
@@ -675,7 +863,7 @@
 
     const body = document.getElementById('rv-view-body');
     body.innerHTML = `
-      <div class="rv-docview">
+      <div class="rv-docview" style="--rv-rail-width: ${rvRailWidth}px">
         <aside class="rv-docview-side">
           <div class="rv-docview-side-head">
             <span>${isRedline ? 'Findings' : 'Analysis'}</span>
@@ -699,9 +887,15 @@
             ${fin ? `<a class="rv-finalized-link" data-final-version="${fin.version_id}" data-storage-path="${escapeHtml(fin.version?.storage_path || '')}" data-doc-name="${escapeHtml(doc.filename)}">v${fin.version?.version_number || ''} ↓</a>` : ''}
           </div>` : ''}
         </aside>
+        <div class="rv-rail-resize" role="separator" aria-label="Resize sidebar" aria-orientation="vertical" tabindex="0"></div>
         <main class="rv-docview-main">
           <div id="rv-live-scanner" class="rv-live-scanner${pending > 0 ? ' is-active' : ''}"></div>
-          <div id="rv-live-doc-body" class="rv-doc-preview rv-live-doc-body"><div class="ws-empty">Loading document…</div></div>
+          <div class="rv-doc-zoom-bar" role="toolbar" aria-label="Document zoom">
+            <button type="button" class="rv-doc-zoom-btn" data-zoom="out" aria-label="Zoom out" title="Zoom out (Ctrl/Cmd+-)">−</button>
+            <button type="button" class="rv-doc-zoom-level" data-zoom="reset" aria-label="Reset zoom" title="Reset zoom (Ctrl/Cmd+0)">${rvDocZoom}%</button>
+            <button type="button" class="rv-doc-zoom-btn" data-zoom="in" aria-label="Zoom in" title="Zoom in (Ctrl/Cmd+=)">+</button>
+          </div>
+          <div id="rv-live-doc-body" class="rv-doc-preview rv-live-doc-body" style="font-size: ${(rvDocZoom * 0.14).toFixed(2)}px"><div class="ws-empty">Loading document…</div></div>
         </main>
       </div>`;
 
@@ -828,20 +1022,36 @@
             ${sortedRisks.length ? `
             <div class="rv-overview-risks">
               <div class="rv-overview-label">Red flags · ${sortedRisks.length}</div>
-              ${sortedRisks.map((r) => `
-                <div class="rv-risk rv-risk-${r.severity || 'medium'}" ${r.quote ? `data-find="${escapeHtml(r.quote)}"` : ''}>
+              ${sortedRisks.map((r, ri) => `
+                <div class="rv-risk rv-risk-${r.severity || 'medium'}" ${r.quote ? `data-find="${escapeHtml(r.quote)}"` : ''} data-risk-idx="${ri}">
                   <div class="rv-risk-head">
                     <span class="rv-risk-sev rv-risk-sev-${r.severity || 'medium'}">${(r.severity || 'medium').toUpperCase()}</span>
                     <span class="rv-risk-title">${escapeHtml(r.title || '')}</span>
                   </div>
                   <div class="rv-risk-detail">${escapeHtml(r.detail || '')}</div>
                   ${r.quote ? `<div class="rv-risk-quote">"${escapeHtml(r.quote)}"${r.page ? ` <span class="rv-risk-page">p. ${r.page}</span>` : ''}</div>` : ''}
+                  ${r.quote && isRedline ? `
+                  <div class="rv-risk-actions">
+                    <button type="button" class="rv-risk-suggest-btn" data-risk-action="suggest" data-risk-idx="${ri}" title="Get an AI rewrite of this clause to favorable language">✨ Suggest favorable rewrite</button>
+                  </div>
+                  <div class="rv-risk-suggest-form" data-risk-form="${ri}" hidden>
+                    <textarea class="rv-risk-suggest-input" placeholder="Optional: tell the AI what direction you want — e.g., 'cap at 12 months fees', 'make mutual', 'add 30-day cure'. Leave blank for AI default."></textarea>
+                    <div class="rv-risk-suggest-actions">
+                      <button type="button" class="rv-risk-suggest-cancel" data-risk-action="cancel" data-risk-idx="${ri}">Cancel</button>
+                      <button type="button" class="rv-risk-suggest-go ws-btn" data-risk-action="go" data-risk-idx="${ri}">Generate rewrite</button>
+                    </div>
+                    <div class="rv-risk-suggest-status" data-risk-status="${ri}" hidden></div>
+                    <div class="rv-risk-suggest-result" data-risk-result="${ri}" hidden></div>
+                  </div>` : ''}
                 </div>`).join('')}
             </div>` : ''}
           </div>`;
-        // Clicking a risk with a quote scrolls + flashes
+        // Clicking a risk's title/quote (but NOT its action buttons or
+        // suggest form) scrolls + flashes the matching doc location.
         overviewEl.querySelectorAll('[data-find]').forEach((row) => {
-          row.addEventListener('click', () => {
+          row.addEventListener('click', (e) => {
+            // Ignore clicks inside action buttons / form elements
+            if (e.target.closest('.rv-risk-actions, .rv-risk-suggest-form, button, textarea, input')) return;
             const find = row.dataset.find;
             const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
             if (span) {
@@ -858,7 +1068,117 @@
             }
           });
         });
+
+        // ---- Wire up "Suggest favorable rewrite" actions ----
+        // Three buttons per risk: open form, cancel, generate. The
+        // expand/cancel are pure DOM toggles. Generate fires a fetch
+        // to /workspace-tr-risk-suggest and renders the result inline.
+        overviewEl.querySelectorAll('[data-risk-action]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const action = btn.dataset.riskAction;
+            const idx = btn.dataset.riskIdx;
+            const riskCard = btn.closest('.rv-risk');
+            const formEl = riskCard?.querySelector(`[data-risk-form="${idx}"]`);
+            const statusEl = riskCard?.querySelector(`[data-risk-status="${idx}"]`);
+            const resultEl = riskCard?.querySelector(`[data-risk-result="${idx}"]`);
+
+            if (action === 'suggest') {
+              if (formEl) formEl.hidden = false;
+              const ta = formEl?.querySelector('.rv-risk-suggest-input');
+              if (ta) ta.focus();
+              return;
+            }
+            if (action === 'cancel') {
+              if (formEl) formEl.hidden = true;
+              if (statusEl) statusEl.hidden = true;
+              if (resultEl) resultEl.hidden = true;
+              return;
+            }
+            if (action !== 'go') return;
+
+            // Generate
+            const ta = formEl?.querySelector('.rv-risk-suggest-input');
+            const direction = (ta?.value || '').trim();
+            const risk = sortedRisks[parseInt(idx, 10)];
+            if (!risk) return;
+
+            // Disable the button and show "Working…"
+            btn.disabled = true;
+            const goBtn = btn;
+            const cancelBtn = riskCard?.querySelector('[data-risk-action="cancel"]');
+            if (cancelBtn) cancelBtn.disabled = true;
+            if (statusEl) {
+              statusEl.hidden = false;
+              statusEl.className = 'rv-risk-suggest-status is-running';
+              statusEl.textContent = '✨ Generating favorable rewrite…';
+            }
+            if (resultEl) resultEl.hidden = true;
+
+            try {
+              const r = await fetch('/.netlify/functions/workspace-tr-risk-suggest', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  review_id: gridState.review.id,
+                  document_id: currentDocId,
+                  risk: { title: risk.title, detail: risk.detail, quote: risk.quote, severity: risk.severity },
+                  user_direction: direction || null,
+                }),
+              });
+              const j = await r.json();
+              if (!r.ok) throw new Error(j.error || 'Suggest failed');
+
+              // Render the result inline
+              if (statusEl) statusEl.hidden = true;
+              if (resultEl) {
+                resultEl.hidden = false;
+                resultEl.innerHTML = `
+                  <div class="rv-risk-suggest-block">
+                    <div class="rv-risk-suggest-label">Original (find)</div>
+                    <div class="rv-risk-suggest-find">${escapeHtml(j.find || '(no exact match found)')}</div>
+                  </div>
+                  <div class="rv-risk-suggest-block">
+                    <div class="rv-risk-suggest-label">Proposed rewrite</div>
+                    <div class="rv-risk-suggest-replace">${escapeHtml(j.replace || '')}</div>
+                    <button type="button" class="rv-risk-suggest-copy" data-copy="${escapeAttr(j.replace || '')}">📋 Copy rewrite</button>
+                  </div>
+                  ${j.rationale ? `<div class="rv-risk-suggest-rationale">${escapeHtml(j.rationale)}</div>` : ''}
+                `;
+                // Wire copy
+                const copyBtn = resultEl.querySelector('.rv-risk-suggest-copy');
+                if (copyBtn) {
+                  copyBtn.addEventListener('click', async (ev) => {
+                    ev.stopPropagation();
+                    try {
+                      await navigator.clipboard.writeText(copyBtn.dataset.copy || '');
+                      copyBtn.textContent = '✓ Copied';
+                      setTimeout(() => { copyBtn.textContent = '📋 Copy rewrite'; }, 1400);
+                    } catch (err) {
+                      if (typeof siteToast === 'function') siteToast('Could not copy to clipboard', { kind: 'error' });
+                    }
+                  });
+                }
+              }
+            } catch (err) {
+              if (statusEl) {
+                statusEl.hidden = false;
+                statusEl.className = 'rv-risk-suggest-status is-error';
+                statusEl.textContent = `Failed: ${err.message || err}`;
+              }
+            } finally {
+              goBtn.disabled = false;
+              if (cancelBtn) cancelBtn.disabled = false;
+            }
+          });
+        });
       }
+    }
+    function escapeAttr(s) {
+      return String(s ?? '').replace(/[<>&"'\n\r]/g, (c) => ({
+        '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;',
+        '\n': '&#10;', '\r': '&#13;',
+      }[c]));
     }
 
     // Sidebar list
@@ -930,19 +1250,56 @@
         </div>`;
       }).join('');
 
+      // Apply the visual state of an accept/reject change to a single
+      // finding row + its action buttons. Pure DOM manipulation, no
+      // network. Used for both optimistic updates and rollback.
+      function applyFindingState(findingEl, status) {
+        if (!findingEl) return;
+        findingEl.classList.remove('is-accepted', 'is-rejected');
+        if (status === 'accepted') findingEl.classList.add('is-accepted');
+        else if (status === 'rejected') findingEl.classList.add('is-rejected');
+        findingEl.querySelectorAll('.rv-cell-acc, .rv-cell-rej').forEach((b) => b.classList.remove('is-on'));
+        const targetBtn = findingEl.querySelector(`[data-cell-action="${status}"]`);
+        if (targetBtn) targetBtn.classList.add('is-on');
+      }
+
       findingsEl.querySelectorAll('[data-cell-action]').forEach((btn) => {
-        btn.addEventListener('click', async (e) => {
+        btn.addEventListener('click', (e) => {
           e.stopPropagation();
           const cellId = btn.dataset.cell;
           const status = btn.dataset.cellAction;
-          await fetch('/.netlify/functions/workspace-tr-cell-update', {
+          const cell = gridState.cells.find((x) => x.id === cellId);
+          const prevStatus = cell?.redline_status || 'pending';
+          const findingEl = btn.closest('.rv-live-finding');
+
+          // Optimistic update — apply the visual change INSTANTLY so
+          // the user sees feedback the moment they click. No await
+          // before the DOM reacts. Server call runs in background;
+          // we revert if it fails.
+          if (cell) cell.redline_status = status;
+          applyFindingState(findingEl, status);
+          updateRedlineSummary();
+
+          // Fire-and-forget the persistence call. Revert on failure.
+          fetch('/.netlify/functions/workspace-tr-cell-update', {
             method: 'POST',
             headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: cellId, redline_status: status }),
+          })
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          })
+          .catch((err) => {
+            // Revert local state and DOM
+            if (cell) cell.redline_status = prevStatus;
+            applyFindingState(findingEl, prevStatus);
+            updateRedlineSummary();
+            if (typeof siteToast === 'function') {
+              siteToast('Could not save change — reverted', { kind: 'error' });
+            } else {
+              console.error('Cell update failed, reverted:', err?.message || err);
+            }
           });
-          const cell = gridState.cells.find((x) => x.id === cellId);
-          if (cell) cell.redline_status = status;
-          drawGrid();
         });
       });
       findingsEl.querySelectorAll('[data-find]').forEach((row) => {
