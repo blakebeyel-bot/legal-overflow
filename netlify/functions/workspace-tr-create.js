@@ -33,6 +33,8 @@ export default async (req) => {
   const model = String(body.model || 'claude-sonnet-4-5').slice(0, 100);
   const projectId = body.project_id || null;
   const kind = String(body.kind || 'extraction');
+  const clientRole = body.client_role ? String(body.client_role).trim().slice(0, 200) : null;
+  const additionalContext = body.additional_context ? String(body.additional_context).trim().slice(0, 4000) : null;
 
   if (!title) return json({ error: 'Missing title' }, 400);
   if (!columns.length) return json({ error: 'At least one column required' }, 400);
@@ -89,6 +91,8 @@ export default async (req) => {
       columns_config: normCols,
       model,
       kind,
+      client_role: clientRole,
+      additional_context: additionalContext,
       status: 'pending',
     })
     .select('*')

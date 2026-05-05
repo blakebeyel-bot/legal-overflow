@@ -46,6 +46,117 @@
 .ws-empty { padding: 30px 0; text-align: center; color: var(--ink-3); font-size: 14px; }
 .ws-foot { margin-top: 32px; font-size: 13px; color: var(--ink-3); }
 
+/* Section nav tiles — top-of-page jump targets. */
+.ws-nav-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.ws-nav-tile {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--rule-soft); border-radius: 6px;
+  background: var(--paper-2);
+  text-decoration: none; color: var(--ink);
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.ws-nav-tile:hover {
+  border-color: var(--ink);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.ws-nav-tile-name {
+  font-family: var(--serif); font-size: 17px; font-weight: 500;
+  color: var(--ink); letter-spacing: -.005em;
+}
+.ws-nav-tile-desc {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+
+/* Dashboard activity grid (workspace landing). */
+.ws-dash-pending {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #d49a3a; border-radius: 6px;
+  background: #fdf3e0;
+  margin-bottom: 16px;
+  font-size: 13px; color: #5a3a10;
+}
+.ws-dash-pending-chip {
+  text-decoration: none; color: #5a3a10;
+  border-bottom: 1px dotted #d49a3a;
+  font-family: var(--mono); font-size: 11px;
+}
+.ws-dash-pending-chip:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+.ws-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
+}
+@media (max-width: 900px) {
+  .ws-dash-grid { grid-template-columns: 1fr; }
+}
+
+.ws-dash-card {
+  border: 1px solid var(--rule-soft); border-radius: 8px;
+  background: var(--paper-2);
+  padding: 16px 18px;
+  display: flex; flex-direction: column; min-height: 180px;
+}
+.ws-dash-card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--rule-soft); padding-bottom: 10px;
+}
+.ws-dash-card-title {
+  font-family: var(--serif); font-weight: 400; font-size: 16px;
+  margin: 0; color: var(--ink); letter-spacing: -.005em;
+}
+.ws-dash-link {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+  text-decoration: none;
+}
+.ws-dash-link:hover { color: var(--accent-deep); }
+
+.ws-dash-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+  flex: 1;
+}
+.ws-dash-row {
+  border-bottom: 1px solid var(--rule-soft);
+}
+.ws-dash-row:last-child { border-bottom: none; }
+.ws-dash-row-link {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 9px 0;
+  text-decoration: none; color: var(--ink);
+}
+.ws-dash-row-link:hover .ws-dash-row-title { color: var(--accent-deep); }
+.ws-dash-row-title {
+  font-family: var(--serif); font-size: 14px; line-height: 1.3;
+  color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ws-dash-row-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.ws-dash-row-time {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--ink-3);
+}
+.ws-dash-empty {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  padding: 12px 0; line-height: 1.5;
+}
+.ws-dash-empty a { color: var(--accent-deep); text-decoration: none; }
+.ws-dash-empty a:hover { text-decoration: underline; }
+
 /* ---------- Active nav highlight ---------- */
 .nav-links a.is-active { color: var(--accent-deep); border-bottom: 1px solid var(--accent-deep); }
 
@@ -604,6 +715,41 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 .rv-spin { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3862aa; margin-right: 6px; animation: rvpulse 1.2s ease-in-out infinite; vertical-align: middle; }
 @keyframes rvpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 
+/* New-review modal: client-role picker */
+.rv-field-hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--ink-3); text-transform: uppercase; margin-left: 6px; }
+.rv-role-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rv-role-chip {
+  padding: 4px 10px;
+  font-family: var(--sans); font-size: 12px;
+  background: var(--paper); color: var(--ink-2);
+  border: 1px solid var(--rule-soft); border-radius: 999px;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.rv-role-chip:hover { border-color: var(--ink); color: var(--ink); }
+.rv-role-chip.is-active { background: var(--accent-deep); color: var(--paper); border-color: var(--accent-deep); }
+
+/* Auto-detected suggestion chips — visually distinguished from the
+   default canonical chips so the user knows the AI proposed them. */
+.rv-role-chip-suggested {
+  background: rgba(184,127,0,.10);
+  border-color: var(--accent-deep);
+  color: var(--accent-deep);
+  font-weight: 500;
+}
+.rv-role-chip-suggested:hover { background: var(--accent-deep); color: white; }
+.rv-role-chip-suggested.is-active { background: var(--accent-deep); color: white; }
+
+/* Banner showing the auto-detect result above the chip strip */
+.rv-detect-banner {
+  margin-top: 8px; padding: 8px 12px;
+  font-size: 12.5px; line-height: 1.45;
+  border-radius: 6px;
+}
+.rv-detect-banner.is-loading { background: rgba(56,98,170,.08); color: #3862aa; border: 1px solid rgba(56,98,170,.25); }
+.rv-detect-banner.is-done    { background: rgba(10,125,87,.06); color: var(--ink); border: 1px solid rgba(10,125,87,.25); }
+.rv-detect-banner.is-error   { background: rgba(178,34,34,.06); color: #722; border: 1px solid rgba(178,34,34,.25); }
+
 /* New-review modal: kind picker */
 .rv-kind-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rv-kind-opt {
@@ -742,7 +888,30 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   flex-shrink: 0;
 }
 .rv-docview-counter { color: var(--accent-deep); }
-.rv-docview-side .rv-live-findings { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; }
+/* Single scrolling container that holds overview + bulk bar +
+   findings list. Was: only .rv-live-findings scrolled, but with the
+   new tall overview card the content was cut off. Now everything
+   between header and footer scrolls together with a wide native
+   scrollbar. */
+.rv-docview-side-scroll {
+  flex: 1; min-height: 0;
+  overflow-y: scroll;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(0,0,0,.4) rgba(0,0,0,.06);
+}
+.rv-docview-side-scroll::-webkit-scrollbar { width: 14px; }
+.rv-docview-side-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,.04); }
+.rv-docview-side-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,.35);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+.rv-docview-side-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,.55);
+  background-clip: content-box;
+}
+.rv-docview-side .rv-live-findings { padding: 10px 12px; }
 .rv-docview-side-foot {
   border-top: 1px solid var(--rule-soft);
   padding: 12px 16px;
@@ -785,6 +954,118 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   background-clip: content-box;
 }
 .rv-live-finding-pending { opacity: .7; border-style: dashed; }
+
+/* Per-document overview card — summary + red flags. Sits at the top
+   of the findings sidebar in doc view. Auto-generated alongside the
+   per-cell fanout. */
+.rv-overview { padding: 0; flex-shrink: 0; }
+.rv-overview-card {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--paper);
+}
+.rv-overview-loading, .rv-overview-error {
+  padding: 14px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.rv-overview-error { color: #b22222; }
+.rv-overview-label {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-3); margin-bottom: 5px;
+}
+.rv-overview-summary { margin-bottom: 12px; }
+.rv-overview-summary-text { font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+.rv-overview-risks { display: flex; flex-direction: column; gap: 8px; }
+.rv-risk {
+  padding: 8px 10px;
+  border-left: 3px solid var(--rule-soft);
+  background: var(--paper-2);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.rv-risk:hover { background: rgba(0,0,0,.04); }
+.rv-risk-high   { border-left-color: #b22222; background: rgba(178,34,34,.04); }
+.rv-risk-medium { border-left-color: #b87f00; background: rgba(184,127,0,.04); }
+.rv-risk-low    { border-left-color: var(--ink-3); }
+.rv-risk-head { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.rv-risk-sev {
+  display: inline-block;
+  font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .05em;
+  padding: 1px 5px; border-radius: 2px;
+}
+.rv-risk-sev-high   { background: #b22222; color: white; }
+.rv-risk-sev-medium { background: #b87f00; color: white; }
+.rv-risk-sev-low    { background: var(--ink-3); color: white; }
+.rv-risk-title { font-family: var(--sans); font-size: 12px; font-weight: 500; color: var(--ink); flex: 1; line-height: 1.3; }
+.rv-risk-detail { font-size: 11.5px; line-height: 1.5; color: var(--ink-2); margin-bottom: 4px; }
+.rv-risk-quote {
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.45;
+  color: var(--ink-3); padding: 4px 6px;
+  background: rgba(0,0,0,.03); border-radius: 2px;
+  border-left: 2px solid var(--rule-soft);
+}
+.rv-risk-page { color: var(--accent-deep); font-style: normal; }
+
+/* Bulk action bar (Accept all / Reject all / Reset) above the
+   findings list. */
+.rv-docview-bulkbar {
+  display: flex; gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--paper);
+  flex-shrink: 0;
+}
+.rv-docview-bulkbar button {
+  flex: 1; padding: 5px 8px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink-3);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.rv-bulk-acc:hover { background: #0a7d57; color: white; border-color: #0a7d57; }
+.rv-bulk-rej:hover { background: #b22222; color: white; border-color: #b22222; }
+.rv-bulk-pen:hover { background: var(--ink-2); color: white; border-color: var(--ink-2); }
+
+/* Per-cell "Refine with AI" — user types an instruction, AI rewrites
+   the proposed replacement in-place. */
+.rv-cell-refine-btn {
+  padding: 4px 8px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  border: 1px solid var(--rule-soft); border-radius: 3px;
+  background: var(--paper); color: var(--ink-3);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.rv-cell-refine-btn:hover { background: var(--accent-deep); color: white; border-color: var(--accent-deep); }
+.rv-cell-refine-form {
+  margin-top: 8px;
+  padding: 10px 10px 8px;
+  border: 1px dashed var(--accent-deep); border-radius: 6px;
+  background: rgba(184,127,0,.04);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rv-cell-refine-input {
+  width: 100%; padding: 6px 8px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  font-family: var(--sans); font-size: 12px; line-height: 1.45;
+  background: var(--paper); color: var(--ink);
+  resize: vertical; min-height: 50px;
+}
+.rv-cell-refine-input:focus { outline: none; border-color: var(--accent-deep); }
+.rv-cell-refine-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.rv-cell-refine-cancel {
+  padding: 4px 10px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  background: transparent; border: 1px solid var(--rule-soft); border-radius: 4px;
+  color: var(--ink-3); cursor: pointer;
+}
+.rv-cell-refine-cancel:hover { color: var(--ink); }
+.rv-cell-refine-go { padding: 4px 12px !important; font-size: 11px !important; }
+.rv-cell-refine-status { font-family: var(--mono); font-size: 10.5px; padding: 4px 6px; border-radius: 3px; }
+.rv-cell-refine-status.is-running { background: rgba(56,98,170,.10); color: #3862aa; }
+.rv-cell-refine-status.is-error   { background: rgba(178,34,34,.10); color: #722; }
 
 @media (max-width: 760px) {
   .rv-docview { grid-template-columns: 1fr; height: auto; }
@@ -896,30 +1177,67 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   100% { top: 100vh; opacity: 0; }
 }
 
-/* Persistent finding highlights in the doc body */
-.rv-doc-finding-highlight {
+/* Word-style tracked-changes preview in the doc body.
+   Each proposed edit lays down two adjacent spans: rv-rdln-find
+   wrapping the original text, rv-rdln-ins right after it carrying
+   the proposed replacement. CSS controls visibility per status so
+   the visual matches what a Word doc with track changes would
+   show — and matches the FINAL output the user will send to
+   opposing counsel. */
+.rv-rdln-find, .rv-rdln-ins { transition: background .25s, color .25s, box-shadow .25s, opacity .25s; }
+
+/* Pending — AI proposed it, user hasn't decided. Yellow highlight
+   on the original; insertion hidden (it shows on hover via the
+   sibling's title attr). */
+.rv-rdln-find.is-pending {
   background: #fff59d;
   padding: 1px 2px; border-radius: 2px;
   box-shadow: 0 0 0 2px #ffeb3b inset;
   cursor: help;
-  transition: background .3s, box-shadow .3s;
 }
-.rv-doc-finding-highlight.is-accepted {
-  background: rgba(10,125,87,.18);
-  box-shadow: 0 0 0 2px #0a7d57 inset;
-}
-.rv-doc-finding-highlight.is-rejected {
-  background: rgba(178,34,34,.10);
-  box-shadow: 0 0 0 1px #b22222 inset;
+.rv-rdln-ins.is-pending { display: none; }
+
+/* Accepted — Word track-changes look. Original gets red strikethrough,
+   the replacement is shown right next to it as a green underline so
+   the user (and opposing counsel) can see exactly what changed. */
+.rv-rdln-find.is-accepted {
+  color: #b22222;
   text-decoration: line-through;
-  text-decoration-color: rgba(178,34,34,.5);
-  opacity: .6;
+  text-decoration-color: rgba(178,34,34,.7);
+  background: rgba(178,34,34,.06);
+  padding: 1px 2px; border-radius: 2px;
 }
-.rv-doc-finding-highlight.is-extraction {
+.rv-rdln-ins.is-accepted {
+  display: inline;
+  color: #0a7d57;
+  text-decoration: underline;
+  text-decoration-color: rgba(10,125,87,.5);
+  background: rgba(10,125,87,.08);
+  padding: 1px 2px; border-radius: 2px;
+  margin-left: 2px;
+}
+
+/* Rejected — text reads as if the AI never proposed anything. No
+   markup, no highlight. Keeps the doc readable. */
+.rv-rdln-find.is-rejected {
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  padding: 0;
+  text-decoration: none;
+}
+.rv-rdln-ins.is-rejected { display: none; }
+
+/* Extraction (extraction-mode reviews) — blue, read-only. */
+.rv-rdln-find.is-extraction {
   background: rgba(56,98,170,.12);
+  padding: 1px 2px; border-radius: 2px;
   box-shadow: 0 0 0 2px rgba(56,98,170,.5) inset;
 }
-.rv-doc-finding-highlight.is-pulse {
+.rv-rdln-ins.is-extraction { display: none; }
+
+/* Pulse — when a finding lands for the first time during streaming */
+.rv-rdln-find.is-pulse {
   animation: rv-finding-pulse 1.6s ease-out 1;
 }
 @keyframes rv-finding-pulse {
@@ -928,11 +1246,8 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   100% { background: #fff59d; box-shadow: 0 0 0 2px #ffeb3b inset; transform: scale(1); }
 }
 
-/* Flash on click — a vivid orange burst that fades back to whatever
-   color the highlight currently is (pending/accepted/rejected/
-   extraction). User clicks a finding in the sidebar, the highlight
-   in the doc body briefly flares so the eye locks onto it. */
-.rv-doc-finding-highlight.is-flash {
+/* Flash on click — vivid orange burst, fades back to persistent color */
+.rv-rdln-find.is-flash {
   animation: rv-finding-flash 1.6s ease-out 1;
   position: relative;
   z-index: 5;
@@ -950,12 +1265,7 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
     transform: scale(1.03);
     color: var(--ink);
   }
-  100% {
-    /* leave properties untouched at the end so the persistent color
-       (set on the static class — yellow/green/red/blue) takes back
-       over without a jarring switch */
-    transform: scale(1);
-  }
+  100% { transform: scale(1); }
 }
 
 /* Live-preview button on the row */
@@ -1146,3 +1456,182 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
   cursor: pointer;
 }
 .byok-remove:hover { background: #b22222; color: white; border-color: #b22222; }
+
+/* ============================================================
+   Compare two contracts (/workspace/compare/)
+   ============================================================ */
+.cmp-shell { max-width: 1100px; }
+
+/* Modal: doc pickers side-by-side with a small "vs" between */
+.cmp-doc-pickers {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 14px;
+  align-items: end;
+  margin-top: 4px;
+}
+.cmp-doc-pickers .rv-field { margin: 0; }
+.cmp-vs {
+  font-family: var(--serif); font-style: italic;
+  font-size: 18px; color: var(--ink-3);
+  padding-bottom: 10px;
+  text-align: center;
+}
+
+/* Detail header meta — your template vs theirs */
+.cmp-meta {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 18px; align-items: center;
+  border: 1px solid var(--rule-soft); border-radius: 8px;
+  background: var(--paper-2);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+.cmp-meta-doc { min-width: 0; }
+.cmp-meta-doc > div {
+  font-family: var(--serif); font-size: 16px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cmp-meta-label {
+  display: block;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px;
+}
+.cmp-meta-vs {
+  font-family: var(--serif); font-style: italic;
+  font-size: 18px; color: var(--ink-3);
+}
+
+/* Loading + error blocks */
+.cmp-loading {
+  display: flex; align-items: center; gap: 12px;
+  padding: 32px; border: 1px dashed var(--rule-soft); border-radius: 8px;
+  background: var(--paper-2); color: var(--ink-2); font-size: 14px;
+}
+.cmp-error {
+  padding: 18px; border: 1px solid #c97070; border-radius: 8px;
+  background: #fff3f3; color: #8a1f1f; font-size: 13px;
+  font-family: var(--mono);
+}
+
+/* Diff list */
+.cmp-diff-list { display: flex; flex-direction: column; gap: 14px; }
+
+.cmp-diff {
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--rule-soft);
+  border-radius: 8px;
+  background: var(--paper-2);
+  padding: 16px 20px;
+  transition: border-color .15s ease, background .15s ease;
+}
+.cmp-diff-high   { border-left-color: #c14040; }
+.cmp-diff-medium { border-left-color: #d49a3a; }
+.cmp-diff-low    { border-left-color: #6a8caf; }
+.cmp-diff-info   { border-left-color: var(--rule-soft); }
+
+.cmp-choice-accept_proposed { background: rgba(40,140,90,.04); border-color: rgba(40,140,90,.4); }
+.cmp-choice-keep_base       { background: rgba(180,120,40,.04); border-color: rgba(180,120,40,.4); }
+
+.cmp-diff-head {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.cmp-sev {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .08em; padding: 3px 7px; border-radius: 3px;
+  background: var(--paper); border: 1px solid var(--rule-soft);
+  color: var(--ink-2);
+}
+.cmp-sev-high   { background: #fdecec; border-color: #c14040; color: #8a1f1f; }
+.cmp-sev-medium { background: #fdf3e0; border-color: #d49a3a; color: #7a4f10; }
+.cmp-sev-low    { background: #eaf1f9; border-color: #6a8caf; color: #2c4a6e; }
+.cmp-sev-info   { background: var(--paper); }
+
+.cmp-section {
+  font-family: var(--serif); font-size: 16px; color: var(--ink);
+  font-weight: 500;
+}
+.cmp-type {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-3);
+  padding: 2px 6px; border: 1px solid var(--rule-soft); border-radius: 3px;
+}
+.cmp-rec {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 3px;
+  border: 1px solid var(--rule-soft);
+}
+.cmp-rec-accept   { background: #e8f4ed; border-color: #4a8a64; color: #1f5a37; }
+.cmp-rec-reject   { background: #fdecec; border-color: #c14040; color: #8a1f1f; }
+.cmp-rec-negotiate { background: #fdf3e0; border-color: #d49a3a; color: #7a4f10; }
+
+.cmp-why {
+  font-size: 13px; line-height: 1.5; color: var(--ink-2);
+  margin: 6px 0 14px;
+  padding: 8px 12px; border-left: 2px solid var(--rule-soft);
+  background: rgba(0,0,0,.02);
+}
+
+.cmp-diff-bodies {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin-bottom: 12px;
+}
+.cmp-side {
+  border: 1px solid var(--rule-soft); border-radius: 6px;
+  padding: 12px 14px; background: var(--paper);
+}
+.cmp-side-base     { border-left: 2px solid #6a8caf; }
+.cmp-side-proposed { border-left: 2px solid #d49a3a; }
+.cmp-side-label {
+  display: block;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px;
+}
+.cmp-side blockquote {
+  margin: 0; font-family: var(--serif); font-size: 14px;
+  line-height: 1.55; color: var(--ink); white-space: pre-wrap;
+}
+.cmp-side-empty {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  font-style: italic; padding: 8px 0;
+}
+
+.cmp-diff-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  border-top: 1px solid var(--rule-soft); padding-top: 12px;
+}
+.cmp-action {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; padding: 7px 14px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink-2); cursor: pointer;
+  transition: all .15s ease;
+}
+.cmp-action:hover { border-color: var(--ink); color: var(--ink); }
+.cmp-action-keep.is-on   { background: #fdf3e0; border-color: #d49a3a; color: #7a4f10; }
+.cmp-action-accept.is-on { background: #e8f4ed; border-color: #4a8a64; color: #1f5a37; }
+.cmp-action-pending.is-on { background: var(--paper-2); border-color: var(--ink-3); color: var(--ink); }
+
+.ws-btn-secondary {
+  display: inline-block; padding: 9px 18px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink-2);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  cursor: pointer; transition: all .15s ease;
+}
+.ws-btn-secondary:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+.ws-btn-secondary:disabled { opacity: .4; cursor: not-allowed; }
+
+.rv-head-meta { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.rv-counter { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+@media (max-width: 720px) {
+  .cmp-meta { grid-template-columns: 1fr; }
+  .cmp-meta-vs { display: none; }
+  .cmp-doc-pickers { grid-template-columns: 1fr; }
+  .cmp-doc-pickers .cmp-vs { display: none; }
+  .cmp-diff-bodies { grid-template-columns: 1fr; }
+}

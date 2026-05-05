@@ -99,7 +99,12 @@ export default async (req) => {
           rationale: c.redline_rationale,
         })),
         author: 'Legal Overflow',
-        track_changes: false,
+        // Produce a TRACKED-CHANGES output (not a clean doc). The user
+        // is going to send this to opposing counsel, who needs to see
+        // the redlines and accept/reject themselves in Word. Only the
+        // user-accepted edits appear as tracked changes; rejected
+        // edits never make it into the file at all.
+        track_changes: true,
       }),
     });
     if (!flyRes.ok) {
@@ -139,8 +144,8 @@ export default async (req) => {
       document_id: doc.id,
       version_number: nextVersion,
       storage_path: newPath,
-      source: 'user_accept',
-      display_name: `v${nextVersion} — finalized from review (${acceptedCells.length} edits)`,
+      source: 'redline',
+      display_name: `v${nextVersion} — tracked changes from review (${acceptedCells.length} edits)`,
       size_bytes: modifiedBytes.length,
       extraction_status: 'skipped',
     })

@@ -48,6 +48,64 @@
     <button id="new-chat" class="ws-btn">New chat</button>
   </header>
 
+  <!-- Section nav — primary entry points. Sits above the chat list so
+       the user can jump straight into the heavy tools. -->
+  <nav class="ws-nav-tiles" aria-label="Workspace sections">
+    <a href="/workspace/projects/" class="ws-nav-tile">
+      <span class="ws-nav-tile-name">Projects</span>
+      <span class="ws-nav-tile-desc">Folders for chats &amp; docs</span>
+    </a>
+    <a href="/workspace/library/" class="ws-nav-tile">
+      <span class="ws-nav-tile-name">Library</span>
+      <span class="ws-nav-tile-desc">Uploaded contracts &amp; PDFs</span>
+    </a>
+    <a href="/workspace/reviews/" class="ws-nav-tile">
+      <span class="ws-nav-tile-name">Reviews</span>
+      <span class="ws-nav-tile-desc">Extract, summarize, redline</span>
+    </a>
+    <a href="/workspace/compare/" class="ws-nav-tile">
+      <span class="ws-nav-tile-name">Compare</span>
+      <span class="ws-nav-tile-desc">Two-document side-by-side diff</span>
+    </a>
+    <a href="/workspace/workflows/" class="ws-nav-tile">
+      <span class="ws-nav-tile-name">Workflows</span>
+      <span class="ws-nav-tile-desc">Saved chat playbooks</span>
+    </a>
+  </nav>
+
+  <!-- Pending-work strip — only visible when reviews/comparisons are
+       running so the user knows something's in flight. Polls every 8s. -->
+  <section id="dash-pending" class="ws-dash-pending" hidden>
+    <span class="rv-spin"></span>
+    <span id="dash-pending-text"></span>
+  </section>
+
+  <!-- Activity dashboard — last 4 of each: reviews, comparisons,
+       uploads. Each row links to the section page. -->
+  <section class="ws-dash-grid">
+    <article class="ws-dash-card">
+      <header class="ws-dash-card-head">
+        <h2 class="ws-dash-card-title">Recent reviews</h2>
+        <a href="/workspace/reviews/" class="ws-dash-link">View all →</a>
+      </header>
+      <ul id="dash-reviews" class="ws-dash-list"><li class="ws-dash-empty">Loading…</li></ul>
+    </article>
+    <article class="ws-dash-card">
+      <header class="ws-dash-card-head">
+        <h2 class="ws-dash-card-title">Recent comparisons</h2>
+        <a href="/workspace/compare/" class="ws-dash-link">View all →</a>
+      </header>
+      <ul id="dash-compares" class="ws-dash-list"><li class="ws-dash-empty">Loading…</li></ul>
+    </article>
+    <article class="ws-dash-card">
+      <header class="ws-dash-card-head">
+        <h2 class="ws-dash-card-title">Recent uploads</h2>
+        <a href="/workspace/library/" class="ws-dash-link">View all →</a>
+      </header>
+      <ul id="dash-library" class="ws-dash-list"><li class="ws-dash-empty">Loading…</li></ul>
+    </article>
+  </section>
+
   <!-- Projects strip — drop a chat row onto any chip to move that chat
        into the project. Click "+ New project" to create one inline. -->
   <section id="proj-strip" class="proj-strip" hidden>
@@ -65,10 +123,6 @@
   </section>
 
   <p class="ws-foot">
-    <a href="/workspace/projects/">Projects →</a> &nbsp;·&nbsp;
-    <a href="/workspace/library/">Library →</a> &nbsp;·&nbsp;
-    <a href="/workspace/reviews/">Reviews →</a> &nbsp;·&nbsp;
-    <a href="/workspace/workflows/">Workflows →</a> &nbsp;·&nbsp;
     <a href="/account/">API keys →</a>
   </p>
 </main>
@@ -329,6 +383,148 @@
       setTimeout(() => { if (document.contains(input) && !input.disabled) cancel(); }, 120);
     });
   }
+
+  // ---- Dashboard tiles: reviews / comparisons / uploads ----
+  // All three list endpoints fire in parallel — the grid populates
+  // independently. If any one fails the others still render.
+  const STATUS_CLASS = {
+    complete: 'rv-status-done',
+    running: 'rv-status-run',
+    error: 'rv-status-err',
+    pending: 'rv-status-pen',
+  };
+  function statusPill(status) {
+    const cls = STATUS_CLASS[status] || 'rv-status-pen';
+    return `<span class="rv-status-pill ${cls}">${escapeAttr(status)}</span>`;
+  }
+  function escapeAttr(s) {
+    return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  }
+  function relTime(iso) {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60_000) return 'just now';
+    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+    if (ms < 7 * 86_400_000) return `${Math.floor(ms / 86_400_000)}d ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function fmtBytes(n) {
+    if (!n) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  let reviewsCache = [];
+  let comparesCache = [];
+
+  async function loadDashReviews() {
+    const el = document.getElementById('dash-reviews');
+    try {
+      const r = await fetch('/.netlify/functions/workspace-tr-list', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'failed');
+      const items = (j.reviews || []).slice(0, 4);
+      reviewsCache = j.reviews || [];
+      if (!items.length) {
+        el.innerHTML = '<li class="ws-dash-empty">No reviews yet. <a href="/workspace/reviews/">Start one →</a></li>';
+      } else {
+        el.innerHTML = items.map((rv) => `<li class="ws-dash-row">
+          <a href="/workspace/reviews/?id=${rv.id}" class="ws-dash-row-link">
+            <span class="ws-dash-row-title">${escapeAttr(rv.title)}</span>
+            <span class="ws-dash-row-meta">${statusPill(rv.status)}<span class="ws-dash-row-time">${relTime(rv.updated_at)}</span></span>
+          </a>
+        </li>`).join('');
+      }
+      updatePendingStrip();
+    } catch (e) {
+      el.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
+    }
+  }
+
+  async function loadDashCompares() {
+    const el = document.getElementById('dash-compares');
+    try {
+      const r = await fetch('/.netlify/functions/workspace-compare-list', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'failed');
+      const items = (j.runs || []).slice(0, 4);
+      comparesCache = j.runs || [];
+      if (!items.length) {
+        el.innerHTML = '<li class="ws-dash-empty">No comparisons yet. <a href="/workspace/compare/">Run one →</a></li>';
+      } else {
+        el.innerHTML = items.map((rv) => `<li class="ws-dash-row">
+          <a href="/workspace/compare/?id=${rv.id}" class="ws-dash-row-link">
+            <span class="ws-dash-row-title">${escapeAttr(rv.title)}</span>
+            <span class="ws-dash-row-meta">${statusPill(rv.status)}${rv.diffs_count ? `<span class="ws-dash-row-time">${rv.diffs_count} diffs</span>` : ''}<span class="ws-dash-row-time">${relTime(rv.updated_at)}</span></span>
+          </a>
+        </li>`).join('');
+      }
+      updatePendingStrip();
+    } catch (e) {
+      el.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
+    }
+  }
+
+  async function loadDashLibrary() {
+    const el = document.getElementById('dash-library');
+    try {
+      const r = await fetch('/.netlify/functions/workspace-library-list?limit=4', { headers: { Authorization: `Bearer ${accessToken}` } });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'failed');
+      const items = (j.documents || []).slice(0, 4);
+      if (!items.length) {
+        el.innerHTML = '<li class="ws-dash-empty">No documents yet. <a href="/workspace/library/">Upload →</a></li>';
+      } else {
+        el.innerHTML = items.map((d) => `<li class="ws-dash-row">
+          <a href="/workspace/library/?id=${d.id}" class="ws-dash-row-link">
+            <span class="ws-dash-row-title">${escapeAttr(d.filename)}</span>
+            <span class="ws-dash-row-meta">${d.size_bytes ? `<span class="ws-dash-row-time">${fmtBytes(d.size_bytes)}</span>` : ''}<span class="ws-dash-row-time">${relTime(d.updated_at)}</span></span>
+          </a>
+        </li>`).join('');
+      }
+    } catch (e) {
+      el.innerHTML = `<li class="ws-dash-empty">Failed: ${escapeAttr(e.message)}</li>`;
+    }
+  }
+
+  // Pending-work strip — surfaces in-flight background work so the
+  // user can see at a glance "something's running, come back in a
+  // minute." Only shown if at least one review or comparison is
+  // pending or running.
+  function updatePendingStrip() {
+    const strip = document.getElementById('dash-pending');
+    const txt = document.getElementById('dash-pending-text');
+    const inflight = [
+      ...reviewsCache.filter((r) => r.status === 'pending' || r.status === 'running').map((r) => ({ kind: 'review', id: r.id, title: r.title, status: r.status })),
+      ...comparesCache.filter((r) => r.status === 'pending' || r.status === 'running').map((r) => ({ kind: 'comparison', id: r.id, title: r.title, status: r.status })),
+    ];
+    if (!inflight.length) { strip.hidden = true; return; }
+    strip.hidden = false;
+    const pieces = inflight.slice(0, 3).map((it) => {
+      const href = it.kind === 'review' ? `/workspace/reviews/?id=${it.id}` : `/workspace/compare/?id=${it.id}`;
+      return `<a href="${href}" class="ws-dash-pending-chip">${escapeAttr(it.title)} — ${it.status}</a>`;
+    });
+    const more = inflight.length > 3 ? ` <span class="ws-dash-row-time">+${inflight.length - 3} more</span>` : '';
+    txt.innerHTML = `${inflight.length} in flight: ${pieces.join(' · ')}${more}`;
+  }
+
+  // Re-poll dashboard every 12s so running items eventually flip to
+  // complete without a page refresh. Stops when nothing's pending.
+  let dashTimer = null;
+  function scheduleDashRefresh() {
+    if (dashTimer) clearTimeout(dashTimer);
+    const anyInflight = [...reviewsCache, ...comparesCache].some((r) => r.status === 'pending' || r.status === 'running');
+    if (!anyInflight) return;
+    dashTimer = setTimeout(async () => {
+      await Promise.all([loadDashReviews(), loadDashCompares()]);
+      scheduleDashRefresh();
+    }, 12_000);
+  }
+
+  Promise.all([loadDashReviews(), loadDashCompares(), loadDashLibrary()])
+    .then(scheduleDashRefresh);
 
   // Show cached list instantly, then refresh from server.
   renderFromCache();

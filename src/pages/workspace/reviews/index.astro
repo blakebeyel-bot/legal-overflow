@@ -210,6 +210,31 @@
           </label>
 
           <div class="rv-field">
+            <span class="rv-field-label">Whose side are you on?</span>
+            <input type="text" id="rv-client-role" maxlength="200" placeholder="e.g. Buyer, Tenant, Licensee, Employee, Disclosing Party" />
+            <div id="rv-detect-banner" class="rv-detect-banner" hidden></div>
+            <div class="rv-role-chips" id="rv-role-chips">
+              <button type="button" class="rv-role-chip" data-role="Buyer">Buyer</button>
+              <button type="button" class="rv-role-chip" data-role="Seller">Seller</button>
+              <button type="button" class="rv-role-chip" data-role="Tenant">Tenant</button>
+              <button type="button" class="rv-role-chip" data-role="Landlord">Landlord</button>
+              <button type="button" class="rv-role-chip" data-role="Vendor">Vendor</button>
+              <button type="button" class="rv-role-chip" data-role="Customer">Customer</button>
+              <button type="button" class="rv-role-chip" data-role="Employer">Employer</button>
+              <button type="button" class="rv-role-chip" data-role="Employee">Employee</button>
+              <button type="button" class="rv-role-chip" data-role="Licensor">Licensor</button>
+              <button type="button" class="rv-role-chip" data-role="Licensee">Licensee</button>
+              <button type="button" class="rv-role-chip" data-role="Disclosing Party">Disclosing Party</button>
+              <button type="button" class="rv-role-chip" data-role="Receiving Party">Receiving Party</button>
+            </div>
+          </div>
+
+          <label class="rv-field">
+            <span class="rv-field-label">Additional context for the AI <span class="rv-field-hint">(optional)</span></span>
+            <textarea id="rv-additional-context" rows="3" maxlength="4000" placeholder="Anything else the AI should keep in mind. e.g. 'we've already signed an LOI at $1.2M', 'this is a renewal — counterparty wants new terms', 'we're racing a closing on Friday'."></textarea>
+          </label>
+
+          <div class="rv-field">
             <span class="rv-field-label" id="rv-docs-label">Documents</span>
             <div id="rv-doc-list" class="rv-doc-list"><div class="ws-empty">Loading library…</div></div>
           </div>
@@ -351,6 +376,93 @@
     overlay.addEventListener('change', updateCost);
     updateCost();
 
+    // Role chip → fill the input. Click again to toggle off.
+    function wireRoleChips() {
+      overlay.querySelectorAll('[data-role]').forEach((chip) => {
+        if (chip.dataset.wired) return;
+        chip.dataset.wired = '1';
+        chip.addEventListener('click', () => {
+          const input = overlay.querySelector('#rv-client-role');
+          if (input.value === chip.dataset.role) input.value = '';
+          else input.value = chip.dataset.role;
+          overlay.querySelectorAll('[data-role]').forEach((c) => c.classList.toggle('is-active', c.dataset.role === input.value));
+        });
+      });
+    }
+    wireRoleChips();
+
+    // ---- Auto-detect parties + role on single-doc selection ----
+    // When the user has selected exactly ONE document, fire a quick
+    // LLM call to identify the parties and suggest two likely roles.
+    // Results are shown above the role chips with "Looks like a
+    // [Mutual NDA] between Acme and Beyel — pick which side you're
+    // on:" + the suggested roles as new accent-colored chips.
+    let detectController = null;
+    let lastDetectedDocId = null;
+    async function maybeDetectRole() {
+      const checked = overlay.querySelectorAll('input[data-doc]:checked');
+      const banner = overlay.querySelector('#rv-detect-banner');
+      // Cancel any in-flight detection
+      if (detectController) { detectController.abort(); detectController = null; }
+      if (checked.length !== 1) {
+        banner.hidden = true;
+        // Reset role chips back to defaults if more or fewer selected
+        const chipsEl = overlay.querySelector('#rv-role-chips');
+        chipsEl.querySelectorAll('.rv-role-chip-suggested').forEach((c) => c.remove());
+        return;
+      }
+      const docId = checked[0].dataset.doc;
+      if (docId === lastDetectedDocId) return;   // already detected this doc
+      lastDetectedDocId = docId;
+
+      banner.hidden = false;
+      banner.className = 'rv-detect-banner is-loading';
+      banner.innerHTML = '<span class="rv-spin"></span> Scanning document for parties…';
+
+      detectController = new AbortController();
+      try {
+        const r = await fetch('/.netlify/functions/workspace-tr-detect-role', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ document_id: docId }),
+          signal: detectController.signal,
+        });
+        const j = await r.json();
+        if (!r.ok) {
+          banner.className = 'rv-detect-banner is-error';
+          banner.textContent = `Could not auto-detect: ${j.error || 'unknown'}`;
+          return;
+        }
+        const partyNames = (j.parties || []).map((p) => p.name).filter(Boolean);
+        const partyLine = partyNames.length === 2
+          ? ` between <strong>${escapeHtml(partyNames[0])}</strong> and <strong>${escapeHtml(partyNames[1])}</strong>`
+          : partyNames.length ? ` involving <strong>${partyNames.map(escapeHtml).join(', ')}</strong>` : '';
+        banner.className = 'rv-detect-banner is-done';
+        banner.innerHTML = `Looks like a <strong>${escapeHtml(j.doc_type || 'document')}</strong>${partyLine}. Which side are you on?`;
+        // Inject suggested roles as priority chips at the FRONT of
+        // the chip strip (mark them so the next detection can clear).
+        const chipsEl = overlay.querySelector('#rv-role-chips');
+        chipsEl.querySelectorAll('.rv-role-chip-suggested').forEach((c) => c.remove());
+        const suggested = (j.suggested_roles || []).filter(Boolean);
+        for (let i = suggested.length - 1; i >= 0; i--) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'rv-role-chip rv-role-chip-suggested';
+          chip.dataset.role = suggested[i];
+          chip.textContent = '★ ' + suggested[i];
+          chipsEl.insertBefore(chip, chipsEl.firstChild);
+        }
+        wireRoleChips();
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        banner.className = 'rv-detect-banner is-error';
+        banner.textContent = `Could not auto-detect: ${err.message}`;
+      }
+    }
+    overlay.addEventListener('change', (e) => {
+      if (e.target.matches('input[data-doc]')) maybeDetectRole();
+    });
+
     // Run
     overlay.querySelector('#rv-run').addEventListener('click', async () => {
       const title = overlay.querySelector('#rv-title').value.trim();
@@ -369,10 +481,16 @@
       btn.textContent = 'Creating…';
 
       const kind = getCurrentKind();
+      const clientRole = overlay.querySelector('#rv-client-role').value.trim();
+      const additionalContext = overlay.querySelector('#rv-additional-context').value.trim();
       const r = await fetch('/.netlify/functions/workspace-tr-create', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, columns: cols, document_ids: docIds, model, kind }),
+        body: JSON.stringify({
+          title, columns: cols, document_ids: docIds, model, kind,
+          client_role: clientRole || null,
+          additional_context: additionalContext || null,
+        }),
       });
       const j = await r.json();
       if (!r.ok) {
@@ -460,26 +578,16 @@
     // Document view for both kinds. The grid is now the alternate
     // "compact summary" view; the doc-and-findings layout is the
     // primary experience.
-    if (!currentView) {
-      currentView = (initialView === 'doc' || initialView === 'grid')
-        ? initialView
-        : 'doc';
-    }
+    // Document view is the only view (grid retired in Phase 8).
+    // Both extraction and redline reviews share the same
+    // doc-with-sidebar layout.
+    currentView = 'doc';
     if (!currentDocId) {
       currentDocId = initialDocId || (documents[0]?.id || null);
     }
     drawViewTabs();
-
-    // Three scrollbars on doc view: page itself, sidebar findings,
-    // doc panel. Each independent. The body is NOT locked.
     document.body.classList.remove('is-locked');
-
-    if (currentView === 'doc') {
-      drawDocView();
-      drawStatusHead();
-      return;
-    }
-    drawGridTable();
+    drawDocView();
     drawStatusHead();
   }
 
@@ -508,26 +616,22 @@
   }
 
   function drawViewTabs() {
-    const { review, documents } = gridState;
+    const { documents } = gridState;
     const tabsEl = document.getElementById('rv-view-tabs');
     if (!tabsEl) return;
+    if (documents.length <= 1) {
+      // Single-doc reviews don't need a tab strip
+      tabsEl.innerHTML = '';
+      tabsEl.style.display = 'none';
+      return;
+    }
     tabsEl.style.display = '';
-    const docTabs = (currentView === 'doc')
-      ? `<div class="rv-doctabs">${documents.map((d) => `
-          <button type="button" class="rv-doctab${d.id === currentDocId ? ' is-active' : ''}" data-doctab="${d.id}">${escapeHtml(d.filename)}</button>
-        `).join('')}</div>`
-      : '';
     tabsEl.innerHTML = `
       <div class="rv-viewbar">
-        <div class="rv-viewpills">
-          <button type="button" class="rv-viewpill${currentView === 'doc' ? ' is-active' : ''}" data-view="doc">Document</button>
-          <button type="button" class="rv-viewpill${currentView === 'grid' ? ' is-active' : ''}" data-view="grid">Grid</button>
-        </div>
-        ${docTabs}
+        <div class="rv-doctabs">${documents.map((d) => `
+          <button type="button" class="rv-doctab${d.id === currentDocId ? ' is-active' : ''}" data-doctab="${d.id}">${escapeHtml(d.filename)}</button>
+        `).join('')}</div>
       </div>`;
-    tabsEl.querySelectorAll('[data-view]').forEach((b) => {
-      b.addEventListener('click', () => switchView(b.dataset.view));
-    });
     tabsEl.querySelectorAll('[data-doctab]').forEach((b) => {
       b.addEventListener('click', () => switchDoc(b.dataset.doctab));
     });
@@ -552,9 +656,9 @@
     drawGrid();
   }
 
-  // ---- Inline document view (default for both kinds) ----
+  // ---- Inline document view (only view in Phase 8+) ----
   function drawDocView() {
-    const { review, cells, documents, finalizations } = gridState;
+    const { review, cells, documents, finalizations, overviews } = gridState;
     const isRedline = review.kind === 'redline';
     const docId = currentDocId || documents[0]?.id;
     if (!docId) return;
@@ -562,6 +666,7 @@
     const cellsForDoc = cells.filter((c) => c.document_id === docId);
     const cols = review.columns_config || [];
     const fin = (finalizations || []).find((f) => f.document_id === docId);
+    const overview = (overviews || []).find((o) => o.document_id === docId);
 
     const total = cellsForDoc.length;
     const done = cellsForDoc.filter((c) => c.status === 'complete').length;
@@ -573,14 +678,23 @@
       <div class="rv-docview">
         <aside class="rv-docview-side">
           <div class="rv-docview-side-head">
-            <span>${isRedline ? 'Findings' : 'Answers'}</span>
+            <span>${isRedline ? 'Findings' : 'Analysis'}</span>
             <span class="rv-docview-counter">${done}/${total}${pending > 0 ? ' · scanning' : ''}</span>
           </div>
-          <div id="rv-docview-findings" class="rv-live-findings"></div>
+          <div class="rv-docview-side-scroll">
+            <div id="rv-docview-overview" class="rv-overview"></div>
+            ${isRedline ? `
+            <div class="rv-docview-bulkbar">
+              <button type="button" class="rv-bulk-acc" data-bulk="accepted">Accept all</button>
+              <button type="button" class="rv-bulk-rej" data-bulk="rejected">Reject all</button>
+              <button type="button" class="rv-bulk-pen" data-bulk="pending">Reset</button>
+            </div>` : ''}
+            <div id="rv-docview-findings" class="rv-live-findings"></div>
+          </div>
           ${isRedline ? `
           <div class="rv-docview-side-foot">
             <button type="button" id="rv-docview-finalize" class="ws-btn"${accepted === 0 ? ' disabled' : ''}>
-              ${accepted ? `Apply ${accepted} accepted` : 'Apply accepted'}
+              ${accepted ? `Download with ${accepted} tracked changes` : 'Download with tracked changes'}
             </button>
             ${fin ? `<a class="rv-finalized-link" data-final-version="${fin.version_id}" data-storage-path="${escapeHtml(fin.version?.storage_path || '')}" data-doc-name="${escapeHtml(doc.filename)}">v${fin.version?.version_number || ''} ↓</a>` : ''}
           </div>` : ''}
@@ -590,6 +704,24 @@
           <div id="rv-live-doc-body" class="rv-doc-preview rv-live-doc-body"><div class="ws-empty">Loading document…</div></div>
         </main>
       </div>`;
+
+    // Wire bulk-action buttons
+    body.querySelectorAll('[data-bulk]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const status = btn.dataset.bulk;
+        const label = status === 'accepted' ? 'Accept' : status === 'rejected' ? 'Reject' : 'Reset';
+        if (!confirm(`${label} all findings on this document?`)) return;
+        await fetch('/.netlify/functions/workspace-tr-cell-update', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ review_id: review.id, document_id: docId, redline_status: status, scope: 'all' }),
+        });
+        for (const c of gridState.cells) {
+          if (c.document_id === docId && c.redline_find) c.redline_status = status;
+        }
+        drawGrid();
+      });
+    });
 
     // Render the doc body once per doc switch (cache hit on repeat).
     renderDocViewBody(docId);
@@ -665,12 +797,69 @@
 
   function refreshDocViewFindings() {
     if (!gridState || currentView !== 'doc') return;
-    const { review, cells } = gridState;
+    const { review, cells, overviews } = gridState;
     const isRedline = review.kind === 'redline';
     const docId = currentDocId;
     if (!docId) return;
     const cellsForDoc = cells.filter((c) => c.document_id === docId);
     const cols = review.columns_config || [];
+
+    // Per-doc overview card (summary + red flags) at top of sidebar
+    const overview = (overviews || []).find((o) => o.document_id === docId);
+    const overviewEl = document.getElementById('rv-docview-overview');
+    if (overviewEl) {
+      if (!overview || overview.status === 'pending' || overview.status === 'running') {
+        overviewEl.innerHTML = `<div class="rv-overview-loading"><span class="rv-spin"></span>Generating summary…</div>`;
+      } else if (overview.status === 'error') {
+        overviewEl.innerHTML = `<div class="rv-overview-error" title="${escapeHtml(overview.status_detail || '')}">Summary generation failed.</div>`;
+      } else {
+        const risks = Array.isArray(overview.risks) ? overview.risks : [];
+        const sortedRisks = [...risks].sort((a, b) => {
+          const sev = { high: 0, medium: 1, low: 2 };
+          return (sev[a.severity] ?? 1) - (sev[b.severity] ?? 1);
+        });
+        overviewEl.innerHTML = `
+          <div class="rv-overview-card">
+            ${overview.summary ? `
+            <div class="rv-overview-summary">
+              <div class="rv-overview-label">Summary</div>
+              <div class="rv-overview-summary-text">${escapeHtml(overview.summary)}</div>
+            </div>` : ''}
+            ${sortedRisks.length ? `
+            <div class="rv-overview-risks">
+              <div class="rv-overview-label">Red flags · ${sortedRisks.length}</div>
+              ${sortedRisks.map((r) => `
+                <div class="rv-risk rv-risk-${r.severity || 'medium'}" ${r.quote ? `data-find="${escapeHtml(r.quote)}"` : ''}>
+                  <div class="rv-risk-head">
+                    <span class="rv-risk-sev rv-risk-sev-${r.severity || 'medium'}">${(r.severity || 'medium').toUpperCase()}</span>
+                    <span class="rv-risk-title">${escapeHtml(r.title || '')}</span>
+                  </div>
+                  <div class="rv-risk-detail">${escapeHtml(r.detail || '')}</div>
+                  ${r.quote ? `<div class="rv-risk-quote">"${escapeHtml(r.quote)}"${r.page ? ` <span class="rv-risk-page">p. ${r.page}</span>` : ''}</div>` : ''}
+                </div>`).join('')}
+            </div>` : ''}
+          </div>`;
+        // Clicking a risk with a quote scrolls + flashes
+        overviewEl.querySelectorAll('[data-find]').forEach((row) => {
+          row.addEventListener('click', () => {
+            const find = row.dataset.find;
+            const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
+            if (span) {
+              span.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              span.classList.remove('is-flash');
+              void span.offsetWidth;
+              span.classList.add('is-flash');
+              setTimeout(() => span.classList.remove('is-flash'), 1800);
+            } else {
+              // Risk quote isn't already a finding span — search the
+              // doc body and scroll to the first occurrence of the
+              // quote text, with a one-off flash.
+              flashTextInDoc(find);
+            }
+          });
+        });
+      }
+    }
 
     // Sidebar list
     const findingsEl = document.getElementById('rv-docview-findings');
@@ -711,6 +900,15 @@
             <div class="rv-live-finding-actions">
               <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
               <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
+              <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">✏️ Refine</button>
+            </div>
+            <div class="rv-cell-refine-form" data-refine-form="${c.id}" hidden>
+              <textarea class="rv-cell-refine-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>
+              <div class="rv-cell-refine-actions">
+                <button type="button" class="rv-cell-refine-cancel">Cancel</button>
+                <button type="button" class="rv-cell-refine-go ws-btn">Revise with AI</button>
+              </div>
+              <div class="rv-cell-refine-status" hidden></div>
             </div>
           </div>`;
         }
@@ -748,42 +946,100 @@
         });
       });
       findingsEl.querySelectorAll('[data-find]').forEach((row) => {
-        row.addEventListener('click', () => {
+        row.addEventListener('click', (e) => {
+          // Don't navigate if user clicked an inner button or
+          // typed in the refine textarea
+          if (e.target.closest('button, textarea, input, [data-refine-form]')) return;
           const find = row.dataset.find;
           const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
           if (!span) return;
           span.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          // Trigger a one-shot flash animation. Remove + force reflow
-          // before re-adding so successive clicks restart the
-          // animation instead of being ignored.
           span.classList.remove('is-flash');
           void span.offsetWidth;
           span.classList.add('is-flash');
           setTimeout(() => span.classList.remove('is-flash'), 1800);
         });
       });
+
+      // Wire Refine flow: open form, run revise, update cell
+      findingsEl.querySelectorAll('[data-refine-cell]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const cellId = btn.dataset.refineCell;
+          const form = findingsEl.querySelector(`[data-refine-form="${cellId}"]`);
+          if (!form) return;
+          const isOpen = !form.hidden;
+          form.hidden = isOpen;
+          if (!isOpen) form.querySelector('textarea')?.focus();
+        });
+      });
+      findingsEl.querySelectorAll('.rv-cell-refine-cancel').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          btn.closest('.rv-cell-refine-form').hidden = true;
+        });
+      });
+      findingsEl.querySelectorAll('.rv-cell-refine-go').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const form = btn.closest('.rv-cell-refine-form');
+          const cellId = form.dataset.refineForm;
+          const instruction = form.querySelector('textarea').value.trim();
+          if (!instruction) return;
+          const status = form.querySelector('.rv-cell-refine-status');
+          status.hidden = false;
+          status.textContent = 'Revising…';
+          status.className = 'rv-cell-refine-status is-running';
+          btn.disabled = true;
+          const r = await fetch('/.netlify/functions/workspace-tr-cell-refine', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cell_id: cellId, instruction }),
+          });
+          const j = await r.json();
+          btn.disabled = false;
+          if (!r.ok) {
+            status.textContent = 'Failed: ' + (j.error || 'unknown');
+            status.className = 'rv-cell-refine-status is-error';
+            return;
+          }
+          // Replace the cell in gridState and re-render. Also remove
+          // the doc-body span so it gets re-inserted with the new
+          // (possibly different) replace text.
+          const updated = j.cell;
+          const idx = gridState.cells.findIndex((c) => c.id === cellId);
+          if (idx !== -1) gridState.cells[idx] = { ...gridState.cells[idx], ...updated };
+          _seenCellPulses.delete(cellId);
+          const oldFind = document.querySelector(`#rv-live-doc-body .rv-rdln-find[data-cell="${cellId}"]`);
+          const oldIns = document.querySelector(`#rv-live-doc-body .rv-rdln-ins[data-cell="${cellId}"]`);
+          if (oldFind) oldFind.replaceWith(document.createTextNode(oldFind.textContent));
+          if (oldIns) oldIns.remove();
+          drawGrid();
+        });
+      });
     }
 
     // Update doc body highlights. For redline mode, highlight
     // c.redline_find. For extraction mode, highlight the quote from
-    // citations[0].
+    // citations[0]. The find + insertion span pair updates its
+    // classes together when the user accepts/rejects.
     const body = document.getElementById('rv-live-doc-body');
     if (body && body.querySelector('.rv-doc-preview-page')) {
       for (const c of cellsForDoc) {
         if (c.status !== 'complete') continue;
         const findText = isRedline ? c.redline_find : (c.citations || [])[0]?.quote;
         if (!findText) continue;
-        const existing = body.querySelector(`[data-cell="${c.id}"]`);
-        if (existing) {
-          existing.className = isRedline
-            ? `rv-doc-finding-highlight is-${c.redline_status || 'pending'}`
-            : 'rv-doc-finding-highlight is-extraction';
+        const status = isRedline ? (c.redline_status || 'pending') : 'extraction';
+        const existingFind = body.querySelector(`.rv-rdln-find[data-cell="${c.id}"]`);
+        const existingIns = body.querySelector(`.rv-rdln-ins[data-cell="${c.id}"]`);
+        if (existingFind) {
+          existingFind.className = `rv-rdln-find is-${status}`;
+          if (existingIns) existingIns.className = `rv-rdln-ins is-${status}`;
           continue;
         }
         const isPulse = !_seenCellPulses.has(c.id);
         _seenCellPulses.add(c.id);
-        // Synthesize a cell-shaped object that highlightLiveFinding accepts
-        const cellWrap = isRedline ? c : { id: c.id, redline_find: findText, redline_status: 'extraction', redline_rationale: c.content || '' };
+        const cellWrap = isRedline ? c : { id: c.id, redline_find: findText, redline_status: 'extraction', redline_replace: '', redline_rationale: c.content || '' };
         highlightLiveFinding(body, cellWrap, isPulse);
       }
     }
@@ -1301,6 +1557,15 @@
             <div class="rv-live-finding-actions">
               <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
               <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
+              <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">✏️ Refine</button>
+            </div>
+            <div class="rv-cell-refine-form" data-refine-form="${c.id}" hidden>
+              <textarea class="rv-cell-refine-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>
+              <div class="rv-cell-refine-actions">
+                <button type="button" class="rv-cell-refine-cancel">Cancel</button>
+                <button type="button" class="rv-cell-refine-go ws-btn">Revise with AI</button>
+              </div>
+              <div class="rv-cell-refine-status" hidden></div>
             </div>
           </div>`;
         }).join('');
@@ -1362,6 +1627,13 @@
   }
 
   function highlightLiveFinding(container, cell, pulse) {
+    // Inserts TWO sibling spans wrapping the find text + an
+    // insertion of the replacement text right after it. CSS controls
+    // visibility/styling per status:
+    //   pending  — find: yellow highlight,        insert: hidden
+    //   accepted — find: red strikethrough,       insert: green underline (Word track-changes look)
+    //   rejected — find: plain (no markup),       insert: hidden
+    //   extraction (read-only) — find: blue, insert: hidden
     const find = cell.redline_find;
     if (!find) return;
     const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -1375,21 +1647,30 @@
       const before = text.slice(0, idx);
       const matched = text.slice(idx, idx + find.length);
       const after = text.slice(idx + find.length);
-      const span = document.createElement('span');
-      span.className = `rv-doc-finding-highlight is-${cell.redline_status || 'pending'}${pulse ? ' is-pulse' : ''}`;
-      span.dataset.cell = cell.id;
-      span.dataset.findingFind = find;
-      span.textContent = matched;
-      span.title = cell.redline_rationale || '';
+
+      const status = cell.redline_status || 'pending';
+      const findSpan = document.createElement('span');
+      findSpan.className = `rv-rdln-find is-${status}${pulse ? ' is-pulse' : ''}`;
+      findSpan.dataset.cell = cell.id;
+      findSpan.dataset.findingFind = find;
+      findSpan.textContent = matched;
+      findSpan.title = cell.redline_rationale || '';
+
+      const insSpan = document.createElement('span');
+      insSpan.className = `rv-rdln-ins is-${status}`;
+      insSpan.dataset.cell = cell.id;
+      insSpan.textContent = cell.redline_replace || '';
+
       const parent = t.parentNode;
       parent.insertBefore(document.createTextNode(before), t);
-      parent.insertBefore(span, t);
+      parent.insertBefore(findSpan, t);
+      parent.insertBefore(insSpan, t);
       parent.insertBefore(document.createTextNode(after), t);
       parent.removeChild(t);
-      // Pulse + scroll if first time
+
       if (pulse) {
-        setTimeout(() => span.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
-        setTimeout(() => span.classList.remove('is-pulse'), 2200);
+        setTimeout(() => findSpan.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+        setTimeout(() => findSpan.classList.remove('is-pulse'), 2200);
       }
       return;
     }
@@ -1399,6 +1680,41 @@
   function cssEscape(s) {
     if (window.CSS && CSS.escape) return CSS.escape(s);
     return String(s).replace(/["\\]/g, '\\$&');
+  }
+
+  // Used when a risk quote isn't already a registered finding
+  // highlight — locates the text in the rendered doc and scrolls +
+  // flashes a one-off temporary span so the eye finds it.
+  function flashTextInDoc(quote) {
+    if (!quote) return;
+    const container = document.getElementById('rv-live-doc-body');
+    if (!container) return;
+    const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const candidates = [];
+    let node;
+    while ((node = treeWalker.nextNode())) candidates.push(node);
+    for (const t of candidates) {
+      const text = t.nodeValue || '';
+      const idx = text.indexOf(quote);
+      if (idx === -1) continue;
+      const before = text.slice(0, idx);
+      const matched = text.slice(idx, idx + quote.length);
+      const after = text.slice(idx + quote.length);
+      const span = document.createElement('span');
+      span.className = 'rv-rdln-find is-extraction is-flash';
+      span.textContent = matched;
+      const parent = t.parentNode;
+      parent.insertBefore(document.createTextNode(before), t);
+      parent.insertBefore(span, t);
+      parent.insertBefore(document.createTextNode(after), t);
+      parent.removeChild(t);
+      setTimeout(() => span.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50);
+      // Remove the temporary highlight after the flash
+      setTimeout(() => {
+        span.replaceWith(document.createTextNode(span.textContent || ''));
+      }, 2200);
+      return;
+    }
   }
 
   // ============================================================

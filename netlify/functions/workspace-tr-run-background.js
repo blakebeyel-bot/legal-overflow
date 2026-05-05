@@ -17,6 +17,7 @@ import { completeText, findModel } from '../lib/llm-providers.js';
 import {
   TABULAR_SYSTEM, buildCellPrompt, parseCellResponse,
   TABULAR_REDLINE_SYSTEM, buildRedlineCellPrompt, parseRedlineCellResponse,
+  TABULAR_OVERVIEW_SYSTEM, buildOverviewPrompt, parseOverviewResponse,
 } from '../lib/tabular-prompt.js';
 
 const CONCURRENCY = 3;       // simultaneous LLM calls per fanout
@@ -95,25 +96,65 @@ export default async (req) => {
     .update({ status: 'running', status_detail: null })
     .in('id', pending.map((c) => c.id));
 
-  // Fan out with concurrency limit
+  // Seed overview rows (one per unique document in this review) so
+  // the UI can poll them as they fill in. We run overviews alongside
+  // cells in the same worker pool — they're just one more unit of
+  // LLM work per document.
+  const overviewSeeds = uniqueDocIds
+    .filter((id) => textByDoc[id])    // skip docs with no extracted text
+    .map((id) => ({
+      review_id: reviewId,
+      document_id: id,
+      status: 'pending',
+      model_used: modelInfo.id,
+    }));
+  if (overviewSeeds.length > 0) {
+    // Upsert (idempotent for re-runs) — onConflict: review_id,document_id
+    await supabase.from('workspace_tabular_doc_overviews')
+      .upsert(overviewSeeds, { onConflict: 'review_id,document_id', ignoreDuplicates: false });
+  }
+  // Pull the IDs back so we can mark them running
+  const { data: overviewRows } = await supabase
+    .from('workspace_tabular_doc_overviews')
+    .select('id, document_id, status')
+    .eq('review_id', reviewId);
+  const overviewsToRun = (overviewRows || []).filter((o) => o.status !== 'complete');
+  if (overviewsToRun.length > 0) {
+    await supabase.from('workspace_tabular_doc_overviews')
+      .update({ status: 'running', status_detail: null })
+      .in('id', overviewsToRun.map((o) => o.id));
+  }
+
+  // Build a unified work queue: all pending cells + all overviews.
+  // The worker pool runs them with the same concurrency cap.
+  const queue = [
+    ...pending.map((c) => ({ kind: 'cell', cell: c })),
+    ...overviewsToRun.map((o) => ({ kind: 'overview', overview: o })),
+  ];
   let completed = 0;
   let failed = 0;
-  const queue = [...pending];
   const workers = Array.from({ length: CONCURRENCY }, async () => {
     while (queue.length > 0) {
-      const cell = queue.shift();
-      if (!cell) break;
+      const job = queue.shift();
+      if (!job) break;
       try {
-        await runOneCell({
-          supabase, cell, review, modelInfo, key, docByid, textByDoc,
-        });
+        if (job.kind === 'cell') {
+          await runOneCell({ supabase, cell: job.cell, review, modelInfo, key, docByid, textByDoc });
+        } else {
+          await runOneOverview({ supabase, overview: job.overview, review, modelInfo, key, docByid, textByDoc });
+        }
         completed++;
       } catch (err) {
         failed++;
-        console.error(`[tr-fanout] cell ${cell.id} failed:`, err.message);
-        await supabase.from('workspace_tabular_cells')
-          .update({ status: 'error', status_detail: err.message?.slice(0, 1000) || 'unknown' })
-          .eq('id', cell.id);
+        const msg = err.message?.slice(0, 1000) || 'unknown';
+        console.error(`[tr-fanout] ${job.kind} failed:`, msg);
+        if (job.kind === 'cell') {
+          await supabase.from('workspace_tabular_cells')
+            .update({ status: 'error', status_detail: msg }).eq('id', job.cell.id);
+        } else {
+          await supabase.from('workspace_tabular_doc_overviews')
+            .update({ status: 'error', status_detail: msg }).eq('id', job.overview.id);
+        }
       }
     }
   });
@@ -138,6 +179,13 @@ async function runOneCell({ supabase, cell, review, modelInfo, key, docByid, tex
   if (!column) throw new Error(`Column ${cell.column_index} not found on review`);
 
   const isRedline = review.kind === 'redline';
+  const ctx = {
+    documentText: text,
+    documentName: doc.filename,
+    columnPrompt: column.prompt,
+    clientRole: review.client_role,
+    additionalContext: review.additional_context,
+  };
   const t0 = Date.now();
   const { text: raw, usage } = await withTimeout(
     completeText({
@@ -147,9 +195,7 @@ async function runOneCell({ supabase, cell, review, modelInfo, key, docByid, tex
       system: isRedline ? TABULAR_REDLINE_SYSTEM : TABULAR_SYSTEM,
       messages: [{
         role: 'user',
-        content: isRedline
-          ? buildRedlineCellPrompt({ documentText: text, documentName: doc.filename, columnPrompt: column.prompt })
-          : buildCellPrompt({ documentText: text, documentName: doc.filename, columnPrompt: column.prompt }),
+        content: isRedline ? buildRedlineCellPrompt(ctx) : buildCellPrompt(ctx),
       }],
       maxTokens: isRedline ? 1200 : 600,
       temperature: 0.2,
@@ -194,6 +240,47 @@ async function runOneCell({ supabase, cell, review, modelInfo, key, docByid, tex
 
   await supabase.from('workspace_tabular_cells').update(update).eq('id', cell.id);
   console.log(`[tr-fanout] cell ${cell.id} ok (${review.kind}) in ${Date.now() - t0}ms`);
+}
+
+async function runOneOverview({ supabase, overview, review, modelInfo, key, docByid, textByDoc }) {
+  const doc = docByid[overview.document_id];
+  if (!doc) throw new Error('Document not found');
+  const text = textByDoc[overview.document_id];
+  if (!text) throw new Error('Document has no extracted text');
+
+  const t0 = Date.now();
+  const { text: raw, usage } = await withTimeout(
+    completeText({
+      provider: modelInfo.provider,
+      model: modelInfo.id,
+      apiKey: key,
+      system: TABULAR_OVERVIEW_SYSTEM,
+      messages: [{ role: 'user', content: buildOverviewPrompt({
+        documentText: text,
+        documentName: doc.filename,
+        clientRole: review.client_role,
+        additionalContext: review.additional_context,
+      }) }],
+      maxTokens: 1500,
+      temperature: 0.2,
+    }),
+    PER_CELL_TIMEOUT_MS,
+    `Overview timed out after ${PER_CELL_TIMEOUT_MS}ms`,
+  );
+
+  const parsed = parseOverviewResponse(raw);
+  await supabase.from('workspace_tabular_doc_overviews')
+    .update({
+      status: 'complete',
+      summary: parsed.summary,
+      risks: parsed.risks,
+      prompt_tokens: usage.input || null,
+      completion_tokens: usage.output || null,
+      status_detail: parsed.parse_error ? `Parse warning: ${parsed.parse_error}` : null,
+    })
+    .eq('id', overview.id);
+
+  console.log(`[tr-fanout] overview ${overview.id} ok (${parsed.risks.length} risks) in ${Date.now() - t0}ms`);
 }
 
 async function markAllCellsError(supabase, reviewId, msg) {

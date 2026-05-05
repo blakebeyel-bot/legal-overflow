@@ -51,7 +51,17 @@ export default async (req) => {
     finalizations = data || [];
   }
 
-  return json({ review, cells: cells || [], documents: docs || [], finalizations });
+  // Pull per-document overviews (summary + red flags). Generated
+  // alongside the cell fanout in workspace-tr-run-background. Both
+  // extraction and redline reviews get them.
+  const { data: overviews } = docIds.length
+    ? await supabase
+        .from('workspace_tabular_doc_overviews')
+        .select('document_id, summary, risks, status, status_detail')
+        .eq('review_id', id)
+    : { data: [] };
+
+  return json({ review, cells: cells || [], documents: docs || [], finalizations, overviews: overviews || [] });
 };
 
 function json(obj, status = 200) {

@@ -90,6 +90,10 @@
 [functions."workspace-tr-run-background"]
   timeout = 900
 
+# Compare two contracts: single big LLM call, up to 8 min.
+[functions."workspace-compare-run-background"]
+  timeout = 600
+
 # Redline: LLM call + Fly.io LibreOffice round-trip. Should finish in
 # well under 5 min for typical docs but the background slot allows
 # headroom for large files.
