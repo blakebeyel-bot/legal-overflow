@@ -85,16 +85,19 @@
          about to send. State persists per-chat in workspace_chats. -->
     <div id="research-bar" class="composer-research-bar">
       <span class="research-state-label" aria-hidden="true">State:</span>
-      <select id="toggle-state" class="research-toggle-state" aria-label="State" title="Picks the state for any State-scoped toggle below. Federal toggles ignore this selection and always target U.S. sources."></select>
+      <select id="toggle-state" class="research-toggle-state" aria-label="State"
+        data-tip="Sets which state any &ldquo;State&rdquo; toggle below applies to. Federal toggles ignore this."></select>
 
       <span class="research-divider" aria-hidden="true">|</span>
       <span class="research-group">
         <span class="research-group-label">Statutes:</span>
-        <label class="research-toggle" title="State statute pre-grounding. Server pre-fetches the selected state's official code (state.gov → Cornell → Justia waterfall) and grounds the response in it.">
+        <label class="research-toggle"
+          data-tip="<b>State statutes.</b> Grounds the response in the selected state&rsquo;s codified statutes.">
           <input type="checkbox" id="toggle-state-statutes" />
           <span class="research-toggle-label">State</span>
         </label>
-        <label class="research-toggle" title="Federal statute pre-grounding. Server references the U.S. Code (law.cornell.edu/uscode + uscode.house.gov + Justia federal codes) and the CFR (ecfr.gov) for regulations.">
+        <label class="research-toggle"
+          data-tip="<b>Federal statutes.</b> Grounds the response in the U.S. Code and federal regulations.">
           <input type="checkbox" id="toggle-federal-statutes" />
           <span class="research-toggle-label">Federal</span>
         </label>
@@ -103,11 +106,13 @@
       <span class="research-divider" aria-hidden="true">|</span>
       <span class="research-group">
         <span class="research-group-label">Case law:</span>
-        <label class="research-toggle" title="State case-law pre-grounding. CourtListener search filtered to the selected state's appellate + supreme court IDs.">
+        <label class="research-toggle"
+          data-tip="<b>State case law.</b> Pulls relevant decisions from the selected state&rsquo;s appellate and supreme courts.">
           <input type="checkbox" id="toggle-state-caselaw" />
           <span class="research-toggle-label">State</span>
         </label>
-        <label class="research-toggle" title="Federal case-law pre-grounding. CourtListener search across SCOTUS + every federal circuit. Cited cases verified by CourtListener citation-lookup.">
+        <label class="research-toggle"
+          data-tip="<b>Federal case law.</b> Pulls relevant decisions from the U.S. Supreme Court and the federal circuits. Citations are verified after the response.">
           <input type="checkbox" id="toggle-federal-caselaw" />
           <span class="research-toggle-label">Federal</span>
         </label>
@@ -116,18 +121,19 @@
       <span class="research-divider" aria-hidden="true">|</span>
       <span class="research-group">
         <span class="research-group-label">Bills:</span>
-        <label class="research-toggle" title="State legislative activity. LegiScan search scoped to the selected state. Cited statutes are also checked for pending or enacted state-level amendments.">
+        <label class="research-toggle"
+          data-tip="<b>State bills.</b> Surfaces pending or recent legislation in the selected state, and flags cited statutes that may have pending amendments.">
           <input type="checkbox" id="toggle-state-bills" />
           <span class="research-toggle-label">State</span>
         </label>
-        <label class="research-toggle" title="Federal legislative activity. LegiScan search scoped to U.S. Congress (state=US). Cited federal statutes are checked for pending Congressional action.">
+        <label class="research-toggle"
+          data-tip="<b>Federal bills.</b> Surfaces pending or recent legislation in the U.S. Congress, and flags cited federal statutes that may have pending amendments.">
           <input type="checkbox" id="toggle-federal-bills" />
           <span class="research-toggle-label">Federal</span>
         </label>
       </span>
 
       <span class="research-status" id="research-status"></span>
-      <button type="button" id="research-info" class="research-info" aria-label="What do these toggles do?" title="What do these toggles do?">i</button>
     </div>
 
     <form id="composer" class="chat-composer">
@@ -963,8 +969,72 @@
     federalBills:    document.getElementById('toggle-federal-bills'),
     privacy:         document.getElementById('toggle-privacy'),
     status: document.getElementById('research-status'),
-    info: document.getElementById('research-info'),
   };
+
+  // ── Custom tooltip for the research bar ───────────────────────────
+  // Native title="" tooltips are an OS-styled rectangle with no
+  // wrapping, no styling, and a long delay. We replace them with a
+  // styled bubble that uses data-tip for content (HTML allowed).
+  (() => {
+    const bar = document.getElementById('research-bar');
+    if (!bar) return;
+    let tipEl = document.getElementById('research-tip');
+    if (!tipEl) {
+      tipEl = document.createElement('div');
+      tipEl.id = 'research-tip';
+      tipEl.className = 'research-tip';
+      tipEl.setAttribute('role', 'tooltip');
+      document.body.appendChild(tipEl);
+    }
+    let hideTimer = null;
+    function showTip(target) {
+      const html = target.getAttribute('data-tip');
+      if (!html) return;
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      tipEl.innerHTML = html;
+      tipEl.classList.add('is-visible');
+      // Position above the target, centered horizontally. Clamp to
+      // viewport so it never gets clipped on narrow windows.
+      const r = target.getBoundingClientRect();
+      const tipW = tipEl.offsetWidth;
+      const tipH = tipEl.offsetHeight;
+      const margin = 8;
+      let left = r.left + r.width / 2 - tipW / 2;
+      left = Math.max(margin, Math.min(left, window.innerWidth - tipW - margin));
+      let top = r.top - tipH - 10;
+      let placement = 'top';
+      if (top < margin) {
+        top = r.bottom + 10;
+        placement = 'bottom';
+      }
+      tipEl.style.left = `${Math.round(left)}px`;
+      tipEl.style.top = `${Math.round(top)}px`;
+      tipEl.dataset.placement = placement;
+      // Position the arrow to point at the center of the target
+      const arrowX = r.left + r.width / 2 - left;
+      tipEl.style.setProperty('--tip-arrow-x', `${Math.round(arrowX)}px`);
+    }
+    function hideTip() {
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => { tipEl.classList.remove('is-visible'); }, 80);
+    }
+    bar.addEventListener('mouseover', (e) => {
+      const t = e.target.closest('[data-tip]');
+      if (t && bar.contains(t)) showTip(t);
+    });
+    bar.addEventListener('mouseout', (e) => {
+      const t = e.target.closest('[data-tip]');
+      if (t && bar.contains(t)) hideTip();
+    });
+    bar.addEventListener('focusin', (e) => {
+      const t = e.target.closest('[data-tip]');
+      if (t && bar.contains(t)) showTip(t);
+    });
+    bar.addEventListener('focusout', (e) => {
+      const t = e.target.closest('[data-tip]');
+      if (t && bar.contains(t)) hideTip();
+    });
+  })();
   // Populate the state dropdown
   if (lawEls.state && !lawEls.state.options.length) {
     lawEls.state.innerHTML = US_STATES
@@ -1100,25 +1170,6 @@
     lawEls.stateBills, lawEls.federalBills,
     lawEls.privacy,
   ].forEach((el) => el?.addEventListener('change', onLawToggleChange));
-  lawEls.info?.addEventListener('click', () => {
-    alert(
-      'Research toolbar\n\n' +
-      'Each toggle is independent — mix and match freely.\n\n' +
-      '── STATUTES ──\n' +
-      '• State — Pre-fetches the selected state\'s official code (state.gov → Cornell → Justia). Cite-verified.\n' +
-      '• Federal — Pulls U.S. Code (Cornell uscode + uscode.house.gov + Justia /codes/us) and CFR (ecfr.gov). Cite-verified.\n\n' +
-      '── CASE LAW ──\n' +
-      '• State — CourtListener filtered to the state\'s appellate + supreme courts.\n' +
-      '• Federal — CourtListener across SCOTUS + every federal circuit.\n\n' +
-      '── BILLS ──\n' +
-      '• State — LegiScan scoped to the selected state. Triggers passive amendment-freshness check on cited state statutes.\n' +
-      '• Federal — LegiScan scoped to U.S. Congress. Triggers freshness check on cited U.S. Code sections.\n\n' +
-      '── PRIVACY ──\n' +
-      '🔒 Privacy mode rewrites your question and any attached documents as an abstract hypothetical before sending to the LLM. Names, entities, addresses, dates, dollar amounts, account numbers — anything that could identify your client or matter is stripped and replaced with role-based descriptors. The model never sees client-identifying content. Required for FL Rule 4-1.6 / ABA Op. 512 compliance when researching a real matter.\n\n' +
-      'The State picker only shows when at least one State-scoped toggle is on. Federal toggles ignore the state picker and always target U.S. sources.'
-    );
-  });
-
   // ---- Verification polling + inline badges ----
   // After an assistant message finishes streaming with research
   // toggles on, we poll workspace-chat-message-get every 2.5s until

@@ -93,36 +93,50 @@ Find the worst single passage that triggers this concern and propose an edit. Re
 // document and 3-6 red flags / risks the user should be aware of.
 // Surfaces at the top of the findings sidebar in the doc view.
 
-export const TABULAR_OVERVIEW_SYSTEM = `You are a senior associate doing a first-pass intake on a contract. You will be given the document and asked to produce two things: a brief summary and a list of the most important red flags or risks.
+export const TABULAR_OVERVIEW_SYSTEM = `You are a senior associate doing a first-pass intake on a contract. You will be given the document and produce two things: a brief summary, and a list of the most important red flags or risks an experienced attorney would catch on a contract of this type.
+
+The risks list is the INDUSTRY BASELINE — the things a senior partner would expect any associate to flag on a contract like this, regardless of what the user has personally asked you to look for. Examples by contract type:
+  - Services / SOW: payment timing, IP ownership of work product, indemnity scope + caps, liability caps, termination triggers, exclusivity, non-solicit, confidentiality scope, governing law/forum.
+  - NDAs: definition of confidential info, term length, residuals clause, return-vs-destroy, jurisdiction, injunctive relief.
+  - Employment: at-will language, non-compete enforceability for the state, IP assignment, severance triggers, dispute resolution forum.
+  - SaaS / licensing: data ownership, security & privacy obligations, uptime SLAs, audit rights, source-code escrow, termination-for-convenience, transition assistance.
+  - Real estate / leases: assignment & subletting, termination, default cure periods, surrender condition, holdover, taxes, CAM, force majeure.
+  - M&A / asset purchase: reps & warranties survival, indemnity baskets/caps, no-shop, MAC/MAE, working-capital adjustment, escrow.
+The above is illustrative — adjust to whatever contract type you're looking at. Always think like a partner reviewing a junior's work: what would you call out on this exact contract?
 
 Output strict JSON only — no prose, no markdown, no fenced block:
 {
   "summary": "2-3 sentences. Plain English. State what the document is, who the parties are, and the core deal economics or scope.",
   "risks": [
-    {"title": "short label, ≤8 words", "severity": "high"|"medium"|"low", "detail": "1-2 sentences explaining the risk and why it matters", "quote": "verbatim quote from the doc supporting this", "page": 3}
+    {
+      "title": "short label, ≤8 words",
+      "severity": "high"|"medium"|"low",
+      "detail": "1-2 sentences explaining the risk and why it matters",
+      "quote": "verbatim quote from the doc supporting this",
+      "page": 3,
+      "suggested_replace": "your proposed rewrite of the quote (clean drafted alternative, in the user's favor, same scope, ≤200 words). Empty string if the risk is a structural absence with no clause to rewrite.",
+      "suggested_rationale": "1 short sentence explaining what changed and why."
+    }
   ]
 }
 
 Rules:
 - 3-6 risks, ranked by severity (high first). Don't pad with low-severity nitpicks; if the doc is clean say so.
 - "quote" must be a verbatim continuous span from the document, ≤30 words. Match capitalization and punctuation exactly. If the risk is a structural absence (e.g. "no liability cap") set quote to "" and detail explains.
+- "suggested_replace" and "suggested_rationale" — for every risk that has a non-empty quote, you MUST also propose a clean drafting alternative. The replacement should: (a) match the same legal style and scope as the quote, (b) be drafted in the user's favor (cap exposure, add cure periods, narrow scope, mutualize one-sided obligations), (c) read as final contract language — not commentary, not bracketed notes. Don't overreach so far it invites a worse counter-redline. If the risk is structural (no quote), set both to "".
 - "page" is a 1-indexed page number from the [Page N] markers in the text. 0 if unknown.
 - "severity": high = could materially harm the user's client (unlimited liability, broad IP grant, sole jurisdiction in unfavorable forum). medium = noticeable but negotiable. low = stylistic or minor.
 - Do not invent issues. If a clause looks fine, do not flag it.
 - The user is a U.S. attorney; write in peer voice, not consumer voice.
 
-CRITICAL — DEDUPE WITH USER-DEFINED COLUMNS:
-The user has separately listed clauses they want flagged and addressed via the "columns" mechanism. Each column is a clause the user is already targeting. DO NOT include any risk in your output that overlaps with a user-defined column. The user is already getting a per-clause analysis on those topics; duplicating them in the red-flags list creates noise. If the only issues you can find are already covered by columns, return an empty risks array — that's the correct answer, not padding with low-priority items.
+DEDUPE — narrow:
+The user has separately listed specific clauses they want flagged via the "columns" mechanism. ONLY skip a risk if a user column targets the EXACT SAME clause and would generate the same recommendation. Topical overlap is NOT enough — if the user's column is "Termination notice ≥ 30 days" and you spot a separate problem with the termination-for-convenience trigger, KEEP it as a red flag. The user wants the industry baseline; skipping anything they "kinda mentioned" defeats the purpose.
 
-To dedupe: read each column name and prompt carefully. If a risk you'd flag is conceptually the same clause, skip it. Examples of overlap:
-  - User column "Termination notice" → skip any risk titled "Short termination notice" / "Termination provisions" / similar
-  - User column "Indemnification cap" → skip any risk about indemnity scope or cap
-  - User column "Governing law" → skip jurisdiction / forum-selection risks
-The threshold for overlap is conceptual, not lexical. Lean toward dedupe — if in doubt, skip.`;
+When in doubt, INCLUDE the risk. Don't return an empty risks array unless the contract genuinely has no concerns — even on a clean contract you can usually find 2-3 things worth flagging. Aim for 3-6 risks; a senior partner would never sign off on "zero concerns" for a non-trivial contract.`;
 
 export function buildOverviewPrompt({ documentText, documentName, clientRole, additionalContext, columns }) {
   const columnBlock = (Array.isArray(columns) && columns.length)
-    ? `\n=== USER-DEFINED COLUMNS (skip these as red flags) ===\n${columns.map((c, i) => `Column ${i + 1}: "${c.name || '?'}" — ${c.prompt || ''}`).join('\n')}\n=== END OF COLUMNS ===\n`
+    ? `\n=== USER-DEFINED COLUMNS (already being analyzed separately) ===\n${columns.map((c, i) => `Column ${i + 1}: "${c.name || '?'}" — ${c.prompt || ''}`).join('\n')}\n=== END OF COLUMNS ===\n\nThese columns are getting their own per-clause analysis. Only skip a red flag if it targets the EXACT SAME clause as one of these columns. Topical overlap (same general area of the contract) is fine — keep the red flag. Surface the industry baseline of concerns regardless of what the user has listed.\n`
     : '';
   return `=== DOCUMENT: ${documentName} ===
 
@@ -130,7 +144,7 @@ ${documentText}
 
 === END OF DOCUMENT ===
 ${columnBlock}${buildContextBlock({ clientRole, additionalContext })}
-Produce the JSON object only. Remember: DO NOT include risks that overlap with the user-defined columns above.`;
+Produce the JSON object only. Aim for 3-6 industry-baseline red flags. Even when the user has listed columns above, surface additional concerns they didn't list.`;
 }
 
 export function parseOverviewResponse(raw) {
@@ -150,6 +164,11 @@ export function parseOverviewResponse(raw) {
       detail: String(r.detail || '').slice(0, 1000),
       quote: String(r.quote || '').slice(0, 1000),
       page: Number.isFinite(r.page) ? Math.floor(r.page) : 0,
+      // Auto-generated rewrite proposal — present whenever the model
+      // identified a quotable clause for the risk. Renders inline as
+      // an Accept/Reject card, same as user-defined column findings.
+      suggested_replace: String(r.suggested_replace || '').slice(0, 4000),
+      suggested_rationale: String(r.suggested_rationale || '').slice(0, 1000),
     })).filter((r) => r.title) : [];
     return {
       summary: String(obj.summary || '').slice(0, 2000),

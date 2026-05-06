@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/styles.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
+<script src="/site-notify.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 <!-- mammoth.js for in-doc redline preview (renders .docx → HTML
      client-side so we can highlight where each edit lands) -->
@@ -479,10 +480,16 @@
       { name: 'Governing law', prompt: 'What is the governing law / choice of law clause? State the jurisdiction.' },
       { name: 'Liability cap', prompt: 'Is there a cap on liability? If so, state the cap (amount or formula). Quote the clause.' },
     ];
+    // Redline presets are "what the user wants changed in the
+    // contract" — phrased as concrete drafting goals, not extraction
+    // questions. The user can edit values in-place (cap amount, cure
+    // length, etc.). Broad coverage of the most common asks; user can
+    // add more or delete what they don't need.
     const redlinePresets = [
-      { name: 'Governing law → Florida', prompt: 'If the governing law is anything other than Florida, find the worst-positioned governing-law sentence and propose changing it to Florida.' },
-      { name: 'Liability cap', prompt: 'If there is no liability cap, find the most relevant liability/indemnification clause and propose adding a cap of 12 months of fees. If there is an unreasonable cap (e.g. unlimited), propose tightening it.' },
-      { name: 'Termination notice', prompt: 'If the termination-for-convenience clause requires fewer than 60 days notice, propose changing the notice period to 60 days.' },
+      { name: 'Cap aggregate liability', prompt: 'Cap aggregate liability at the greater of 12 months of fees paid or $1,000,000. If the contract has no cap, add one. If a cap exists but is unlimited, mutual-uncapped, or disproportionately high, tighten it. Carve out the usual exceptions (gross negligence, willful misconduct, breach of confidentiality, IP infringement) only if they appear in the original.' },
+      { name: 'Mutual indemnification', prompt: 'Make any one-sided indemnification mutual. If only one party indemnifies the other, mirror the obligation so both parties owe equivalent indemnity for their own breaches/negligence. Cap any unlimited indemnity at the same amount as the liability cap.' },
+      { name: 'Termination cure period', prompt: 'Require at least 30 days written notice and a 30-day right to cure before termination for cause is permitted. If the existing notice or cure period is shorter, lengthen it. Do not weaken any termination-for-convenience right the user already has.' },
+      { name: 'Limit auto-renewal', prompt: 'Ensure either party can opt out of any auto-renewal with at least 30 days written notice before the renewal date. Reject silent renewal or any one-sided opt-out. If the contract has no auto-renewal, leave it alone.' },
     ];
     const presets = (opts.prefillCols && opts.prefillCols.length) ? opts.prefillCols
       : (initialKind === 'redline' ? redlinePresets : extractionPresets);
@@ -530,9 +537,22 @@
     overlay.querySelectorAll('input[name="rv-kind"]').forEach((r) => {
       r.addEventListener('change', () => {
         renderDocList();
-        // Re-fill column presets if user hasn't customized them
-        const allEmpty = Array.from(colsEl.querySelectorAll('.rv-col-prompt')).every((t) => !t.value.trim());
-        if (allEmpty) {
+        // Replace presets when toggling kinds, UNLESS the user has
+        // customized them. A row is "untouched" if its name+prompt
+        // exactly match one of the known defaults from either preset
+        // pool — those are pristine and safe to replace. Any row that
+        // doesn't match a default is treated as user-edited and kept.
+        const allKnownDefaults = [
+          ...extractionPresets.map((p) => `${p.name}\n${p.prompt}`),
+          ...redlinePresets.map((p) => `${p.name}\n${p.prompt}`),
+        ];
+        const rows = Array.from(colsEl.querySelectorAll('.rv-col-row'));
+        const allUntouched = rows.length === 0 || rows.every((row) => {
+          const n = row.querySelector('.rv-col-name')?.value || '';
+          const p = row.querySelector('.rv-col-prompt')?.value || '';
+          return !n.trim() && !p.trim() || allKnownDefaults.includes(`${n}\n${p}`);
+        });
+        if (allUntouched) {
           colsEl.innerHTML = '';
           colIdx = 0;
           const k = getCurrentKind();
@@ -648,6 +668,13 @@
       const btn = overlay.querySelector('#rv-run');
       btn.disabled = true;
       btn.textContent = 'Creating…';
+
+      // Walk-away mode — ask for browser-notification permission so
+      // we can ping the user when the review is done. Must be
+      // requested in response to a user gesture; fire-and-forget.
+      if (window.siteNotify && window.siteNotify.permission() === 'default') {
+        window.siteNotify.requestPermission();
+      }
 
       const kind = getCurrentKind();
       const clientRole = overlay.querySelector('#rv-client-role').value.trim();
@@ -998,182 +1025,98 @@
     const cellsForDoc = cells.filter((c) => c.document_id === docId);
     const cols = review.columns_config || [];
 
-    // Per-doc overview card (summary + red flags) at top of sidebar
+    // Reveal-everything-at-once gate. The user wants user-column
+    // findings AND red flags to appear simultaneously, not stream
+    // (cells finish faster than the overview, so without this gate the
+    // user sees columns appear, then the red flags trickle in later).
+    // We hold the entire findings panel in a loading state until all
+    // cells have reached a terminal status (complete or error) AND the
+    // overview row exists with a terminal status too. Once that's
+    // true, the whole list reveals together.
     const overview = (overviews || []).find((o) => o.document_id === docId);
+    const allCellsTerminal = cellsForDoc.length === 0 || cellsForDoc.every((c) => c.status === 'complete' || c.status === 'error');
+    const overviewTerminal = !!overview && (overview.status === 'complete' || overview.status === 'error');
+    const allDone = allCellsTerminal && overviewTerminal;
+
+    // Per-doc overview card — summary only. Red flags used to render
+    // here as their own list, but they're now folded into the unified
+    // findings list below so the user works through one stream of
+    // cards instead of two parallel ones.
     const overviewEl = document.getElementById('rv-docview-overview');
     if (overviewEl) {
-      if (!overview || overview.status === 'pending' || overview.status === 'running') {
-        overviewEl.innerHTML = `<div class="rv-overview-loading"><span class="rv-spin"></span>Generating summary…</div>`;
+      if (!allDone) {
+        // While anything is still working, show one unified progress
+        // line. We deliberately don't render the partial summary or
+        // partial findings — they reveal together when everything's
+        // done so the user sees a single coherent result, not a
+        // staggered drip.
+        const total = cellsForDoc.length;
+        const done = cellsForDoc.filter((c) => c.status === 'complete' || c.status === 'error').length;
+        const ovBit = overviewTerminal ? '' : (overview ? ' · summary in progress' : ' · queued');
+        overviewEl.innerHTML = `<div class="rv-overview-loading"><span class="rv-spin"></span>Reviewing… ${done}/${total} clauses${ovBit}</div>`;
       } else if (overview.status === 'error') {
-        overviewEl.innerHTML = `<div class="rv-overview-error" title="${escapeHtml(overview.status_detail || '')}">Summary generation failed.</div>`;
-      } else {
-        const risks = Array.isArray(overview.risks) ? overview.risks : [];
-        const sortedRisks = [...risks].sort((a, b) => {
-          const sev = { high: 0, medium: 1, low: 2 };
-          return (sev[a.severity] ?? 1) - (sev[b.severity] ?? 1);
-        });
+        const detail = overview.status_detail || 'unknown error';
         overviewEl.innerHTML = `
           <div class="rv-overview-card">
-            ${overview.summary ? `
+            <div class="rv-overview-error">
+              <div class="rv-overview-label">Summary generation failed</div>
+              <div class="rv-overview-summary-text">${escapeHtml(detail)}</div>
+            </div>
+          </div>`;
+      } else {
+        // status === 'complete'. If summary is missing the parser
+        // probably bailed on a truncated response — show what came
+        // back from status_detail so the user knows what happened.
+        const summaryText = overview.summary && overview.summary.trim()
+          ? overview.summary
+          : (overview.status_detail
+              ? `(no summary — ${overview.status_detail})`
+              : '(no summary returned — try re-running the review)');
+        overviewEl.innerHTML = `
+          <div class="rv-overview-card">
             <div class="rv-overview-summary">
               <div class="rv-overview-label">Summary</div>
-              <div class="rv-overview-summary-text">${escapeHtml(overview.summary)}</div>
-            </div>` : ''}
-            ${sortedRisks.length ? `
-            <div class="rv-overview-risks">
-              <div class="rv-overview-label">Red flags · ${sortedRisks.length}</div>
-              ${sortedRisks.map((r, ri) => `
-                <div class="rv-risk rv-risk-${r.severity || 'medium'}" ${r.quote ? `data-find="${escapeHtml(r.quote)}"` : ''} data-risk-idx="${ri}">
-                  <div class="rv-risk-head">
-                    <span class="rv-risk-sev rv-risk-sev-${r.severity || 'medium'}">${(r.severity || 'medium').toUpperCase()}</span>
-                    <span class="rv-risk-title">${escapeHtml(r.title || '')}</span>
-                  </div>
-                  <div class="rv-risk-detail">${escapeHtml(r.detail || '')}</div>
-                  ${r.quote ? `<div class="rv-risk-quote">"${escapeHtml(r.quote)}"${r.page ? ` <span class="rv-risk-page">p. ${r.page}</span>` : ''}</div>` : ''}
-                  ${r.quote && isRedline ? `
-                  <div class="rv-risk-actions">
-                    <button type="button" class="rv-risk-suggest-btn" data-risk-action="suggest" data-risk-idx="${ri}" title="Get an AI rewrite of this clause to favorable language">✨ Suggest favorable rewrite</button>
-                  </div>
-                  <div class="rv-risk-suggest-form" data-risk-form="${ri}" hidden>
-                    <textarea class="rv-risk-suggest-input" placeholder="Optional: tell the AI what direction you want — e.g., 'cap at 12 months fees', 'make mutual', 'add 30-day cure'. Leave blank for AI default."></textarea>
-                    <div class="rv-risk-suggest-actions">
-                      <button type="button" class="rv-risk-suggest-cancel" data-risk-action="cancel" data-risk-idx="${ri}">Cancel</button>
-                      <button type="button" class="rv-risk-suggest-go ws-btn" data-risk-action="go" data-risk-idx="${ri}">Generate rewrite</button>
-                    </div>
-                    <div class="rv-risk-suggest-status" data-risk-status="${ri}" hidden></div>
-                    <div class="rv-risk-suggest-result" data-risk-result="${ri}" hidden></div>
-                  </div>` : ''}
-                </div>`).join('')}
-            </div>` : ''}
+              <div class="rv-overview-summary-text">${escapeHtml(summaryText)}</div>
+            </div>
           </div>`;
-        // Clicking a risk's title/quote (but NOT its action buttons or
-        // suggest form) scrolls + flashes the matching doc location.
-        overviewEl.querySelectorAll('[data-find]').forEach((row) => {
-          row.addEventListener('click', (e) => {
-            // Ignore clicks inside action buttons / form elements
-            if (e.target.closest('.rv-risk-actions, .rv-risk-suggest-form, button, textarea, input')) return;
-            const find = row.dataset.find;
-            const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
-            if (span) {
-              span.scrollIntoView({ block: 'center', behavior: 'smooth' });
-              span.classList.remove('is-flash');
-              void span.offsetWidth;
-              span.classList.add('is-flash');
-              setTimeout(() => span.classList.remove('is-flash'), 1800);
-            } else {
-              // Risk quote isn't already a finding span — search the
-              // doc body and scroll to the first occurrence of the
-              // quote text, with a one-off flash.
-              flashTextInDoc(find);
-            }
-          });
-        });
-
-        // ---- Wire up "Suggest favorable rewrite" actions ----
-        // Three buttons per risk: open form, cancel, generate. The
-        // expand/cancel are pure DOM toggles. Generate fires a fetch
-        // to /workspace-tr-risk-suggest and renders the result inline.
-        overviewEl.querySelectorAll('[data-risk-action]').forEach((btn) => {
-          btn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const action = btn.dataset.riskAction;
-            const idx = btn.dataset.riskIdx;
-            const riskCard = btn.closest('.rv-risk');
-            const formEl = riskCard?.querySelector(`[data-risk-form="${idx}"]`);
-            const statusEl = riskCard?.querySelector(`[data-risk-status="${idx}"]`);
-            const resultEl = riskCard?.querySelector(`[data-risk-result="${idx}"]`);
-
-            if (action === 'suggest') {
-              if (formEl) formEl.hidden = false;
-              const ta = formEl?.querySelector('.rv-risk-suggest-input');
-              if (ta) ta.focus();
-              return;
-            }
-            if (action === 'cancel') {
-              if (formEl) formEl.hidden = true;
-              if (statusEl) statusEl.hidden = true;
-              if (resultEl) resultEl.hidden = true;
-              return;
-            }
-            if (action !== 'go') return;
-
-            // Generate
-            const ta = formEl?.querySelector('.rv-risk-suggest-input');
-            const direction = (ta?.value || '').trim();
-            const risk = sortedRisks[parseInt(idx, 10)];
-            if (!risk) return;
-
-            // Disable the button and show "Working…"
-            btn.disabled = true;
-            const goBtn = btn;
-            const cancelBtn = riskCard?.querySelector('[data-risk-action="cancel"]');
-            if (cancelBtn) cancelBtn.disabled = true;
-            if (statusEl) {
-              statusEl.hidden = false;
-              statusEl.className = 'rv-risk-suggest-status is-running';
-              statusEl.textContent = '✨ Generating favorable rewrite…';
-            }
-            if (resultEl) resultEl.hidden = true;
-
-            try {
-              const r = await fetch('/.netlify/functions/workspace-tr-risk-suggest', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  review_id: gridState.review.id,
-                  document_id: currentDocId,
-                  risk: { title: risk.title, detail: risk.detail, quote: risk.quote, severity: risk.severity },
-                  user_direction: direction || null,
-                }),
-              });
-              const j = await r.json();
-              if (!r.ok) throw new Error(j.error || 'Suggest failed');
-
-              // Render the result inline
-              if (statusEl) statusEl.hidden = true;
-              if (resultEl) {
-                resultEl.hidden = false;
-                resultEl.innerHTML = `
-                  <div class="rv-risk-suggest-block">
-                    <div class="rv-risk-suggest-label">Original (find)</div>
-                    <div class="rv-risk-suggest-find">${escapeHtml(j.find || '(no exact match found)')}</div>
-                  </div>
-                  <div class="rv-risk-suggest-block">
-                    <div class="rv-risk-suggest-label">Proposed rewrite</div>
-                    <div class="rv-risk-suggest-replace">${escapeHtml(j.replace || '')}</div>
-                    <button type="button" class="rv-risk-suggest-copy" data-copy="${escapeAttr(j.replace || '')}">📋 Copy rewrite</button>
-                  </div>
-                  ${j.rationale ? `<div class="rv-risk-suggest-rationale">${escapeHtml(j.rationale)}</div>` : ''}
-                `;
-                // Wire copy
-                const copyBtn = resultEl.querySelector('.rv-risk-suggest-copy');
-                if (copyBtn) {
-                  copyBtn.addEventListener('click', async (ev) => {
-                    ev.stopPropagation();
-                    try {
-                      await navigator.clipboard.writeText(copyBtn.dataset.copy || '');
-                      copyBtn.textContent = '✓ Copied';
-                      setTimeout(() => { copyBtn.textContent = '📋 Copy rewrite'; }, 1400);
-                    } catch (err) {
-                      if (typeof siteToast === 'function') siteToast('Could not copy to clipboard', { kind: 'error' });
-                    }
-                  });
-                }
-              }
-            } catch (err) {
-              if (statusEl) {
-                statusEl.hidden = false;
-                statusEl.className = 'rv-risk-suggest-status is-error';
-                statusEl.textContent = `Failed: ${err.message || err}`;
-              }
-            } finally {
-              goBtn.disabled = false;
-              if (cancelBtn) cancelBtn.disabled = false;
-            }
-          });
-        });
       }
     }
+
+    // Compute the deduped, severity-sorted red-flag list. A red flag
+    // is dropped if its quote text overlaps any user-defined cell's
+    // redline_find on the same doc — those are the same clause and
+    // would render as duplicate cards.
+    const allRisks = (overview && overview.status === 'complete' && Array.isArray(overview.risks))
+      ? overview.risks : [];
+    const userFinds = cellsForDoc
+      .filter((c) => c.redline_find)
+      .map((c) => c.redline_find.trim().toLowerCase());
+    function risksOverlapsUserFind(quote) {
+      if (!quote) return false;
+      const q = quote.trim().toLowerCase();
+      for (const u of userFinds) {
+        if (q === u) return true;
+        // Only dedup when the spans are NEARLY the same passage —
+        // strict substring containment with a high length floor. Topic-
+        // level overlap is fine; we want red flags to act as the
+        // industry baseline, not get filtered out because the user
+        // mentioned the same area in a column.
+        if (q.length >= 60 && u.length >= 60 && (q.includes(u) || u.includes(q))) return true;
+      }
+      return false;
+    }
+    // Keep risks that don't overlap with any user-defined cell.
+    // Structural risks (no quote) always pass through — they describe
+    // missing clauses, not duplicates of anything the user has listed.
+    const sortedRisks = [...allRisks]
+      .filter((r) => !r.quote || !risksOverlapsUserFind(r.quote))
+      .sort((a, b) => {
+        const sev = { high: 0, medium: 1, low: 2 };
+        return (sev[a.severity] ?? 1) - (sev[b.severity] ?? 1);
+      });
+
+    // (Risk card wiring is built inside the findings list block below.)
+
     function escapeAttr(s) {
       return String(s ?? '').replace(/[<>&"'\n\r]/g, (c) => ({
         '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;',
@@ -1181,11 +1124,102 @@
       }[c]));
     }
 
-    // Sidebar list
+    // Sidebar list — unified: risks render alongside user-defined
+    // column findings, sharing the same .rv-live-finding chrome and
+    // accept/reject/refine actions. Risks come from the doc overview;
+    // they're cards that the AI flagged on its own (i.e. things the
+    // user didn't list), each pre-populated with a recommended rewrite
+    // so the user can accept/reject without an extra step.
     const findingsEl = document.getElementById('rv-docview-findings');
+
+    // Build the risk-card HTML. Mirrors the regular finding card
+    // template; the only structural difference is data-risk-idx (no
+    // cell id yet, since accepting is what creates a cell + column).
+    function renderRiskCard(r, ri) {
+      const sev = r.severity || 'medium';
+      const sevLabel = sev.toUpperCase();
+      const hasQuote = !!r.quote;
+      const hasRewrite = hasQuote && !!r.suggested_replace;
+      const titleHtml = `
+        <div class="rv-live-finding-head">
+          <div class="rv-live-finding-col rv-risk-col">
+            <span class="rv-risk-sev-pill rv-risk-sev-${sev}">${sevLabel}</span>
+            <span class="rv-risk-flag-label">RED FLAG</span>
+            <span class="rv-risk-title-text">${escapeHtml(r.title || '')}</span>
+          </div>
+          <button type="button" class="rv-card-toggle" data-card-toggle title="Minimize / expand">▾</button>
+        </div>`;
+      // Show the rewrite rationale primarily (matches how regular
+      // finding cards explain WHY the change is being proposed). Fall
+      // back to the risk detail when there's no rewrite (structural
+      // risks). No italic / em wrap — keep the line visually flush
+      // with regular finding rationales.
+      const rationaleHtml = `<div class="rv-live-finding-rationale">${escapeHtml(r.suggested_rationale || r.detail || '')}</div>`;
+      // Structural risk (no quotable clause) → simple Dismiss card
+      if (!hasQuote) {
+        return `<div class="rv-live-finding rv-live-finding-risk rv-live-finding-risk-${sev}" data-risk-idx="${ri}" data-risk-no-quote="1">
+          ${titleHtml}
+          ${rationaleHtml}
+          <div class="rv-live-finding-na-text" style="font-style:italic;">Structural concern — no specific clause to redline.</div>
+          <div class="rv-live-finding-actions">
+            <button type="button" class="rv-cell-rej" data-risk-action="rejected" data-risk-idx="${ri}">× Dismiss</button>
+          </div>
+        </div>`;
+      }
+      // Quotable risk with auto-generated rewrite proposal
+      const fromText = r.quote || '';
+      const toText = r.suggested_replace || '';
+      return `<div class="rv-live-finding rv-live-finding-risk rv-live-finding-risk-${sev}" data-risk-idx="${ri}" data-find="${escapeHtml(fromText)}">
+        ${titleHtml}
+        ${rationaleHtml}
+        <div class="rv-live-finding-diff">
+          <div class="rv-live-finding-from">${escapeHtml(fromText.slice(0, 200))}${fromText.length > 200 ? '…' : ''}</div>
+          <div class="rv-live-finding-arrow">→</div>
+          <div class="rv-live-finding-to">${hasRewrite ? escapeHtml(toText.slice(0, 200)) + (toText.length > 200 ? '…' : '') : '<em style="color:var(--ink-3)">(no rewrite — accept to mark for deletion, or refine for a proposal)</em>'}</div>
+        </div>
+        <div class="rv-live-finding-actions">
+          <button type="button" class="rv-cell-acc" data-risk-action="accepted" data-risk-idx="${ri}">✓ Accept</button>
+          <button type="button" class="rv-cell-rej" data-risk-action="rejected" data-risk-idx="${ri}">× Reject</button>
+          <button type="button" class="rv-cell-refine-btn" data-risk-action="refine" data-risk-idx="${ri}" title="Ask AI to revise this proposal">✏️ Refine</button>
+        </div>
+        <div class="rv-cell-refine-form rv-risk-suggest-form" data-risk-form="${ri}" hidden>
+          <textarea class="rv-cell-refine-input rv-risk-suggest-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>
+          <div class="rv-cell-refine-actions rv-risk-suggest-actions">
+            <button type="button" class="rv-cell-refine-cancel" data-risk-action="cancel" data-risk-idx="${ri}">Cancel</button>
+            <button type="button" class="rv-cell-refine-go ws-btn" data-risk-action="go" data-risk-idx="${ri}">Revise with AI</button>
+          </div>
+          <div class="rv-cell-refine-status rv-risk-suggest-status" data-risk-status="${ri}" hidden></div>
+        </div>
+      </div>`;
+    }
+
+    if (findingsEl && !allDone) {
+      // Hold the findings list in a loading state until the overview
+      // AND all cells finish. Reveals everything together so the
+      // user sees one coherent result, not a staggered drip.
+      const total = cellsForDoc.length;
+      const done = cellsForDoc.filter((c) => c.status === 'complete' || c.status === 'error').length;
+      const ovBit = overviewTerminal ? '' : (overview ? ' · summary' : ' · queued');
+      findingsEl.innerHTML = `
+        <div class="rv-live-finding rv-live-finding-pending">
+          <div class="rv-live-finding-na-text">
+            <span class="rv-spin"></span>
+            Reviewing the document — ${done}/${total} clauses${ovBit}. Findings will appear together when the scan completes.
+          </div>
+        </div>`;
+      // Keep the scanner sweep animating across the document until
+      // EVERYTHING the user is waiting on has finished. The reveal-
+      // everything-at-once gate would otherwise return here without
+      // touching the scanner state.
+      const scannerEl = document.getElementById('rv-live-scanner');
+      if (scannerEl) scannerEl.classList.add('is-active');
+      return;
+    }
+
     if (findingsEl) {
       const findings = cellsForDoc.sort((a, b) => a.column_index - b.column_index);
-      findingsEl.innerHTML = findings.map((c) => {
+      const riskHtml = isRedline ? sortedRisks.map((r, ri) => renderRiskCard(r, ri)).join('') : '';
+      const findingsHtml = findings.map((c) => {
         const col = cols[c.column_index];
         if (c.status === 'pending' || c.status === 'running') {
           return `<div class="rv-live-finding rv-live-finding-pending">
@@ -1203,14 +1237,31 @@
         if (isRedline) {
           const status = c.redline_status || 'pending';
           const stClass = status === 'accepted' ? ' is-accepted' : status === 'rejected' ? ' is-rejected' : '';
+          // Cards start collapsed if already resolved (saved between
+          // sessions) — keeps the list scannable. The minimize chevron
+          // can re-collapse a card at any time, regardless of status.
+          const collapsed = (status === 'accepted' || status === 'rejected') ? ' is-collapsed' : '';
+          const resolvedLabel = status === 'accepted' ? '✓ Accepted' : status === 'rejected' ? '× Rejected' : '';
           if (!c.redline_find) {
             return `<div class="rv-live-finding rv-live-finding-na" data-cell="${c.id}">
-              <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+              <div class="rv-live-finding-head">
+                <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+                <button type="button" class="rv-card-toggle" data-card-toggle title="Minimize / expand">▾</button>
+              </div>
               <div class="rv-live-finding-na-text">Not present in document</div>
             </div>`;
           }
-          return `<div class="rv-live-finding${stClass}" data-cell="${c.id}" data-find="${escapeHtml(c.redline_find)}">
-            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+          return `<div class="rv-live-finding${stClass}${collapsed}" data-cell="${c.id}" data-find="${escapeHtml(c.redline_find)}">
+            <div class="rv-live-finding-head">
+              <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+              <button type="button" class="rv-card-toggle" data-card-toggle title="Minimize / expand">▾</button>
+            </div>
+            <div class="rv-live-finding-resolved-bar">
+              <span class="rv-live-finding-resolved-label">${resolvedLabel}</span>
+              <span class="rv-live-finding-resolved-actions">
+                <button type="button" class="rv-cell-undo" data-cell-action="pending" data-cell="${c.id}" title="Undo this decision">Undo</button>
+              </span>
+            </div>
             <div class="rv-live-finding-rationale">${escapeHtml(c.redline_rationale || c.content || '')}</div>
             <div class="rv-live-finding-diff">
               <div class="rv-live-finding-from">${escapeHtml(c.redline_find.slice(0, 200))}${c.redline_find.length > 200 ? '…' : ''}</div>
@@ -1237,31 +1288,72 @@
         const cite = (c.citations || [])[0];
         if (!cite || !cite.quote) {
           return `<div class="rv-live-finding rv-live-finding-na" data-cell="${c.id}">
-            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <div class="rv-live-finding-head">
+              <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+              <button type="button" class="rv-card-toggle" data-card-toggle title="Minimize / expand">▾</button>
+            </div>
             <div class="rv-live-finding-rationale">${escapeHtml(c.content || '')}</div>
           </div>`;
         }
         return `<div class="rv-live-finding" data-cell="${c.id}" data-find="${escapeHtml(cite.quote)}">
-          <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+          <div class="rv-live-finding-head">
+            <div class="rv-live-finding-col">${escapeHtml(col?.name || '?')}</div>
+            <button type="button" class="rv-card-toggle" data-card-toggle title="Minimize / expand">▾</button>
+          </div>
           <div class="rv-live-finding-rationale">${escapeHtml(c.content || '')}</div>
           <div class="rv-live-finding-diff" style="grid-template-columns: 1fr">
             <div class="rv-live-finding-from">${escapeHtml(cite.quote.slice(0, 240))}${cite.quote.length > 240 ? '…' : ''}${cite.page ? ` <span style="color:var(--ink-3);font-style:italic">(p. ${cite.page})</span>` : ''}</div>
           </div>
         </div>`;
       }).join('');
+      findingsEl.innerHTML = riskHtml + findingsHtml;
 
       // Apply the visual state of an accept/reject change to a single
-      // finding row + its action buttons. Pure DOM manipulation, no
-      // network. Used for both optimistic updates and rollback.
+      // finding row + its action buttons + the matching inline tracked-
+      // changes spans inside the document preview. Pure DOM manipulation,
+      // no network. Used for both optimistic updates and rollback.
       function applyFindingState(findingEl, status) {
         if (!findingEl) return;
-        findingEl.classList.remove('is-accepted', 'is-rejected');
-        if (status === 'accepted') findingEl.classList.add('is-accepted');
-        else if (status === 'rejected') findingEl.classList.add('is-rejected');
+        // 1. Sidebar finding card — accept/reject classes + auto-collapse
+        findingEl.classList.remove('is-accepted', 'is-rejected', 'is-collapsed');
+        if (status === 'accepted') findingEl.classList.add('is-accepted', 'is-collapsed');
+        else if (status === 'rejected') findingEl.classList.add('is-rejected', 'is-collapsed');
         findingEl.querySelectorAll('.rv-cell-acc, .rv-cell-rej').forEach((b) => b.classList.remove('is-on'));
         const targetBtn = findingEl.querySelector(`[data-cell-action="${status}"]`);
         if (targetBtn) targetBtn.classList.add('is-on');
+        // Update the collapsed-bar label so the right verb shows
+        const lbl = findingEl.querySelector('.rv-live-finding-resolved-label');
+        if (lbl) lbl.textContent = status === 'accepted' ? '✓ Accepted' : status === 'rejected' ? '× Rejected' : '';
+
+        // 2. In-doc tracked-changes preview spans for THIS cell —
+        //    swap is-pending / is-accepted / is-rejected on both the
+        //    strikethrough "find" span and the green "insert" span so
+        //    the doc preview reflects what the final tracked-changes
+        //    Word file will look like the moment the user clicks.
+        const cellId = findingEl.getAttribute('data-cell');
+        if (cellId) {
+          const docBody = document.getElementById('rv-live-doc-body');
+          if (docBody) {
+            const spans = docBody.querySelectorAll(`[data-cell="${cellId}"]`);
+            spans.forEach((span) => {
+              const baseCls = span.classList.contains('rv-rdln-ins') ? 'rv-rdln-ins' : 'rv-rdln-find';
+              span.className = `${baseCls} is-${status}`;
+            });
+          }
+        }
       }
+
+      // Manual minimize/expand toggle — lives on every card (pending,
+      // accepted, rejected). Independent of status; lets the user
+      // shrink any card to free up space while reviewing.
+      findingsEl.querySelectorAll('[data-card-toggle]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const card = btn.closest('.rv-live-finding');
+          if (!card) return;
+          card.classList.toggle('is-collapsed');
+        });
+      });
 
       findingsEl.querySelectorAll('[data-cell-action]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
@@ -1306,15 +1398,192 @@
         row.addEventListener('click', (e) => {
           // Don't navigate if user clicked an inner button or
           // typed in the refine textarea
-          if (e.target.closest('button, textarea, input, [data-refine-form]')) return;
+          if (e.target.closest('button, textarea, input, [data-refine-form], [data-risk-form]')) return;
           const find = row.dataset.find;
           const span = document.querySelector(`#rv-live-doc-body [data-finding-find="${cssEscape(find)}"]`);
-          if (!span) return;
-          span.scrollIntoView({ block: 'center', behavior: 'smooth' });
-          span.classList.remove('is-flash');
-          void span.offsetWidth;
-          span.classList.add('is-flash');
-          setTimeout(() => span.classList.remove('is-flash'), 1800);
+          if (span) {
+            span.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            span.classList.remove('is-flash');
+            void span.offsetWidth;
+            span.classList.add('is-flash');
+            setTimeout(() => span.classList.remove('is-flash'), 1800);
+          } else {
+            // Risk cards' quotes may not yet be registered as finding
+            // spans — fall back to a one-off scroll+flash in the doc.
+            flashTextInDoc(find);
+          }
+        });
+      });
+
+      // ---- Risk-card action wiring ----
+      // Risk cards live in the same findings list as user-defined
+      // findings, but use data-risk-action / data-risk-idx so we can
+      // route them through workspace-tr-risk-accept (which creates a
+      // new column + cell from the risk) instead of the existing cell-
+      // update endpoint. Optimistic UI mirrors the regular flow.
+      findingsEl.querySelectorAll('[data-risk-action]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const action = btn.dataset.riskAction;
+          const ri = parseInt(btn.dataset.riskIdx, 10);
+          const risk = sortedRisks[ri];
+          if (!risk) return;
+          const card = btn.closest('.rv-live-finding-risk');
+          const formEl = card?.querySelector(`[data-risk-form="${ri}"]`);
+          const statusEl = card?.querySelector(`[data-risk-status="${ri}"]`);
+
+          // ----- Refine: open the textarea form -----
+          if (action === 'refine') {
+            if (formEl) {
+              formEl.hidden = !formEl.hidden;
+              if (!formEl.hidden) formEl.querySelector('textarea')?.focus();
+            }
+            return;
+          }
+          if (action === 'cancel') {
+            if (formEl) formEl.hidden = true;
+            if (statusEl) statusEl.hidden = true;
+            return;
+          }
+
+          // ----- Generate (regenerate the rewrite with new direction) -----
+          if (action === 'go') {
+            const ta = formEl?.querySelector('.rv-risk-suggest-input');
+            const direction = (ta?.value || '').trim();
+            btn.disabled = true;
+            if (statusEl) {
+              statusEl.hidden = false;
+              statusEl.className = 'rv-risk-suggest-status is-running';
+              statusEl.textContent = '✨ Generating revised rewrite…';
+            }
+            try {
+              const r = await fetch('/.netlify/functions/workspace-tr-risk-suggest', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  review_id: gridState.review.id,
+                  document_id: currentDocId,
+                  risk: { title: risk.title, detail: risk.detail, quote: risk.quote, severity: risk.severity },
+                  user_direction: direction || null,
+                }),
+              });
+              const j = await r.json();
+              if (!r.ok) throw new Error(j.error || 'Suggest failed');
+              // Mutate the risk in place, then re-render the list so
+              // the refreshed find/replace/rationale shows in the diff.
+              risk.quote = j.find || risk.quote;
+              risk.suggested_replace = j.replace || '';
+              risk.suggested_rationale = j.rationale || '';
+              if (formEl) formEl.hidden = true;
+              if (statusEl) statusEl.hidden = true;
+              refreshDocViewFindings();
+            } catch (err) {
+              if (statusEl) {
+                statusEl.className = 'rv-risk-suggest-status is-error';
+                statusEl.textContent = `Failed: ${err.message || err}`;
+              }
+            } finally {
+              btn.disabled = false;
+            }
+            return;
+          }
+
+          // ----- Accept / Reject -----
+          // Both persist as a real redline cell (status accepted or
+          // rejected) so the dedup logic catches them on next render
+          // and the user's decision survives a reload. Optimistic.
+          if (action !== 'accepted' && action !== 'rejected') return;
+          const newStatus = action;
+          const findText = risk.quote || '';
+          const replaceText = risk.suggested_replace || '';
+          const rationaleText = risk.suggested_rationale || risk.detail || '';
+
+          // For structural risks (no quote), reject is the only valid
+          // path — just dismiss locally so the card disappears.
+          if (!findText) {
+            const ovIdx = (gridState.overviews || []).findIndex((o) => o.document_id === currentDocId);
+            if (ovIdx !== -1) {
+              const ov = gridState.overviews[ovIdx];
+              ov.risks = (ov.risks || []).filter((rr) => rr !== risk);
+            }
+            refreshDocViewFindings();
+            if (typeof siteToast === 'function') siteToast('Dismissed', { kind: 'info' });
+            return;
+          }
+
+          // Optimistic temp cell + column → instant render
+          const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          const newColIndex = (gridState.review.columns_config || []).length;
+          const tempColumn = {
+            index: newColIndex,
+            name: `[Red flag] ${String(risk.title || '').slice(0, 80)}`,
+            prompt: `(Auto-generated from red flag: ${String(risk.title || '').slice(0, 200)})`,
+            from_risk: true,
+          };
+          const tempCell = {
+            id: tempId,
+            review_id: gridState.review.id,
+            document_id: currentDocId,
+            column_index: newColIndex,
+            status: 'complete',
+            content: rationaleText,
+            redline_find: findText,
+            redline_replace: replaceText,
+            redline_rationale: rationaleText,
+            redline_status: newStatus,
+            citations: [],
+          };
+          gridState.review.columns_config = [...(gridState.review.columns_config || []), tempColumn];
+          gridState.cells.push(tempCell);
+          // Remove the risk from the local overview so it doesn't
+          // render twice (the new cell will dedup it next render too).
+          const ovIdx = (gridState.overviews || []).findIndex((o) => o.document_id === currentDocId);
+          if (ovIdx !== -1) {
+            const ov = gridState.overviews[ovIdx];
+            ov.risks = (ov.risks || []).filter((rr) => rr !== risk);
+          }
+          refreshDocViewFindings();
+          updateRedlineSummary();
+          if (typeof siteToast === 'function') {
+            siteToast(newStatus === 'accepted' ? 'Accepted — added to findings' : 'Rejected', { kind: 'success' });
+          }
+
+          fetch('/.netlify/functions/workspace-tr-risk-accept', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              review_id: gridState.review.id,
+              document_id: currentDocId,
+              risk: { title: risk.title, severity: risk.severity, detail: risk.detail, quote: risk.quote },
+              find: findText,
+              replace: replaceText,
+              rationale: rationaleText,
+              status: newStatus,
+            }),
+          })
+            .then(async (ar) => {
+              const aj = await ar.json().catch(() => ({}));
+              if (!ar.ok) throw new Error(aj.error || `HTTP ${ar.status}`);
+              const tIdx = gridState.cells.findIndex((c) => c.id === tempId);
+              if (tIdx !== -1 && aj.cell) {
+                gridState.cells[tIdx] = aj.cell;
+                document.querySelectorAll(`[data-cell="${tempId}"]`).forEach((el) => {
+                  el.setAttribute('data-cell', aj.cell.id);
+                });
+              }
+              if (aj.columns_config) gridState.review.columns_config = aj.columns_config;
+            })
+            .catch((err) => {
+              gridState.cells = gridState.cells.filter((c) => c.id !== tempId);
+              gridState.review.columns_config = (gridState.review.columns_config || []).filter((c) => c !== tempColumn);
+              // Restore the risk so the user can try again
+              if (ovIdx !== -1) {
+                const ov = gridState.overviews[ovIdx];
+                ov.risks = [risk, ...(ov.risks || [])];
+              }
+              refreshDocViewFindings();
+              if (typeof siteToast === 'function') siteToast(`Could not save: ${err.message || err}`, { kind: 'error' });
+            });
         });
       });
 
@@ -1401,11 +1670,15 @@
       }
     }
 
-    // Scanner active iff any cell still pending
+    // Scanner stays active until EVERYTHING the user is waiting on
+    // has finished — both the user-column cells and the overview
+    // (summary + red flags). This matches the reveal-everything-at-
+    // once gate above so the scan-line keeps animating across the
+    // doc preview right up until the findings panel reveals its
+    // results in one shot.
     const scanner = document.getElementById('rv-live-scanner');
     if (scanner) {
-      const stillRunning = cellsForDoc.some((c) => c.status === 'pending' || c.status === 'running');
-      scanner.classList.toggle('is-active', stillRunning);
+      scanner.classList.toggle('is-active', !allDone);
     }
   }
 
@@ -1739,6 +2012,9 @@
   }
 
   let pollTimer = null;
+  // Tracks whether the current poll cycle has already notified the
+  // user. Without this we'd fire on every refresh after completion.
+  let _notifiedReviewId = null;
   async function pollLoop(id) {
     if (pollTimer) clearTimeout(pollTimer);
     if (!gridState) return;
@@ -1747,6 +2023,31 @@
       // One last refresh in case the inline doc view is open.
       if (livePreviewState) refreshLivePreview();
       if (currentView === 'doc') refreshDocViewFindings();
+      // Walk-away ping — fire a browser notification ONCE per review
+      // when it transitions to a terminal state. Permission must have
+      // been granted earlier (we ask when the run starts). No-op if
+      // not granted.
+      if (_notifiedReviewId !== id && window.siteNotify && document.visibilityState !== 'visible') {
+        _notifiedReviewId = id;
+        const r = gridState.review || {};
+        const cellsForReview = (gridState.cells || []).filter((c) => c.review_id === id);
+        const accepted = cellsForReview.filter((c) => c.redline_status === 'accepted').length;
+        const isOk = status !== 'error';
+        const titleText = isOk ? 'Review complete' : 'Review failed';
+        const body = isOk
+          ? `${r.title || 'Your review'} — ${cellsForReview.length} finding${cellsForReview.length === 1 ? '' : 's'}${accepted ? ` · ${accepted} ready to apply` : ''}. Click to open.`
+          : `${r.title || 'Your review'} — ${r.status_detail || 'something went wrong'}. Click to open.`;
+        window.siteNotify.fire(titleText, {
+          body,
+          tag: `tr-review-${id}`,
+          urgency: !isOk,
+          onClick: () => {
+            try { window.focus(); } catch {}
+            const main = document.getElementById('rv-main');
+            if (main) main.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          },
+        });
+      }
       return;
     }
     pollTimer = setTimeout(async () => {

@@ -22,19 +22,38 @@ const LEGISCAN_BASE = 'https://api.legiscan.com/';
 const TIMEOUT_MS = 8000;
 
 /**
- * Status code → bucket.
+ * LegiScan numeric status codes (per User Manual v1.91, p. 42):
+ *   0 N/A (pre-filed/pre-introduction)
+ *   1 Introduced
+ *   2 Engrossed       (passed origin chamber)
+ *   3 Enrolled        (passed both chambers, awaiting governor)
+ *   4 Passed          (signed/enacted)
+ *   5 Vetoed
+ *   6 Failed
+ *   7 Override        (veto override = enacted)
+ *   8 Chaptered       (Progress array only — codified)
  *
- * LegiScan status codes (per their docs):
- *   1 Introduced, 2 Engrossed, 3 Enrolled, 4 Passed (signed),
- *   5 Vetoed, 6 Failed/Dead. Plus various negotiation states.
- *
- * "Enacted" = bill became law (4 = Passed/signed, sometimes 3
- * Enrolled depending on state). We treat Vetoed/Failed/Dead as
- * NOT a concern (those don't change the statute). Anything else
- * (1, 2) is "pending".
+ * NOTE: getSearch responses do NOT include the numeric `status` field;
+ * only getBill does. We therefore classify enactment by parsing the
+ * `last_action` text, which all search results carry. To confirm a
+ * top-hit enactment we'd need a follow-up getBill — a future
+ * optimization, since each call counts against the 30k/month quota.
  */
-const ENACTED_STATUSES = new Set([4]);
+const ENACTED_STATUSES = new Set([4, 7, 8]);
 const PENDING_STATUSES = new Set([1, 2, 3]);
+
+// Last-action text → bucket. Tuned for low false-positive rate.
+// "Passed" alone (e.g. "Third Reading Passed (46-0)") is a chamber
+// vote, NOT enactment, and stays in the pending bucket.
+const ENACTED_RE = /\b(signed by (?:the )?(?:governor|president)|approved by (?:the )?(?:governor|president)|became (?:public )?law|public law|public act|act no\.?|chaptered|enacted into law|effective\s+(?:date\s+)?\d)/i;
+const FAILED_RE = /\b(veto(?:ed)?|failed|defeated|died(?:\s+in)?|withdrawn|recalled|indefinitely postponed|adjourned sine die)\b/i;
+
+function classifyLastAction(text) {
+  const s = String(text || '');
+  if (ENACTED_RE.test(s)) return 'enacted';
+  if (FAILED_RE.test(s)) return 'failed';
+  return 'pending';   // any other live state — introduced, referred, read, engrossed, enrolled, chamber-passed, etc.
+}
 
 async function fetchWithTimeout(url, opts = {}, timeoutMs = TIMEOUT_MS, fetchImpl = globalThis.fetch) {
   const ctrl = new AbortController();
@@ -58,11 +77,15 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = TIMEOUT_MS, fetchImp
  */
 export async function searchLegiscanBills({ query, state, apiKey, limit = 10, fetchImpl }) {
   if (!apiKey || !query?.trim() || !state) return [];
+  // Per User Manual v1.91 (p. 21):
+  //   https://api.legiscan.com/?key=APIKEY&op=getSearch&state=STATE&query=QUERY
+  // year=2 = current year (default, but explicit for clarity).
   const params = new URLSearchParams({
     key: apiKey,
-    op: 'search',
+    op: 'getSearch',
     state: state.toUpperCase(),
     query: query.trim(),
+    year: '2',
   });
   let res;
   try {
@@ -81,22 +104,33 @@ export async function searchLegiscanBills({ query, state, apiKey, limit = 10, fe
     console.warn('[legiscan] search non-OK status:', data?.alert?.message || data?.status);
     return [];
   }
-  // Response shape: { status, searchresult: { 0: meta, 1..N: result } }
+  // Response shape (v1.91, p. 22):
+  //   { status: "OK", searchresult: { summary: {...}, "0": {...}, "1": {...}, ... } }
+  // The numeric-keyed entries (starting at "0") are the actual
+  // results, sorted by relevance descending. Only "summary" is meta.
   const sr = data.searchresult || {};
+  const numericKeys = Object.keys(sr)
+    .filter((k) => /^\d+$/.test(k))
+    .sort((a, b) => Number(a) - Number(b));
   const out = [];
-  for (const k of Object.keys(sr)) {
-    if (k === 'summary' || k === '0') continue;
+  for (const k of numericKeys) {
     const r = sr[k];
     if (!r || typeof r !== 'object') continue;
     out.push({
+      bill_id: typeof r.bill_id === 'number' ? r.bill_id : null,
       bill_number: r.bill_number || '',
       title: r.title || '',
-      status: typeof r.bill_status === 'number' ? r.bill_status : null,
-      status_label: r.last_action || '',
+      // getSearch does NOT return the numeric `status` field — only
+      // getBill does. We expose the parsed last-action bucket so
+      // callers can classify without an extra API call.
       last_action: r.last_action || '',
       last_action_date: r.last_action_date || '',
+      action_class: classifyLastAction(r.last_action),
+      relevance: typeof r.relevance === 'number' ? r.relevance : null,
+      state: r.state || '',
       sponsors: [],
       url: r.url || '',
+      change_hash: r.change_hash || '',
     });
     if (out.length >= limit) break;
   }
@@ -170,11 +204,11 @@ export async function checkStatuteAmendmentStatus({
 
   for (const r of results) {
     const ts = r.last_action_date ? new Date(r.last_action_date).getTime() : 0;
-    const isEnacted = r.status != null && ENACTED_STATUSES.has(r.status);
-    const isPending = r.status != null && PENDING_STATUSES.has(r.status);
-    if (isEnacted && (!fetchedTs || ts > fetchedTs)) {
+    const cls = r.action_class;
+    if (cls === 'failed') continue;     // vetoed / dead bills don't change the statute
+    if (cls === 'enacted' && (!fetchedTs || ts > fetchedTs)) {
       enacted.push(r);
-    } else if (isPending) {
+    } else if (cls === 'pending') {
       pending.push(r);
     }
   }

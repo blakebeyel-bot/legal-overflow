@@ -125,11 +125,14 @@ export default async (req) => {
       .in('id', overviewsToRun.map((o) => o.id));
   }
 
-  // Build a unified work queue: all pending cells + all overviews.
-  // The worker pool runs them with the same concurrency cap.
+  // Build a unified work queue: overviews run FIRST so the per-doc
+  // summary + red flags surface in parallel with the user's column
+  // findings instead of waiting for every cell to finish. With
+  // CONCURRENCY=3 the overview takes one slot and cells fill the
+  // other two, so neither blocks the other.
   const queue = [
-    ...pending.map((c) => ({ kind: 'cell', cell: c })),
     ...overviewsToRun.map((o) => ({ kind: 'overview', overview: o })),
+    ...pending.map((c) => ({ kind: 'cell', cell: c })),
   ];
   let completed = 0;
   let failed = 0;
@@ -264,7 +267,11 @@ async function runOneOverview({ supabase, overview, review, modelInfo, key, docB
         // flags against clauses the user is already targeting.
         columns: review.columns_config || [],
       }) }],
-      maxTokens: 1500,
+      // 4000 tokens — each risk now includes a suggested_replace
+      // rewrite (≤200 words). 6 risks × (title + detail + quote +
+      // rewrite + rationale) easily exceeds the old 1500-token cap,
+      // which truncated mid-JSON and made the parser bail.
+      maxTokens: 4000,
       temperature: 0.2,
     }),
     PER_CELL_TIMEOUT_MS,
