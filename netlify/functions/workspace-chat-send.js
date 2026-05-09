@@ -143,7 +143,14 @@ export default async (req) => {
           }
         }
       } catch (err) {
-        send('error', { error: err.message || String(err) });
+        // Don't leak provider error details (could include API key
+        // fragments, internal request IDs, model debug info) to the
+        // browser. Log full error server-side for triage; send a
+        // generic string to the client. status_detail in the DB still
+        // gets the truncated raw message because that row is only
+        // readable by the row owner via RLS.
+        console.error('[workspace-chat-send] stream error:', err);
+        send('error', { error: 'The model stream failed. Please try again.' });
         await supabase
           .from('workspace_chat_messages')
           .update({ status: 'error', status_detail: err.message?.slice(0, 1000) || 'unknown' })

@@ -126,8 +126,11 @@ export default async (req) => {
   // show "classified as X, running Y" before polling)
   let contractText;
   try {
-    const extracted = await extractDocumentText(buffer, filename);
+    const extracted = await extractDocumentText(buffer, filename, { userId: auth.user.id });
     contractText = extracted.text;
+    if (extracted.ocr) {
+      console.log(`[start-review] OCR fallback was used for ${filename} (scanned/DocuSign PDF)`);
+    }
   } catch (err) {
     await supabase.from('reviews').update({ status: 'failed', error_message: err.message }).eq('id', reviewId);
     return json({ error: err.message }, 400);

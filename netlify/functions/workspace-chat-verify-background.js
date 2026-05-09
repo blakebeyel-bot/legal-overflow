@@ -95,8 +95,11 @@ export default async (req) => {
       { verification }
     );
   } catch (err) {
-    console.error('[chat-verify] persist failed:', err.message);
-    return json({ error: 'Persist failed', detail: err.message }, 500);
+    // Log raw error server-side; don't leak DB / Supabase error details
+    // (which can include constraint names, column names, etc.) back to
+    // the browser.
+    console.error('[chat-verify] persist failed:', err);
+    return json({ error: 'Verification persist failed' }, 500);
   }
 
   return json({

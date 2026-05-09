@@ -37,6 +37,11 @@ export default async (req) => {
     `)
     .eq('user_id', auth.user.id)
     .is('deleted_at', null)
+    // library_hidden=true rows were uploaded via the Vault page with
+    // destination=Vault only. Hide from Library UI but keep them in
+    // Storage + extraction pipeline so the Vault item still works.
+    // We use `or` so legacy rows (column null/missing) still appear.
+    .or('library_hidden.is.null,library_hidden.eq.false')
     .order('updated_at', { ascending: false })
     .limit(limit);
 

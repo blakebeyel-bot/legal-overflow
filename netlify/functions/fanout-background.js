@@ -104,7 +104,9 @@ async function processReview({ userId, reviewId, supabase }) {
   if (dlErr) throw new Error('Contract download failed: ' + dlErr.message);
 
   const contractBuffer = Buffer.from(await blob.arrayBuffer());
-  const { text: contractText, format } = await extractDocumentText(contractBuffer, review.filename);
+  const { text: contractText, format } = await extractDocumentText(
+    contractBuffer, review.filename, { userId }
+  );
 
   // 4. Pipeline mode — there is now only one ("standard"). Reviews persisted
   // before the collapse may have "express" or "comprehensive" stored in the

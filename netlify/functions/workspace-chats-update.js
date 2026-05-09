@@ -35,6 +35,10 @@ export default async (req) => {
       state_bills_enabled:      !!ls.state_bills_enabled,
       federal_bills_enabled:    !!ls.federal_bills_enabled,
       privacy_enabled:          !!ls.privacy_enabled,
+      // Vault toggle — null/undefined defers to the user's global
+      // setting (vault_auto_use_in_chats). Explicit true/false
+      // overrides for this specific chat.
+      vault_enabled: typeof ls.vault_enabled === 'boolean' ? ls.vault_enabled : null,
     };
   }
   if (Object.keys(patch).length === 0) return json({ ok: true });

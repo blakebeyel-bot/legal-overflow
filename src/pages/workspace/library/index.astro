@@ -1,6 +1,8 @@
 ---
 // Workspace document library — uploads persist here, can be re-attached
 // to multiple chats, and the chat reads their extracted text directly.
+// Verbatim port of Library.html prototype with all existing JS handlers
+// (upload, redline modal, edit-review modal, save-to-vault) preserved.
 ---
 <!doctype html>
 <html lang="en">
@@ -13,11 +15,746 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+<link rel="stylesheet" href="/site-anim.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
-<link rel="stylesheet" href="/workspace.css" />
+<script src="/site-anim.js" defer></script>
+<style is:global>
+  /* ============================================================
+     Library — page-local stylesheet (verbatim port of the prototype).
+     is:global because document cards + upload rows are rendered via
+     JS — those nodes don't get Astro auto-scoped attributes.
+     Page-local-ness enforced by body.ws-library ancestor selector.
+     ============================================================ */
+
+  body.ws-library {
+    --doc-paper: #fafaf6;
+    --rule-thread: #cbc4b1;
+    --motion-snap: cubic-bezier(.2,.8,.2,1);
+    --hi: #b22222; --md: #c98a14; --lo: #6a7c8e;
+    background-image:
+      radial-gradient(1100px 600px at 80% -10%, rgba(208,219,213,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(220,212,196,.25), transparent 70%);
+  }
+
+  /* ---------- shell ---------- */
+  body.ws-library main.ws-wrap {
+    position: relative; z-index: 2;
+    max-width: 1480px; width: 100%;
+    margin: 0 auto;
+    padding: 22px 40px 40px !important;
+    background: transparent;
+    border: none !important;
+  }
+  @media (max-width: 980px) {
+    body.ws-library main.ws-wrap { padding: 18px 16px 40px !important; }
+  }
+
+  /* ---------- ws-head with all four corner brackets ---------- */
+  body.ws-library .ws-head {
+    position: relative !important;
+    display: block !important;
+    padding: 14px 24px 22px !important;
+    margin: 0 0 22px !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  body.ws-library .ws-head::before, body.ws-library .ws-head::after,
+  body.ws-library .ws-head > .br-bl, body.ws-library .ws-head > .br-br {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid var(--ink); pointer-events: none;
+  }
+  body.ws-library .ws-head::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+  body.ws-library .ws-head::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
+  body.ws-library .ws-head > .br-bl { bottom: 0; left: 0; border-top: none; border-right: none; }
+  body.ws-library .ws-head > .br-br { bottom: 0; right: 0; border-top: none; border-left: none; }
+
+  body.ws-library .kicker {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  body.ws-library .kicker .k-tag {
+    border: 1px solid var(--accent-deep);
+    padding: 2px 7px; border-radius: 2px; font-size: 9.5px;
+  }
+  body.ws-library .kicker .k-coord { color: var(--ink-4); font-size: 9.5px; }
+
+  body.ws-library .head-row {
+    display: flex; gap: 20px; justify-content: space-between;
+    align-items: flex-end; flex-wrap: wrap;
+  }
+  body.ws-library .head-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 5vw, 68px);
+    letter-spacing: -.012em; line-height: 1; margin: 0;
+    color: var(--ink);
+  }
+  body.ws-library .head-title em { font-style: italic; color: var(--accent-deep); }
+  body.ws-library .head-sub {
+    font-family: var(--serif); font-size: 19px;
+    color: var(--ink-2); max-width: 64ch;
+    margin-top: 12px; line-height: 1.4;
+  }
+  body.ws-library .head-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  body.ws-library .head-actions .ws-btn,
+  body.ws-library .head-actions .ws-btn-ghost {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    text-decoration: none;
+    transition: background .15s var(--motion-snap), border-color .15s, color .15s;
+  }
+  body.ws-library .head-actions .ws-btn:hover {
+    background: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-library .head-actions .ws-btn-ghost {
+    background: transparent !important; color: var(--ink) !important;
+  }
+  body.ws-library .head-actions .ws-btn-ghost:hover {
+    background: var(--ink) !important; color: var(--paper) !important;
+  }
+  body.ws-library .head-actions .ws-btn svg { width: 12px; height: 12px; }
+
+  /* ---------- drop zone ---------- */
+  body.ws-library .dropzone {
+    position: relative;
+    border: 1px dashed var(--rule-thread); border-radius: 8px;
+    background: rgba(255,255,255,.3);
+    padding: 32px 32px;
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 24px; align-items: center;
+    transition: border-color .25s, background .25s;
+  }
+  body.ws-library .dropzone:hover,
+  body.ws-library .dropzone.is-drag {
+    border-color: var(--accent-deep);
+    background: rgba(215,237,224,.5);
+    border-style: solid;
+  }
+  body.ws-library .dropzone::before, body.ws-library .dropzone::after,
+  body.ws-library .dropzone .dz-bl, body.ws-library .dropzone .dz-br {
+    content: ''; position: absolute;
+    width: 12px; height: 12px;
+    border-color: var(--accent-deep);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .25s;
+  }
+  body.ws-library .dropzone::before { top: 8px; left: 8px; border-top: 1px solid; border-left: 1px solid; }
+  body.ws-library .dropzone::after  { top: 8px; right: 8px; border-top: 1px solid; border-right: 1px solid; }
+  body.ws-library .dropzone .dz-bl { bottom: 8px; left: 8px; border-bottom: 1px solid; border-left: 1px solid; }
+  body.ws-library .dropzone .dz-br { bottom: 8px; right: 8px; border-bottom: 1px solid; border-right: 1px solid; }
+  body.ws-library .dropzone:hover::before, body.ws-library .dropzone:hover::after,
+  body.ws-library .dropzone:hover .dz-bl, body.ws-library .dropzone:hover .dz-br,
+  body.ws-library .dropzone.is-drag::before, body.ws-library .dropzone.is-drag::after,
+  body.ws-library .dropzone.is-drag .dz-bl, body.ws-library .dropzone.is-drag .dz-br {
+    opacity: 1;
+  }
+  body.ws-library .dz-l { display: flex; flex-direction: column; gap: 8px; }
+  body.ws-library .dz-kick {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  body.ws-library .dz-kick .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-deep);
+    animation: libPulse 2s ease-in-out infinite;
+  }
+  @keyframes libPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  body.ws-library .dz-title {
+    font-family: var(--serif); font-size: 32px;
+    letter-spacing: -.01em; color: var(--ink);
+    margin: 0; line-height: 1.1;
+    font-weight: 400;
+  }
+  body.ws-library .dz-title em { font-style: italic; color: var(--accent-deep); }
+  body.ws-library .dz-sub {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  body.ws-library .dz-r { display: flex; flex-direction: column; gap: 8px; }
+  body.ws-library .dz-r .ws-btn,
+  body.ws-library .dz-r .ws-btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 18px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    text-decoration: none;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  body.ws-library .dz-r .ws-btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  body.ws-library .dz-r .ws-btn-ghost { background: transparent; color: var(--ink); font-size: 10px; }
+  body.ws-library .dz-r .ws-btn-ghost:hover { background: var(--ink); color: var(--paper); }
+  @media (max-width: 980px) {
+    body.ws-library .dropzone { grid-template-columns: 1fr; padding: 22px; }
+  }
+
+  /* ---------- meta strip ---------- */
+  body.ws-library .meta-strip {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    margin: 22px 0;
+  }
+  body.ws-library .ms-cell {
+    padding: 13px 18px;
+    border-right: 1px solid var(--rule-soft);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  body.ws-library .ms-cell:last-child { border-right: none; }
+  body.ws-library .ms-l {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-library .ms-v {
+    font-family: var(--serif); font-size: 24px;
+    color: var(--ink); line-height: 1;
+  }
+  body.ws-library .ms-v em { font-style: italic; color: var(--accent-deep); }
+  body.ws-library .ms-d {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-4);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  @media (max-width: 1100px) {
+    body.ws-library .meta-strip { grid-template-columns: repeat(2, 1fr); }
+    body.ws-library .ms-cell:nth-child(2n) { border-right: none; }
+  }
+
+  /* ---------- sec-div ---------- */
+  body.ws-library .sec-div {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 16px;
+    margin: 8px 0 14px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-library .sec-div .sec-num { color: var(--ink); }
+  body.ws-library .sec-div .sec-rule { height: 1px; background: var(--rule-soft); }
+  body.ws-library .sec-div .sec-meta { color: var(--ink-4); font-size: 9.5px; }
+
+  /* ---------- filter row ---------- */
+  body.ws-library .filter-row {
+    display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.3);
+    padding: 4px 10px;
+    margin-bottom: 16px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  body.ws-library .filter-row .fl-l {
+    font-size: 9px; color: var(--ink-4);
+    letter-spacing: .14em;
+    margin-right: 10px; padding: 4px 0;
+  }
+  body.ws-library .fl-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 11px;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-3);
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-library .fl-toggle:hover { color: var(--ink); }
+  body.ws-library .fl-toggle.is-on { color: var(--accent-deep); }
+  body.ws-library .fl-toggle .fl-pip {
+    width: 5px; height: 5px; border-radius: 50%;
+    border: 1px solid currentColor; transition: background .15s;
+  }
+  body.ws-library .fl-toggle.is-on .fl-pip { background: currentColor; }
+  body.ws-library .fl-toggle .fl-cnt { font-size: 9px; opacity: .7; }
+  body.ws-library .fl-sep {
+    width: 1px; height: 12px; background: var(--rule-soft);
+    margin: 0 1px;
+  }
+  body.ws-library .fl-spacer { flex: 1; }
+  body.ws-library .fl-search {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.4);
+    margin-right: 6px;
+  }
+  body.ws-library .fl-search input {
+    border: none; outline: none; background: transparent;
+    font-family: var(--sans); font-size: 12.5px;
+    color: var(--ink); width: 200px;
+  }
+  body.ws-library .fl-search input::placeholder { color: var(--ink-4); }
+  body.ws-library .fl-sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; cursor: pointer;
+    color: var(--ink-3);
+    background: transparent; border: none;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-library .fl-sort:hover { color: var(--ink); }
+  body.ws-library .fl-sort .v {
+    font-family: var(--sans); text-transform: none; letter-spacing: 0;
+    font-size: 11.5px;
+    color: var(--ink); border-bottom: 1px dotted var(--ink-3);
+  }
+  body.ws-library .layout-seg {
+    display: inline-flex;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    overflow: hidden;
+    margin-left: 6px;
+  }
+  body.ws-library .layout-seg-btn {
+    padding: 4px 10px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: transparent; border: none; cursor: pointer;
+    border-right: 1px solid var(--rule-soft);
+    transition: color .15s, background .15s;
+  }
+  body.ws-library .layout-seg-btn:last-child { border-right: none; }
+  body.ws-library .layout-seg-btn:hover { color: var(--ink); }
+  body.ws-library .layout-seg-btn.is-active {
+    background: var(--ink); color: var(--paper);
+  }
+
+  /* ---------- grid of doc cards ---------- */
+  body.ws-library .lib-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  }
+  @media (max-width: 1280px) { body.ws-library .lib-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 980px)  { body.ws-library .lib-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px)  { body.ws-library .lib-grid { grid-template-columns: 1fr; } }
+
+  /* List layout — flips the grid to 1-col with horizontal cards */
+  body.ws-library .lib-grid.is-list { grid-template-columns: 1fr; }
+  body.ws-library .lib-grid.is-list .lib-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+  }
+  body.ws-library .lib-grid.is-list .lc-thumb {
+    width: 56px; height: 56px;
+    flex-shrink: 0;
+    padding: 6px 8px; gap: 2px;
+  }
+  body.ws-library .lib-grid.is-list .lc-thumb-h { font-size: 7px; margin-bottom: 1px; }
+  body.ws-library .lib-grid.is-list .lc-thumb-line { height: 2px; }
+  body.ws-library .lib-grid.is-list .lc-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  body.ws-library .lib-grid.is-list .lc-title { font-size: 14px; -webkit-line-clamp: 1; }
+  body.ws-library .lib-grid.is-list .lc-meta { border-top: none; padding-top: 0; }
+  body.ws-library .lib-grid.is-list .lc-kicker { padding: 0; }
+
+  body.ws-library .lib-card {
+    position: relative;
+    border: 1px solid var(--rule-soft); border-radius: 6px;
+    background: var(--paper-2);
+    padding: 14px 14px 12px;
+    cursor: pointer;
+    display: flex; flex-direction: column; gap: 10px;
+    color: var(--ink); text-decoration: none;
+    transition: border-color .15s var(--motion-snap),
+                transform .15s, background .15s;
+  }
+  body.ws-library .lib-card:hover {
+    border-color: var(--ink); transform: translateY(-2px);
+  }
+  body.ws-library .lib-card::before, body.ws-library .lib-card::after {
+    content: ''; position: absolute;
+    width: 8px; height: 8px;
+    border-color: var(--ink-4);
+    pointer-events: none;
+    transition: border-color .15s var(--motion-snap), width .15s var(--motion-snap), height .15s var(--motion-snap);
+  }
+  body.ws-library .lib-card::before { top: 4px; left: 4px; border-top: 1px solid; border-left: 1px solid; }
+  body.ws-library .lib-card::after  { bottom: 4px; right: 4px; border-bottom: 1px solid; border-right: 1px solid; }
+  body.ws-library .lib-card:hover::before, body.ws-library .lib-card:hover::after {
+    border-color: var(--accent-deep); width: 12px; height: 12px;
+  }
+  body.ws-library .lib-card.is-pending { border-color: var(--md); }
+  body.ws-library .lib-card.is-failed { border-color: var(--hi); }
+
+  /* Thumbnail */
+  body.ws-library .lc-thumb {
+    position: relative;
+    height: 118px;
+    background: var(--doc-paper);
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    padding: 14px 12px; gap: 5px;
+    font-family: var(--serif); color: var(--ink-3);
+  }
+  body.ws-library .lc-thumb::before {
+    content: ''; position: absolute;
+    top: 0; right: 0;
+    width: 14px; height: 14px;
+    border-left: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper-2);
+  }
+  body.ws-library .lc-thumb-line {
+    height: 4px; background: var(--rule-soft); border-radius: 1px;
+  }
+  body.ws-library .lc-thumb-line.short { width: 60%; }
+  body.ws-library .lc-thumb-line.tiny  { width: 35%; }
+  body.ws-library .lc-thumb-h {
+    font-family: var(--mono); font-size: 8px;
+    color: var(--ink-4);
+    letter-spacing: .12em; text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  body.ws-library .lib-card.is-pending .lc-thumb {
+    background: linear-gradient(180deg, var(--doc-paper) 60%, var(--paper-2) 60%);
+  }
+  body.ws-library .lib-card.is-pending .lc-thumb-h { color: var(--md); }
+
+  /* Card kicker line (kind + status) */
+  body.ws-library .lc-kicker {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-library .lc-kind {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  body.ws-library .lc-kind .pip {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--accent-deep);
+  }
+  body.ws-library .lc-kind.is-pdf .pip { background: var(--hi); }
+  body.ws-library .lc-kind.is-doc .pip { background: var(--ink-2); }
+  body.ws-library .lc-kind.is-mail .pip { background: var(--lo); }
+  body.ws-library .lc-kind.is-img .pip { background: var(--md); }
+  body.ws-library .lc-kind.is-txt .pip { background: var(--ink-3); }
+
+  body.ws-library .lc-status { color: var(--accent-deep); }
+  body.ws-library .lc-status.pending { color: var(--md); }
+  body.ws-library .lc-status.failed { color: var(--hi); }
+
+  body.ws-library .lc-title {
+    font-family: var(--serif); font-size: 16px;
+    line-height: 1.25; color: var(--ink);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin: 0;
+  }
+  body.ws-library .lc-title em { font-style: italic; }
+
+  body.ws-library .lc-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .04em;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin-top: auto;
+    padding-top: 6px;
+    border-top: 1px dotted var(--rule-soft);
+  }
+  body.ws-library .lc-meta .dot { color: var(--rule-thread); }
+
+  /* Card delete button — top-right, fades in on hover */
+  body.ws-library .lc-del {
+    position: absolute; top: 6px; right: 6px;
+    width: 22px; height: 22px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--ink-4);
+    font-size: 14px; line-height: 1;
+    border-radius: 4px; cursor: pointer;
+    opacity: 0; z-index: 2;
+    transition: opacity .15s, background .15s, color .15s, border-color .15s;
+  }
+  body.ws-library .lib-card:hover .lc-del { opacity: 1; }
+  body.ws-library .lc-del:hover {
+    background: var(--hi); color: white; border-color: var(--hi);
+  }
+
+  /* Skeleton */
+  body.ws-library .lib-skel {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--rule-soft); border-radius: 6px;
+    background: var(--paper-2);
+    padding: 14px 14px 12px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  body.ws-library .lib-skel::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+    animation: libShim 1.4s linear infinite;
+  }
+  @keyframes libShim {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  body.ws-library .skel-thumb {
+    height: 118px;
+    background: var(--rule-soft);
+    border-radius: 4px;
+    opacity: .4;
+  }
+  body.ws-library .skel-line {
+    height: 11px;
+    background: var(--rule-soft); border-radius: 2px;
+    opacity: .4;
+  }
+  body.ws-library .skel-line.short { width: 60%; }
+  body.ws-library .skel-line.tiny  { width: 35%; }
+
+  /* ---------- upload progress strip (rows appended below grid) ---------- */
+  body.ws-library .lib-uploads {
+    margin-top: 18px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  body.ws-library .lib-upload {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 10px 14px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.4);
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-2); letter-spacing: .04em;
+  }
+  body.ws-library .lib-upload-name {
+    font-family: var(--sans); font-size: 13px; color: var(--ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  body.ws-library .lib-upload-status {
+    color: var(--ink-3); text-transform: uppercase; letter-spacing: .12em;
+  }
+  body.ws-library .lib-upload.is-done {
+    border-color: var(--accent-deep);
+    background: rgba(215,237,224,.3);
+  }
+  body.ws-library .lib-upload.is-done .lib-upload-status { color: var(--accent-deep); }
+  body.ws-library .lib-upload.is-error {
+    border-color: var(--hi);
+    background: rgba(178,34,34,.06);
+  }
+  body.ws-library .lib-upload.is-error .lib-upload-status { color: var(--hi); }
+
+  /* Save-to-vault tiny button on each card */
+  body.ws-library .save-to-vault-btn {
+    margin-top: 4px;
+    background: transparent; border: 1px solid var(--rule-soft);
+    color: var(--ink-3);
+    font-family: var(--mono); font-size: 9px;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 3px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-library .save-to-vault-btn:hover {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-library .save-to-vault-btn.is-saved {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+    cursor: default;
+  }
+
+  /* Empty state */
+  body.ws-library .ws-empty {
+    grid-column: 1 / -1;
+    padding: 60px 28px; text-align: center;
+    color: var(--ink-3);
+    font-family: var(--serif); font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Foot line */
+  body.ws-library .ws-foot {
+    margin-top: 36px; padding-top: 18px;
+    border-top: 1px solid var(--rule-soft);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  body.ws-library .ws-foot a {
+    color: var(--ink-3); text-decoration: none;
+    border-bottom: 1px solid var(--rule-soft); padding-bottom: 1px;
+  }
+  body.ws-library .ws-foot a:hover {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+
+  /* Modal restyle (redline + edit-review use .attach-modal class) */
+  body.ws-library .attach-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(14,21,18,.4);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  body.ws-library .attach-modal-inner {
+    background: var(--paper);
+    border: 1px solid var(--ink); border-radius: 8px;
+    max-width: 580px; width: 100%;
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  body.ws-library .attach-modal-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  body.ws-library .attach-modal-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 22px; letter-spacing: -.005em;
+    margin: 0;
+  }
+  body.ws-library .attach-modal-close {
+    width: 28px; height: 28px;
+    background: transparent; border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    color: var(--ink-3); cursor: pointer;
+    font-size: 14px; line-height: 1;
+  }
+  body.ws-library .attach-modal-close:hover { border-color: var(--ink); color: var(--ink); }
+  body.ws-library .attach-modal-body {
+    flex: 1; overflow-y: auto; padding: 18px 22px;
+  }
+  body.ws-library .attach-modal-foot {
+    padding: 12px 22px;
+    border-top: 1px solid var(--rule-soft);
+    display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+  }
+  body.ws-library .attach-modal-foot .ws-btn,
+  body.ws-library .attach-modal-foot .ws-btn-secondary {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 16px;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    cursor: pointer; text-decoration: none;
+    transition: background .15s, border-color .15s;
+  }
+  body.ws-library .attach-modal-foot .ws-btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  body.ws-library .attach-modal-foot .ws-btn-secondary {
+    background: transparent; color: var(--ink); border-color: var(--rule-soft);
+  }
+  body.ws-library .attach-modal-foot .ws-btn-secondary:hover {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+
+  /* rdln-* (redline modal interior) — kept minimal/utilitarian */
+  body.ws-library .rdln-explainer { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
+  body.ws-library .rdln-status {
+    margin-top: 10px; padding: 10px 12px;
+    background: var(--paper-2); border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+    letter-spacing: .04em;
+  }
+  body.ws-library .rdln-status.is-running { color: var(--accent-deep); }
+  body.ws-library .rdln-status.is-error { color: var(--hi); border-color: var(--hi); }
+  body.ws-library .rdln-status.is-warn { color: var(--md); border-color: var(--md); }
+  body.ws-library .rdln-summary { margin-bottom: 14px; }
+  body.ws-library .rdln-summary-p { font-size: 13px; color: var(--ink-2); margin: 6px 0 10px; }
+  body.ws-library .rdln-bulkbar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding-bottom: 10px; border-bottom: 1px solid var(--rule-soft);
+  }
+  body.ws-library .rdln-counter {
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+    letter-spacing: .04em;
+  }
+  body.ws-library .rdln-edits-list { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+  body.ws-library .rdln-edit {
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,.4);
+  }
+  body.ws-library .rdln-edit.is-accepted { border-color: var(--accent-deep); background: rgba(215,237,224,.3); }
+  body.ws-library .rdln-edit.is-rejected { border-color: var(--hi); background: rgba(178,34,34,.04); }
+  body.ws-library .rdln-edit-rationale {
+    font-family: var(--sans); font-size: 12.5px; color: var(--ink-2);
+    margin-bottom: 8px;
+  }
+  body.ws-library .rdln-edit-diff { display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 8px; }
+  body.ws-library .rdln-edit-from, body.ws-library .rdln-edit-to {
+    border-left: 2px solid var(--rule-soft);
+    padding: 4px 8px;
+    font-family: 'Times New Roman', serif; font-size: 12.5px; line-height: 1.4;
+    background: rgba(255,255,255,.5);
+  }
+  body.ws-library .rdln-edit-from { border-left-color: var(--hi); }
+  body.ws-library .rdln-edit-to { border-left-color: var(--accent-deep); }
+  body.ws-library .rdln-edit-label {
+    display: block;
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  body.ws-library .rdln-edit-empty { color: var(--ink-4); }
+  body.ws-library .rdln-edit-actions {
+    display: flex; gap: 6px;
+  }
+  body.ws-library .rdln-edit-actions button {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 5px 10px;
+    border: 1px solid var(--rule-soft); border-radius: 3px;
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  body.ws-library .rdln-btn-acc.is-on { background: var(--accent-deep); color: var(--paper); border-color: var(--accent-deep); }
+  body.ws-library .rdln-btn-rej.is-on { background: var(--hi); color: white; border-color: var(--hi); }
+  body.ws-library .rdln-btn-pen.is-on { background: var(--ink-3); color: var(--paper); border-color: var(--ink-3); }
+  body.ws-library .rdln-final-status { font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); }
+  body.ws-library .rdln-final-status.is-error { color: var(--hi); }
+  body.ws-library .rv-field { display: flex; flex-direction: column; gap: 6px; }
+  body.ws-library .rv-field-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-library .rv-field textarea {
+    font-family: var(--sans); font-size: 13.5px; line-height: 1.45;
+    padding: 10px 12px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: var(--paper); color: var(--ink);
+    outline: none; resize: vertical;
+    min-height: 120px;
+  }
+  body.ws-library .rv-field textarea:focus { border-color: var(--ink); }
+  body.ws-library .lib-back {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3); letter-spacing: .12em; text-transform: uppercase;
+    text-decoration: none;
+  }
+  body.ws-library .lib-back:hover { color: var(--accent-deep); }
+</style>
 </head>
-<body>
+<body class="ws-library">
 <div id="grain"></div>
 
 <header class="nav">
@@ -40,34 +777,120 @@
 </header>
 
 <main class="ws-wrap">
+
   <header class="ws-head">
-    <div>
-      <div class="ws-kicker">Library</div>
-      <h1 class="ws-title">Document library.</h1>
-      <p class="ws-sub">Uploads stay here. Attach the same doc to as many chats as you want, no re-upload.</p>
+    <span class="br-bl"></span><span class="br-br"></span>
+    <div class="kicker">
+      <span class="k-tag">LIBRARY</span>
+      <span class="k-coord" id="lib-coord">/WS.01 · WORKING SET · — ITEMS</span>
     </div>
-    <div class="ws-head-actions">
-      <button id="upload-btn" class="ws-btn">Upload document</button>
-      <input type="file" id="upload-input" hidden multiple
-        accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" />
+    <div class="head-row">
+      <div>
+        <h1 class="head-title">Working <em>library</em>.</h1>
+        <p class="head-sub">Documents you've uploaded for active work — chats, reviews, comparisons. The vault is the long-term archive; this is the bench.</p>
+      </div>
+      <div class="head-actions">
+        <button class="ws-btn ws-btn-ghost" id="bulk-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Bulk import
+        </button>
+        <button class="ws-btn" id="upload-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+          Add document
+        </button>
+        <input type="file" id="upload-input" hidden multiple
+          accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" />
+      </div>
     </div>
   </header>
 
-  <div class="lib-toolbar">
-    <input id="lib-search" type="search" placeholder="Search filename…" />
-    <a href="/workspace/" class="lib-back">← Workspace home</a>
+  <div class="dropzone" id="dropzone">
+    <span class="dz-bl"></span><span class="dz-br"></span>
+    <div class="dz-l">
+      <span class="dz-kick"><span class="pip"></span>DROP TO INDEX · OCR · EMBED</span>
+      <h2 class="dz-title">Drop <em>any document</em> here.</h2>
+      <span class="dz-sub">
+        <span>PDF · DOCX · TXT · MD</span>
+        <span>UP TO 200MB</span>
+        <span>EXTRACT &amp; INDEX</span>
+      </span>
+    </div>
+    <div class="dz-r">
+      <button class="ws-btn" id="dz-pick" type="button">Choose files</button>
+    </div>
   </div>
 
-  <section class="ws-card">
-    <div id="lib-grid" class="lib-grid">
-      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:75%"></div><div class="sk-block sk-block-meta" style="width:50%"></div></div>
-      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:60%"></div><div class="sk-block sk-block-meta" style="width:40%"></div></div>
-      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:80%"></div><div class="sk-block sk-block-meta" style="width:55%"></div></div>
-      <div class="lib-card sk-list-item"><div class="sk-block sk-block-title" style="width:50%"></div><div class="sk-block sk-block-meta" style="width:35%"></div></div>
+  <div class="meta-strip">
+    <div class="ms-cell">
+      <span class="ms-l">DOCUMENTS</span>
+      <span class="ms-v" id="ms-doc-count">—</span>
+      <span class="ms-d" id="ms-doc-recent">indexed</span>
     </div>
-  </section>
+    <div class="ms-cell">
+      <span class="ms-l">PROCESSING</span>
+      <span class="ms-v" id="ms-processing" style="color:var(--md)">—</span>
+      <span class="ms-d" id="ms-processing-d">extraction queue</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">VERIFIED</span>
+      <span class="ms-v" id="ms-verified">—</span>
+      <span class="ms-d">extraction done</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">PDF · DOCX</span>
+      <span class="ms-v" id="ms-formats">—</span>
+      <span class="ms-d">primary formats</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">STORAGE</span>
+      <span class="ms-v" id="ms-storage">—</span>
+      <span class="ms-d">total size</span>
+    </div>
+  </div>
+
+  <div class="sec-div">
+    <span class="sec-num">§ 01.A</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">DOCUMENTS · NEWEST FIRST</span>
+  </div>
+
+  <div class="filter-row" role="toolbar" aria-label="Library filters">
+    <span class="fl-l">FILTER ·</span>
+    <button type="button" class="fl-toggle is-on" data-filter="all"><span class="fl-pip"></span>All <span class="fl-cnt" id="fl-cnt-all">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-filter="pdf"><span class="fl-pip"></span>PDF <span class="fl-cnt" id="fl-cnt-pdf">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-filter="doc"><span class="fl-pip"></span>Word <span class="fl-cnt" id="fl-cnt-doc">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-filter="txt"><span class="fl-pip"></span>Text <span class="fl-cnt" id="fl-cnt-txt">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-filter="processing"><span class="fl-pip"></span>Processing <span class="fl-cnt" id="fl-cnt-processing">[—]</span></button>
+    <span class="fl-spacer"></span>
+    <span class="fl-search">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input id="lib-search" type="search" placeholder="Search filename…" />
+    </span>
+    <button type="button" class="fl-sort" id="lib-sort"><span>Sort</span><span class="v" id="sort-v">Updated · newest</span></button>
+    <span class="fl-sep"></span>
+    <div class="layout-seg">
+      <button type="button" class="layout-seg-btn is-active" data-layout="grid">Grid</button>
+      <button type="button" class="layout-seg-btn" data-layout="list">List</button>
+    </div>
+  </div>
+
+  <div id="lib-grid" class="lib-grid">
+    <div class="lib-skel"><div class="skel-thumb"></div><div class="skel-line tiny"></div><div class="skel-line"></div><div class="skel-line short"></div></div>
+    <div class="lib-skel"><div class="skel-thumb"></div><div class="skel-line tiny"></div><div class="skel-line"></div><div class="skel-line short"></div></div>
+    <div class="lib-skel"><div class="skel-thumb"></div><div class="skel-line tiny"></div><div class="skel-line"></div><div class="skel-line short"></div></div>
+    <div class="lib-skel"><div class="skel-thumb"></div><div class="skel-line tiny"></div><div class="skel-line"></div><div class="skel-line short"></div></div>
+  </div>
 
   <div id="upload-progress" class="lib-uploads"></div>
+
+  <p class="ws-foot">
+    <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF LIBRARY</span>
+    <a href="/workspace/">← Workspace home</a>
+  </p>
 </main>
 
 <footer class="foot">
@@ -85,27 +908,28 @@
   import { getSupabase } from '../../../lib/supabase';
   const supabase = getSupabase();
 
-  document.body.style.visibility = 'hidden';
+  // Body never hidden — match the dashboard's hardened pattern.
+  console.log('[library] Script started');
   let session = null;
   try {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
     session = data?.session;
     if (!session) {
+      console.info('[library] No session — redirecting to /login/');
       location.href = '/login/?redirect=/workspace/library/';
       throw new Error('not signed in');
     }
     const { data: profile } = await supabase
       .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
     if (!profile?.approved_at) {
-      document.body.style.visibility = '';
       document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
       throw new Error('pending approval');
     }
-    document.body.style.visibility = '';
+    console.log('[library] Auth gate passed, user', session.user?.id);
   } catch (err) {
     if (err && !['not signed in', 'pending approval'].includes(err.message)) {
-      document.body.style.visibility = '';
+      console.error('[library] Gate failed:', err);
       document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Library error</h1><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap">${(err && err.message ? err.message : String(err)).replace(/[<>&]/g,(c)=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
     }
     throw err;
@@ -119,7 +943,16 @@
     uploadBtn: document.getElementById('upload-btn'),
     uploadInput: document.getElementById('upload-input'),
     uploadProgress: document.getElementById('upload-progress'),
+    dropzone: document.getElementById('dropzone'),
+    dzPick: document.getElementById('dz-pick'),
   };
+
+  // State for client-side filtering / sorting / layout
+  let allDocs = [];
+  let activeFilter = 'all';
+  let activeLayout = 'grid';
+  const SORT_VALUES = ['Updated · newest', 'Updated · oldest', 'Title · A–Z', 'Size · large', 'Size · small'];
+  let sortIdx = 0;
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -140,46 +973,163 @@
     if (ext === 'md' || /markdown/.test(mime)) return 'MD';
     return ext ? ext.toUpperCase() : '?';
   }
+  function kindClass(badge) {
+    if (badge === 'PDF') return 'is-pdf';
+    if (badge === 'DOCX' || badge === 'DOC') return 'is-doc';
+    if (badge === 'EML' || badge === 'MSG') return 'is-mail';
+    if (badge === 'PNG' || badge === 'JPG' || badge === 'JPEG' || badge === 'IMG' || badge === 'TIFF') return 'is-img';
+    return 'is-txt';
+  }
+  function relTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    const yest = new Date(today); yest.setDate(today.getDate() - 1);
+    if (d.toDateString() === yest.toDateString()) {
+      const pad = (n) => String(n).padStart(2, '0');
+      return 'YDA ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }).toUpperCase();
+  }
 
-  let allDocs = [];
-  function renderGrid(docs) {
-    if (!docs?.length) {
-      els.grid.innerHTML = '<div class="ws-empty">No documents yet. Click "Upload document" above.</div>';
+  function applySort(arr) {
+    const v = SORT_VALUES[sortIdx];
+    const sorted = [...arr];
+    if (v === 'Updated · newest') sorted.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+    else if (v === 'Updated · oldest') sorted.sort((a, b) => (a.updated_at || '').localeCompare(b.updated_at || ''));
+    else if (v === 'Title · A–Z') sorted.sort((a, b) => (a.filename || '').localeCompare(b.filename || ''));
+    else if (v === 'Size · large') sorted.sort((a, b) => (b.size_bytes || 0) - (a.size_bytes || 0));
+    else if (v === 'Size · small') sorted.sort((a, b) => (a.size_bytes || 0) - (b.size_bytes || 0));
+    return sorted;
+  }
+  function applyFilter(arr) {
+    if (activeFilter === 'all') return arr;
+    return arr.filter((d) => {
+      const status = d.current_version?.extraction_status || 'unknown';
+      const badge = fileTypeBadge(d.file_type, d.original_filename);
+      if (activeFilter === 'pdf') return badge === 'PDF';
+      if (activeFilter === 'doc') return badge === 'DOCX' || badge === 'DOC';
+      if (activeFilter === 'txt') return badge === 'TXT' || badge === 'MD';
+      if (activeFilter === 'processing') return status === 'pending' || status === 'running';
+      return true;
+    });
+  }
+
+  function renderGrid() {
+    const filtered = applyFilter(allDocs);
+    const sorted = applySort(filtered);
+
+    // Update counts + meta strip + coord
+    updateMetaStrip();
+    updateFilterCounts();
+
+    if (!sorted.length) {
+      els.grid.innerHTML = '<div class="ws-empty"><strong>No documents yet.</strong><br/>Drop files into the zone above, or click "Add document".</div>';
       return;
     }
-    els.grid.innerHTML = docs.map((d) => {
+
+    els.grid.innerHTML = sorted.map((d) => {
       const badge = fileTypeBadge(d.file_type, d.original_filename);
+      const kCls = kindClass(badge);
       const status = d.current_version?.extraction_status || 'unknown';
+      const chars = d.current_version?.extracted_chars || 0;
+      const isPending = status === 'pending' || status === 'running';
+      const isFailed = status === 'failed';
+      const cardCls = 'lib-card' + (isPending ? ' is-pending' : '') + (isFailed ? ' is-failed' : '');
       const statusLabel =
-        status === 'done' ? `${(d.current_version?.extracted_chars || 0).toLocaleString()} chars` :
-        status === 'pending' || status === 'running' ? 'extracting…' :
-        status === 'failed' ? 'preview unavailable' :
-        status === 'skipped' ? 'preview unavailable' :
+        status === 'done' ? '● VERIFIED' :
+        isPending ? '● PROCESSING' :
+        status === 'failed' ? '● FAILED' :
+        status === 'skipped' ? '● NO PREVIEW' :
         '—';
-      const date = new Date(d.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-      // Redline functionality moved into Tabular Reviews — kind=redline
-      // (Phase 7 consolidation). The library cards stay as a pure
-      // upload/view/delete surface.
-      return `<div class="lib-card" data-id="${d.id}">
-        <div class="lib-card-head">
-          <span class="lib-badge">${badge}</span>
-          <button type="button" class="lib-card-del" data-del="${d.id}" data-name="${escapeHtml(d.filename)}" aria-label="Delete">×</button>
+      const statusCls = status === 'done' ? '' : (isPending ? 'pending' : (isFailed ? 'failed' : 'pending'));
+
+      // Thumbnail header text — kind + page-ish hint
+      const thumbH = isPending ? 'EXTRACTING…' : (badge + ' DOCUMENT');
+
+      const charLabel = status === 'done' ? `${chars.toLocaleString()} chars` :
+                        isPending ? 'extracting…' :
+                        status === 'failed' ? 'preview unavailable' :
+                        status === 'skipped' ? 'no preview' : '—';
+
+      return `<a href="/workspace/library/?id=${d.id}" class="${cardCls}" data-id="${d.id}">
+        <button type="button" class="lc-del" data-del="${d.id}" data-name="${escapeHtml(d.filename)}" aria-label="Delete" title="Delete">×</button>
+        <div class="lc-thumb">
+          <div class="lc-thumb-h">${escapeHtml(thumbH)}</div>
+          <div class="lc-thumb-line"></div>
+          <div class="lc-thumb-line short"></div>
+          <div class="lc-thumb-line"></div>
+          <div class="lc-thumb-line tiny"></div>
+          <div class="lc-thumb-line short"></div>
         </div>
-        <a href="/workspace/library/?id=${d.id}" class="lib-card-link">
-          <div class="lib-card-name">${escapeHtml(d.filename)}</div>
-          <div class="lib-card-meta">${formatBytes(d.size_bytes)} · ${escapeHtml(statusLabel)}</div>
-          <div class="lib-card-date">${date}</div>
-        </a>
-      </div>`;
+        <div class="lc-mid">
+          <div class="lc-kicker">
+            <span class="lc-kind ${kCls}"><span class="pip"></span>${badge}</span>
+            <span class="lc-status ${statusCls}">${statusLabel}</span>
+          </div>
+          <div class="lc-title">${escapeHtml(d.filename || '')}</div>
+          <div class="lc-meta">
+            <span>${formatBytes(d.size_bytes)}</span>
+            <span class="dot">·</span>
+            <span>${escapeHtml(relTime(d.updated_at))}</span>
+            <span class="dot">·</span>
+            <span>${escapeHtml(charLabel)}</span>
+          </div>
+        </div>
+        <button type="button" class="save-to-vault-btn" data-save-vault="${d.id}" data-name="${escapeHtml(d.filename)}" aria-label="Save to Vault">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>Save to Vault</span>
+        </button>
+      </a>`;
     }).join('');
+
+    // Wire buttons (delete + save-to-vault)
+    els.grid.querySelectorAll('[data-save-vault]').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (btn.classList.contains('is-saved')) return;
+        const id = btn.dataset.saveVault;
+        const name = btn.dataset.name;
+        btn.disabled = true;
+        btn.querySelector('span').textContent = 'Saving…';
+        try {
+          const meta = await fetch(`/.netlify/functions/workspace-library-get?id=${encodeURIComponent(id)}&include_text=1`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const mj = await meta.json();
+          if (!meta.ok) throw new Error(mj.error || 'Could not load document');
+          const text = mj.current_version_text || '';
+          if (!text.trim()) throw new Error('Document text is not available yet (extraction still running?). Try again in a minute.');
+          const r = await fetch('/.netlify/functions/workspace-vault-add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ source_kind: 'document', source_doc_id: id, title: name, content: text }),
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || 'Save failed');
+          btn.classList.add('is-saved');
+          btn.querySelector('span').textContent = 'Saved to Vault';
+          if (typeof window.siteToast === 'function') window.siteToast('Added to your Vault', { kind: 'success' });
+        } catch (err) {
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Save to Vault';
+          alert('Could not save: ' + err.message);
+        }
+      });
+    });
 
     els.grid.querySelectorAll('[data-del]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         const id = btn.dataset.del;
         const name = btn.dataset.name;
-        if (!confirm(`Delete "${name}"? You can recover it from operator if you change your mind.`)) return;
+        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
         btn.disabled = true;
         const r = await fetch('/.netlify/functions/workspace-library-delete', {
           method: 'POST',
@@ -192,26 +1142,65 @@
           btn.disabled = false;
           return;
         }
+        try { localStorage.removeItem(LIB_CACHE_KEY); } catch {}
         loadDocs();
       });
     });
   }
 
-  // Cache-first library load: render previously-seen docs from
-  // localStorage instantly, then refresh from the server in the
-  // background. Only the unfiltered list is cached (search queries
-  // bypass cache and hit the server fresh).
+  function updateMetaStrip() {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const total = allDocs.length;
+    set('ms-doc-count', total);
+    set('ms-doc-recent', total === 1 ? '1 indexed' : total + ' indexed');
+    const processing = allDocs.filter((d) => {
+      const s = d.current_version?.extraction_status;
+      return s === 'pending' || s === 'running';
+    }).length;
+    const verified = allDocs.filter((d) => d.current_version?.extraction_status === 'done').length;
+    set('ms-processing', processing || '0');
+    set('ms-processing-d', processing ? 'extracting…' : 'queue empty');
+    set('ms-verified', verified || '0');
+    const pdfs = allDocs.filter((d) => fileTypeBadge(d.file_type, d.original_filename) === 'PDF').length;
+    const docs = allDocs.filter((d) => {
+      const b = fileTypeBadge(d.file_type, d.original_filename);
+      return b === 'DOCX' || b === 'DOC';
+    }).length;
+    set('ms-formats', pdfs + ' / ' + docs);
+    const totalBytes = allDocs.reduce((s, d) => s + (d.size_bytes || 0), 0);
+    set('ms-storage', formatBytes(totalBytes));
+    const coord = document.getElementById('lib-coord');
+    if (coord) coord.textContent = '/WS.01 · WORKING SET · ' + total + ' ITEM' + (total === 1 ? '' : 'S');
+  }
+  function updateFilterCounts() {
+    const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = '[' + n + ']'; };
+    set('fl-cnt-all', allDocs.length);
+    set('fl-cnt-pdf', allDocs.filter((d) => fileTypeBadge(d.file_type, d.original_filename) === 'PDF').length);
+    set('fl-cnt-doc', allDocs.filter((d) => {
+      const b = fileTypeBadge(d.file_type, d.original_filename);
+      return b === 'DOCX' || b === 'DOC';
+    }).length);
+    set('fl-cnt-txt', allDocs.filter((d) => {
+      const b = fileTypeBadge(d.file_type, d.original_filename);
+      return b === 'TXT' || b === 'MD';
+    }).length);
+    set('fl-cnt-processing', allDocs.filter((d) => {
+      const s = d.current_version?.extraction_status;
+      return s === 'pending' || s === 'running';
+    }).length);
+  }
+
+  // Cache-first library load
   const LIB_CACHE_KEY = 'workspace.library.' + (userId || 'anon');
   async function loadDocs() {
     const q = els.search.value.trim();
     let renderedSomething = false;
-    // Cache only applies to the unfiltered list view
     if (!q) {
       try {
         const cached = JSON.parse(localStorage.getItem(LIB_CACHE_KEY) || 'null');
         if (cached?.documents) {
           allDocs = cached.documents || [];
-          renderGrid(allDocs);
+          renderGrid();
           renderedSomething = true;
         }
       } catch {}
@@ -223,7 +1212,7 @@
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'unknown');
       allDocs = j.documents || [];
-      renderGrid(allDocs);
+      renderGrid();
       if (!q) {
         try { localStorage.setItem(LIB_CACHE_KEY, JSON.stringify(j)); } catch {}
       }
@@ -241,7 +1230,6 @@
     const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
     const storagePath = `${userId}/${docId}/${versionId}.${ext}`;
 
-    // Render a temporary upload row
     const tempId = 'up-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     els.uploadProgress.insertAdjacentHTML('beforeend', `
       <div class="lib-upload" data-temp="${tempId}">
@@ -276,8 +1264,10 @@
       row.querySelector('.lib-upload-status').textContent =
         j.extraction.status === 'done' ? `Ready · ${(j.extraction.chars || 0).toLocaleString()} chars` :
         j.extraction.status === 'skipped' ? 'Ready · no text preview' :
+        j.extraction.status === 'pending_ocr' ? 'OCR queued — running in background…' :
         'Ready · text extraction failed';
       setTimeout(() => row.remove(), 4000);
+      try { localStorage.removeItem(LIB_CACHE_KEY); } catch {}
       loadDocs();
     } catch (err) {
       row.classList.add('is-error');
@@ -285,269 +1275,82 @@
     }
   }
 
-  // ---- Edit-review (accept / reject) for an existing redline run ----
-  async function openEditReview(overlay, runId, docId, docName, run, trackChangesVersion) {
-    overlay.querySelector('.attach-modal-inner').style.width = 'min(820px, 96vw)';
-    overlay.querySelector('.attach-modal-inner').style.maxHeight = '90vh';
-
-    // Pre-build a signed URL for the track-changes preview download
-    let previewUrl = null;
-    if (trackChangesVersion?.storage_path) {
-      const { data: signed } = await supabase.storage
-        .from('library')
-        .createSignedUrl(trackChangesVersion.storage_path, 600);
-      previewUrl = signed?.signedUrl || null;
-    }
-
-    overlay.querySelector('.attach-modal-inner').innerHTML = `
-      <header class="attach-modal-head">
-        <h2 class="attach-modal-title">Review proposed edits</h2>
-        <button type="button" class="attach-modal-close" data-close>×</button>
-      </header>
-      <div class="attach-modal-body">
-        <div class="rdln-summary">
-          <strong>${escapeHtml(docName)}</strong>
-          ${run.edits_summary ? `<p class="rdln-summary-p">${escapeHtml(run.edits_summary)}</p>` : ''}
-          <div class="rdln-bulkbar">
-            <button type="button" class="ws-btn-secondary" data-bulk="accepted">Accept all</button>
-            <button type="button" class="ws-btn-secondary" data-bulk="rejected">Reject all</button>
-            <span class="rdln-counter" id="rdln-counter">…</span>
-            ${previewUrl ? `<a href="${previewUrl}" download="${escapeHtml(docName.replace(/\.docx$/i, ''))} (track changes).docx" class="lib-back" style="margin-left:auto">Download Word track-changes preview →</a>` : ''}
-          </div>
-        </div>
-        <div id="rdln-edits-list" class="rdln-edits-list"><div class="ws-empty">Loading edits…</div></div>
-      </div>
-      <footer class="attach-modal-foot">
-        <span id="rdln-final-status" class="rdln-final-status"></span>
-        <button type="button" class="ws-btn" id="rdln-finalize" disabled>Apply accepted edits</button>
-      </footer>`;
-    overlay.querySelector('[data-close]').addEventListener('click', () => overlay.remove());
-
-    let edits = [];
-    async function loadEdits() {
-      const r = await fetch(`/.netlify/functions/workspace-redline-edits-list?run_id=${runId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        document.getElementById('rdln-edits-list').innerHTML = `<div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div>`;
-        return;
-      }
-      edits = j.edits || [];
-      renderEdits();
-    }
-
-    function renderEdits() {
-      const listEl = document.getElementById('rdln-edits-list');
-      listEl.innerHTML = edits.map((e) => `
-        <div class="rdln-edit ${e.status === 'accepted' ? 'is-accepted' : e.status === 'rejected' ? 'is-rejected' : ''}" data-edit-id="${e.id}">
-          <div class="rdln-edit-rationale">${escapeHtml(e.rationale || '(no rationale)')}</div>
-          <div class="rdln-edit-diff">
-            <div class="rdln-edit-from"><span class="rdln-edit-label">From</span><div class="rdln-edit-text">${escapeHtml(e.find_text)}</div></div>
-            <div class="rdln-edit-to"><span class="rdln-edit-label">To</span><div class="rdln-edit-text">${e.replace_text ? escapeHtml(e.replace_text) : '<em class="rdln-edit-empty">(deletion)</em>'}</div></div>
-          </div>
-          <div class="rdln-edit-actions">
-            <button type="button" class="rdln-btn-acc${e.status === 'accepted' ? ' is-on' : ''}" data-status="accepted">✓ Accept</button>
-            <button type="button" class="rdln-btn-rej${e.status === 'rejected' ? ' is-on' : ''}" data-status="rejected">× Reject</button>
-            <button type="button" class="rdln-btn-pen${e.status === 'pending' ? ' is-on' : ''}" data-status="pending">↺ Reset</button>
-          </div>
-        </div>`).join('');
-      // Wire per-edit buttons
-      listEl.querySelectorAll('.rdln-edit').forEach((row) => {
-        const editId = row.dataset.editId;
-        row.querySelectorAll('button[data-status]').forEach((btn) => {
-          btn.addEventListener('click', () => updateOne(editId, btn.dataset.status));
-        });
-      });
-      updateCounter();
-    }
-
-    function updateCounter() {
-      const total = edits.length;
-      const accepted = edits.filter((e) => e.status === 'accepted').length;
-      const rejected = edits.filter((e) => e.status === 'rejected').length;
-      const pending = total - accepted - rejected;
-      document.getElementById('rdln-counter').textContent =
-        `${accepted} accepted · ${rejected} rejected · ${pending} pending`;
-      const finalizeBtn = document.getElementById('rdln-finalize');
-      finalizeBtn.disabled = accepted === 0;
-      finalizeBtn.textContent = accepted ? `Apply ${accepted} accepted edit${accepted === 1 ? '' : 's'}` : 'Apply accepted edits';
-    }
-
-    async function updateOne(editId, status) {
-      const r = await fetch('/.netlify/functions/workspace-redline-edits-update', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editId, status }),
-      });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        alert('Update failed: ' + (j.error || 'unknown'));
-        return;
-      }
-      // Optimistic update
-      const e = edits.find((x) => x.id === editId);
-      if (e) { e.status = status; renderEdits(); }
-    }
-
-    overlay.querySelectorAll('[data-bulk]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const status = btn.dataset.bulk;
-        if (!confirm(`${status === 'accepted' ? 'Accept' : 'Reject'} all ${edits.length} edits?`)) return;
-        const r = await fetch('/.netlify/functions/workspace-redline-edits-update', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ run_id: runId, status, scope: 'all' }),
-        });
-        if (!r.ok) { const j = await r.json().catch(() => ({})); alert('Failed: ' + (j.error || 'unknown')); return; }
-        for (const e of edits) e.status = status;
-        renderEdits();
-      });
+  // ---- Wire UI ----
+  // Filter row
+  document.querySelectorAll('.fl-toggle').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.fl-toggle').forEach((x) => x.classList.remove('is-on'));
+      b.classList.add('is-on');
+      activeFilter = b.dataset.filter || 'all';
+      renderGrid();
     });
-
-    document.getElementById('rdln-finalize').addEventListener('click', async () => {
-      const finalBtn = document.getElementById('rdln-finalize');
-      const finalStatus = document.getElementById('rdln-final-status');
-      finalBtn.disabled = true;
-      finalBtn.textContent = 'Applying…';
-      finalStatus.textContent = '';
-      const r = await fetch('/.netlify/functions/workspace-redline-finalize', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_id: runId }),
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        finalStatus.textContent = 'Failed: ' + (j.error || 'unknown');
-        finalStatus.className = 'rdln-final-status is-error';
-        finalBtn.disabled = false;
-        updateCounter();
-        return;
-      }
-      const v = j.version;
-      const { data: signed } = await supabase.storage
-        .from('library')
-        .createSignedUrl(v.storage_path, 600);
-      if (signed?.signedUrl) {
-        finalStatus.innerHTML = `<a href="${signed.signedUrl}" download="${escapeHtml(docName.replace(/\.docx$/i, ''))} (final).docx" class="ws-btn">Download final .docx</a>`;
-      } else {
-        finalStatus.textContent = 'Done — refresh the library to see the new version.';
-      }
-      finalBtn.textContent = '✓ Applied';
-      loadDocs();
+  });
+  // Sort cycle
+  document.getElementById('lib-sort').addEventListener('click', () => {
+    sortIdx = (sortIdx + 1) % SORT_VALUES.length;
+    document.getElementById('sort-v').textContent = SORT_VALUES[sortIdx];
+    renderGrid();
+  });
+  // Layout segments
+  document.querySelectorAll('.layout-seg-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.layout-seg-btn').forEach((x) => x.classList.remove('is-active'));
+      b.classList.add('is-active');
+      activeLayout = b.dataset.layout || 'grid';
+      els.grid.classList.toggle('is-list', activeLayout === 'list');
     });
+  });
 
-    loadEdits();
-  }
-
-  // ---- Redline modal ----
-  function openRedlineModal(docId, docName) {
-    const overlay = document.createElement('div');
-    overlay.className = 'attach-modal';
-    overlay.innerHTML = `
-      <div class="attach-modal-inner" style="width:min(560px,92vw)">
-        <header class="attach-modal-head">
-          <h2 class="attach-modal-title">Redline: ${escapeHtml(docName)}</h2>
-          <button type="button" class="attach-modal-close" data-close>×</button>
-        </header>
-        <div class="attach-modal-body">
-          <p class="rdln-explainer">Describe what to redline. The AI will produce a list of edits and the LibreOffice service will apply them as Word tracked changes. Output is a new version of this document with red strikethrough deletes and colored insertions, ready to download and accept/reject in Word.</p>
-          <label class="rv-field">
-            <span class="rv-field-label">Concerns</span>
-            <textarea id="rdln-concerns" rows="6" placeholder="e.g. We need governing law to be Florida (not Delaware). Cap on liability should be 12 months of fees, not unlimited. IP assignment must be 'work made for hire' with backup assignment language. Termination for convenience needs 60 days notice."></textarea>
-          </label>
-          <div id="rdln-status" class="rdln-status" hidden></div>
-        </div>
-        <footer class="attach-modal-foot">
-          <a id="rdln-download" class="ws-btn-secondary" hidden>Download redlined .docx</a>
-          <button type="button" class="ws-btn" id="rdln-go">Generate redlines</button>
-        </footer>
-      </div>`;
-    document.body.appendChild(overlay);
-    const close = () => overlay.remove();
-    overlay.querySelector('[data-close]').addEventListener('click', close);
-
-    const concernsEl = overlay.querySelector('#rdln-concerns');
-    const statusEl = overlay.querySelector('#rdln-status');
-    const goBtn = overlay.querySelector('#rdln-go');
-    const dlEl = overlay.querySelector('#rdln-download');
-    concernsEl.focus();
-
-    goBtn.addEventListener('click', async () => {
-      const concerns = concernsEl.value.trim();
-      if (!concerns) return;
-      goBtn.disabled = true;
-      goBtn.textContent = 'Submitting…';
-      statusEl.hidden = false;
-      statusEl.className = 'rdln-status is-running';
-      statusEl.textContent = 'Submitting…';
-
-      const r = await fetch('/.netlify/functions/workspace-redline-create', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ document_id: docId, concerns }),
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        statusEl.className = 'rdln-status is-error';
-        statusEl.textContent = 'Failed: ' + (j.error || 'unknown');
-        goBtn.disabled = false;
-        goBtn.textContent = 'Generate redlines';
-        return;
-      }
-      const runId = j.run_id;
-      goBtn.textContent = 'Working…';
-      statusEl.textContent = 'Generating edits…';
-
-      // Poll
-      let polls = 0;
-      while (polls < 120) {   // max 5 min
-        await new Promise((r2) => setTimeout(r2, 2500));
-        polls++;
-        const sr = await fetch(`/.netlify/functions/workspace-redline-status?id=${runId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const sj = await sr.json();
-        if (!sr.ok) continue;
-        const run = sj.run;
-        if (run.status === 'running') statusEl.textContent = 'Generating edits + applying tracked changes…';
-        if (run.status === 'complete') {
-          if (run.edits_count === 0) {
-            statusEl.className = 'rdln-status is-warn';
-            statusEl.textContent = run.edits_summary || 'No edits suggested.';
-            goBtn.disabled = false;
-            goBtn.textContent = 'Generate redlines';
-            return;
-          }
-          // Switch the modal to the review-edits view (accept/reject UI)
-          await openEditReview(overlay, runId, docId, docName, run, sj.version);
-          return;
-        }
-        if (run.status === 'error') {
-          statusEl.className = 'rdln-status is-error';
-          statusEl.textContent = 'Error: ' + (run.status_detail || 'unknown');
-          goBtn.disabled = false;
-          goBtn.textContent = 'Try again';
-          return;
-        }
-      }
-      statusEl.className = 'rdln-status is-warn';
-      statusEl.textContent = 'Timed out. The job may still be running — check the document version history later.';
-    });
-  }
-
+  // Upload buttons
   els.uploadBtn.addEventListener('click', () => els.uploadInput.click());
+  els.dzPick.addEventListener('click', () => els.uploadInput.click());
+  document.getElementById('bulk-btn')?.addEventListener('click', () => els.uploadInput.click());
   els.uploadInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     for (const f of files) await uploadOne(f);
   });
 
-  // Search debounced
+  // Drag-and-drop on the dropzone
+  ['dragenter', 'dragover'].forEach((evt) => {
+    els.dropzone.addEventListener(evt, (e) => { e.preventDefault(); els.dropzone.classList.add('is-drag'); });
+  });
+  ['dragleave', 'drop'].forEach((evt) => {
+    els.dropzone.addEventListener(evt, (e) => { e.preventDefault(); els.dropzone.classList.remove('is-drag'); });
+  });
+  els.dropzone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (!files.length) return;
+    for (const f of files) await uploadOne(f);
+  });
+
+  // Page-level drag-and-drop (so user can drop anywhere) — also adds is-drag to the zone
+  ['dragenter', 'dragover'].forEach((evt) => {
+    document.addEventListener(evt, (e) => {
+      if (e.dataTransfer?.types?.includes?.('Files')) {
+        e.preventDefault();
+        els.dropzone.classList.add('is-drag');
+      }
+    });
+  });
+  document.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget) els.dropzone.classList.remove('is-drag');
+  });
+
+  // Search
   let searchTimer = null;
   els.search.addEventListener('input', () => {
     if (searchTimer) clearTimeout(searchTimer);
     searchTimer = setTimeout(loadDocs, 200);
+  });
+
+  // ⌘K focuses search
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      els.search.focus(); els.search.select();
+    }
   });
 
   loadDocs();

@@ -36,6 +36,7 @@ import { extractForCitations } from '../lib/citation-verifier/extract.js';
 import { classifyCitationBatch, BATCH_SIZE } from '../lib/citation-verifier/classify-citation.js';
 import { runAllValidators } from '../lib/citation-verifier/validators.js';
 import { CourtListenerClient, existenceResultToFlag } from '../lib/citation-verifier/court-listener.js';
+import { checkAllFallback as checkAllCaseFallback } from '../lib/citation-verifier/case-fallback.js';
 import { judgeEdgeCases, filterPass4Territory } from '../lib/citation-verifier/judge-edge-cases.js';
 import { buildFormReport } from '../lib/citation-verifier/form-report.js';
 import { applyCitationMarkupDocx } from '../lib/citation-verifier/markup-docx-citations.js';
@@ -293,6 +294,47 @@ async function runPipeline({ supabase, userId, run }) {
     c.pattern_name !== 'short_case'
   );
   const existenceResults = await courtListener.checkAll(caseCitations);
+
+  // ---- Pass 2.6: Justia + Cornell fallback for CL "not found" cases ----
+  // CourtListener's index covers ~95% of US case law but has gaps —
+  // unpublished state-court decisions, recent slip opinions, and a
+  // handful of regional reporters. Before we surface a citation as
+  // "not found in CourtListener", give it one more pass through Justia
+  // (deterministic SCOTUS URLs + site search) and Cornell. Anything
+  // that comes back verified gets upgraded to existence_verified with
+  // a `secondary_source` flag so the reviewer can see where it landed.
+  const notFoundIdx = [];
+  existenceResults.forEach((r, i) => {
+    if (r?.status === 'existence_not_found' && caseCitations[i]?.components) {
+      notFoundIdx.push(i);
+    }
+  });
+  if (notFoundIdx.length) {
+    console.log(`[orchestrator] case fallback: ${notFoundIdx.length} CL-miss citations → Justia/Cornell`);
+    const fallbackInputs = notFoundIdx.map((origIdx) => ({
+      _origIndex: origIdx,
+      components: caseCitations[origIdx].components,
+    }));
+    let fallbackHits;
+    try {
+      fallbackHits = await checkAllCaseFallback(fallbackInputs);
+    } catch (err) {
+      console.warn('[orchestrator] case fallback failed (soft):', err?.message);
+      fallbackHits = new Map();
+    }
+    fallbackHits.forEach((hit, origIdx) => {
+      const prior = existenceResults[origIdx] || {};
+      existenceResults[origIdx] = {
+        ...prior,
+        status: 'existence_verified',
+        url: hit.url,
+        secondary_source: hit.source,        // 'justia' | 'cornell'
+        case_name: hit.case_name || prior.case_name || null,
+        _verified_via_fallback: true,
+      };
+    });
+    console.log(`[orchestrator] case fallback: recovered ${fallbackHits.size}/${notFoundIdx.length} citations`);
+  }
 
   // Map existence results back onto every classification (case-typed
   // entries get their own result; others get not_applicable).

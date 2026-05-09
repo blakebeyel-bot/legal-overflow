@@ -1,7 +1,10 @@
 ---
-// Projects + folders. List view at /workspace/projects/, single
-// project view at /workspace/projects/?id=<uuid>. Same page, JS
-// branches on the query param.
+// Projects / matters list and detail. List view at /workspace/projects/,
+// single view at /workspace/projects/?id=<uuid>. Same page, JS branches
+// on the query param.
+//
+// Verbatim port of Projects.html prototype with all existing JS
+// handlers (cache-first list, create, rename, delete, new-chat) kept.
 ---
 <!doctype html>
 <html lang="en">
@@ -14,11 +17,648 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+<link rel="stylesheet" href="/site-anim.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
-<link rel="stylesheet" href="/workspace.css" />
+<script src="/site-anim.js" defer></script>
+<style is:global>
+  /* ============================================================
+     Projects — page-local stylesheet (verbatim port of the prototype).
+     is:global because list cards + detail body are JS-rendered.
+     Page-local-ness enforced by body.ws-projects ancestor selector.
+     ============================================================ */
+
+  body.ws-projects {
+    --rule-thread: #cbc4b1;
+    --motion-snap: cubic-bezier(.2,.8,.2,1);
+    --hi: #b22222; --md: #c98a14; --lo: #6a7c8e;
+    background-image:
+      radial-gradient(1100px 600px at 80% -10%, rgba(208,219,213,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(220,212,196,.25), transparent 70%);
+  }
+
+  /* ---------- shell ---------- */
+  body.ws-projects main.ws-wrap,
+  body.ws-projects .ws-wrap {
+    position: relative; z-index: 2;
+    max-width: 1480px; width: 100%;
+    margin: 0 auto;
+    padding: 22px 40px 40px !important;
+    background: transparent !important;
+    border: none !important;
+  }
+  @media (max-width: 980px) {
+    body.ws-projects main.ws-wrap,
+    body.ws-projects .ws-wrap { padding: 18px 16px 40px !important; }
+  }
+
+  /* ---------- ws-head with all four corner brackets ---------- */
+  body.ws-projects .ws-head {
+    position: relative !important;
+    display: block !important;
+    padding: 14px 24px 22px !important;
+    margin: 0 0 22px !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  body.ws-projects .ws-head::before, body.ws-projects .ws-head::after,
+  body.ws-projects .ws-head > .br-bl, body.ws-projects .ws-head > .br-br {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid var(--ink); pointer-events: none;
+  }
+  body.ws-projects .ws-head::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+  body.ws-projects .ws-head::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
+  body.ws-projects .ws-head > .br-bl { bottom: 0; left: 0; border-top: none; border-right: none; }
+  body.ws-projects .ws-head > .br-br { bottom: 0; right: 0; border-top: none; border-left: none; }
+
+  body.ws-projects .kicker {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  body.ws-projects .kicker .k-tag {
+    border: 1px solid var(--accent-deep);
+    padding: 2px 7px; border-radius: 2px; font-size: 9.5px;
+  }
+  body.ws-projects .kicker .k-coord { color: var(--ink-4); font-size: 9.5px; }
+  body.ws-projects .head-row {
+    display: flex; gap: 20px; justify-content: space-between;
+    align-items: flex-end; flex-wrap: wrap;
+  }
+  body.ws-projects .head-title,
+  body.ws-projects .ws-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 5vw, 68px);
+    letter-spacing: -.012em; line-height: 1; margin: 0;
+    color: var(--ink);
+  }
+  body.ws-projects .head-title em,
+  body.ws-projects .ws-title em { font-style: italic; color: var(--accent-deep); }
+  body.ws-projects .head-sub,
+  body.ws-projects .ws-sub {
+    font-family: var(--serif); font-size: 19px;
+    color: var(--ink-2); max-width: 64ch;
+    margin-top: 12px; line-height: 1.4;
+  }
+  body.ws-projects .head-actions,
+  body.ws-projects .ws-head-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  body.ws-projects .head-actions .ws-btn,
+  body.ws-projects .head-actions .ws-btn-ghost,
+  body.ws-projects .head-actions .ws-btn-secondary,
+  body.ws-projects .ws-head-actions .ws-btn,
+  body.ws-projects .ws-head-actions .ws-btn-ghost,
+  body.ws-projects .ws-head-actions .ws-btn-secondary {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    text-decoration: none;
+    transition: background .15s var(--motion-snap), border-color .15s, color .15s;
+  }
+  body.ws-projects .head-actions .ws-btn:hover,
+  body.ws-projects .ws-head-actions .ws-btn:hover {
+    background: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-projects .head-actions .ws-btn-ghost,
+  body.ws-projects .head-actions .ws-btn-secondary,
+  body.ws-projects .ws-head-actions .ws-btn-ghost,
+  body.ws-projects .ws-head-actions .ws-btn-secondary {
+    background: transparent !important; color: var(--ink) !important;
+  }
+  body.ws-projects .head-actions .ws-btn-ghost:hover,
+  body.ws-projects .head-actions .ws-btn-secondary:hover,
+  body.ws-projects .ws-head-actions .ws-btn-ghost:hover,
+  body.ws-projects .ws-head-actions .ws-btn-secondary:hover {
+    background: var(--ink) !important; color: var(--paper) !important;
+  }
+  body.ws-projects .head-actions .ws-btn svg { width: 12px; height: 12px; }
+
+  /* ---------- meta strip ---------- */
+  body.ws-projects .meta-strip {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    margin: 0 0 22px;
+  }
+  body.ws-projects .ms-cell {
+    padding: 13px 18px;
+    border-right: 1px solid var(--rule-soft);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  body.ws-projects .ms-cell:last-child { border-right: none; }
+  body.ws-projects .ms-l {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-projects .ms-v {
+    font-family: var(--serif); font-size: 24px;
+    color: var(--ink); line-height: 1;
+  }
+  body.ws-projects .ms-v em { font-style: italic; color: var(--accent-deep); }
+  body.ws-projects .ms-d {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-4);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  @media (max-width: 1100px) {
+    body.ws-projects .meta-strip { grid-template-columns: repeat(2, 1fr); }
+    body.ws-projects .ms-cell:nth-child(2n) { border-right: none; }
+  }
+
+  /* ---------- sec-div ---------- */
+  body.ws-projects .sec-div {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 16px;
+    margin: 8px 0 14px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-projects .sec-num { color: var(--ink); }
+  body.ws-projects .sec-rule { height: 1px; background: var(--rule-soft); }
+  body.ws-projects .sec-meta { color: var(--ink-4); font-size: 9.5px; }
+
+  /* ---------- filter row ---------- */
+  body.ws-projects .filter-row {
+    display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.3);
+    padding: 4px 10px;
+    margin-bottom: 16px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  body.ws-projects .filter-row .fl-l {
+    font-size: 9px; color: var(--ink-4);
+    letter-spacing: .14em;
+    margin-right: 10px; padding: 4px 0;
+  }
+  body.ws-projects .fl-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 11px;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-3);
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-projects .fl-toggle:hover { color: var(--ink); }
+  body.ws-projects .fl-toggle.is-on { color: var(--accent-deep); }
+  body.ws-projects .fl-toggle .fl-pip {
+    width: 5px; height: 5px; border-radius: 50%;
+    border: 1px solid currentColor; transition: background .15s;
+  }
+  body.ws-projects .fl-toggle.is-on .fl-pip { background: currentColor; }
+  body.ws-projects .fl-toggle .fl-cnt { font-size: 9px; opacity: .7; }
+  body.ws-projects .fl-sep {
+    width: 1px; height: 12px; background: var(--rule-soft);
+    margin: 0 1px;
+  }
+  body.ws-projects .fl-spacer { flex: 1; }
+  body.ws-projects .fl-sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; cursor: pointer;
+    color: var(--ink-3);
+    background: transparent; border: none;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-projects .fl-sort:hover { color: var(--ink); }
+  body.ws-projects .fl-sort .v {
+    font-family: var(--sans); text-transform: none; letter-spacing: 0;
+    font-size: 11.5px;
+    color: var(--ink); border-bottom: 1px dotted var(--ink-3);
+  }
+
+  /* ---------- proj grid ---------- */
+  body.ws-projects .proj-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 1100px) { body.ws-projects .proj-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 720px)  { body.ws-projects .proj-grid { grid-template-columns: 1fr; } }
+
+  /* ---------- proj card ---------- */
+  body.ws-projects .proj-card {
+    position: relative;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    cursor: pointer;
+    color: var(--ink); text-decoration: none;
+    transition: border-color .15s var(--motion-snap), transform .15s;
+  }
+  body.ws-projects .proj-card:hover {
+    border-color: var(--ink); transform: translateY(-2px);
+  }
+  body.ws-projects .proj-card::before, body.ws-projects .proj-card::after {
+    content: ''; position: absolute;
+    width: 8px; height: 8px;
+    border-color: var(--ink-4); pointer-events: none;
+    transition: border-color .15s var(--motion-snap), width .15s, height .15s;
+  }
+  body.ws-projects .proj-card::before { top: 5px; left: 5px; border-top: 1px solid; border-left: 1px solid; }
+  body.ws-projects .proj-card::after  { bottom: 5px; right: 5px; border-bottom: 1px solid; border-right: 1px solid; }
+  body.ws-projects .proj-card:hover::before, body.ws-projects .proj-card:hover::after {
+    border-color: var(--accent-deep); width: 12px; height: 12px;
+  }
+
+  body.ws-projects .proj-head {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  body.ws-projects .proj-h-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-projects .proj-h-id { color: var(--ink); }
+  body.ws-projects .proj-h-state {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--accent-deep);
+  }
+  body.ws-projects .proj-h-state.dormant { color: var(--ink-4); }
+  body.ws-projects .proj-h-state.review { color: var(--md); }
+  body.ws-projects .proj-h-state .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    animation: projPulse 2s ease-in-out infinite;
+  }
+  body.ws-projects .proj-h-state.dormant .pip { animation: none; }
+  @keyframes projPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  body.ws-projects .proj-title {
+    font-family: var(--serif); font-size: 24px;
+    letter-spacing: -.01em; line-height: 1.15;
+    color: var(--ink); margin: 0 0 6px;
+    font-weight: 400;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  body.ws-projects .proj-title em { font-style: italic; color: var(--accent-deep); }
+  body.ws-projects .proj-client {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+
+  body.ws-projects .proj-body {
+    padding: 14px 20px;
+    display: flex; flex-direction: column; gap: 10px;
+    flex: 1;
+  }
+  body.ws-projects .proj-counts {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border-top: 1px dotted var(--rule-soft);
+    border-bottom: 1px dotted var(--rule-soft);
+    padding: 10px 0;
+  }
+  body.ws-projects .pc {
+    display: flex; flex-direction: column; gap: 3px;
+    border-right: 1px dotted var(--rule-soft);
+    padding-right: 10px;
+  }
+  body.ws-projects .pc:last-child { border-right: none; padding-right: 0; }
+  body.ws-projects .pc-l {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-4);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-projects .pc-v {
+    font-family: var(--serif); font-size: 22px;
+    color: var(--ink); line-height: 1;
+  }
+  body.ws-projects .pc-v em { font-style: italic; color: var(--accent-deep); }
+
+  body.ws-projects .proj-recent {
+    display: flex; flex-direction: column; gap: 6px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-2); letter-spacing: .04em;
+  }
+  body.ws-projects .pr-item {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 8px; align-items: center;
+  }
+  body.ws-projects .pr-kind {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+    width: 48px;
+  }
+  body.ws-projects .pr-text {
+    color: var(--ink-2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 11px;
+  }
+  body.ws-projects .pr-time {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-4);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+
+  body.ws-projects .proj-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 20px;
+    border-top: 1px solid var(--rule-soft);
+    background: rgba(0,0,0,.02);
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  body.ws-projects .proj-foot .open {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--ink);
+    transition: color .15s, gap .15s;
+  }
+  body.ws-projects .proj-card:hover .proj-foot .open {
+    color: var(--accent-deep); gap: 10px;
+  }
+  body.ws-projects .proj-foot .open svg { width: 11px; height: 11px; }
+
+  body.ws-projects .proj-tags {
+    display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px;
+  }
+  body.ws-projects .tg {
+    font-family: var(--mono); font-size: 9px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+    border: 1px solid var(--rule-thread); border-radius: 2px;
+    padding: 2px 6px;
+  }
+
+  /* + new project tile */
+  body.ws-projects .proj-new {
+    position: relative;
+    background: transparent;
+    border: 1px dashed var(--rule-thread); border-radius: 8px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    padding: 32px 24px;
+    cursor: pointer;
+    color: var(--ink-3);
+    transition: border-color .15s, background .15s, color .15s;
+    min-height: 280px;
+    font: inherit;
+  }
+  body.ws-projects .proj-new:hover {
+    border-color: var(--accent-deep); border-style: solid;
+    background: rgba(215,237,224,.4);
+    color: var(--accent-deep);
+  }
+  body.ws-projects .proj-new-cross {
+    font-size: 36px; line-height: 1;
+    font-family: var(--serif);
+  }
+  body.ws-projects .proj-new-l {
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-projects .proj-new-h {
+    font-family: var(--serif); font-size: 18px;
+    color: var(--ink-2);
+  }
+  body.ws-projects .proj-new:hover .proj-new-h { color: var(--accent-deep); }
+
+  /* skeleton */
+  body.ws-projects .proj-skel {
+    background: var(--paper-2);
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    padding: 16px 20px;
+    min-height: 280px;
+    display: flex; flex-direction: column; gap: 10px;
+    position: relative; overflow: hidden;
+  }
+  body.ws-projects .proj-skel::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+    animation: projShim 1.4s linear infinite;
+  }
+  @keyframes projShim {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  body.ws-projects .skel-block {
+    height: 14px; background: var(--rule-soft);
+    border-radius: 2px; opacity: .4;
+  }
+  body.ws-projects .skel-block.short { width: 60%; }
+  body.ws-projects .skel-block.tiny { width: 35%; }
+
+  body.ws-projects .ws-empty {
+    grid-column: 1 / -1;
+    padding: 60px 28px; text-align: center;
+    color: var(--ink-3);
+    font-family: var(--serif); font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* ---------- single-view sections ---------- */
+  body.ws-projects .proj-section {
+    margin-bottom: 22px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    padding: 18px 22px;
+  }
+  body.ws-projects .proj-section-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  body.ws-projects .proj-section-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 22px; letter-spacing: -.005em;
+    color: var(--ink); margin: 0;
+  }
+  body.ws-projects .proj-count {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+    margin-left: 8px;
+  }
+  body.ws-projects .lib-back {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3); text-decoration: none;
+    letter-spacing: .12em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-projects .lib-back:hover { color: var(--accent-deep); }
+  body.ws-projects .ws-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px dotted var(--rule-soft);
+    text-decoration: none; color: var(--ink);
+    transition: background .15s;
+  }
+  body.ws-projects .ws-row:last-child { border-bottom: none; }
+  body.ws-projects .ws-row:hover { background: rgba(255,255,255,.4); }
+  body.ws-projects .ws-row-title {
+    font-family: var(--serif); font-size: 14.5px;
+    color: var(--ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1; min-width: 0;
+  }
+  body.ws-projects .ws-row-meta {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: .04em;
+  }
+  body.ws-projects .lib-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 980px) { body.ws-projects .lib-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { body.ws-projects .lib-grid { grid-template-columns: 1fr; } }
+  body.ws-projects .lib-card-link {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 11px 14px;
+    background: var(--paper); border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    text-decoration: none; color: var(--ink);
+    transition: border-color .15s, transform .15s;
+  }
+  body.ws-projects .lib-card-link:hover {
+    border-color: var(--ink); transform: translateY(-1px);
+  }
+  body.ws-projects .lib-card-name {
+    font-family: var(--serif); font-size: 14.5px;
+    color: var(--ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  body.ws-projects .lib-card-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .04em;
+  }
+
+  body.ws-projects .proj-title-input {
+    flex: 1; min-width: 240px;
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 5vw, 68px);
+    letter-spacing: -.012em; line-height: 1;
+    margin: 0; padding: 4px 0;
+    color: var(--ink);
+    background: transparent; border: none; outline: none;
+    border-bottom: 2px dotted var(--rule-soft);
+    width: 100%;
+  }
+  body.ws-projects .proj-title-input:focus { border-bottom-color: var(--accent-deep); }
+  body.ws-projects .proj-title-input.is-error { border-bottom-color: var(--hi); color: var(--hi); }
+
+  /* ---------- foot line ---------- */
+  body.ws-projects .ws-foot {
+    margin-top: 36px; padding-top: 18px;
+    border-top: 1px solid var(--rule-soft);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  body.ws-projects .ws-foot a {
+    color: var(--ink-3); text-decoration: none;
+    border-bottom: 1px solid var(--rule-soft); padding-bottom: 1px;
+  }
+  body.ws-projects .ws-foot a:hover {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+
+  /* ---------- Modal restyle (new project) ---------- */
+  body.ws-projects .attach-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(14,21,18,.4);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  body.ws-projects .attach-modal-inner {
+    background: var(--paper);
+    border: 1px solid var(--ink); border-radius: 8px;
+    max-width: 520px; width: 100%;
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  body.ws-projects .attach-modal-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  body.ws-projects .attach-modal-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 22px; letter-spacing: -.005em;
+    margin: 0;
+  }
+  body.ws-projects .attach-modal-close {
+    width: 28px; height: 28px;
+    background: transparent; border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    color: var(--ink-3); cursor: pointer;
+    font-size: 14px; line-height: 1;
+  }
+  body.ws-projects .attach-modal-close:hover {
+    border-color: var(--ink); color: var(--ink);
+  }
+  body.ws-projects .attach-modal-body {
+    flex: 1; overflow-y: auto;
+    padding: 18px 22px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  body.ws-projects .attach-modal-foot {
+    padding: 12px 22px;
+    border-top: 1px solid var(--rule-soft);
+    display: flex; justify-content: flex-end;
+  }
+  body.ws-projects .attach-modal-foot .ws-btn {
+    padding: 9px 16px;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  body.ws-projects .attach-modal-foot .ws-btn:hover {
+    background: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-projects .rv-field {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  body.ws-projects .rv-field-label {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-projects .rv-field input,
+  body.ws-projects .rv-field textarea {
+    font-family: var(--sans); font-size: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: var(--paper); color: var(--ink);
+    outline: none; resize: vertical;
+  }
+  body.ws-projects .rv-field input:focus,
+  body.ws-projects .rv-field textarea:focus {
+    border-color: var(--ink);
+  }
+</style>
 </head>
-<body>
+<body class="ws-projects">
 <div id="grain"></div>
 
 <header class="nav">
@@ -57,27 +697,28 @@
   import { getSupabase } from '../../../lib/supabase';
   const supabase = getSupabase();
 
-  document.body.style.visibility = 'hidden';
+  // Body never hidden — match the dashboard's hardened pattern.
+  console.log('[projects] Script started');
   let session;
   try {
     const { data } = await supabase.auth.getSession();
     session = data?.session;
     if (!session) {
       const here = location.pathname + location.search;
+      console.info('[projects] No session — redirecting to /login/');
       location.href = '/login/?redirect=' + encodeURIComponent(here);
       throw new Error('not signed in');
     }
     const { data: profile } = await supabase
       .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
     if (!profile?.approved_at) {
-      document.body.style.visibility = '';
       document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
       throw new Error('pending approval');
     }
-    document.body.style.visibility = '';
+    console.log('[projects] Auth gate passed, user', session.user?.id);
   } catch (err) {
-    if (err && !['not signed in','pending approval'].includes(err.message)) {
-      document.body.style.visibility = '';
+    if (err && !['not signed in', 'pending approval'].includes(err.message)) {
+      console.error('[projects] Gate failed:', err);
       document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Projects error</h1><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap">${(err.message || String(err)).replace(/[<>&]/g,(c)=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
     }
     throw err;
@@ -90,76 +731,264 @@
   function escapeHtml(s) {
     return String(s ?? '').replace(/[<>&"]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
   }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function relTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+    const yest = new Date(today); yest.setDate(today.getDate() - 1);
+    if (d.toDateString() === yest.toDateString()) {
+      return 'YDA ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+    const ms = Date.now() - d.getTime();
+    const days = Math.floor(ms / 86400_000);
+    if (days < 7) return days + 'D AGO';
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }).toUpperCase();
+  }
+  function ageBucket(iso) {
+    if (!iso) return 'dormant';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 24 * 60 * 60 * 1000) return 'active';
+    if (ms > 14 * 24 * 60 * 60 * 1000) return 'dormant';
+    return 'idle';
+  }
+  function projShortId(id) {
+    return 'M-' + (id || '').slice(0, 4).toUpperCase();
+  }
 
   // ============================================================
   // LIST VIEW
   // ============================================================
+  let allProjects = [];
+  let activeFilter = 'all';
+  const SORT_VALUES = ['Activity · recent', 'Activity · oldest', 'Name · A–Z', 'Docs · most', 'Reviews · most'];
+  let sortIdx = 0;
+
   async function renderListView() {
     main.innerHTML = `
       <div class="ws-wrap">
         <header class="ws-head">
-          <div>
-            <div class="ws-kicker">Projects</div>
-            <h1 class="ws-title">Matter workspaces.</h1>
-            <p class="ws-sub">Group your chats, documents, and tabular reviews by matter or deal. Items not in a project sit in the global workspace.</p>
+          <span class="br-bl"></span><span class="br-br"></span>
+          <div class="kicker">
+            <span class="k-tag">PROJECTS</span>
+            <span class="k-coord" id="proj-coord">/WS.06 · MATTERS · — OPEN</span>
           </div>
-          <div class="ws-head-actions">
-            <button id="new-project-btn" class="ws-btn">New project</button>
+          <div class="head-row">
+            <div>
+              <h1 class="head-title">Matters &amp; <em>projects</em>.</h1>
+              <p class="head-sub">A folder per matter. Group related documents, chats, reviews, and comparisons under one roof. Items not in a project sit in the global workspace.</p>
+            </div>
+            <div class="head-actions">
+              <button class="ws-btn" id="new-project-btn" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+                New project
+              </button>
+            </div>
           </div>
         </header>
-        <section class="ws-card">
-          <div id="projects-grid" class="lib-grid">
-            <div class="proj-card sk-list-item"><div class="sk-block sk-block-title" style="width:60%"></div><div class="sk-block sk-block-meta" style="width:40%; margin-top:14px"></div></div>
-            <div class="proj-card sk-list-item"><div class="sk-block sk-block-title" style="width:75%"></div><div class="sk-block sk-block-meta" style="width:50%; margin-top:14px"></div></div>
-            <div class="proj-card sk-list-item"><div class="sk-block sk-block-title" style="width:50%"></div><div class="sk-block sk-block-meta" style="width:35%; margin-top:14px"></div></div>
+
+        <div class="meta-strip">
+          <div class="ms-cell">
+            <span class="ms-l">OPEN</span>
+            <span class="ms-v" id="ms-open">—</span>
+            <span class="ms-d">PROJECTS</span>
           </div>
-        </section>
-        <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
+          <div class="ms-cell">
+            <span class="ms-l">ACTIVE NOW</span>
+            <span class="ms-v" id="ms-active" style="color:var(--accent-deep)">—</span>
+            <span class="ms-d">EDITED &lt; 24H</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">DORMANT</span>
+            <span class="ms-v" id="ms-dormant" style="color:var(--ink-4)">—</span>
+            <span class="ms-d">&gt; 14D STALE</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">DOCUMENTS</span>
+            <span class="ms-v" id="ms-docs">—</span>
+            <span class="ms-d">ACROSS ALL</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">REVIEWS</span>
+            <span class="ms-v" id="ms-reviews">—</span>
+            <span class="ms-d">ACROSS ALL</span>
+          </div>
+        </div>
+
+        <div class="sec-div">
+          <span class="sec-num">§ 06.A</span>
+          <span class="sec-rule"></span>
+          <span class="sec-meta">MATTERS · MOST RECENT</span>
+        </div>
+
+        <div class="filter-row" id="proj-filters">
+          <span class="fl-l">FILTER ·</span>
+          <button type="button" class="fl-toggle is-on" data-filter="all"><span class="fl-pip"></span>All <span class="fl-cnt" id="cnt-all">[—]</span></button>
+          <span class="fl-sep"></span>
+          <button type="button" class="fl-toggle" data-filter="active"><span class="fl-pip"></span>Active <span class="fl-cnt" id="cnt-active">[—]</span></button>
+          <span class="fl-sep"></span>
+          <button type="button" class="fl-toggle" data-filter="idle"><span class="fl-pip"></span>Idle <span class="fl-cnt" id="cnt-idle">[—]</span></button>
+          <span class="fl-sep"></span>
+          <button type="button" class="fl-toggle" data-filter="dormant"><span class="fl-pip"></span>Dormant <span class="fl-cnt" id="cnt-dormant">[—]</span></button>
+          <span class="fl-spacer"></span>
+          <button type="button" class="fl-sort" id="proj-sort"><span>Sort</span><span class="v" id="sort-v">Activity · recent</span></button>
+        </div>
+
+        <div class="proj-grid" id="projects-grid">
+          <div class="proj-skel"><div class="skel-block tiny"></div><div class="skel-block"></div><div class="skel-block short"></div><div class="skel-block tiny"></div></div>
+          <div class="proj-skel"><div class="skel-block tiny"></div><div class="skel-block"></div><div class="skel-block short"></div><div class="skel-block tiny"></div></div>
+          <div class="proj-skel"><div class="skel-block tiny"></div><div class="skel-block"></div><div class="skel-block short"></div><div class="skel-block tiny"></div></div>
+        </div>
+
+        <p class="ws-foot">
+          <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF PROJECTS</span>
+          <a href="/workspace/">← Workspace home</a>
+        </p>
       </div>
     `;
     document.getElementById('new-project-btn').addEventListener('click', openNewProjectModal);
+    document.querySelectorAll('#proj-filters .fl-toggle').forEach((b) => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#proj-filters .fl-toggle').forEach((x) => x.classList.remove('is-on'));
+        b.classList.add('is-on');
+        activeFilter = b.dataset.filter || 'all';
+        paintGrid();
+      });
+    });
+    document.getElementById('proj-sort').addEventListener('click', () => {
+      sortIdx = (sortIdx + 1) % SORT_VALUES.length;
+      document.getElementById('sort-v').textContent = SORT_VALUES[sortIdx];
+      paintGrid();
+    });
     await loadProjects();
   }
 
-  // Cache-first projects list — paint from cache instantly, then
-  // refresh from server in the background.
+  // Cache-first
   const PROJ_LIST_CACHE = 'workspace.projects-list.' + (session.user?.id || 'anon');
-  function renderProjectsFromData(j) {
+
+  function applySort(arr) {
+    const v = SORT_VALUES[sortIdx];
+    const sorted = [...arr];
+    if (v === 'Activity · recent') sorted.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+    else if (v === 'Activity · oldest') sorted.sort((a, b) => (a.updated_at || '').localeCompare(b.updated_at || ''));
+    else if (v === 'Name · A–Z') sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    else if (v === 'Docs · most') sorted.sort((a, b) => ((b.counts?.documents) || 0) - ((a.counts?.documents) || 0));
+    else if (v === 'Reviews · most') sorted.sort((a, b) => ((b.counts?.reviews) || 0) - ((a.counts?.reviews) || 0));
+    return sorted;
+  }
+  function applyFilter(arr) {
+    if (activeFilter === 'all') return arr;
+    return arr.filter((p) => ageBucket(p.updated_at || p.created_at) === activeFilter);
+  }
+
+  function paintGrid() {
     const grid = document.getElementById('projects-grid');
     if (!grid) return;
-    if (!j.projects?.length) {
-      grid.innerHTML = '<div class="ws-empty">No projects yet. Click "New project" above.</div>';
+    const sorted = applySort(applyFilter(allProjects));
+    const newTile = `<button type="button" class="proj-new" id="proj-new-tile">
+      <span class="proj-new-l">+ NEW PROJECT</span>
+      <span class="proj-new-cross">+</span>
+      <span class="proj-new-h">Open a matter</span>
+      <span class="proj-new-l" style="opacity:.6">DOCS · CHATS · REVIEWS · COMPARES</span>
+    </button>`;
+    if (!sorted.length) {
+      grid.innerHTML = `<div class="ws-empty">${activeFilter === 'all' ? 'No projects yet. Click "New project" above to start one.' : 'No projects in this filter.'}</div>` + newTile;
+      const newBtn = grid.querySelector('#proj-new-tile');
+      if (newBtn) newBtn.addEventListener('click', openNewProjectModal);
       return;
     }
-    grid.innerHTML = j.projects.map((p) => {
+    grid.innerHTML = sorted.map((p) => {
       const c = p.counts || {};
-      return `<a href="/workspace/projects/?id=${p.id}" class="proj-card">
-        <div class="proj-card-name">${escapeHtml(p.name)}</div>
-        ${p.description ? `<div class="proj-card-desc">${escapeHtml(p.description)}</div>` : ''}
-        <div class="proj-card-meta">
-          <span>${c.documents || 0} docs</span>
-          <span>${c.chats || 0} chats</span>
-          <span>${c.reviews || 0} reviews</span>
+      const age = ageBucket(p.updated_at || p.created_at);
+      const stateLabel = age === 'active' ? 'ACTIVE' : age === 'dormant' ? 'DORMANT' : 'IDLE';
+      const stateCls = age === 'active' ? '' : age === 'dormant' ? 'dormant' : 'review';
+      // Pick a "client" line from the description (first sentence, ≤ 60 chars)
+      const desc = (p.description || '').trim();
+      const clientLine = desc ? desc.split(/[.\n]/)[0].slice(0, 60).toUpperCase() : 'INTERNAL · MATTER';
+      const tags = [];
+      if ((c.documents || 0) > 0) tags.push((c.documents) + ' DOCS');
+      if ((c.reviews || 0) > 0) tags.push((c.reviews) + ' REVIEWS');
+      if ((c.chats || 0) > 0) tags.push((c.chats) + ' CHATS');
+      const tagsHtml = tags.length
+        ? `<div class="proj-tags">${tags.slice(0, 4).map((t) => `<span class="tg">${escapeHtml(t)}</span>`).join('')}</div>`
+        : '';
+      return `<a href="/workspace/projects/?id=${p.id}" class="proj-card" data-id="${p.id}">
+        <div class="proj-head">
+          <div class="proj-h-row">
+            <span class="proj-h-id">${escapeHtml(projShortId(p.id))}</span>
+            <span class="proj-h-state ${stateCls}"><span class="pip"></span>${stateLabel}</span>
+          </div>
+          <h3 class="proj-title">${escapeHtml(p.name || 'Untitled')}</h3>
+          <div class="proj-client">${escapeHtml(clientLine)}</div>
+          ${tagsHtml}
+        </div>
+        <div class="proj-body">
+          <div class="proj-counts">
+            <div class="pc"><span class="pc-l">DOCS</span><span class="pc-v">${pad2(c.documents || 0)}</span></div>
+            <div class="pc"><span class="pc-l">CHATS</span><span class="pc-v">${(c.chats || 0) > 0 ? `<em>${pad2(c.chats)}</em>` : pad2(0)}</span></div>
+            <div class="pc"><span class="pc-l">REVIEWS</span><span class="pc-v">${(c.reviews || 0) > 0 ? `<em>${pad2(c.reviews)}</em>` : pad2(0)}</span></div>
+          </div>
+          ${desc ? `<div class="proj-recent" style="font-family:var(--serif); font-size:13.5px; color:var(--ink-2); letter-spacing:0;">${escapeHtml(desc.slice(0, 220))}${desc.length > 220 ? '…' : ''}</div>` : ''}
+        </div>
+        <div class="proj-foot">
+          <span>UPDATED ${escapeHtml(relTime(p.updated_at || p.created_at))}</span>
+          <span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 5l7 7-7 7"/></svg></span>
         </div>
       </a>`;
-    }).join('');
+    }).join('') + newTile;
+
+    const newBtn = grid.querySelector('#proj-new-tile');
+    if (newBtn) newBtn.addEventListener('click', openNewProjectModal);
+  }
+
+  function paintMetaStrip() {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    const total = allProjects.length;
+    const active = allProjects.filter((p) => ageBucket(p.updated_at || p.created_at) === 'active').length;
+    const dormant = allProjects.filter((p) => ageBucket(p.updated_at || p.created_at) === 'dormant').length;
+    const idle = allProjects.filter((p) => ageBucket(p.updated_at || p.created_at) === 'idle').length;
+    const docs = allProjects.reduce((s, p) => s + ((p.counts?.documents) || 0), 0);
+    const reviews = allProjects.reduce((s, p) => s + ((p.counts?.reviews) || 0), 0);
+    set('ms-open', total);
+    set('ms-active', active || '0');
+    set('ms-dormant', dormant || '0');
+    set('ms-docs', docs);
+    set('ms-reviews', reviews);
+    set('cnt-all', '[' + total + ']');
+    set('cnt-active', '[' + active + ']');
+    set('cnt-idle', '[' + idle + ']');
+    set('cnt-dormant', '[' + dormant + ']');
+    const coord = document.getElementById('proj-coord');
+    if (coord) coord.textContent = '/WS.06 · MATTERS · ' + total + ' OPEN';
+  }
+
+  function renderProjectsFromData(j) {
+    allProjects = j.projects || [];
+    paintMetaStrip();
+    paintGrid();
   }
   async function loadProjects() {
-    const grid = document.getElementById('projects-grid');
     let renderedSomething = false;
     try {
       const cached = JSON.parse(localStorage.getItem(PROJ_LIST_CACHE) || 'null');
       if (cached) { renderProjectsFromData(cached); renderedSomething = true; }
     } catch {}
     try {
+      console.log('[projects] loadProjects() fetching');
       const r = await fetch('/.netlify/functions/workspace-projects-list', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Failed to load');
+      console.log('[projects] got', (j.projects || []).length, 'projects');
       renderProjectsFromData(j);
       try { localStorage.setItem(PROJ_LIST_CACHE, JSON.stringify(j)); } catch {}
     } catch (e) {
+      console.error('[projects] loadProjects() failed:', e);
+      const grid = document.getElementById('projects-grid');
       if (!renderedSomething && grid) {
         grid.innerHTML = `<div class="ws-empty">${escapeHtml(e.message || 'Failed to load')}</div>`;
       }
@@ -170,7 +999,7 @@
     const overlay = document.createElement('div');
     overlay.className = 'attach-modal';
     overlay.innerHTML = `
-      <div class="attach-modal-inner" style="width:min(520px,90vw)">
+      <div class="attach-modal-inner">
         <header class="attach-modal-head">
           <h2 class="attach-modal-title">New project</h2>
           <button type="button" class="attach-modal-close" data-close>×</button>
@@ -182,7 +1011,7 @@
           </label>
           <label class="rv-field">
             <span class="rv-field-label">Description (optional)</span>
-            <textarea id="proj-desc" rows="3" placeholder="Notes about this matter…"></textarea>
+            <textarea id="proj-desc" rows="3" placeholder="Notes about this matter — client, jurisdiction, key dates…"></textarea>
           </label>
         </div>
         <footer class="attach-modal-foot">
@@ -207,6 +1036,7 @@
       });
       const j = await r.json();
       if (!r.ok) { alert('Failed: ' + (j.error || 'unknown')); btn.disabled = false; btn.textContent = 'Create'; return; }
+      try { localStorage.removeItem(PROJ_LIST_CACHE); } catch {}
       location.href = `/workspace/projects/?id=${j.project.id}`;
     });
     overlay.querySelector('#proj-name').focus();
@@ -224,24 +1054,64 @@
       main.innerHTML = `<div class="ws-wrap"><div class="ws-empty">${escapeHtml(j.error || 'Failed to load')}</div></div>`;
       return;
     }
-    const { project, chats, documents, reviews, folders } = j;
+    const { project, chats, documents, reviews } = j;
+    const age = ageBucket(project.updated_at || project.created_at);
+    const stateLabel = age === 'active' ? 'ACTIVE' : age === 'dormant' ? 'DORMANT' : 'IDLE';
+    const stateCls = age === 'active' ? '' : age === 'dormant' ? 'dormant' : 'review';
+
     main.innerHTML = `
       <div class="ws-wrap">
         <header class="ws-head">
-          <div>
-            <div class="ws-kicker"><a href="/workspace/projects/" class="lib-back">← Projects</a></div>
-            <h1 class="ws-title" id="proj-title">${escapeHtml(project.name)}</h1>
-            ${project.description ? `<p class="ws-sub">${escapeHtml(project.description)}</p>` : ''}
+          <span class="br-bl"></span><span class="br-br"></span>
+          <div class="kicker">
+            <a href="/workspace/projects/" class="lib-back">← Projects</a>
+            <span class="k-coord" style="margin-left:8px">/WS.06 · ${escapeHtml(projShortId(project.id))}</span>
+            <span class="proj-h-state ${stateCls}" style="margin-left:8px"><span class="pip"></span>${stateLabel}</span>
           </div>
-          <div class="ws-head-actions">
-            <button id="proj-rename" class="ws-btn-secondary">Rename</button>
-            <button id="proj-delete" class="ws-btn-secondary">Delete</button>
+          <div class="head-row">
+            <div>
+              <h1 class="ws-title" id="proj-title">${escapeHtml(project.name)}</h1>
+              ${project.description ? `<p class="ws-sub">${escapeHtml(project.description)}</p>` : ''}
+            </div>
+            <div class="ws-head-actions">
+              <button id="proj-rename" class="ws-btn-secondary" type="button">Rename</button>
+              <button id="proj-new-chat" class="ws-btn" type="button">+ New chat</button>
+              <button id="proj-delete" class="ws-btn-secondary" type="button">Delete</button>
+            </div>
           </div>
         </header>
 
+        <div class="meta-strip">
+          <div class="ms-cell">
+            <span class="ms-l">DOCUMENTS</span>
+            <span class="ms-v">${pad2(documents.length)}</span>
+            <span class="ms-d">IN PROJECT</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">CHATS</span>
+            <span class="ms-v">${(chats.length > 0 ? `<em>${pad2(chats.length)}</em>` : pad2(0))}</span>
+            <span class="ms-d">CONVERSATIONS</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">REVIEWS</span>
+            <span class="ms-v">${(reviews.length > 0 ? `<em>${pad2(reviews.length)}</em>` : pad2(0))}</span>
+            <span class="ms-d">TABULAR</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">CREATED</span>
+            <span class="ms-v" style="font-family:var(--mono); font-size:14px">${escapeHtml(relTime(project.created_at))}</span>
+            <span class="ms-d">FIRST OPENED</span>
+          </div>
+          <div class="ms-cell">
+            <span class="ms-l">UPDATED</span>
+            <span class="ms-v" style="font-family:var(--mono); font-size:14px">${escapeHtml(relTime(project.updated_at || project.created_at))}</span>
+            <span class="ms-d">LAST ACTIVITY</span>
+          </div>
+        </div>
+
         <section class="proj-section">
           <header class="proj-section-head">
-            <h2 class="proj-section-title">Documents <span class="proj-count">${documents.length}</span></h2>
+            <h2 class="proj-section-title">Documents <span class="proj-count">[${pad2(documents.length)}]</span></h2>
             <a href="/workspace/library/" class="lib-back">Library →</a>
           </header>
           ${documents.length ? `<div class="lib-grid">${documents.map((d) => `
@@ -253,19 +1123,20 @@
 
         <section class="proj-section">
           <header class="proj-section-head">
-            <h2 class="proj-section-title">Chats <span class="proj-count">${chats.length}</span></h2>
-            <button id="proj-new-chat" class="ws-btn-secondary">New chat in project</button>
+            <h2 class="proj-section-title">Chats <span class="proj-count">[${pad2(chats.length)}]</span></h2>
+            <a href="/workspace/" class="lib-back">All chats →</a>
           </header>
           ${chats.length ? chats.map((c) => `
             <a href="/workspace/chat/?id=${c.id}" class="ws-row">
               <span class="ws-row-title">${escapeHtml(c.title || 'Untitled chat')}</span>
-              <span class="ws-row-meta">${escapeHtml(c.model || '')} · ${new Date(c.updated_at).toLocaleDateString()}</span>
-            </a>`).join('') : '<div class="ws-empty">No chats yet.</div>'}
+              <span class="ws-row-meta">${escapeHtml(c.model || '')} · ${escapeHtml(relTime(c.updated_at))}</span>
+            </a>`).join('') : '<div class="ws-empty">No chats yet. Click "+ New chat" above to start one in this project.</div>'}
         </section>
 
         <section class="proj-section">
           <header class="proj-section-head">
-            <h2 class="proj-section-title">Tabular reviews <span class="proj-count">${reviews.length}</span></h2>
+            <h2 class="proj-section-title">Tabular reviews <span class="proj-count">[${pad2(reviews.length)}]</span></h2>
+            <a href="/workspace/reviews/" class="lib-back">All reviews →</a>
           </header>
           ${reviews.length ? reviews.map((rv) => `
             <a href="/workspace/reviews/?id=${rv.id}" class="ws-row">
@@ -273,11 +1144,14 @@
               <span class="ws-row-meta">${(rv.columns_config || []).length} cols · ${escapeHtml(rv.status)}</span>
             </a>`).join('') : '<div class="ws-empty">No reviews yet.</div>'}
         </section>
+
+        <p class="ws-foot">
+          <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF MATTER</span>
+          <a href="/workspace/projects/">← All projects</a>
+        </p>
       </div>
     `;
 
-    // Inline rename: swap the title for an input so it feels like
-    // editing in place, no popup. Enter saves, Esc cancels.
     document.getElementById('proj-rename').addEventListener('click', () => {
       const titleEl = document.getElementById('proj-title');
       if (!titleEl || titleEl.dataset.editing) return;
@@ -315,6 +1189,7 @@
           input.title = j.error || 'failed';
           return;
         }
+        try { localStorage.removeItem(PROJ_LIST_CACHE); } catch {}
         project.name = next;
         restore(next);
       };
@@ -322,9 +1197,7 @@
         if (e.key === 'Enter') { e.preventDefault(); save(); }
         else if (e.key === 'Escape') restore(original);
       });
-      input.addEventListener('blur', () => {
-        if (!input.disabled) save();
-      });
+      input.addEventListener('blur', () => { if (!input.disabled) save(); });
     });
 
     document.getElementById('proj-delete').addEventListener('click', async () => {
@@ -335,6 +1208,7 @@
         body: JSON.stringify({ id: project.id }),
       });
       if (!r.ok) { const j = await r.json().catch(() => ({})); alert('Failed: ' + (j.error || 'unknown')); return; }
+      try { localStorage.removeItem(PROJ_LIST_CACHE); } catch {}
       location.href = '/workspace/projects/';
     });
 

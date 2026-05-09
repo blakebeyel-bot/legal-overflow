@@ -25,6 +25,7 @@
     "marked": "^18.0.3",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
+    "pdf-to-png-converter": "^4.0.0",
     "pdfjs-dist": "^5.6.205"
   }
 }

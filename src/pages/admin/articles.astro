@@ -122,9 +122,16 @@
     .a-card-actions { flex-direction: row; width: 100%; }
     .a-card-actions a, .a-card-actions button { flex: 1; }
   }
+  /* Auth-gate paint suppression — see /account/ + /admin/users/ for
+     the pattern. body[data-auth-gate] is present in the rendered HTML,
+     so the browser sees `visibility: hidden` before any layout pass.
+     Removed by the gate handler below once we confirm the user is
+     a tier='admin' profile. Non-admins redirect away without ever
+     seeing the admin UI shell. */
+  body[data-auth-gate] { visibility: hidden; }
 </style>
 </head>
-<body>
+<body data-auth-gate>
 <div id="grain"></div>
 
 <header class="nav">
@@ -180,10 +187,11 @@
   let articles = [];
   let filter = 'all';
 
-  // Admin gate — same pattern as /admin/users/. Hide the body until the
-  // tier='admin' check passes; redirect non-admins so they never see
-  // the admin UI shell.
-  document.body.style.visibility = 'hidden';
+  // Admin gate — body starts with [data-auth-gate] which the inline
+  // CSS (above) renders as `visibility: hidden`. We only clear the
+  // attribute AFTER both checks pass: signed in AND tier='admin'.
+  // This eliminates the prior race where JS-set visibility could
+  // briefly leak admin UI content during the gate's async path.
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     location.href = '/login/?redirect=/admin/articles/';
@@ -195,7 +203,7 @@
     location.href = '/';
     throw new Error('admin only');
   }
-  document.body.style.visibility = '';
+  document.body.removeAttribute('data-auth-gate');
 
   function showToast(msg, isError = false) {
     toast.textContent = msg;

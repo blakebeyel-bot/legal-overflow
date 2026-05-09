@@ -18,8 +18,16 @@
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
+<style>
+  /* Auth-gate paint suppression. The body[data-auth-gate] attribute is
+     present in the rendered HTML, so the browser sees `visibility:hidden`
+     before any layout pass — eliminates the flash of gated content
+     visible during the JS auth check. The auth handler below removes
+     the attribute on successful session load. */
+  body[data-auth-gate] { visibility: hidden; }
+</style>
 </head>
-<body>
+<body data-auth-gate>
 <div id="grain"></div>
 
 <header class="nav">
@@ -78,13 +86,19 @@
   import { getSupabase } from '../../lib/supabase';
   const supabase = getSupabase();
 
-  document.body.style.visibility = 'hidden';
+  // Body starts with [data-auth-gate] which CSS hides via
+  // `visibility: hidden`. We only remove that attribute AFTER the
+  // session check confirms the user is signed in — so unauthenticated
+  // visitors are redirected to /login/ without ever seeing the gated
+  // page render. (Replaces the prior JS-set `style.visibility='hidden'`
+  // which had a race window during the brief gap between body parse
+  // and script execution.)
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) {
     location.href = '/login/?redirect=/account/';
     throw new Error('not signed in');
   }
-  document.body.style.visibility = '';
+  document.body.removeAttribute('data-auth-gate');
 
   const accessToken = session.access_token;
   document.getElementById('acct-email').textContent = session.user.email || '';

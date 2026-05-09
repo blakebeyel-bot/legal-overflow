@@ -13,9 +13,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/site-anim.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
+<script src="/site-anim.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
+<link rel="stylesheet" href="/futuristic.css" />
 </head>
 <body class="review-page">
 <div id="grain"></div>
@@ -96,24 +99,48 @@
   async function renderListView() {
     main.innerHTML = `
       <div class="ws-wrap">
-        <header class="ws-head">
+        <header class="ws-head fm-frame">
+          <span class="br-tr"></span><span class="br-br"></span>
           <div>
-            <div class="ws-kicker">Compare</div>
-            <h1 class="ws-title">Two-document comparison.</h1>
+            <div class="ws-kicker">
+              <span class="k-tag">Compare</span>
+              <span class="k-coord">PG / 05 · COMPARE</span>
+            </div>
+            <h1 class="ws-title">Two-document <em>comparison</em>.</h1>
             <p class="ws-sub">Pick your template and the other side's draft. The AI walks both end-to-end and surfaces every meaningful difference with a recommendation. Accept their language, hold yours, or write a counter — finalize as a clean .docx.</p>
           </div>
           <div class="ws-head-actions">
             <button id="new-cmp-btn" class="ws-btn">New comparison</button>
           </div>
         </header>
-        <section class="ws-card">
-          <div id="cmp-list" class="ws-list">
-            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:65%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:38%"></span></span></div></div>
-            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:75%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:42%"></span></span></div></div>
-            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:55%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:35%"></span></span></div></div>
+        <div class="sec-div">
+          <span><span class="sec-num">§ 01</span> &nbsp;Comparisons</span>
+          <span class="sec-rule"></span>
+          <span class="sec-meta">TEMPLATE &nbsp;↔&nbsp; COUNTERPARTY DRAFT</span>
+        </div>
+        <section class="ws-card fm-card">
+          <header class="ws-card-head">
+            <span class="ws-card-num">01·1</span>
+            <h2 class="ws-card-title">Recent comparisons <span class="ws-card-count" id="cmp-count-pill"></span></h2>
+            <span class="ws-card-count" id="cmp-updated-stamp"></span>
+          </header>
+          <div id="cmp-list" class="ws-list ws-list-tabular ws-list-cmp">
+            <div class="ws-list-head">
+              <span></span>
+              <span class="h-title">Title</span>
+              <span class="h-model">Status · diffs</span>
+              <span class="h-time" style="text-align:right; padding-right:14px;">Updated</span>
+              <span></span>
+            </div>
+            <div class="ws-row-wrap"><div class="ws-rc ws-rc-handle"></div><div class="ws-rc ws-rc-title"><span class="sk-block sk-block-title" style="width:65%"></span></div><div class="ws-rc ws-rc-model"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-time"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-action"></div></div>
+            <div class="ws-row-wrap"><div class="ws-rc ws-rc-handle"></div><div class="ws-rc ws-rc-title"><span class="sk-block sk-block-title" style="width:75%"></span></div><div class="ws-rc ws-rc-model"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-time"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-action"></div></div>
+            <div class="ws-row-wrap"><div class="ws-rc ws-rc-handle"></div><div class="ws-rc ws-rc-title"><span class="sk-block sk-block-title" style="width:55%"></span></div><div class="ws-rc ws-rc-model"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-time"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-action"></div></div>
           </div>
         </section>
-        <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
+        <p class="ws-foot">
+          <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF COMPARE</span>
+          <a href="/workspace/">← Workspace home</a>
+        </p>
       </div>
     `;
     document.getElementById('new-cmp-btn').addEventListener('click', openNewComparisonModal);
@@ -123,22 +150,46 @@
   // Cache key for the compare list — user-scoped so multi-account
   // testing doesn't bleed cache across users.
   const CMP_LIST_CACHE = 'workspace.compare-list.' + (session.user?.id || 'anon');
+  function cmpRelTime(iso) {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60_000) return 'just now';
+    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+    if (ms < 7 * 86_400_000) return `${Math.floor(ms / 86_400_000)}d ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function cmpHeadHtml() {
+    return `<div class="ws-list-head">
+      <span></span>
+      <span class="h-title">Title</span>
+      <span class="h-model">Status · diffs</span>
+      <span class="h-time" style="text-align:right; padding-right:14px;">Updated</span>
+      <span></span>
+    </div>`;
+  }
   function renderCmpListFromData(j) {
     const listEl = document.getElementById('cmp-list');
     if (!listEl) return;
-    if (!j.runs?.length) { listEl.innerHTML = '<div class="ws-empty">No comparisons yet. Click "New comparison" above to start one.</div>'; return; }
-    listEl.innerHTML = j.runs.map((rv) => {
+    const runs = j.runs || [];
+    const countEl = document.getElementById('cmp-count-pill');
+    const stamp = document.getElementById('cmp-updated-stamp');
+    if (countEl) countEl.textContent = `${runs.length}`;
+    if (stamp) stamp.textContent = runs.length ? `Latest · ${cmpRelTime(runs[0]?.updated_at)}` : '';
+    if (!runs.length) {
+      listEl.innerHTML = cmpHeadHtml() +
+        '<div class="ws-empty" style="grid-column:1/-1;padding:28px 14px;color:var(--ink-3);font-size:13px;">No comparisons yet. Click "New comparison" above to start one.</div>';
+      return;
+    }
+    listEl.innerHTML = cmpHeadHtml() + runs.map((rv) => {
       const date = new Date(rv.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
       const stClass = rv.status === 'complete' ? 'rv-status-done' : rv.status === 'running' ? 'rv-status-run' : rv.status === 'error' ? 'rv-status-err' : 'rv-status-pen';
       return `<div class="ws-row-wrap">
-        <a href="/workspace/compare/?id=${rv.id}" class="ws-row">
-          <span class="ws-row-title">${escapeHtml(rv.title)}</span>
-          <span class="ws-row-meta">
-            <span class="rv-status-pill ${stClass}">${escapeHtml(rv.status)}</span>
-            ${rv.diffs_count ? `${rv.diffs_count} diffs · ` : ''}${date}
-          </span>
-        </a>
-        <button type="button" class="ws-row-del" data-del="${rv.id}" data-title="${escapeHtml(rv.title)}" aria-label="Delete">×</button>
+        <div class="ws-rc ws-rc-handle"><span class="rv-kind-tag" data-kind="compare">⇄</span></div>
+        <div class="ws-rc ws-rc-title"><a href="/workspace/compare/?id=${rv.id}">${escapeHtml(rv.title)}${rv.diffs_count ? `<span class="ws-rc-sub">${rv.diffs_count} diffs</span>` : ''}</a></div>
+        <div class="ws-rc ws-rc-model"><span class="rv-status-pill ${stClass}">${escapeHtml(rv.status)}</span></div>
+        <div class="ws-rc ws-rc-time">${date}</div>
+        <div class="ws-rc ws-rc-action"><button type="button" data-del="${rv.id}" data-title="${escapeHtml(rv.title)}" aria-label="Delete">×</button></div>
       </div>`;
     }).join('');
     listEl.querySelectorAll('[data-del]').forEach((btn) => {

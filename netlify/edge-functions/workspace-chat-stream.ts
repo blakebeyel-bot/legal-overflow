@@ -188,6 +188,76 @@ async function resolveProviderKey(userId: string, provider: string): Promise<{ k
   return { key: null, source: 'none' };
 }
 
+// ----- Vault embedding (edge-runtime variant) -----
+//
+// The full embeddings library lives in netlify/lib/embeddings.js but
+// uses Node's process.env via byok-keys.js, which doesn't load cleanly
+// in the Deno edge runtime. We inline a single-text embed here that
+// matches the same provider routing.
+
+async function embedSingleForVault(provider: string, apiKey: string, text: string): Promise<number[] | null> {
+  try {
+    if (provider === 'gemini') {
+      // gemini-embedding-001 (text-embedding-004's successor). Request
+      // 768-dim output to match the workspace_vault_chunks.embedding_gemini
+      // column.
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${encodeURIComponent(apiKey)}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'models/gemini-embedding-001',
+          content: { parts: [{ text }] },
+          outputDimensionality: 768,
+        }),
+      });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.embedding?.values || null;
+    }
+    if (provider === 'openai') {
+      const r = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'text-embedding-3-small', input: [text] }),
+      });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.data?.[0]?.embedding || null;
+    }
+    if (provider === 'voyage') {
+      const r = await fetch('https://api.voyageai.com/v1/embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'voyage-3', input: [text], input_type: 'query' }),
+      });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.data?.[0]?.embedding || null;
+    }
+  } catch (err) {
+    console.warn('[chat-stream] vault embed failed:', (err as any)?.message);
+  }
+  return null;
+}
+
+// Resolve the embedding-API key for a user. Mirrors the BYOK ladder:
+// user's own key first (via the existing resolveProviderKey lookup),
+// then a server env fallback (Deno.env.get).
+async function resolveVaultEmbedKey(userId: string, vaultProvider: string): Promise<string | null> {
+  const byokSlot = vaultProvider === 'gemini' ? 'google'
+                  : vaultProvider === 'openai' ? 'openai'
+                  : null;
+  if (byokSlot) {
+    const { key } = await resolveProviderKey(userId, byokSlot);
+    if (key) return key;
+  }
+  if (vaultProvider === 'voyage') {
+    return Deno.env.get('VOYAGE_API_KEY') || null;
+  }
+  return null;
+}
+
 // ----- Streaming generators (provider-specific, all yield {type, delta}) -----
 
 async function* parseSSE(body: ReadableStream<Uint8Array>) {
@@ -595,12 +665,33 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
     state_bills_enabled:      lawSrc.state_bills_enabled      !== undefined ? !!lawSrc.state_bills_enabled      : legacyBill,
     federal_bills_enabled:    lawSrc.federal_bills_enabled    !== undefined ? !!lawSrc.federal_bills_enabled    : legacyBill,
     privacy_enabled:          !!lawSrc.privacy_enabled,
+    // null = defer to user-level vault_auto_use_in_chats. true/false
+    // = explicit per-chat override.
+    vault_enabled: typeof lawSrc.vault_enabled === 'boolean' ? lawSrc.vault_enabled : null,
   };
   const privacyEnabled = lawSettings.privacy_enabled;
   const anyToggleOn =
     lawSettings.state_statutes_enabled || lawSettings.federal_statutes_enabled ||
     lawSettings.state_caselaw_enabled  || lawSettings.federal_caselaw_enabled  ||
     lawSettings.state_bills_enabled    || lawSettings.federal_bills_enabled;
+
+  // Resolve vault use for this chat. The chat's per-chat flag wins;
+  // null defers to the user's global vault_auto_use_in_chats setting.
+  let vaultEnabled = false;
+  try {
+    const settingsRows = await sbSelect(
+      `workspace_user_settings?user_id=eq.${user.id}&select=vault_auto_use_in_chats`,
+    );
+    const userVaultDefault = settingsRows.length > 0
+      ? !!settingsRows[0].vault_auto_use_in_chats
+      : true;
+    vaultEnabled = lawSettings.vault_enabled === null
+      ? userVaultDefault
+      : !!lawSettings.vault_enabled;
+  } catch (err) {
+    console.warn('[chat-stream] vault settings lookup failed:', (err as any)?.message);
+    vaultEnabled = lawSettings.vault_enabled !== false;   // fail-open to default-on
+  }
   // Persist the resolved settings on the chat row (idempotent —
   // every send updates so the chat remembers the latest).
   if (Object.keys(lawSettingsRaw).length) {
@@ -701,10 +792,13 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
         }
       }
     } catch (err) {
-      const msg = (err as any)?.message || String(err);
-      console.error('[chat-stream] privacy abstractor failed:', msg);
+      // Don't leak abstractor-LLM error details to the browser — the
+      // upstream provider's error body can contain key fragments,
+      // request IDs, or model-internal hints. Log full error server-
+      // side; send a generic actionable message to the client.
+      console.error('[chat-stream] privacy abstractor failed:', err);
       return json({
-        error: `Privacy mode could not abstract your message or attachments. Try again, or disable Privacy mode in the toolbar if you need to send this content verbatim. (Detail: ${msg.slice(0, 200)})`,
+        error: 'Privacy mode could not abstract your message or attachments. Try again, or disable Privacy mode in the toolbar if you need to send this content verbatim.',
         privacy_failed: true,
       }, 502);
     }
@@ -750,6 +844,7 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   let statuteBlock = '';
   let caseLawBlock = '';
   let legiscanBlock = '';
+  let vaultBlock = '';
 
   const asstRow = await sbInsert('workspace_chat_messages', {
     chat_id: chatId, role: 'assistant', content: '', status: 'streaming', model_used: modelId,
@@ -788,6 +883,133 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
           : '';
         send('status', { phase: 'privacy_done', message: `🔒 Question abstracted${docsNote}; client identifiers removed before sending` });
       }
+
+      // ---- Vault retrieval (parallel with pre-grounding) ----
+      //
+      // The user's personal vault is a continuously-growing knowledge
+      // base of saved docs, chat highlights, review findings, and
+      // manual notes. We semantically retrieve the top relevant
+      // chunks here and inline them into the system prompt as a
+      // `=== YOUR VAULT ===` block.
+      //
+      // Privacy mode interaction: vault items are stored RAW (no
+      // abstraction at insert time). When privacy mode is on, each
+      // retrieved chunk is run through abstractContent() before being
+      // inlined. Per-chunk fail-open: if abstraction fails for one
+      // chunk, drop it but keep the rest; the user's typed message is
+      // still privacy-protected at the request-level fail-closed.
+      const vaultPromise: Promise<string> = vaultEnabled
+        ? (async () => {
+            try {
+              // 1. User's vault provider preference
+              const settingsRows = await sbSelect(
+                `workspace_user_settings?user_id=eq.${user.id}&select=vault_embedding_provider`,
+              );
+              const vaultProvider = settingsRows[0]?.vault_embedding_provider || 'gemini';
+
+              // 2. Resolve embedding key (BYOK → server fallback)
+              const embedKey = await resolveVaultEmbedKey(user.id, vaultProvider);
+              if (!embedKey) {
+                send('status', { phase: 'vault_skip', message: '🗂️ Vault: no embedding key — skipping' });
+                return '';
+              }
+
+              // 3. Embed the query. Use the abstracted message under
+              //    privacy mode so we don't send raw client text to
+              //    the embedding provider (matches privacy invariant).
+              send('status', { phase: 'vault', message: '🗂️ Searching your vault…' });
+              const queryText = privacyEnabled ? privacyContent : content;
+              const queryVec = await embedSingleForVault(vaultProvider, embedKey, queryText);
+              if (!queryVec || queryVec.length === 0) {
+                send('status', { phase: 'vault_done', message: '🗂️ Vault embed failed' });
+                return '';
+              }
+
+              // 4. RPC the vector search (workspace_vault_search)
+              const lit = '[' + queryVec.map((n: number) => Number(n).toFixed(7)).join(',') + ']';
+              const rpc = await fetch(`${SB_URL}/rest/v1/rpc/workspace_vault_search`, {
+                method: 'POST',
+                headers: {
+                  apikey: SB_SERVICE_KEY,
+                  Authorization: `Bearer ${SB_SERVICE_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  p_user_id: user.id,
+                  p_query_vec: lit,
+                  p_top_k: 6,
+                  p_kinds: null,
+                  p_provider: vaultProvider,
+                  p_include_archived: false,
+                }),
+              });
+              if (!rpc.ok) {
+                send('status', { phase: 'vault_done', message: '🗂️ Vault search RPC failed' });
+                return '';
+              }
+              const rows: any[] = await rpc.json();
+              if (!Array.isArray(rows) || rows.length === 0) {
+                send('status', { phase: 'vault_done', message: '🗂️ No relevant vault snippets' });
+                return '';
+              }
+
+              // 5. Privacy mode: clean each retrieved chunk on the way
+              //    out. Per-chunk fail-open — drop the chunk if
+              //    abstraction errors, keep the rest.
+              let snippets = rows;
+              if (privacyEnabled) {
+                const abstractedSnips = await Promise.all(
+                  rows.map(async (row) => {
+                    try {
+                      const abstracted = await abstractContent({
+                        text: row.chunk_content || '',
+                        provider, model: modelId, apiKey: key,
+                      });
+                      return { ...row, chunk_content: abstracted };
+                    } catch (err) {
+                      console.warn('[chat-stream] vault chunk abstract failed:', (err as any)?.message);
+                      return null;
+                    }
+                  }),
+                );
+                snippets = abstractedSnips.filter(Boolean) as any[];
+                if (snippets.length === 0) {
+                  send('status', { phase: 'vault_done', message: '🗂️ All vault snippets failed abstraction; skipped' });
+                  return '';
+                }
+                if (snippets.length < rows.length) {
+                  send('status', {
+                    phase: 'vault_warn',
+                    message: `🗂️ ${rows.length - snippets.length} vault snippet${rows.length - snippets.length === 1 ? '' : 's'} skipped (abstraction failed)`,
+                  });
+                }
+              }
+
+              // 6. Build the inline block
+              const lines: string[] = [
+                '=== YOUR VAULT (relevant context from your prior work) ===',
+                '',
+              ];
+              snippets.forEach((row: any, i: number) => {
+                const src = String(row.item_source_kind || '').replace(/_/g, ' ');
+                const title = row.item_title || 'Untitled';
+                lines.push(`[${i + 1}] ${title}  (${src})`);
+                lines.push(String(row.chunk_content || '').trim());
+                lines.push('');
+              });
+              lines.push('=== END VAULT ===');
+              send('status', {
+                phase: 'vault_done',
+                message: `🗂️ Pulled ${snippets.length} vault snippet${snippets.length === 1 ? '' : 's'}`,
+              });
+              return lines.join('\n');
+            } catch (err) {
+              console.warn('[chat-stream] vault retrieval failed:', (err as any)?.message);
+              send('status', { phase: 'vault_done', message: '🗂️ Vault retrieval failed' });
+              return '';
+            }
+          })()
+        : Promise.resolve('');
 
       // ---- Heartbeat beat-generator (always on) ----
       // Runs for EVERY chat message, regardless of research-mode
@@ -967,6 +1189,10 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
         send('status', { phase: 'thinking', message: 'Reasoning over sources…' });
       }
 
+      // Await the vault retrieval (kicked off above, runs in parallel
+      // with pre-grounding when both are on; runs alone otherwise).
+      vaultBlock = await vaultPromise;
+
       let acc = '';
       try {
         // Compose the system prompt. Order:
@@ -983,6 +1209,7 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
         if (statuteBlock)  promptParts.push(statuteBlock);
         if (caseLawBlock)  promptParts.push(caseLawBlock);
         if (legiscanBlock) promptParts.push(legiscanBlock);
+        if (vaultBlock)    promptParts.push(vaultBlock);
         const fullSystem = promptParts.join('\n\n---\n\n');
 
         // Web-search opts piped to provider-specific tools when any

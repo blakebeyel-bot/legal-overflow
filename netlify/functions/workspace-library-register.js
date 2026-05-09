@@ -48,7 +48,10 @@ export default async (req) => {
 
   const supabase = getSupabaseAdmin();
 
-  // Insert document row
+  // Insert document row. library_hidden is set when the user uploaded
+  // via the Vault page and chose "Vault only" — the file goes through
+  // the normal extraction pipeline but doesn't show in the Library UI.
+  const libraryHidden = body.library_hidden === true;
   const { data: doc, error: docErr } = await supabase
     .from('workspace_documents')
     .insert({
@@ -60,6 +63,7 @@ export default async (req) => {
       file_type: file_type || 'application/octet-stream',
       size_bytes: size_bytes || 0,
       status: 'processing',
+      library_hidden: libraryHidden,
     })
     .select('*')
     .single();
@@ -128,16 +132,46 @@ export default async (req) => {
       extraction_detail: extraction.detail || null,
       extracted_text: storedText || null,
       extracted_chars: extraction.chars || null,
+      extraction_method: extraction.method || null,
+      extracted_format: extraction.format || 'plain',
     })
     .eq('id', version.id);
 
   await supabase
     .from('workspace_documents')
     .update({
-      status: extraction.status === 'failed' ? 'ready' : 'ready',  // file is ready even if text extraction failed
+      status: 'ready',
       status_detail: extraction.status === 'failed' ? extraction.detail : null,
     })
     .eq('id', doc.id);
+
+  // ---- Async OCR fallback ----
+  // Image files and sparse-text PDFs (DocuSign / scanned) come back
+  // with status='pending_ocr'. Fire the background OCR job; it will
+  // populate extracted_text and flip status to 'done' (or 'failed').
+  // skipVaultIngest is forwarded so the OCR job knows whether to also
+  // auto-ingest after extraction completes.
+  if (extraction.status === 'pending_ocr') {
+    fireOcr({ documentId: doc.id, versionId: version.id, userId: auth.user.id, skipVaultIngest: body.skip_vault_ingest === true });
+  }
+
+  // ---- Auto-ingest into Vault (sync extraction path only) ----
+  // OCR path defers vault ingestion to the background OCR job (which
+  // runs vault.addVaultItem itself once OCR completes). The sync path
+  // (PDF text, DOCX, plaintext) auto-ingests here.
+  //
+  // Caller can override the user-level auto-ingest setting per-upload
+  // via skip_vault_ingest=true (e.g. when the user explicitly chose
+  // "Library only" in the Vault page's upload modal).
+  const skipVaultIngest = body.skip_vault_ingest === true;
+  if (!skipVaultIngest && extraction.status === 'done' && storedText && storedText.trim()) {
+    fireVaultAutoIngest({
+      userId: auth.user.id,
+      docId: doc.id,
+      title: original_filename || filename || 'Untitled document',
+      content: storedText,
+    });
+  }
 
   // Re-fetch the canonical doc + version to return
   const [{ data: finalDoc }, { data: finalVersion }] = await Promise.all([
@@ -152,9 +186,64 @@ export default async (req) => {
       status: extraction.status,
       chars: extraction.chars,
       detail: extraction.detail,
+      method: extraction.method,
+      format: extraction.format,
     },
   });
 };
+
+/**
+ * Fire-and-forget kick to the OCR background function. Used when
+ * the synchronous extractor returned status='pending_ocr' (image
+ * files, scanned/DocuSign PDFs).
+ */
+function fireOcr({ documentId, versionId, userId, skipVaultIngest = false }) {
+  const base = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
+  const url = `${base}/.netlify/functions/workspace-doc-extract-background`;
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Trigger': 'library-register' },
+    body: JSON.stringify({
+      document_id: documentId,
+      version_id: versionId,
+      user_id: userId,
+      skip_vault_ingest: !!skipVaultIngest,
+    }),
+  }).catch((err) => console.error('fireOcr failed:', err.message));
+}
+
+/**
+ * Fire-and-forget vault auto-ingest. Loads the user's settings
+ * server-side and only ingests if vault_auto_ingest_uploads is on.
+ * This is server-side (not a separate HTTP call) because the
+ * register endpoint is itself authenticated; we can call vault.js
+ * directly using the admin client.
+ */
+async function fireVaultAutoIngest({ userId, docId, title, content }) {
+  try {
+    const { getSupabaseAdmin } = await import('../lib/supabase-admin.js');
+    const supabase = getSupabaseAdmin();
+    const { data: settings } = await supabase
+      .from('workspace_user_settings')
+      .select('vault_auto_ingest_uploads')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const enabled = settings ? !!settings.vault_auto_ingest_uploads : true;
+    if (!enabled) return;
+
+    const { addVaultItem } = await import('../lib/vault.js');
+    await addVaultItem({
+      supabase,
+      userId,
+      sourceKind: 'document',
+      sourceIds: { docId },
+      title,
+      content,
+    });
+  } catch (err) {
+    console.error('vault auto-ingest failed:', err.message);
+  }
+}
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });

@@ -14,10 +14,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/site-anim.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
 <script src="/site-notify.js" defer></script>
+<script src="/site-anim.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
+<link rel="stylesheet" href="/futuristic.css" />
 <!-- mammoth.js for in-doc redline preview (renders .docx → HTML
      client-side so we can highlight where each edit lands) -->
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
@@ -249,27 +252,54 @@
   async function renderListView() {
     main.innerHTML = `
       <div class="ws-wrap">
-        <header class="ws-head">
+        <header class="ws-head fm-frame">
+          <span class="br-tr"></span><span class="br-br"></span>
           <div>
-            <div class="ws-kicker">Tabular reviews</div>
-            <h1 class="ws-title">Document review grids.</h1>
+            <div class="ws-kicker">
+              <span class="k-tag">Reviews</span>
+              <span class="k-coord">PG / 04 · TABULAR-REVIEWS</span>
+            </div>
+            <h1 class="ws-title">Document <em>review</em> grids.</h1>
             <p class="ws-sub">Pick documents, define columns, get a grid of LLM-extracted answers with verbatim citations.</p>
           </div>
           <div class="ws-head-actions">
             <button id="new-review-btn" class="ws-btn">New review</button>
           </div>
         </header>
-        <section class="ws-card">
+        <div class="sec-div">
+          <span><span class="sec-num">§ 01</span> &nbsp;Reviews</span>
+          <span class="sec-rule"></span>
+          <span class="sec-meta">EXTRACT &nbsp;·&nbsp; SUMMARIZE &nbsp;·&nbsp; REDLINE</span>
+        </div>
+        <section class="ws-card fm-card">
           <header class="ws-card-head">
-            <h2 class="ws-card-title">Recent reviews</h2>
+            <span class="ws-card-num">01·1</span>
+            <h2 class="ws-card-title">Recent reviews <span class="ws-card-count" id="rv-count-pill"></span></h2>
+            <div class="ws-card-tabs" id="rv-tabs">
+              <button type="button" class="ws-card-tab is-active" data-rvtab="all">All</button>
+              <button type="button" class="ws-card-tab" data-rvtab="extraction">Extraction</button>
+              <button type="button" class="ws-card-tab" data-rvtab="redline">Redline</button>
+              <button type="button" class="ws-card-tab" data-rvtab="summary">Summary</button>
+            </div>
+            <span class="ws-card-count" id="rv-updated-stamp"></span>
           </header>
-          <div id="reviews-list" class="ws-list">
-            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:60%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:38%"></span></span></div></div>
-            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:72%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:42%"></span></span></div></div>
-            <div class="ws-row-wrap"><div class="ws-row"><span class="ws-row-title"><span class="sk-block sk-block-title" style="width:50%"></span></span><span class="ws-row-meta"><span class="sk-block sk-block-meta" style="width:35%"></span></span></div></div>
+          <div id="reviews-list" class="ws-list ws-list-tabular ws-list-rv">
+            <div class="ws-list-head">
+              <span></span>
+              <span class="h-title">Title</span>
+              <span class="h-model">Status</span>
+              <span class="h-time" style="text-align:right; padding-right:14px;">Updated</span>
+              <span></span>
+            </div>
+            <div class="ws-row-wrap"><div class="ws-rc ws-rc-handle"></div><div class="ws-rc ws-rc-title"><span class="sk-block sk-block-title" style="width:60%"></span></div><div class="ws-rc ws-rc-model"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-time"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-action"></div></div>
+            <div class="ws-row-wrap"><div class="ws-rc ws-rc-handle"></div><div class="ws-rc ws-rc-title"><span class="sk-block sk-block-title" style="width:72%"></span></div><div class="ws-rc ws-rc-model"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-time"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-action"></div></div>
+            <div class="ws-row-wrap"><div class="ws-rc ws-rc-handle"></div><div class="ws-rc ws-rc-title"><span class="sk-block sk-block-title" style="width:50%"></span></div><div class="ws-rc ws-rc-model"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-time"><span class="sk-block sk-block-meta" style="width:60%"></span></div><div class="ws-rc ws-rc-action"></div></div>
           </div>
         </section>
-        <p class="ws-foot"><a href="/workspace/">← Workspace home</a></p>
+        <p class="ws-foot">
+          <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF REVIEWS</span>
+          <a href="/workspace/">← Workspace home</a>
+        </p>
       </div>
     `;
     document.getElementById('new-review-btn').addEventListener('click', openNewReviewModal);
@@ -280,29 +310,56 @@
   // instantly so the user never sees a "Loading…" flash. Then refresh
   // from the server in the background and re-render.
   const REVIEWS_LIST_CACHE = 'workspace.reviews-list.' + (session.user?.id || 'anon');
-  function renderReviewsListFromData(j) {
+  let rvAllReviews = [];
+  let rvActiveTab = 'all';
+
+  function rvHeadHtml() {
+    return `<div class="ws-list-head">
+      <span></span>
+      <span class="h-title">Title</span>
+      <span class="h-model">Status</span>
+      <span class="h-time" style="text-align:right; padding-right:14px;">Updated</span>
+      <span></span>
+    </div>`;
+  }
+
+  function paintReviewsList() {
     const listEl = document.getElementById('reviews-list');
     if (!listEl) return;
-    if (!j.reviews?.length) {
-      listEl.innerHTML = '<div class="ws-empty">No reviews yet. Click "New review" to start one.</div>';
+    const filtered = rvAllReviews.filter((rv) => {
+      if (rvActiveTab === 'all') return true;
+      // Reviews carry a `kind` field — extraction | summary | redline
+      return (rv.kind || 'extraction') === rvActiveTab;
+    });
+    const countEl = document.getElementById('rv-count-pill');
+    const stamp = document.getElementById('rv-updated-stamp');
+    if (countEl) countEl.textContent = `${filtered.length}/${rvAllReviews.length}`;
+    if (stamp) {
+      const newest = rvAllReviews[0]?.updated_at;
+      stamp.textContent = newest ? `Latest · ${rvRelTime(newest)}` : '';
+    }
+    if (!filtered.length) {
+      const empty = !rvAllReviews.length
+        ? 'No reviews yet. Click "New review" to start one.'
+        : `No ${rvActiveTab} reviews. Switch tabs or start a new one.`;
+      listEl.innerHTML = rvHeadHtml() +
+        `<div class="ws-empty" style="grid-column:1/-1;padding:28px 14px;color:var(--ink-3);font-size:13px;">${empty}</div>`;
       return;
     }
-    listEl.innerHTML = j.reviews.map((rv) => {
+    listEl.innerHTML = rvHeadHtml() + filtered.map((rv) => {
       const colCount = (rv.columns_config || []).length;
       const date = new Date(rv.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
       const statusClass = rv.status === 'complete' ? 'rv-status-done' :
                          rv.status === 'running' ? 'rv-status-run' :
                          rv.status === 'error' ? 'rv-status-err' :
                          rv.status === 'partial' ? 'rv-status-part' : 'rv-status-pen';
+      const kindLabel = (rv.kind || 'extraction').toString().toUpperCase();
       return `<div class="ws-row-wrap">
-        <a href="/workspace/reviews/?id=${rv.id}" class="ws-row">
-          <span class="ws-row-title">${escapeHtml(rv.title)}</span>
-          <span class="ws-row-meta">
-            <span class="rv-status-pill ${statusClass}">${escapeHtml(rv.status)}</span>
-            ${colCount} cols · ${date}
-          </span>
-        </a>
-        <button type="button" class="ws-row-del" data-del="${rv.id}" data-title="${escapeHtml(rv.title)}" aria-label="Delete">×</button>
+        <div class="ws-rc ws-rc-handle"><span class="rv-kind-tag" data-kind="${escapeHtml(rv.kind || 'extraction')}">${escapeHtml(kindLabel.slice(0,1))}</span></div>
+        <div class="ws-rc ws-rc-title"><a href="/workspace/reviews/?id=${rv.id}">${escapeHtml(rv.title)}<span class="ws-rc-sub">${colCount} ${colCount === 1 ? 'col' : 'cols'} · ${escapeHtml(kindLabel.toLowerCase())}</span></a></div>
+        <div class="ws-rc ws-rc-model"><span class="rv-status-pill ${statusClass}">${escapeHtml(rv.status)}</span></div>
+        <div class="ws-rc ws-rc-time">${date}</div>
+        <div class="ws-rc ws-rc-action"><button type="button" data-del="${rv.id}" data-title="${escapeHtml(rv.title)}" aria-label="Delete">×</button></div>
       </div>`;
     }).join('');
     listEl.querySelectorAll('[data-del]').forEach((btn) => {
@@ -320,6 +377,31 @@
         loadReviewsList();
       });
     });
+  }
+  function rvRelTime(iso) {
+    if (!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60_000) return 'just now';
+    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+    if (ms < 7 * 86_400_000) return `${Math.floor(ms / 86_400_000)}d ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function renderReviewsListFromData(j) {
+    rvAllReviews = j.reviews || [];
+    paintReviewsList();
+    // Wire tab filter once after first paint.
+    const tabsEl = document.getElementById('rv-tabs');
+    if (tabsEl && !tabsEl.dataset.wired) {
+      tabsEl.dataset.wired = '1';
+      tabsEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.ws-card-tab');
+        if (!btn) return;
+        rvActiveTab = btn.dataset.rvtab || 'all';
+        tabsEl.querySelectorAll('.ws-card-tab').forEach((b) => b.classList.toggle('is-active', b === btn));
+        paintReviewsList();
+      });
+    }
   }
   async function loadReviewsList() {
     const listEl = document.getElementById('reviews-list');
@@ -1272,6 +1354,7 @@
               <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
               <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
               <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">✏️ Refine</button>
+              <button type="button" class="save-to-vault-btn rv-cell-save-vault" data-vault-save-cell="${c.id}" title="Save this finding to your Vault">💾 <span>Save</span></button>
             </div>
             <div class="rv-cell-refine-form" data-refine-form="${c.id}" hidden>
               <textarea class="rv-cell-refine-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>
@@ -1411,6 +1494,66 @@
             // Risk cards' quotes may not yet be registered as finding
             // spans — fall back to a one-off scroll+flash in the doc.
             flashTextInDoc(find);
+          }
+        });
+      });
+
+      // ---- Save finding to Vault ----
+      // Each redline finding card has a 💾 Save button that POSTs the
+      // finding (column name + rationale + verbatim find text + the
+      // accepted-or-proposed replace text) into the user's vault.
+      findingsEl.querySelectorAll('[data-vault-save-cell]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (btn.classList.contains('is-saved')) return;
+          const cellId = btn.dataset.vaultSaveCell;
+          const cell = gridState.cells.find((c) => c.id === cellId);
+          if (!cell) return;
+          const col = (gridState.review.columns_config || [])[cell.column_index];
+          const colName = col?.name || 'Finding';
+          const rationale = cell.redline_rationale || cell.content || '';
+          const findText = cell.redline_find || '';
+          const replaceText = cell.redline_replace || '';
+          const docName = (gridState.documents || []).find((d) => d.id === cell.document_id)?.filename || '';
+          const titleParts = [colName];
+          if (docName) titleParts.push('· ' + docName);
+          const title = titleParts.join(' ').slice(0, 200);
+          const content = [
+            rationale ? `Rationale: ${rationale}` : '',
+            findText ? `\nOriginal:\n${findText}` : '',
+            replaceText ? `\nProposed replacement:\n${replaceText}` : '',
+            cell.redline_status ? `\nStatus: ${cell.redline_status}` : '',
+          ].filter(Boolean).join('\n').trim();
+          if (!content) {
+            alert('Nothing to save on this finding.');
+            return;
+          }
+          btn.disabled = true;
+          btn.querySelector('span').textContent = 'Saving…';
+          try {
+            const r = await fetch('/.netlify/functions/workspace-vault-add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+              body: JSON.stringify({
+                source_kind: 'review_finding',
+                source_review_id: gridState.review.id,
+                source_doc_id: cell.document_id,
+                title,
+                content,
+                tags: ['finding', cell.redline_status || 'pending'],
+              }),
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error || 'Save failed');
+            btn.classList.add('is-saved');
+            btn.querySelector('span').textContent = 'Saved';
+            if (typeof window.siteToast === 'function') {
+              window.siteToast('Finding saved to your Vault', { kind: 'success' });
+            }
+          } catch (err) {
+            btn.disabled = false;
+            btn.querySelector('span').textContent = 'Save';
+            alert('Could not save: ' + err.message);
           }
         });
       });
@@ -2216,6 +2359,7 @@
               <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
               <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
               <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">✏️ Refine</button>
+              <button type="button" class="save-to-vault-btn rv-cell-save-vault" data-vault-save-cell="${c.id}" title="Save this finding to your Vault">💾 <span>Save</span></button>
             </div>
             <div class="rv-cell-refine-form" data-refine-form="${c.id}" hidden>
               <textarea class="rv-cell-refine-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>

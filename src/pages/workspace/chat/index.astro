@@ -14,11 +14,990 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/site-anim.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
+<script src="/site-anim.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
+<style is:global>
+  /* ============================================================
+     Chat page — page-local stylesheet
+     is:global because messages are rendered via JS and would lose
+     Astro auto-scoped attributes. Page-localness is enforced by the
+     body.ws-chat ancestor selector — rules cannot leak.
+     Verbatim port of the design prototype, mapped onto the existing
+     class names so all JS handlers continue to work.
+     ============================================================ */
+
+  body.ws-chat {
+    --rule-thread: #cbc4b1;
+    --tick: #a39b85;
+    --motion-snap: cubic-bezier(.2,.8,.2,1);
+    --privacy: #c98a14;
+    --privacy-tint: #f4ead0;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(208,219,213,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(220,212,196,.25), transparent 70%);
+  }
+
+  /* ---------- shell layout ----------
+     IMPORTANT: must keep the 3-column grid (rail / 6px handle /
+     chat-main) that workspace.css set up, otherwise the chat-main
+     gets pushed off the grid. Just adjust the rail width. */
+  body.ws-chat .chat-shell {
+    --rail-width: 280px;
+    position: relative; z-index: 2;
+    display: grid;
+    grid-template-columns: var(--rail-width) 6px 1fr;
+    border-top: none;       /* defeat workspace.css */
+    max-width: 1400px; margin: 0 auto; width: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+  @media (max-width: 980px) {
+    body.ws-chat .chat-shell { grid-template-columns: 1fr; }
+    body.ws-chat .chat-rail   { display: none; }
+    body.ws-chat #rail-resize { display: none; }
+  }
+
+  /* ---------- sidebar (chat-rail) ---------- */
+  body.ws-chat .chat-rail {
+    position: relative;
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 14px 4px 6px;
+    border-right: 1px solid var(--rule-soft);
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    background: transparent;
+    transition: opacity .18s var(--motion-snap);
+  }
+  body.ws-chat .chat-rail-list,
+  body.ws-chat .chat-rail .side-list {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+  }
+  body.ws-chat .chat-rail-list::-webkit-scrollbar { width: 6px; }
+  body.ws-chat .chat-rail-list::-webkit-scrollbar-thumb { background: var(--rule-soft); border-radius: 3px; }
+  body.ws-chat .chat-rail-back {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .14em; text-transform: uppercase;
+    padding: 4px 4px 0;
+    text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    background: transparent !important;     /* defeat workspace.css hover bg */
+  }
+  body.ws-chat .chat-rail-back:hover { color: var(--ink); }
+
+  /* sidebar head — kicker + title + pulse pip */
+  body.ws-chat .side-head {
+    display: flex !important; flex-direction: column; gap: 6px;
+    padding: 4px 4px 0;
+    flex-shrink: 0;
+  }
+  body.ws-chat #new-chat,
+  body.ws-chat .chat-rail .chat-rail-new {
+    flex-shrink: 0;
+  }
+  body.ws-chat .side-search { flex-shrink: 0; }
+  body.ws-chat .side-kicker {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  body.ws-chat .side-kicker .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-deep);
+    animation: chatPulseDim 2s ease-in-out infinite;
+  }
+  @keyframes chatPulseDim { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  body.ws-chat .side-title {
+    font-family: var(--serif); font-size: 22px;
+    letter-spacing: -.005em; color: var(--ink);
+    line-height: 1.1;
+  }
+  body.ws-chat .side-title em { font-style: italic; color: var(--accent-deep); }
+
+  /* sidebar search */
+  body.ws-chat .side-search {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,.4);
+    transition: border-color .15s;
+  }
+  body.ws-chat .side-search:focus-within { border-color: var(--ink); }
+  body.ws-chat .side-search svg { width: 12px; height: 12px; color: var(--ink-3); flex-shrink: 0; }
+  body.ws-chat .side-search input {
+    border: none; outline: none; background: transparent;
+    font-family: var(--sans); font-size: 13px; color: var(--ink);
+    width: 100%;
+  }
+  body.ws-chat .side-search input::placeholder { color: var(--ink-4); }
+  body.ws-chat .side-search .kbd {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    border: 1px solid var(--rule-thread); border-radius: 2px;
+    padding: 1px 5px;
+  }
+
+  /* section labels in sidebar (added by JS that groups items) */
+  body.ws-chat .side-section-l {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-4);
+    letter-spacing: .14em; text-transform: uppercase;
+    padding: 14px 4px 4px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  body.ws-chat .side-section-l span:last-child { color: var(--ink-4); }
+  body.ws-chat .chat-rail-new,
+  body.ws-chat #new-chat {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 11px 14px; cursor: pointer;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    transition: background .15s var(--motion-snap), border-color .15s, transform .12s;
+  }
+  body.ws-chat .chat-rail-new:hover,
+  body.ws-chat #new-chat:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  body.ws-chat .chat-rail-new:active,
+  body.ws-chat #new-chat:active { transform: translateY(1px); }
+  body.ws-chat .chat-rail-list {
+    flex: 1; overflow-y: auto; min-height: 0;
+    display: flex; flex-direction: column; gap: 0;
+    padding-right: 4px;
+  }
+  body.ws-chat .chat-rail-list::-webkit-scrollbar { width: 6px; }
+  body.ws-chat .chat-rail-list::-webkit-scrollbar-thumb { background: var(--rule-soft); border-radius: 3px; }
+  body.ws-chat .chat-rail-list a,
+  body.ws-chat .chat-rail-item,
+  body.ws-chat .chat-rail-list .side-item {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 8px 12px 8px 10px;
+    border-bottom: 1px dotted var(--rule-soft);
+    cursor: pointer; text-decoration: none;
+    position: relative;
+    color: var(--ink);
+    min-width: 0;
+    overflow: hidden;
+    transition: background .15s var(--motion-snap), padding-left .15s var(--motion-snap);
+  }
+  body.ws-chat .chat-rail-list a:hover,
+  body.ws-chat .chat-rail-item:hover,
+  body.ws-chat .chat-rail-list .side-item:hover {
+    background: rgba(255,255,255,.4); padding-left: 14px;
+  }
+  body.ws-chat .chat-rail-list a.is-active,
+  body.ws-chat .chat-rail-item.is-active,
+  body.ws-chat .chat-rail-list .side-item.is-active {
+    background: rgba(255,255,255,.55); padding-left: 14px;
+  }
+  body.ws-chat .chat-rail-list a.is-active::before,
+  body.ws-chat .chat-rail-item.is-active::before,
+  body.ws-chat .chat-rail-list .side-item.is-active::before {
+    content: ''; position: absolute; left: 0; top: 8px; bottom: 8px;
+    width: 2px; background: var(--accent-deep);
+  }
+  body.ws-chat .chat-rail-list .side-item-title {
+    display: block;
+    font-family: var(--serif); font-size: 13.5px; line-height: 1.3;
+    color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  body.ws-chat .chat-rail-list .side-item-meta {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .04em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  body.ws-chat .chat-rail-list .side-item-meta .dot {
+    width: 2px; height: 2px; border-radius: 50%;
+    background: var(--ink-4);
+    flex-shrink: 0;
+    /* Hide the "·" character — we render the dot via CSS for consistent sizing */
+    color: transparent; font-size: 0;
+  }
+  body.ws-chat .chat-rail-list .side-item-meta .priv {
+    color: var(--privacy); letter-spacing: .12em; font-weight: 500;
+  }
+  /* Delete button — only show on row hover */
+  body.ws-chat .chat-rail-list .rail-row-del {
+    position: absolute !important; top: 6px; right: 6px;
+    width: 18px; height: 18px; padding: 0;
+    background: transparent; border: 1px solid transparent;
+    color: var(--ink-4); font-size: 12px; line-height: 1;
+    border-radius: 3px; cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s, background .15s, color .15s, border-color .15s;
+  }
+  body.ws-chat .chat-rail-list .rail-row-wrap:hover .rail-row-del { opacity: 1; }
+  body.ws-chat .chat-rail-list .rail-row-del:hover {
+    background: #b22222; color: white; border-color: #b22222;
+  }
+  body.ws-chat .chat-rail-list .rail-row-wrap {
+    position: relative;
+    min-width: 0;
+  }
+
+  body.ws-chat #rail-resize {
+    width: 7px; cursor: ew-resize; z-index: 5;
+    background: transparent;
+    align-self: stretch;
+    position: relative;
+    transition: background .15s;
+  }
+  body.ws-chat #rail-resize::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 1px; height: 32px; background: var(--rule-soft);
+    transition: background .15s, height .15s;
+  }
+  body.ws-chat #rail-resize:hover::before,
+  body.ws-chat #rail-resize.is-dragging::before {
+    background: var(--ink); height: 56px;
+  }
+
+  /* ---------- main chat column ---------- */
+  body.ws-chat .chat-main {
+    display: flex; flex-direction: column;
+    min-height: 0;
+    padding-left: 24px;
+    position: relative;
+    background: transparent;
+  }
+
+  /* ---------- chat-head with corner brackets — compact ----------
+     Tight padding + smaller title so the chat container gets max room.
+     Forced display: block to defeat workspace.css's flex layout. */
+  body.ws-chat .chat-head {
+    position: relative !important;
+    display: block !important;
+    padding: 10px 16px 12px !important;
+    margin: 0 0 10px !important;
+    background: transparent !important;
+    border-bottom: none !important;
+    flex: none !important;
+    align-items: initial !important;
+    gap: 0 !important;
+  }
+  body.ws-chat .chat-head::before, body.ws-chat .chat-head::after,
+  body.ws-chat .chat-head > .br-bl, body.ws-chat .chat-head > .br-br {
+    width: 9px; height: 9px;     /* smaller corners */
+  }
+  body.ws-chat .chat-head .chat-kicker,
+  body.ws-chat .chat-head .chat-head-row,
+  body.ws-chat .chat-head .chat-meta {
+    display: flex !important;
+    color: var(--ink);
+  }
+  body.ws-chat .chat-head .chat-kicker {
+    display: inline-flex !important;
+    margin-bottom: 6px !important;       /* tighter than the prototype */
+    font-size: 9.5px !important;
+  }
+  body.ws-chat .chat-head .chat-meta {
+    margin-top: 6px !important;
+    font-size: 9.5px !important;
+    gap: 14px !important;
+  }
+  body.ws-chat .chat-head::before, body.ws-chat .chat-head::after,
+  body.ws-chat .chat-head > .br-bl, body.ws-chat .chat-head > .br-br {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    border: 1px solid var(--ink); pointer-events: none;
+  }
+  body.ws-chat .chat-head::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+  body.ws-chat .chat-head::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
+  body.ws-chat .chat-head > .br-bl { bottom: 0; left: 0; border-top: none; border-right: none; }
+  body.ws-chat .chat-head > .br-br { bottom: 0; right: 0; border-top: none; border-left: none; }
+
+  body.ws-chat .chat-head .chat-kicker {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  body.ws-chat .chat-head .chat-kicker .k-tag {
+    border: 1px solid var(--accent-deep); padding: 2px 7px; border-radius: 2px;
+    font-size: 9.5px;
+  }
+  body.ws-chat .chat-head .chat-kicker .k-coord { color: var(--ink-4); font-size: 9.5px; }
+
+  body.ws-chat .chat-head-row {
+    display: flex; gap: 14px; align-items: center; justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  body.ws-chat .chat-title-input {
+    flex: 1; min-width: 200px;
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(18px, 1.8vw, 22px);   /* much smaller — was clamp(28px,3.4vw,44px) */
+    letter-spacing: -.005em; line-height: 1.1;
+    margin: 0; padding: 2px 0;
+    color: var(--ink);
+    background: transparent; border: none; outline: none;
+  }
+  body.ws-chat .chat-title-input::placeholder { color: var(--ink-4); font-style: italic; }
+  body.ws-chat .chat-title-input:focus { box-shadow: inset 0 -1px 0 var(--accent-deep); }
+
+  body.ws-chat .chat-head-right {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+
+  /* project pill — keep existing functionality, restyle */
+  body.ws-chat .chat-project-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 11px;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: rgba(255,255,255,.4);
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-project-pill:hover { color: var(--ink); border-color: var(--ink); }
+  body.ws-chat .chat-project-pill.has-project { color: var(--accent-deep); border-color: var(--accent-deep); }
+  body.ws-chat .chat-project-pill-caret { font-size: 8px; opacity: .6; }
+
+  body.ws-chat .chat-save-convo-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 11px;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: rgba(255,255,255,.4);
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-save-convo-btn:hover { color: var(--ink); border-color: var(--ink); }
+  body.ws-chat .chat-save-convo-btn:disabled { opacity: .45; cursor: not-allowed; }
+  body.ws-chat .chat-save-convo-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
+  body.ws-chat .chat-save-convo-btn.is-saved {
+    color: var(--accent-deep); border-color: var(--accent-deep); background: rgba(10,125,87,.06);
+  }
+
+  /* model select — restyle as bordered mono pill */
+  body.ws-chat .chat-model-select,
+  body.ws-chat #model-select {
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 7px 11px;
+    color: var(--ink); background: rgba(255,255,255,.4);
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-chat #model-select:hover {
+    color: var(--ink); border-color: var(--ink); background: rgba(255,255,255,.65);
+  }
+
+  /* privacy toggle (existing structure: label > checkbox + label-text) */
+  body.ws-chat .chat-privacy-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 11px;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: rgba(255,255,255,.4);
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-privacy-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  body.ws-chat .chat-privacy-toggle input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 22px; height: 12px; border-radius: 999px;
+    background: var(--rule-soft);
+    position: relative; margin: 0;
+    cursor: pointer;
+    transition: background .15s var(--motion-snap);
+  }
+  body.ws-chat .chat-privacy-toggle input[type="checkbox"]::after {
+    content: ''; position: absolute; left: 1px; top: 1px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--paper); border: 1px solid var(--ink-4);
+    transition: transform .2s var(--motion-snap), border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-privacy-toggle input[type="checkbox"]:checked {
+    background: var(--privacy);
+  }
+  body.ws-chat .chat-privacy-toggle input[type="checkbox"]:checked::after {
+    transform: translateX(10px); border-color: var(--privacy); background: var(--privacy-tint);
+  }
+  body.ws-chat .chat-privacy-toggle:has(input:checked) {
+    color: var(--privacy); border-color: var(--privacy); background: var(--privacy-tint);
+  }
+  body.ws-chat .chat-privacy-toggle-lock { display: none; }     /* design uses pill instead of lock emoji */
+
+  body.ws-chat .chat-key-source {
+    font-family: var(--mono); font-size: 9px; color: var(--accent-deep);
+    letter-spacing: .12em; text-transform: uppercase;
+    align-self: center;
+  }
+
+  /* meta line below the title — stats row */
+  body.ws-chat .chat-meta {
+    font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+    margin-top: 12px;
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  body.ws-chat .chat-meta b { color: var(--ink); font-weight: 500; }
+  body.ws-chat .chat-meta .ml { color: var(--ink-4); }
+
+  /* privacy banner — shows when privacy mode is on */
+  body.ws-chat .privacy-banner {
+    display: none;
+    padding: 8px 18px;
+    font-family: var(--mono); font-size: 10px; color: var(--privacy);
+    letter-spacing: .12em; text-transform: uppercase;
+    border-bottom: 1px solid var(--privacy);
+    background: rgba(243,234,208,.5);
+    align-items: center; gap: 10px;
+    position: relative; z-index: 1;
+  }
+  body.ws-chat.privacy .privacy-banner,
+  body.ws-chat .chat-main.is-privacy-on .privacy-banner { display: flex; }
+  body.ws-chat .privacy-banner .pb-pip {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--privacy);
+    animation: chatPulseDim 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  body.ws-chat .privacy-banner b { font-weight: 500; color: var(--ink); }
+
+  /* suggested prompts — empty state */
+  body.ws-chat .chat-empty {
+    display: flex; flex-direction: column; gap: 28px;
+    padding: 42px 20px;
+    margin: 0;
+    text-align: center;
+    color: inherit;
+    font-style: normal;
+  }
+  body.ws-chat .chat-empty-text {
+    font-family: var(--serif); font-size: 18px; font-style: italic;
+    color: var(--ink-3);
+  }
+  body.ws-chat .suggested {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    max-width: 1080px; margin: 0 auto; width: 100%;
+  }
+  @media (max-width: 1100px) { body.ws-chat .suggested { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width:  680px) { body.ws-chat .suggested { grid-template-columns: 1fr; } }
+  body.ws-chat .suggested-head {
+    grid-column: 1 / -1;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em;
+    color: var(--ink-4); text-transform: uppercase;
+    text-align: center;
+    margin-top: 8px;
+  }
+  body.ws-chat .sg-card {
+    text-align: left;
+    border: 1px solid var(--rule-soft); border-radius: 6px;
+    background: rgba(255,255,255,.35);
+    padding: 12px 14px;
+    cursor: pointer;
+    position: relative;
+    display: flex; flex-direction: column; gap: 6px;
+    transition: border-color .15s, transform .15s var(--motion-snap), background .15s;
+    color: inherit;
+    font: inherit;
+  }
+  body.ws-chat .sg-card:hover {
+    border-color: var(--ink); background: rgba(255,255,255,.55); transform: translateY(-1px);
+  }
+  body.ws-chat .sg-card::before, body.ws-chat .sg-card::after {
+    content: ''; position: absolute; width: 8px; height: 8px;
+    border-color: var(--ink-4); pointer-events: none;
+    transition: border-color .15s, width .15s var(--motion-snap), height .15s var(--motion-snap);
+  }
+  body.ws-chat .sg-card::before { top: 4px; left: 4px; border-top: 1px solid; border-left: 1px solid; }
+  body.ws-chat .sg-card::after  { bottom: 4px; right: 4px; border-bottom: 1px solid; border-right: 1px solid; }
+  body.ws-chat .sg-card:hover::before, body.ws-chat .sg-card:hover::after {
+    border-color: var(--accent-deep); width: 12px; height: 12px;
+  }
+  body.ws-chat .sg-cat {
+    font-family: var(--mono); font-size: 9px; letter-spacing: .14em;
+    color: var(--ink-4); text-transform: uppercase;
+  }
+  body.ws-chat .sg-prompt {
+    font-family: var(--serif); font-size: 14.5px; line-height: 1.3;
+    color: var(--ink);
+  }
+  body.ws-chat .sg-prompt em { font-style: italic; color: var(--accent-deep); }
+
+  /* msg-meta line — mono uppercase per prototype */
+  body.ws-chat .msg-meta {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-4);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin: 4px 0 0;
+  }
+
+  /* citation/verify pill (existing JS produces .msg-verify-pill, .msg-link, .msg-link-pending) */
+  body.ws-chat .msg-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    color: var(--accent-deep);
+    border: 1px solid var(--accent-deep); border-radius: 2px;
+    padding: 0 5px; margin: 0 1px;
+    letter-spacing: .04em;
+    text-decoration: none;
+    background: transparent;
+    transition: background .15s, color .15s;
+    font-style: normal;
+  }
+  body.ws-chat .msg-link:hover { background: var(--accent-deep); color: var(--paper); }
+  body.ws-chat .msg-link-pending {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    color: var(--privacy);
+    border: 1px solid var(--privacy); border-radius: 2px;
+    padding: 0 5px; margin: 0 1px;
+    letter-spacing: .04em;
+  }
+  body.ws-chat .msg-footref {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--accent-deep);
+  }
+  body.ws-chat .msg-verify-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 4px 10px; margin-top: 8px;
+    background: rgba(255,255,255,.4);
+    border: 1px solid var(--rule-soft); border-radius: 3px;
+    color: var(--ink-3);
+    cursor: default;
+    transition: color .15s, border-color .15s;
+  }
+  body.ws-chat .msg-verify-pill.is-complete {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-chat .msg-verify-clickable { cursor: pointer; }
+  body.ws-chat .msg-verify-clickable:hover { background: rgba(255,255,255,.65); }
+  body.ws-chat .msg-verify-caret { font-size: 8px; opacity: .7; }
+
+  /* msg-actions row — Save / Copy / Refine matched to prototype */
+  body.ws-chat .msg-actions {
+    display: flex; gap: 0;
+    margin-top: 6px;
+  }
+  body.ws-chat .msg-actions button,
+  body.ws-chat .msg-action,
+  body.ws-chat .msg-copy {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+    background: transparent; border: none; cursor: pointer;
+    padding: 5px 9px;
+    border-right: 1px solid var(--rule-soft);
+    transition: color .15s;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  body.ws-chat .msg-actions button:last-child,
+  body.ws-chat .msg-actions .msg-copy:last-child { border-right: none; }
+  body.ws-chat .msg-actions button:first-child,
+  body.ws-chat .msg-actions .msg-copy:first-child { padding-left: 0; }
+  body.ws-chat .msg-actions button:hover,
+  body.ws-chat .msg-action:hover,
+  body.ws-chat .msg-copy:hover { color: var(--accent-deep); }
+  body.ws-chat .msg-actions svg { width: 11px; height: 11px; }
+
+  /* msg-attach (paperclip chip inside user message) */
+  body.ws-chat .msg-attach {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .04em; color: var(--ink-2);
+    background: rgba(0,0,0,.04); border: 1px solid var(--rule-soft);
+    border-radius: 999px; padding: 2px 8px;
+  }
+  body.ws-chat .msg-attach-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* status / cursor while streaming */
+  body.ws-chat .msg-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--accent-deep);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-chat .msg-status-spinner {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent-deep);
+    animation: chatPulseDim 1.2s ease-in-out infinite;
+  }
+  body.ws-chat .cursor {
+    display: inline-block; width: 6px; height: 14px;
+    background: var(--ink); margin-left: 2px;
+    vertical-align: -2px;
+    animation: chatBlink 1s steps(2,end) infinite;
+  }
+  @keyframes chatBlink { 50% { opacity: 0; } }
+  body.ws-chat .msg-error {
+    display: inline-block;
+    color: #722;
+    background: rgba(178,34,34,.08);
+    border: 1px solid rgba(178,34,34,.25);
+    border-radius: 6px; padding: 8px 12px;
+    font-family: var(--serif); font-style: italic;
+    font-size: 14px; line-height: 1.5;
+  }
+
+  /* sec-div above the chat container — tight to the container */
+  body.ws-chat .chat-main .sec-div {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 16px;
+    margin: 0 0 8px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-chat .chat-main .sec-div .sec-num { color: var(--ink); }
+  body.ws-chat .chat-main .sec-div .sec-rule { height: 1px; background: var(--rule-soft); }
+  body.ws-chat .chat-main .sec-div .sec-meta { color: var(--ink-4); font-size: 9.5px; }
+
+  /* ---------- chat container (wraps messages + composer) ---------- */
+  body.ws-chat .chat-container {
+    position: relative;
+    flex: 1; display: flex; flex-direction: column;
+    border: 1px solid var(--rule-soft);
+    border-radius: 8px;
+    background: var(--paper-2);
+    overflow: hidden;
+    min-height: 0;        /* let it shrink under flex; flex:1 fills remaining space */
+    transition: border-color .25s var(--motion-snap), background .25s;
+  }
+  body.ws-chat.privacy .chat-container,
+  body.ws-chat .chat-main.is-privacy-on .chat-container {
+    background: var(--privacy-tint);
+    border-color: var(--privacy);
+  }
+  body.ws-chat.privacy .chat-container::before,
+  body.ws-chat .chat-main.is-privacy-on .chat-container::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: var(--privacy);
+    animation: chatPrivacyPulse 2s ease-in-out infinite;
+    z-index: 1;
+  }
+  @keyframes chatPrivacyPulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  /* messages stream */
+  body.ws-chat .chat-messages {
+    flex: 1; overflow-y: auto; min-height: 0;
+    padding: 24px 28px 18px;
+    display: flex; flex-direction: column; gap: 22px;
+    background: transparent;
+  }
+  body.ws-chat .chat-messages::-webkit-scrollbar { width: 8px; }
+  body.ws-chat .chat-messages::-webkit-scrollbar-thumb { background: var(--rule-soft); border-radius: 4px; }
+
+  /* empty state */
+  body.ws-chat .chat-empty {
+    text-align: center; color: var(--ink-3);
+    font-family: var(--serif); font-size: 18px; font-style: italic;
+    margin: 60px auto 0;
+    max-width: 56ch;
+  }
+
+  /* user / assistant messages — system-UI sans like ChatGPT/Claude.
+     Decoupled from the site's serif so the chat reads as a proper
+     conversational interface. The composer above uses the same font
+     for one-to-one parity between what you type and what you read. */
+  body.ws-chat {
+    --chat-font: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 "Helvetica Neue", Arial, "Inter", "Liberation Sans",
+                 sans-serif;
+  }
+  body.ws-chat .msg.user {
+    align-self: flex-start; max-width: 78ch; width: 100%;
+    background: transparent; border: none; padding: 0;
+  }
+  body.ws-chat .msg.user .msg-body {
+    font-family: var(--chat-font);
+    font-size: 15px; line-height: 1.55;
+    color: var(--ink);
+    padding: 12px 16px;
+    background: rgba(255,255,255,.5);
+    border: 1px solid var(--rule-soft);
+    border-left: 2px solid var(--ink);
+    border-radius: 0 4px 4px 0;
+    letter-spacing: -.005em;
+  }
+  body.ws-chat .msg.asst,
+  body.ws-chat .msg.assistant {
+    align-self: flex-start; max-width: 78ch; width: 100%;
+    padding: 0;
+  }
+  body.ws-chat .msg.asst .msg-body,
+  body.ws-chat .msg.assistant .msg-body {
+    font-family: var(--chat-font) !important;
+    font-size: 15px !important;
+    line-height: 1.6;
+    color: var(--ink);
+    letter-spacing: -.005em;
+  }
+  body.ws-chat .msg.asst .msg-body p,
+  body.ws-chat .msg.assistant .msg-body p { margin: 0 0 12px; }
+  body.ws-chat .msg.asst .msg-body p:last-child,
+  body.ws-chat .msg.assistant .msg-body p:last-child { margin-bottom: 0; }
+  body.ws-chat .msg.asst .msg-body strong,
+  body.ws-chat .msg.assistant .msg-body strong { font-weight: 600; }
+  body.ws-chat .msg.asst .msg-body code,
+  body.ws-chat .msg.assistant .msg-body code {
+    font-family: var(--mono); font-size: 13px;
+    background: rgba(0,0,0,.05);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  /* assistant message headings (msg-h1 / h2 / h3) — keep them sans,
+     just bigger / heavier for visual hierarchy */
+  body.ws-chat .msg.asst .msg-body .msg-h1,
+  body.ws-chat .msg.assistant .msg-body .msg-h1 {
+    display: block;
+    font-family: var(--chat-font); font-weight: 600; font-size: 19px;
+    line-height: 1.25; margin: 14px 0 6px; color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  body.ws-chat .msg.asst .msg-body .msg-h2,
+  body.ws-chat .msg.assistant .msg-body .msg-h2 {
+    display: block;
+    font-family: var(--chat-font); font-weight: 600; font-size: 16.5px;
+    line-height: 1.3; margin: 12px 0 4px; color: var(--ink);
+    letter-spacing: -.005em;
+  }
+  body.ws-chat .msg.asst .msg-body .msg-h3,
+  body.ws-chat .msg.assistant .msg-body .msg-h3 {
+    display: block;
+    font-family: var(--chat-font); font-weight: 600; font-size: 14.5px;
+    margin: 10px 0 4px; color: var(--ink);
+  }
+  body.ws-chat .msg.asst .msg-body ul,
+  body.ws-chat .msg.assistant .msg-body ul,
+  body.ws-chat .msg.asst .msg-body ol,
+  body.ws-chat .msg.assistant .msg-body ol {
+    margin: 6px 0 12px; padding-left: 22px;
+  }
+  body.ws-chat .msg.asst .msg-body li,
+  body.ws-chat .msg.assistant .msg-body li { margin: 2px 0; }
+
+  /* ---------- composer area inside the container ---------- */
+  body.ws-chat .chat-composer {
+    border-top: 1px solid var(--rule-soft);
+    padding: 10px 18px 14px;
+    background: var(--paper);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  body.ws-chat.privacy .chat-composer,
+  body.ws-chat .chat-main.is-privacy-on .chat-composer {
+    background: var(--privacy-tint); border-top-color: var(--privacy);
+  }
+
+  /* research toolbar above composer — verbatim port of the prototype's
+     .rt-toggle look: small dot-pip + mono uppercase label + hairline
+     | separators between toggles. Existing JS class names map onto it. */
+  body.ws-chat .composer-research-bar {
+    display: flex !important; flex-wrap: wrap; align-items: center;
+    gap: 0 !important;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 6px 12px !important;
+    background: var(--paper) !important;
+    border: none !important;
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 0 !important;
+    border-radius: 0 !important;
+  }
+  body.ws-chat.privacy .composer-research-bar,
+  body.ws-chat .chat-main.is-privacy-on .composer-research-bar {
+    background: var(--privacy-tint) !important;
+    border-bottom-color: var(--privacy);
+  }
+  body.ws-chat .composer-research-bar .research-state-label {
+    font-size: 9px; color: var(--ink-4); letter-spacing: .14em;
+    margin-right: 6px;
+  }
+  body.ws-chat .composer-research-bar .research-group {
+    display: inline-flex !important; align-items: center; gap: 0;
+  }
+  body.ws-chat .composer-research-bar .research-group-label {
+    font-size: 9px; color: var(--ink-4); letter-spacing: .14em;
+    text-transform: uppercase;
+    margin-right: 4px; margin-left: 4px;
+  }
+  body.ws-chat .composer-research-bar .research-divider {
+    display: inline-block !important;
+    width: 1px; height: 12px; background: var(--rule-soft);
+    margin: 0 6px !important;
+    font-size: 0;
+    color: transparent;
+    flex-shrink: 0;
+  }
+  body.ws-chat .composer-research-bar select.research-toggle-state,
+  body.ws-chat .composer-research-bar #toggle-state {
+    font-family: var(--sans); font-size: 11.5px;
+    letter-spacing: 0; text-transform: none;
+    color: var(--ink); background: transparent;
+    border: none !important; cursor: pointer;
+    border-bottom: 1px dotted var(--ink-3) !important;
+    border-radius: 0 !important;
+    padding: 2px 4px !important;
+    margin: 0 6px;
+    appearance: none; -webkit-appearance: none;
+  }
+  body.ws-chat .composer-research-bar select.research-toggle-state:focus,
+  body.ws-chat .composer-research-bar #toggle-state:focus {
+    outline: none; border-bottom-color: var(--accent-deep) !important;
+  }
+  body.ws-chat .composer-research-bar .research-toggle {
+    display: inline-flex !important; align-items: center; gap: 6px;
+    padding: 4px 8px !important;
+    background: transparent !important; border: none !important;
+    border-radius: 0 !important;
+    cursor: pointer;
+    color: var(--ink-3);
+    transition: color .15s var(--motion-snap);
+  }
+  body.ws-chat .composer-research-bar .research-toggle:hover {
+    color: var(--ink); background: transparent !important;
+  }
+  body.ws-chat .composer-research-bar .research-toggle .research-toggle-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; font-weight: 400;
+  }
+  /* Hide the native checkbox completely; the dot-pip is rendered via ::before */
+  body.ws-chat .composer-research-bar .research-toggle input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 7px; height: 7px; border-radius: 50%;
+    border: 1px solid currentColor !important;
+    margin: 0 !important;
+    background: transparent !important;
+    cursor: pointer;
+    accent-color: currentColor;
+    transition: background .15s;
+    flex-shrink: 0;
+  }
+  body.ws-chat .composer-research-bar .research-toggle input[type="checkbox"]:checked {
+    background: currentColor !important;
+  }
+  body.ws-chat .composer-research-bar .research-toggle:has(input:checked),
+  body.ws-chat .composer-research-bar .research-toggle:has(input:checked) .research-toggle-label {
+    color: var(--accent-deep);
+    font-weight: 500;
+  }
+  body.ws-chat .composer-research-bar .research-status {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .08em; color: var(--ink-3);
+  }
+
+  /* composer input row */
+  body.ws-chat form.chat-composer {
+    display: grid !important;
+    grid-template-columns: auto 1fr auto;
+    align-items: end; gap: 12px;
+    padding: 10px 18px 14px;
+  }
+  body.ws-chat #composer-paperclip {
+    width: 38px; height: 42px;
+    background: transparent; border: 1px solid var(--rule-soft); border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--ink-3);
+    transition: color .15s, border-color .15s, background .15s;
+    align-self: flex-end;
+  }
+  body.ws-chat #composer-paperclip svg { width: 17px; height: 17px; }
+  body.ws-chat #composer-paperclip:hover {
+    color: var(--ink); border-color: var(--ink); background: rgba(255,255,255,.5);
+  }
+  body.ws-chat .chat-composer textarea,
+  body.ws-chat #composer-input {
+    width: 100%;
+    font-family: var(--chat-font) !important;
+    font-size: 15px !important; line-height: 1.55 !important;
+    color: var(--ink);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-soft) !important; border-radius: 6px !important;
+    padding: 12px 14px !important;
+    resize: none;
+    min-height: 64px !important; max-height: 220px;
+    letter-spacing: -.005em;
+    transition: border-color .15s, box-shadow .25s;
+  }
+  body.ws-chat #composer-input::placeholder {
+    color: var(--ink-4);
+    font-family: var(--chat-font);
+    font-size: 15px; font-style: normal;
+  }
+  body.ws-chat #composer-input:focus {
+    outline: none;
+    border-color: var(--ink) !important;
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+  body.ws-chat.privacy #composer-input,
+  body.ws-chat .chat-main.is-privacy-on #composer-input {
+    background: rgba(255,255,255,.4); border-color: var(--privacy) !important;
+  }
+  body.ws-chat.privacy #composer-input:focus,
+  body.ws-chat .chat-main.is-privacy-on #composer-input:focus {
+    border-color: var(--privacy) !important; box-shadow: 0 0 0 1px var(--privacy);
+  }
+  body.ws-chat #composer-send,
+  body.ws-chat .chat-composer .ws-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 42px; padding: 0 18px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+    text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s var(--motion-snap), border-color .15s, transform .12s;
+    align-self: flex-end;
+  }
+  body.ws-chat #composer-send:hover,
+  body.ws-chat .chat-composer .ws-btn:hover {
+    background: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-chat #composer-send:active { transform: translateY(1px); }
+  body.ws-chat.privacy #composer-send,
+  body.ws-chat .chat-main.is-privacy-on #composer-send {
+    background: var(--privacy); border-color: var(--privacy);
+  }
+
+  /* disclaimer */
+  body.ws-chat .chat-discl {
+    margin: 0; padding: 8px 28px 14px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+    background: transparent;
+    border-bottom: none;
+  }
+
+  /* attachments strip */
+  body.ws-chat .composer-attachments {
+    padding: 0 18px;
+    background: transparent;
+    border: none;
+  }
+
+  /* nav-toggle bar — keep it minimal to match the design */
+  body.ws-chat #nav-toggle {
+    background: rgba(255,255,255,.7);
+    border: 1px solid var(--rule-soft);
+    backdrop-filter: blur(8px);
+  }
+
+  @media (max-width: 980px) {
+    body.ws-chat .chat-shell { padding: 14px 16px; }
+    body.ws-chat .chat-main { padding-left: 0; }
+    body.ws-chat .chat-head { padding: 6px 18px 18px; }
+    body.ws-chat .chat-messages { padding: 16px 18px; }
+    body.ws-chat form.chat-composer { padding: 10px; gap: 8px; }
+    body.ws-chat #composer-paperclip { display: none; }
+  }
+</style>
 </head>
-<body class="chat-page">
+<body class="chat-page ws-chat">
 <div id="grain"></div>
 
 <header class="nav">
@@ -50,35 +1029,123 @@
 <main class="chat-shell">
   <aside class="chat-rail">
     <a href="/workspace/" class="chat-rail-back">← Workspace</a>
-    <button id="new-chat" class="chat-rail-new">+ New chat</button>
-    <div id="rail-list" class="chat-rail-list"></div>
+    <div class="side-head">
+      <span class="side-kicker"><span class="pip"></span>WS / 04 · CHAT</span>
+      <span class="side-title"><em>Conversation</em> log</span>
+    </div>
+    <button id="new-chat" class="chat-rail-new new-chat-btn">
+      <span>New chat</span>
+      <span class="plus">+</span>
+    </button>
+    <label class="side-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+      <input type="text" id="chat-search" placeholder="Search conversations…" />
+      <span class="kbd">⌘K</span>
+    </label>
+    <div id="rail-list" class="chat-rail-list side-list"></div>
   </aside>
   <!-- Draggable resize handle between sidebar and chat. -->
   <div id="rail-resize" class="rail-resize" role="separator" aria-label="Resize sidebar" aria-orientation="vertical" tabindex="0"></div>
 
   <section class="chat-main">
     <header class="chat-head">
-      <input type="text" id="chat-title" class="chat-title-input" placeholder="Untitled chat" />
-      <button type="button" id="chat-project-pill" class="chat-project-pill" aria-haspopup="true" title="Set project">
-        <span id="chat-project-pill-label">…</span>
-        <span class="chat-project-pill-caret">▾</span>
-      </button>
-      <div id="chat-project-popover" class="chat-project-popover" hidden></div>
-      <div class="chat-head-right">
-        <label class="chat-privacy-toggle" id="chat-privacy-toggle" title="Privacy mode (FL Rule 4-1.6 / ABA Op. 512). Rewrites every message and attached document as an abstract hypothetical before sending — names, entities, dates, addresses, and amounts are stripped. The LLM never sees client-identifying content.">
-          <input type="checkbox" id="toggle-privacy" />
-          <span class="chat-privacy-toggle-label"><span class="chat-privacy-toggle-lock" aria-hidden="true">🔒</span> Privacy</span>
-        </label>
-        <select id="model-select" class="chat-model-select" aria-label="Model"></select>
-        <span id="key-source" class="chat-key-source" aria-live="polite"></span>
+      <span class="br-bl"></span><span class="br-br"></span>
+      <div class="chat-kicker">
+        <span class="k-tag">SESSION</span>
+        <span class="k-coord" id="chat-coord">/WS · CHAT</span>
+      </div>
+      <div class="chat-head-row">
+        <input type="text" id="chat-title" class="chat-title-input" placeholder="Untitled chat" />
+        <div class="chat-head-right">
+          <button type="button" id="chat-project-pill" class="chat-project-pill" aria-haspopup="true" title="Set project">
+            <span id="chat-project-pill-label">…</span>
+            <span class="chat-project-pill-caret">▾</span>
+          </button>
+          <div id="chat-project-popover" class="chat-project-popover" hidden></div>
+          <!-- Save the entire conversation to the Vault as one item.
+               Disabled when the chat has zero messages. -->
+          <button type="button" id="save-convo-btn" class="chat-save-convo-btn" title="Save the entire conversation to your Vault">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Save conversation</span>
+          </button>
+          <label class="chat-privacy-toggle" id="chat-privacy-toggle" title="Privacy mode (FL Rule 4-1.6 / ABA Op. 512). Rewrites every message and attached document as an abstract hypothetical before sending — names, entities, dates, addresses, and amounts are stripped. The LLM never sees client-identifying content.">
+            <input type="checkbox" id="toggle-privacy" />
+            <span class="chat-privacy-toggle-label">Privacy</span>
+          </label>
+          <select id="model-select" class="chat-model-select" aria-label="Model"></select>
+          <span id="key-source" class="chat-key-source" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="chat-meta" id="chat-meta">
+        <span><span class="ml">STARTED</span> &nbsp; <b id="chat-meta-started">—</b></span>
+        <span><span class="ml">MESSAGES</span> &nbsp; <b id="chat-meta-msgs">0</b></span>
+        <span><span class="ml">MODEL</span> &nbsp; <b id="chat-meta-model">—</b></span>
       </div>
     </header>
 
-    <div id="messages" class="chat-messages">
-      <div class="chat-empty">Ask something. The legal research desk is open.</div>
+    <div class="sec-div">
+      <span class="sec-num">§ A</span>
+      <span class="sec-rule"></span>
+      <span class="sec-meta">STREAM · MOST RECENT BOTTOM</span>
     </div>
 
-    <div id="composer-attachments" class="composer-attachments"></div>
+    <div class="chat-container">
+      <div class="privacy-banner" id="privacy-banner">
+        <span class="pb-pip"></span>
+        <span><b>Privacy mode is on.</b>&nbsp; Every message and attached document is rewritten into an abstract legal hypothetical before it leaves the server — client names, entity names, addresses, dates, and dollar amounts are stripped. The LLM never sees client-identifying content. Vault snippets retrieved into this thread are abstracted the same way before they reach the model. (FL Rule 4-1.6 / ABA Op. 512.)</span>
+      </div>
+      <div id="messages" class="chat-messages">
+        <div class="chat-empty">
+          <div class="chat-empty-text">Ask something. The legal research desk is open.</div>
+          <div class="suggested" id="suggested-prompts">
+            <div class="suggested-head">— TRY ONE OF THESE TO START</div>
+
+            <button type="button" class="sg-card" data-prompt="What does Florida's prompt-payment statute (§ 218.74) say about late SaaS subscription invoices to a state agency?">
+              <span class="sg-cat">— STATUTE</span>
+              <span class="sg-prompt">Florida <em>prompt-payment</em> applicability to SaaS state-agency contracts</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="Compare 'reasonable best efforts' vs. 'commercially reasonable efforts' under Delaware law and tell me which favors the obligor.">
+              <span class="sg-cat">— DOCTRINE</span>
+              <span class="sg-prompt">Reasonable <em>best efforts</em> vs. commercially reasonable (Delaware)</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="Draft a mutual NDA confidentiality clause that survives termination by 3 years for trade secrets and indefinitely for intellectual property.">
+              <span class="sg-cat">— DRAFTING</span>
+              <span class="sg-prompt">Mutual <em>NDA</em> survival — 3 years / indefinite</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="Summarize the key elements of a Florida tortious-interference claim and the leading defenses, with citations to controlling appellate authority.">
+              <span class="sg-cat">— RESEARCH</span>
+              <span class="sg-prompt">FL <em>tortious interference</em> — elements + defenses</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="Draft a memo analyzing personal jurisdiction over a Florida defendant served via Florida's long-arm statute (§ 48.193) for a contract claim arising out of an out-of-state SaaS subscription.">
+              <span class="sg-cat">— MEMO</span>
+              <span class="sg-prompt">FL long-arm <em>personal jurisdiction</em> over a SaaS counterparty</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="What's the standard for piercing the corporate veil under Delaware law, and how does it differ from Florida?">
+              <span class="sg-cat">— DOCTRINE</span>
+              <span class="sg-prompt"><em>Piercing the veil</em> — DE vs. FL standards</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="I'm reviewing a SaaS MSA on the customer side. Walk me through the top 8 risk-allocation provisions I should pay closest attention to and what good looks like for each.">
+              <span class="sg-cat">— REVIEW</span>
+              <span class="sg-prompt">Customer-side <em>SaaS MSA</em> — top 8 risk provisions</span>
+            </button>
+
+            <button type="button" class="sg-card" data-prompt="Outline a deposition prep for a corporate representative deponent under FRCP 30(b)(6) on a breach-of-contract case. What objections should I be ready to make?">
+              <span class="sg-cat">— LITIGATION</span>
+              <span class="sg-prompt"><em>30(b)(6)</em> deposition prep + objection-spotting</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="composer-attachments" class="composer-attachments"></div>
 
     <!-- Research-mode toolbar — sits directly above the composer so
          the toggles are visually attached to the message the user is
@@ -133,14 +1200,31 @@
         </label>
       </span>
 
+      <span class="research-divider" aria-hidden="true">|</span>
+      <label class="research-toggle research-toggle-vault"
+        data-tip="<b>Your Vault.</b> Pulls relevant snippets from your saved docs, chat highlights, review findings, and notes into this chat as context. Per-chat — flip off to ignore your Vault for this conversation only.">
+        <input type="checkbox" id="toggle-vault" />
+        <span class="research-toggle-label">
+          <svg class="research-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+          </svg>
+          Vault
+        </span>
+      </label>
+
       <span class="research-status" id="research-status"></span>
     </div>
 
     <form id="composer" class="chat-composer">
-      <button type="button" id="composer-paperclip" class="composer-paperclip" aria-label="Attach document" title="Attach document from library">📎</button>
+      <button type="button" id="composer-paperclip" class="composer-paperclip" aria-label="Attach document" title="Attach document from library">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48"/>
+        </svg>
+      </button>
       <textarea id="composer-input" rows="2" placeholder="Ask a legal research question…"></textarea>
       <button type="submit" id="composer-send" class="ws-btn">Send</button>
     </form>
+    </div><!-- /.chat-container -->
     <p class="chat-discl">Output is AI-generated and not legal advice. Verify every citation before relying on it.</p>
 
     <!-- Attach modal (hidden by default) -->
@@ -186,6 +1270,38 @@
       </div>
     </div>
 
+    <!-- Save-conversation confirmation modal — opens when the user clicks
+         the "Save conversation" button in the chat header. Explains what
+         the Vault is and what gets saved before committing. -->
+    <div id="save-convo-modal" class="cite-modal" hidden>
+      <div class="cite-modal-overlay" data-save-modal-close></div>
+      <div class="cite-modal-inner">
+        <header class="cite-modal-head">
+          <h2 class="cite-modal-title">Save this conversation to your Vault?</h2>
+          <button type="button" class="cite-modal-close" data-save-modal-close aria-label="Close">×</button>
+        </header>
+        <div class="cite-modal-body">
+          <p>The <strong>Vault</strong> is your private long-term knowledge base. Anything you save there is searchable and can be pulled into future chats automatically (toggle the <em>🗂 Vault</em> switch above the composer in any thread).</p>
+          <p><strong>What this save will do:</strong></p>
+          <ul style="font-size: 13.5px; line-height: 1.55; padding-left: 20px;">
+            <li>Copies the entire conversation — your questions and the assistant's answers — into a single Vault item.</li>
+            <li>Indexes it for semantic search so you can find it later by topic, not just by chat title.</li>
+            <li>Makes it eligible for retrieval into other chats. (Per-chat — you can flip Vault retrieval off in any thread.)</li>
+            <li>Stays in <strong>your</strong> Vault only. Nothing is shared with other users.</li>
+          </ul>
+          <p id="save-convo-note" style="font-size: 13px; color: var(--ink-2); padding: 10px 12px; border-left: 2px solid var(--accent-deep); background: rgba(10,125,87,.05); border-radius: 0 3px 3px 0;"></p>
+          <p style="font-size: 12px; color: var(--ink-3); margin-top: 12px;">You can edit the title, tags, or remove the saved item later from the <a href="/workspace/vault/" style="color: var(--accent-deep); border-bottom: 1px solid var(--accent-deep);">Vault page</a>.</p>
+        </div>
+        <footer style="padding: 12px 18px; border-top: 1px solid var(--rule-soft); display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" class="ws-btn-ghost" data-save-modal-close style="padding: 8px 14px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; background: transparent; border: 1px solid var(--rule-soft); border-radius: 4px; cursor: pointer; color: var(--ink-3);">Cancel</button>
+          <button type="button" id="save-convo-confirm" class="ws-btn" style="padding: 8px 14px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            Save to Vault
+          </button>
+        </footer>
+      </div>
+    </div>
+
     <!-- Privacy mode info modal — opens when the user clicks the
          🔒 badge on an abstracted message. Explains the policy +
          the technique + cites the bar guidance. -->
@@ -193,7 +1309,7 @@
       <div class="cite-modal-overlay"></div>
       <div class="cite-modal-inner">
         <header class="cite-modal-head">
-          <h2 class="cite-modal-title">🔒 Privacy mode — what just happened</h2>
+          <h2 class="cite-modal-title">Privacy mode — what just happened</h2>
           <button type="button" class="cite-modal-close" data-privacy-modal-close aria-label="Close">×</button>
         </header>
         <div class="cite-modal-body">
@@ -223,7 +1339,10 @@
 
   const supabase = getSupabase();
 
-  document.body.style.visibility = 'hidden';
+  // Body is never hidden — better for a signed-out user to briefly
+  // see the shell than for a signed-in user to see a blank page if
+  // the auth gate hiccups (matches the dashboard's hardened pattern).
+  console.log('[chat] Script started');
   let session = null;
   try {
     const { data, error } = await supabase.auth.getSession();
@@ -231,6 +1350,7 @@
     session = data?.session || null;
     if (!session) {
       const here = location.pathname + location.search;
+      console.info('[chat] No session — redirecting to /login/');
       location.href = '/login/?redirect=' + encodeURIComponent(here);
       throw new Error('not signed in');
     }
@@ -238,27 +1358,33 @@
       .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
     if (profileErr) throw profileErr;
     if (!profile) {
-      document.body.style.visibility = '';
       document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">No profile</h1><p>We could not find a profile for your account. Try signing out and creating the account again.</p><p><a href="/">Back to homepage</a></p></main>';
       throw new Error('no profile');
     }
     if (!profile.approved_at) {
-      document.body.style.visibility = '';
       document.body.innerHTML = '<main style="max-width:560px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Pending approval</h1><p>Your account is pending operator approval.</p><p><a href="/">Back to homepage</a></p></main>';
       throw new Error('pending approval');
     }
-    document.body.style.visibility = '';
+    console.log('[chat] Auth gate passed, user', session.user?.id);
   } catch (err) {
     if (err && err.message && !['pending approval','no profile','not signed in'].includes(err.message)) {
-      console.error('Workspace chat gate failed:', err);
-      document.body.style.visibility = '';
+      console.error('[chat] Gate failed:', err);
       document.body.innerHTML = `<main style="max-width:680px;margin:80px auto;padding:0 20px;font-family:Georgia,serif;color:#222"><h1 style="font-weight:400">Workspace error</h1><p>The chat failed to load. Open your browser console for details.</p><pre style="background:#f5f5f5;padding:14px;border-radius:6px;font-size:12px;white-space:pre-wrap;word-break:break-word">${(err && err.message ? err.message : String(err)).replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]))}</pre><p><a href="/workspace/">← Back to workspace</a></p></main>`;
     }
     throw err;
   }
 
   const accessToken = session.access_token;
-  const chatId = new URL(location.href).searchParams.get('id');
+  const _url = new URL(location.href);
+  const chatId = _url.searchParams.get('id');
+  // Optional seed text from the dashboard command bar — prefilled into
+  // the composer so the user doesn't retype. We strip it from the URL
+  // immediately so a refresh doesn't re-seed the empty box.
+  const seedText = _url.searchParams.get('seed');
+  if (seedText) {
+    _url.searchParams.delete('seed');
+    history.replaceState(null, '', _url.toString());
+  }
   if (!chatId) {
     location.href = '/workspace/';
     throw new Error('missing chat id');
@@ -469,14 +1595,24 @@
     // `data-privacy` attribute on the bubble for any tooling/CSS
     // that might key off it later, but don't render any chrome.
     const privacyAttr = opts.privacy_applied ? ' data-privacy="1"' : '';
-    // Copy button for assistant messages — sits in the message
-    // chrome and grabs the raw text from the bubble's data-src
-    // attribute so what gets copied is plain prose, not the
-    // rendered markdown (no asterisks, footnote numbers, etc.).
-    const copyBtn = role === 'assistant'
-      ? `<div class="msg-actions"><button type="button" class="msg-copy" aria-label="Copy response">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button></div>`
-      : '';
-    const dataSrc = role === 'assistant' ? ` data-src="${escapeAttr(content || '')}"` : '';
+    // Action chrome — Copy is shown on BOTH user and assistant bubbles
+    // (handler reads data-src below, which is now set for both roles so
+    // the user can copy their own questions). Save-to-Vault stays
+    // assistant-only — saving the user's own question alone isn't
+    // useful; the response (or the whole conversation via the chat-head
+    // button) is the keepable artifact.
+    const isAsst = role === 'assistant';
+    const copyBtn = `<div class="msg-actions">
+        <button type="button" class="msg-copy" aria-label="${isAsst ? 'Copy response' : 'Copy message'}">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button>
+        ${isAsst ? `
+          <button type="button" class="save-to-vault-btn msg-save-vault" data-msg-save-vault aria-label="Save to Vault">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>Save to Vault</span>
+          </button>` : ''}
+      </div>`;
+    const dataSrc = ` data-src="${escapeAttr(content || '')}"`;
     return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}${privacyAttr}${dataSrc}><div class="msg-body">${renderMarkdownInline(content)}${attachments}</div>${meta}${copyBtn}</div>`;
   }
   function escapeAttr(s) {
@@ -498,9 +1634,57 @@
   // cached.
   const CHAT_CACHE_KEY = 'workspace.chat.' + chatId;
 
+  // Shared empty-state markup so the static fallback in index.astro AND
+  // the dynamic re-renders here both show the same suggested-prompt
+  // grid. Eight curated entry-point prompts; click handler at the bottom
+  // of this file pre-fills the composer with `data-prompt`.
+  const EMPTY_STATE_HTML = `
+    <div class="chat-empty">
+      <div class="chat-empty-text">Ask something. The legal research desk is open.</div>
+      <div class="suggested" id="suggested-prompts">
+        <div class="suggested-head">— TRY ONE OF THESE TO START</div>
+        <button type="button" class="sg-card" data-prompt="What does Florida's prompt-payment statute (§ 218.74) say about late SaaS subscription invoices to a state agency?">
+          <span class="sg-cat">— STATUTE</span>
+          <span class="sg-prompt">Florida <em>prompt-payment</em> applicability to SaaS state-agency contracts</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="Compare 'reasonable best efforts' vs. 'commercially reasonable efforts' under Delaware law and tell me which favors the obligor.">
+          <span class="sg-cat">— DOCTRINE</span>
+          <span class="sg-prompt">Reasonable <em>best efforts</em> vs. commercially reasonable (Delaware)</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="Draft a mutual NDA confidentiality clause that survives termination by 3 years for trade secrets and indefinitely for intellectual property.">
+          <span class="sg-cat">— DRAFTING</span>
+          <span class="sg-prompt">Mutual <em>NDA</em> survival — 3 years / indefinite</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="Summarize the key elements of a Florida tortious-interference claim and the leading defenses, with citations to controlling appellate authority.">
+          <span class="sg-cat">— RESEARCH</span>
+          <span class="sg-prompt">FL <em>tortious interference</em> — elements + defenses</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="Draft a memo analyzing personal jurisdiction over a Florida defendant served via Florida's long-arm statute (§ 48.193) for a contract claim arising out of an out-of-state SaaS subscription.">
+          <span class="sg-cat">— MEMO</span>
+          <span class="sg-prompt">FL long-arm <em>personal jurisdiction</em> over a SaaS counterparty</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="What's the standard for piercing the corporate veil under Delaware law, and how does it differ from Florida?">
+          <span class="sg-cat">— DOCTRINE</span>
+          <span class="sg-prompt"><em>Piercing the veil</em> — DE vs. FL standards</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="I'm reviewing a SaaS MSA on the customer side. Walk me through the top 8 risk-allocation provisions I should pay closest attention to and what good looks like for each.">
+          <span class="sg-cat">— REVIEW</span>
+          <span class="sg-prompt">Customer-side <em>SaaS MSA</em> — top 8 risk provisions</span>
+        </button>
+        <button type="button" class="sg-card" data-prompt="Outline a deposition prep for a corporate representative deponent under FRCP 30(b)(6) on a breach-of-contract case. What objections should I be ready to make?">
+          <span class="sg-cat">— LITIGATION</span>
+          <span class="sg-prompt"><em>30(b)(6)</em> deposition prep + objection-spotting</span>
+        </button>
+      </div>
+    </div>
+  `;
+
   function renderMessages(msgs) {
+    // Sync the "Save conversation" header button's enabled/disabled
+    // state on every render — disabled when there are zero messages.
+    refreshSaveConvoBtnState?.();
     if (!msgs?.length) {
-      els.messages.innerHTML = '<div class="chat-empty">Ask something. The legal research desk is open.</div>';
+      els.messages.innerHTML = EMPTY_STATE_HTML;
       return;
     }
     els.messages.innerHTML = msgs
@@ -563,14 +1747,89 @@
   // round-trip; the live list overwrites it as soon as the fetch
   // returns. Per-user key so multi-account testing works cleanly.
   const RAIL_CACHE_KEY = 'workspace.rail.' + (session.user?.id || 'anon');
+  // Cache of all chats so search filter can re-render without refetch.
+  let railCacheChats = [];
+  let railSearchQuery = '';
+  function timeLabel(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2,'0');
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function dateLabel(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+  }
+  function bucketFor(iso) {
+    if (!iso) return 'Older';
+    const ms = Date.now() - new Date(iso).getTime();
+    const d = new Date(iso);
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    if (sameDay) return 'Today';
+    const yest = new Date(today); yest.setDate(today.getDate() - 1);
+    if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+    if (ms < 7 * 24 * 60 * 60 * 1000) return 'Last week';
+    return 'Older';
+  }
+  function shortModelName(m) {
+    if (!m) return '';
+    const s = String(m).toLowerCase();
+    if (s.includes('claude')) {
+      if (s.includes('opus')) return 'opus-4';
+      if (s.includes('haiku')) return 'haiku-4-5';
+      return 'sonnet-4';
+    }
+    if (s.includes('gpt')) return s.replace(/.*?(gpt-\S+).*/i, '$1');
+    if (s.includes('gemini')) return 'gemini';
+    if (s.includes('grok')) return 'grok';
+    return s;
+  }
   function renderRail(chats) {
-    els.railList.innerHTML = (chats || []).map((c) => {
-      const title = c.title || 'Untitled';
-      const cls = c.id === chatId ? 'rail-row is-active' : 'rail-row';
-      return `<div class="rail-row-wrap">
-        <a href="/workspace/chat/?id=${c.id}" class="${cls}" title="${escapeHtml(title)}">${escapeHtml(title)}</a>
-        <button type="button" class="rail-row-del" data-del="${c.id}" data-title="${escapeHtml(title)}" aria-label="Delete chat" title="Delete">×</button>
-      </div>`;
+    railCacheChats = Array.isArray(chats) ? chats : [];
+    paintRail();
+  }
+  function paintRail() {
+    if (!els.railList) return;
+    const q = (railSearchQuery || '').toLowerCase().trim();
+    const filtered = railCacheChats.filter((c) => {
+      if (!q) return true;
+      return (c.title || '').toLowerCase().includes(q);
+    });
+    if (!filtered.length) {
+      els.railList.innerHTML = `<div style="padding:18px 4px; font-family:var(--mono); font-size:10px; color:var(--ink-3); letter-spacing:.08em; text-transform:uppercase;">${q ? 'No matches' : 'No chats yet'}</div>`;
+      return;
+    }
+    // Group by Today / Yesterday / Last week / Older preserving order.
+    const groups = { 'Today': [], 'Yesterday': [], 'Last week': [], 'Older': [] };
+    for (const c of filtered) {
+      groups[bucketFor(c.updated_at)].push(c);
+    }
+    const sections = ['Today','Yesterday','Last week','Older'].filter((k) => groups[k].length);
+    els.railList.innerHTML = sections.map((k, idx) => {
+      const items = groups[k];
+      const label = `<div class="side-section-l"${idx === 0 ? '' : ' style="padding-top: 12px"'}>
+          <span>${k}</span>
+          <span>${items.length}</span>
+        </div>`;
+      const rows = items.map((c) => {
+        const title = c.title || 'Untitled';
+        const cls = c.id === chatId ? 'rail-row side-item is-active' : 'rail-row side-item';
+        const meta = [];
+        const t = bucketFor(c.updated_at) === 'Today' || bucketFor(c.updated_at) === 'Yesterday'
+          ? timeLabel(c.updated_at) : dateLabel(c.updated_at);
+        if (t) meta.push(`<span>${escapeHtml(t)}</span>`);
+        if (c.model) meta.push(`<span class="dot">·</span><span>${escapeHtml(shortModelName(c.model))}</span>`);
+        return `<div class="rail-row-wrap" style="position:relative;">
+          <a href="/workspace/chat/?id=${c.id}" class="${cls}" title="${escapeHtml(title)}">
+            <span class="side-item-title">${escapeHtml(title)}</span>
+            <span class="side-item-meta">${meta.join('')}</span>
+          </a>
+          <button type="button" class="rail-row-del" data-del="${c.id}" data-title="${escapeHtml(title)}" aria-label="Delete chat" title="Delete">×</button>
+        </div>`;
+      }).join('');
+      return label + rows;
     }).join('');
 
     // Wire delete buttons. If the user deletes the CURRENTLY-OPEN
@@ -708,7 +1967,7 @@
     // SSE stream opens). The first real status event from the server
     // will replace this initial message via the same setPhase swap.
     if (lawSettings.privacy_enabled) {
-      setPhase('🔒 Abstracting your message + attachments for privacy…');
+      setPhase('Abstracting your message + attachments for privacy…');
     } else {
       setPhase('Sending…');
     }
@@ -968,6 +2227,7 @@
     stateBills:      document.getElementById('toggle-state-bills'),
     federalBills:    document.getElementById('toggle-federal-bills'),
     privacy:         document.getElementById('toggle-privacy'),
+    vault:           document.getElementById('toggle-vault'),
     status: document.getElementById('research-status'),
   };
 
@@ -1051,6 +2311,9 @@
     state_bills_enabled: false,
     federal_bills_enabled: false,
     privacy_enabled: false,
+    // Vault toggle. true = use vault for this chat. false = skip.
+    // null = follow the user's global vault_auto_use_in_chats default.
+    vault_enabled: null,
   };
   function anyStateToggleOn() {
     return lawSettings.state_statutes_enabled || lawSettings.state_caselaw_enabled || lawSettings.state_bills_enabled;
@@ -1103,6 +2366,9 @@
       state_bills_enabled:      persisted?.state_bills_enabled      !== undefined ? !!persisted.state_bills_enabled      : legacyBill,
       federal_bills_enabled:    persisted?.federal_bills_enabled    !== undefined ? !!persisted.federal_bills_enabled    : legacyBill,
       privacy_enabled:          !!persisted?.privacy_enabled,
+      // vault_enabled: null = default (use the user's global pref)
+      // true/false = explicit per-chat override
+      vault_enabled: typeof persisted?.vault_enabled === 'boolean' ? persisted.vault_enabled : null,
     };
     if (lawEls.state)           lawEls.state.value = lawSettings.state;
     if (lawEls.stateStatutes)   lawEls.stateStatutes.checked = lawSettings.state_statutes_enabled;
@@ -1112,6 +2378,11 @@
     if (lawEls.stateBills)      lawEls.stateBills.checked = lawSettings.state_bills_enabled;
     if (lawEls.federalBills)    lawEls.federalBills.checked = lawSettings.federal_bills_enabled;
     if (lawEls.privacy)         lawEls.privacy.checked = lawSettings.privacy_enabled;
+    if (lawEls.vault) {
+      // For UI: null defaults to checked (since user-level default is
+      // ON). Once the user clicks, it becomes an explicit boolean.
+      lawEls.vault.checked = lawSettings.vault_enabled !== false;
+    }
     applyResearchUI();
     refreshLawStatusPill();
   }
@@ -1125,7 +2396,7 @@
     if (lawSettings.federal_caselaw_enabled)  parts.push('federal cases');
     if (lawSettings.state_bills_enabled)      parts.push(`${st} bills`);
     if (lawSettings.federal_bills_enabled)    parts.push('Congress bills');
-    if (lawSettings.privacy_enabled)          parts.unshift('🔒 privacy');
+    if (lawSettings.privacy_enabled)          parts.unshift('privacy');
     if (!parts.length) {
       lawEls.status.hidden = true;
       lawEls.status.textContent = '';
@@ -1159,6 +2430,9 @@
       state_bills_enabled:      !!lawEls.stateBills?.checked,
       federal_bills_enabled:    !!lawEls.federalBills?.checked,
       privacy_enabled:          !!lawEls.privacy?.checked,
+      // Vault: explicit boolean override on toggle change. null
+      // (the unchecked-by-default state) is only set on hydrate.
+      vault_enabled:            !!lawEls.vault?.checked,
     };
     applyResearchUI();
     refreshLawStatusPill();
@@ -1168,7 +2442,7 @@
     lawEls.state, lawEls.stateStatutes, lawEls.federalStatutes,
     lawEls.stateCaselaw, lawEls.federalCaselaw,
     lawEls.stateBills, lawEls.federalBills,
-    lawEls.privacy,
+    lawEls.privacy, lawEls.vault,
   ].forEach((el) => el?.addEventListener('change', onLawToggleChange));
   // ---- Verification polling + inline badges ----
   // After an assistant message finishes streaming with research
@@ -1403,16 +2677,16 @@
     }
   });
 
-  // Copy-response button. Walks up to the closest .msg.asst,
-  // reads the raw text from data-src, writes it to the clipboard,
-  // and gives the user a brief "Copied!" confirmation.
+  // Copy-message button. Works on BOTH user and assistant bubbles —
+  // walks up to the closest .msg, reads the raw text from data-src,
+  // writes it to the clipboard, and shows a brief "Copied!" pulse.
   document.addEventListener('click', async (e) => {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
     const btn = t.closest('.msg-copy');
     if (!btn) return;
     e.preventDefault();
-    const bubble = btn.closest('.msg.asst');
+    const bubble = btn.closest('.msg');
     if (!bubble) return;
     const src = bubble.getAttribute('data-src') || '';
     if (!src) return;
@@ -1431,6 +2705,177 @@
     } catch (err) {
       console.error('Copy failed:', err);
       alert('Could not copy — your browser may need clipboard permission.');
+    }
+  });
+
+  // ---- Save-entire-conversation-to-Vault button ----
+  // Compiles every (user / assistant) message in the current chat into
+  // a single markdown transcript and saves it as one Vault item with
+  // source_kind='chat'. Capped at MAX_CONVO_SAVE_MSGS to keep the saved
+  // item readable and the embedding cost bounded — when the cap is hit
+  // we save only the most-recent chunk and tell the user.
+  const MAX_CONVO_SAVE_MSGS = 50;        // ~25 turns of back-and-forth
+  const MAX_CONVO_SAVE_CHARS = 60_000;   // hard byte cap as a safety net
+  const saveConvoBtn = document.getElementById('save-convo-btn');
+
+  function refreshSaveConvoBtnState() {
+    if (!saveConvoBtn) return;
+    const count = (messages || []).filter((m) => m.role === 'user' || m.role === 'assistant').length;
+    saveConvoBtn.disabled = !chat || count === 0;
+  }
+
+  // Compute the trimmed message slice that would be saved. Pulled out
+  // so both the confirmation modal (preview) and the actual save
+  // operation use the same cut.
+  function computeConvoSaveSlice() {
+    const all = (messages || []).filter((m) => m.role === 'user' || m.role === 'assistant');
+    let trimmed = all.slice(-MAX_CONVO_SAVE_MSGS);
+    let body = trimmed.map(formatConvoMessage).join('\n\n---\n\n');
+    while (body.length > MAX_CONVO_SAVE_CHARS && trimmed.length > 1) {
+      trimmed = trimmed.slice(1);
+      body = trimmed.map(formatConvoMessage).join('\n\n---\n\n');
+    }
+    const droppedCount = all.length - trimmed.length;
+    return { all, trimmed, body, droppedCount };
+  }
+
+  // Step 1: opening the popup. Populates the dynamic note line with the
+  // exact message count the user is about to save (and any truncation
+  // detail), then reveals the modal.
+  function openSaveConvoModal() {
+    if (!chat) return;
+    const slice = computeConvoSaveSlice();
+    if (!slice.all.length) {
+      alert('Nothing to save yet — start a conversation first.');
+      return;
+    }
+    const note = document.getElementById('save-convo-note');
+    if (note) {
+      note.innerHTML = slice.droppedCount > 0
+        ? `<strong>This conversation has ${slice.all.length} messages</strong> — only the <strong>${slice.trimmed.length} most recent</strong> will be saved (about ${Math.round(slice.body.length / 1000)}k chars). The earliest ${slice.droppedCount} message${slice.droppedCount === 1 ? '' : 's'} will be omitted so the Vault item stays readable; the saved item will be tagged <code>truncated</code>.`
+        : `<strong>${slice.trimmed.length} message${slice.trimmed.length === 1 ? '' : 's'}</strong> will be saved (about ${Math.round(slice.body.length / 1000)}k chars).`;
+    }
+    const modal = document.getElementById('save-convo-modal');
+    if (modal) modal.hidden = false;
+  }
+
+  function closeSaveConvoModal() {
+    const modal = document.getElementById('save-convo-modal');
+    if (modal) modal.hidden = true;
+  }
+
+  // Step 2: actually run the save when the user confirms in the modal.
+  async function performConvoSave() {
+    if (!chat) return;
+    closeSaveConvoModal();
+    const lbl = saveConvoBtn?.querySelector('span');
+    const wasOriginalLabel = lbl?.textContent;
+    const { all, trimmed, body, droppedCount } = computeConvoSaveSlice();
+    if (!trimmed.length) return;
+
+    const titleSrc = (chat.title && chat.title.trim() && chat.title.trim() !== 'Untitled chat')
+      ? chat.title.trim()
+      : (trimmed[0]?.content || 'Saved conversation').slice(0, 80);
+    saveConvoBtn.disabled = true;
+    if (lbl) lbl.textContent = 'Saving…';
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          source_kind: 'chat',
+          source_chat_id: chat.id,
+          title: titleSrc,
+          content: body,
+          tags: ['chat', 'conversation', ...(droppedCount > 0 ? ['truncated'] : [])],
+          summary: `Conversation transcript — ${trimmed.length} message${trimmed.length === 1 ? '' : 's'}${droppedCount > 0 ? ` (${droppedCount} earlier message${droppedCount === 1 ? '' : 's'} omitted)` : ''}`,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Save failed');
+      saveConvoBtn.classList.add('is-saved');
+      if (lbl) lbl.textContent = 'Saved';
+      if (typeof window.siteToast === 'function') {
+        window.siteToast(
+          droppedCount > 0
+            ? `Saved most-recent ${trimmed.length} of ${all.length} messages to your Vault`
+            : `Saved ${trimmed.length}-message conversation to your Vault`,
+          { kind: 'success' }
+        );
+      }
+      setTimeout(() => {
+        saveConvoBtn.classList.remove('is-saved');
+        saveConvoBtn.disabled = false;
+        if (lbl) lbl.textContent = wasOriginalLabel || 'Save conversation';
+      }, 2400);
+    } catch (err) {
+      saveConvoBtn.disabled = false;
+      if (lbl) lbl.textContent = wasOriginalLabel || 'Save conversation';
+      alert('Could not save conversation: ' + err.message);
+    }
+  }
+
+  saveConvoBtn?.addEventListener('click', openSaveConvoModal);
+  document.getElementById('save-convo-confirm')?.addEventListener('click', performConvoSave);
+  document.querySelectorAll('[data-save-modal-close]').forEach((el) => {
+    el.addEventListener('click', closeSaveConvoModal);
+  });
+  // Esc closes the modal.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('save-convo-modal');
+      if (modal && !modal.hidden) closeSaveConvoModal();
+    }
+  });
+
+  function formatConvoMessage(m) {
+    const ts = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+    const who = m.role === 'user' ? '## You' : '## Assistant';
+    const head = ts ? `${who}  *(${ts})*` : who;
+    return `${head}\n\n${(m.content || '').trim()}`;
+  }
+
+  // Save-to-Vault button on assistant message bubbles. Pulls the
+  // bubble's raw response text from data-src and POSTs it to
+  // workspace-vault-add with source_kind='chat'.
+  document.addEventListener('click', async (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const btn = t.closest('[data-msg-save-vault]');
+    if (!btn) return;
+    e.preventDefault();
+    if (btn.classList.contains('is-saved')) return;
+    const bubble = btn.closest('.msg.asst');
+    if (!bubble) return;
+    const src = bubble.getAttribute('data-src') || '';
+    if (!src.trim()) return;
+    const titleSrc = src.trim().replace(/\s+/g, ' ').slice(0, 80) || 'Saved chat snippet';
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Saving…';
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          source_kind: 'chat',
+          source_chat_id: chatId,
+          source_message_id: bubble.getAttribute('data-id') || null,
+          title: titleSrc,
+          content: src,
+          tags: ['chat'],
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Save failed');
+      btn.classList.add('is-saved');
+      btn.querySelector('span').textContent = 'Saved to Vault';
+      if (typeof window.siteToast === 'function') {
+        window.siteToast('Saved to your Vault', { kind: 'success' });
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Save to Vault';
+      alert('Could not save: ' + err.message);
     }
   });
 
@@ -1643,10 +3088,11 @@
   }
 
   async function openPopover() {
-    // Position popover under the pill
+    // Position popover under the pill. CSS uses position:fixed, so coords
+    // are viewport-relative — no need to add window.scroll{X,Y}.
     const rect = pill.getBoundingClientRect();
-    popover.style.top = (rect.bottom + window.scrollY + 4) + 'px';
-    popover.style.left = (rect.left + window.scrollX) + 'px';
+    popover.style.top = (rect.bottom + 6) + 'px';
+    popover.style.left = rect.left + 'px';
     popover.hidden = false;
 
     // Fetch projects fresh
@@ -1837,6 +3283,11 @@
   });
   els.model.addEventListener('change', async () => {
     if (!chat) return;
+    // Mirror the in-chat selection to the universal preference key the
+    // dashboard writes / reads. Picking a model anywhere now updates it
+    // everywhere — the dashboard model chip will reflect the new choice
+    // on the user's next visit, and new chats will default to it.
+    try { localStorage.setItem('workspace.dash.model', els.model.value); } catch {}
     await fetch('/.netlify/functions/workspace-chats-update', {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1844,10 +3295,13 @@
     });
   });
   els.newChat.addEventListener('click', async () => {
+    // Use the universal model preference as the default for new chats.
+    let preferredModel = '';
+    try { preferredModel = localStorage.getItem('workspace.dash.model') || ''; } catch {}
     const r = await fetch('/.netlify/functions/workspace-chats-create', {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: '{}',
+      body: JSON.stringify(preferredModel ? { model: preferredModel } : {}),
     });
     const j = await r.json();
     if (j.id) location.href = `/workspace/chat/?id=${j.id}`;
@@ -1862,7 +3316,77 @@
     loadChat().then(() => refreshModels(chat?.model)),
     loadRail(),
   ]);
+  // If the dashboard handed us a seed query, prefill the composer and
+  // park the cursor at the end so the user can hit Enter to send.
+  if (seedText) {
+    els.input.value = seedText;
+    els.input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
   els.input.focus();
+  if (seedText) {
+    try { els.input.setSelectionRange(seedText.length, seedText.length); } catch {}
+  }
+
+  // ---- Sidebar search — filters railCacheChats client-side ----
+  const chatSearchInput = document.getElementById('chat-search');
+  if (chatSearchInput) {
+    chatSearchInput.addEventListener('input', () => {
+      railSearchQuery = chatSearchInput.value || '';
+      paintRail();
+    });
+    // ⌘K / Ctrl-K focuses the sidebar search.
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        chatSearchInput.focus();
+        chatSearchInput.select();
+      }
+    });
+  }
+
+  // ---- Suggested-prompt cards in the empty state ----
+  // Clicking a card prefills the composer and focuses it. The cards
+  // remain visible until the user actually sends a message — the
+  // existing render logic replaces .chat-empty when messages load.
+  document.addEventListener('click', (e) => {
+    const card = e.target?.closest?.('.sg-card');
+    if (!card || !card.dataset.prompt) return;
+    if (!els.input) return;
+    els.input.value = card.dataset.prompt;
+    els.input.dispatchEvent(new Event('input', { bubbles: true }));
+    els.input.focus();
+    try { els.input.setSelectionRange(els.input.value.length, els.input.value.length); } catch {}
+  });
+
+  // ---- Chat-meta stat row — updates from the active chat object ----
+  function updateChatMeta() {
+    const startedEl = document.getElementById('chat-meta-started');
+    const msgsEl    = document.getElementById('chat-meta-msgs');
+    const modelEl   = document.getElementById('chat-meta-model');
+    const coordEl   = document.getElementById('chat-coord');
+    if (!chat) return;
+    if (startedEl && chat.created_at) {
+      const d = new Date(chat.created_at);
+      const pad = (n) => String(n).padStart(2,'0');
+      startedEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())} · ${d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}`;
+    }
+    if (msgsEl) {
+      const cnt = (els.messages?.querySelectorAll?.('.msg').length) || 0;
+      msgsEl.textContent = String(cnt);
+    }
+    if (modelEl && chat.model) {
+      modelEl.textContent = shortModelName(chat.model);
+    }
+    if (coordEl) {
+      const id = (chat.id || '').slice(0, 4).toUpperCase();
+      coordEl.textContent = `/WS · CHT-${id || '0000'}`;
+    }
+  }
+  // Refresh the meta line when chat data is loaded or messages change.
+  // We poll once a second — cheap and reliable across the various
+  // streaming code paths.
+  setInterval(updateChatMeta, 1000);
+  updateChatMeta();
 </script>
 </body>
 </html>

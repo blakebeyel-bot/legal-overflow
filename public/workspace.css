@@ -157,8 +157,10 @@
 .ws-dash-empty a { color: var(--accent-deep); text-decoration: none; }
 .ws-dash-empty a:hover { text-decoration: underline; }
 
-/* ---------- Active nav highlight ---------- */
-.nav-links a.is-active { color: var(--accent-deep); border-bottom: 1px solid var(--accent-deep); }
+/* ---------- Active nav highlight ----------
+   Removed — now lives globally in /styles.css with the lift-on-hover
+   animation so every page (workspace, agents, marketing) shares the
+   same nav behavior. */
 
 /* ---------- Chat shell (sidebar + main pane) ---------- */
 /* Lock the chat page so the body never scrolls. The messages list is
@@ -174,13 +176,16 @@ body.chat-page {
 }
 /* Auto-hiding nav — applies to any page that loads /nav-autohide.js
    (which adds `body.nav-autohide`). The chat page also gets it via
-   the same body class for backward compatibility. */
+   the same body class for backward compatibility.
+   `overflow: hidden` is intentionally only applied when the nav is
+   COLLAPSING — at rest the nav must let child transforms (like the
+   lift-on-hover on .nav-links a) extend beyond its bounding box,
+   otherwise the hover animation gets clipped against the nav's edge. */
 body.chat-page > .nav,
 body.nav-autohide > .nav {
   flex-shrink: 0;
   transition: max-height .22s ease, opacity .22s ease, padding .22s ease, border-color .22s ease;
   max-height: 120px;
-  overflow: hidden;
 }
 body.chat-page.nav-collapsed > .nav,
 body.nav-autohide.nav-collapsed > .nav {
@@ -189,6 +194,7 @@ body.nav-autohide.nav-collapsed > .nav {
   padding-top: 0;
   padding-bottom: 0;
   border-color: transparent;
+  overflow: hidden;
 }
 
 /* When the nav is auto-hidden, a thin hint strip appears at the very
@@ -313,13 +319,16 @@ body.chat-page #grain { display: none; }   /* grain overlay would absolutely-pos
 
 /* Popover that appears below the pill */
 .chat-project-popover {
-  position: absolute;
-  z-index: 30;
+  /* fixed (viewport-relative) so the JS that sets style.top/left from
+     getBoundingClientRect lands at the pill, not at some offsetParent's
+     left edge a thousand pixels to the right. */
+  position: fixed;
+  z-index: 100;
   width: 280px;
   background: var(--paper);
-  border: 1px solid var(--rule-soft);
+  border: 1px solid var(--ink);
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.08);
+  box-shadow: 0 12px 28px rgba(14,21,18,.14);
   padding: 8px;
 }
 .cpop-loading { padding: 12px; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
@@ -2596,3 +2605,452 @@ body.cite-modal-open { overflow: hidden; }
 .msg-copy svg {
   flex-shrink: 0;
 }
+
+/* ============================================================
+ * Vault — per-user RAG knowledge base UI
+ * ============================================================ */
+
+.vault-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.vault-kind-filter {
+  font-family: var(--mono); font-size: 11.5px;
+  padding: 6px 28px 6px 10px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink); cursor: pointer;
+}
+
+.vault-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  position: relative;
+}
+.vault-layout:has(.vault-detail:not([hidden])) {
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 480px);
+}
+
+/* Vault list — line items, one row per vault item. Optimised for
+   scanning hundreds of items: clear columns, hover highlight, click
+   anywhere on the row (not the checkbox) to open the detail panel. */
+.vault-list-wrap { display: flex; flex-direction: column; }
+.vault-list-head, .vault-row {
+  display: grid;
+  grid-template-columns: 36px 110px minmax(220px, 1fr) minmax(120px, 1.2fr) 80px 130px;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.vault-list-head {
+  background: var(--paper-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+.vault-row {
+  background: var(--paper);
+  cursor: pointer;
+  transition: background .12s;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+}
+.vault-row:hover { background: var(--paper-2); }
+.vault-row.is-selected { background: rgba(56, 98, 170, .04); }
+.vault-row-check { display: flex; align-items: center; justify-content: center; }
+.vault-row-check input { cursor: pointer; }
+.vault-col-kind { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.vault-col-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vault-row-title {
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vault-row-summary {
+  font-family: var(--sans); font-size: 12px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vault-col-tags {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  overflow: hidden;
+}
+.vault-col-meta {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--ink-3); letter-spacing: .03em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vault-col-empty { color: var(--ink-3); font-size: 12px; }
+.vault-tag {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  background: var(--paper-2); border: 1px solid var(--rule-soft);
+  padding: 1px 6px; border-radius: 3px; color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* Sticky bulk-action bar — shown when at least one row is checked */
+.vault-bulk-bar {
+  position: sticky;
+  top: 56px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  margin: 0 0 12px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.vault-bulk-bar[hidden] { display: none; }
+.vault-bulk-count {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: .04em;
+  margin-right: auto;
+}
+.vault-bulk-bar .ws-btn {
+  background: transparent;
+  color: var(--paper);
+  border-color: rgba(255,255,255,.3);
+}
+.vault-bulk-bar .ws-btn:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.6);
+}
+
+.vault-bulk-progress {
+  padding: 10px 16px;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  letter-spacing: .03em;
+}
+
+/* Tabs in the Add modal (paste vs upload) */
+.vault-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: 18px;
+}
+.vault-tab {
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.vault-tab.is-active { color: var(--ink); border-bottom-color: var(--accent-deep); }
+.vault-tab:hover { color: var(--ink); }
+.vault-tab-panel[hidden] { display: none; }
+
+.vault-modal-upload-status {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--ink-2);
+  padding: 8px 10px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* In-flight upload strip — one card per file, sticky just under
+   the toolbar. Shows live status: "Uploading…" → "OCR running 3/5
+   chunks · 60%" → "✓ 12k chars · Added to Vault". */
+.vault-uploads-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.vault-uploads-strip[hidden] { display: none; }
+.vault-upload-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 140px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--accent-deep);
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+  transition: border-color .25s, background .25s;
+}
+.vault-upload-row.is-done {
+  border-left-color: #4a8a64;
+  background: rgba(10, 125, 87, .04);
+}
+.vault-upload-row.is-failed {
+  border-left-color: #b22222;
+  background: rgba(178, 34, 34, .04);
+}
+.vault-upload-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--accent-deep);
+}
+.vault-upload-row.is-done .vault-upload-spinner { color: #1f5a37; }
+.vault-upload-row.is-failed .vault-upload-spinner { color: #b22222; }
+.vault-upload-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vault-upload-name {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vault-upload-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: .03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vault-upload-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--paper-2);
+  overflow: hidden;
+  position: relative;
+}
+.vault-upload-bar-fill {
+  height: 100%;
+  background: var(--accent-deep);
+  width: 0%;
+  transition: width .35s ease;
+  border-radius: 3px;
+}
+.vault-upload-row.is-done .vault-upload-bar-fill { background: #4a8a64; }
+.vault-upload-row.is-failed .vault-upload-bar-fill { background: #b22222; }
+
+/* Bulk-import destination picker (3 large click cards) */
+.vault-bulk-dest-options {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.vault-bulk-dest-option {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.vault-bulk-dest-option:hover {
+  border-color: var(--ink);
+  background: var(--paper-2);
+}
+.vault-bulk-dest-option:focus { outline: 2px solid var(--accent-deep); outline-offset: 1px; }
+
+.vault-kind-badge {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 2px;
+  background: var(--paper-2); color: var(--ink-2);
+  border: 1px solid var(--rule-soft);
+}
+.vault-kind-badge.vault-kind-document       { background: rgba(56, 98, 170, .08);  color: #2b4d83; border-color: rgba(56, 98, 170, .25); }
+.vault-kind-badge.vault-kind-chat           { background: rgba(10, 125, 87, .08);  color: #0a7d57; border-color: rgba(10, 125, 87, .25); }
+.vault-kind-badge.vault-kind-review_finding { background: rgba(178, 34, 34, .07);  color: #b22222; border-color: rgba(178, 34, 34, .22); }
+.vault-kind-badge.vault-kind-manual_note    { background: rgba(184, 127, 0, .08);  color: #8a5a00; border-color: rgba(184, 127, 0, .28); }
+
+.vault-pin-dot { font-size: 11px; }
+.vault-arch-chip {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em;
+  text-transform: uppercase; background: var(--paper-2);
+  border: 1px solid var(--rule-soft); padding: 1px 5px; border-radius: 2px;
+  color: var(--ink-3);
+}
+.vault-score {
+  margin-left: auto; font-family: var(--mono); font-size: 10px;
+  color: var(--accent-deep); letter-spacing: .04em;
+}
+
+.vault-empty {
+  padding: 40px; font-size: 13.5px; color: var(--ink-2); line-height: 1.6;
+  font-family: var(--sans); max-width: 540px;
+}
+.vault-empty p { margin: 0 0 8px; }
+
+.vault-detail {
+  position: relative;
+  border-left: 1px solid var(--rule-soft);
+  padding: 18px 22px;
+  background: var(--paper);
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.vault-detail-close {
+  position: absolute; top: 10px; right: 10px;
+  width: 28px; height: 28px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper-2); color: var(--ink-3);
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+.vault-detail-close:hover { color: var(--ink); border-color: var(--ink); }
+.vault-detail-meta {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--ink-3); letter-spacing: .04em; margin-bottom: 10px;
+}
+.vault-detail-title {
+  font-family: var(--serif); font-size: 22px; font-weight: 400;
+  line-height: 1.25; margin: 0 0 12px; color: var(--ink);
+}
+.vault-detail-summary {
+  font-family: var(--sans); font-size: 13.5px; line-height: 1.5;
+  color: var(--ink-2); font-style: italic; margin: 8px 0 14px;
+}
+.vault-detail-actions { display: flex; gap: 6px; margin: 14px 0; }
+.vault-detail-delete { color: #b22222 !important; }
+.vault-detail-delete:hover { border-color: #b22222 !important; background: rgba(178,34,34,.04) !important; }
+.vault-detail-content {
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.55;
+  color: var(--ink); background: var(--paper-2);
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  padding: 12px 14px; white-space: pre-wrap; word-break: break-word;
+  max-height: 600px; overflow-y: auto;
+}
+
+/* Generic modal — used by Vault add-note + settings dialogs */
+.ws-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.ws-modal[hidden] { display: none; }
+.ws-modal-inner {
+  background: var(--paper); border-radius: 8px;
+  max-width: 640px; width: 100%;
+  max-height: calc(100vh - 60px); overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+.ws-modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 22px; border-bottom: 1px solid var(--rule-soft);
+}
+.ws-modal-head h2 { font-family: var(--serif); font-size: 19px; font-weight: 400; margin: 0; }
+.ws-modal-close {
+  width: 32px; height: 32px;
+  background: var(--paper-2); border: 1px solid var(--rule-soft);
+  border-radius: 4px; color: var(--ink-3);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+.ws-modal-close:hover { color: var(--ink); border-color: var(--ink); }
+.ws-modal-body { padding: 18px 22px 22px; }
+.ws-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+.vault-form-label {
+  display: block;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 6px; margin-top: 14px;
+}
+.vault-form-label:first-child, .vault-form-label:first-of-type { margin-top: 0; }
+.vault-form-hint {
+  font-family: var(--sans); font-size: 11.5px; color: var(--ink-3);
+  font-style: italic; text-transform: none; letter-spacing: 0; margin-left: 4px;
+}
+.vault-form-input {
+  width: 100%; padding: 8px 10px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 13px;
+}
+.vault-form-input:focus { outline: none; border-color: var(--ink); }
+.vault-form-textarea {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; line-height: 1.5;
+  resize: vertical; min-height: 180px;
+}
+.vault-form-textarea:focus { outline: none; border-color: var(--ink); }
+
+.vault-provider-radios { display: flex; flex-direction: column; gap: 6px; }
+.vault-provider-radio {
+  display: grid; grid-template-columns: 18px 1fr;
+  align-items: center; gap: 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  cursor: pointer; transition: border-color .15s;
+}
+.vault-provider-radio:hover { border-color: var(--ink); }
+.vault-provider-radio input { margin: 0; cursor: pointer; }
+.vault-provider-name {
+  font-family: var(--sans); font-size: 13.5px; font-weight: 500;
+  color: var(--ink); grid-column: 2;
+}
+.vault-provider-meta {
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--ink-3); letter-spacing: .03em; grid-column: 2;
+}
+
+.vault-checkbox {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-family: var(--sans); font-size: 13px; color: var(--ink);
+  margin: 8px 0; cursor: pointer; line-height: 1.5;
+}
+.vault-checkbox input { margin: 3px 0 0 0; cursor: pointer; }
+
+.save-to-vault-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+  background: transparent; border: 1px solid var(--rule-soft); border-radius: 4px;
+  color: var(--ink-2); cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.save-to-vault-btn:hover { border-color: var(--ink); color: var(--ink); background: rgba(0,0,0,.03); }
+.save-to-vault-btn.is-saved {
+  border-color: #4a8a64; background: rgba(10,125,87,.06);
+  color: #1f5a37; cursor: default;
+}
+/* SVG bookmark glyph replaces the 💾 emoji — inherits currentColor so it
+   tracks with the button's hover/saved states. */
+.save-to-vault-btn { display: inline-flex; align-items: center; gap: 5px; }
+.save-to-vault-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
+
+/* 8th research-bar toggle — icon ships inline as SVG, not as an emoji
+   pseudo-element, so it inherits currentColor (matches whatever stroke
+   the surrounding mono text uses on hover / active states). */
+.research-toggle-vault .research-toggle-label {
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.research-toggle-icon { width: 12px; height: 12px; flex-shrink: 0; }

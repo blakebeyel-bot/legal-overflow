@@ -11,90 +11,240 @@ import Consent from '../../partials/consent.astro';
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/futuristic.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
 <link rel="stylesheet" href="/site-anim.css" />
 <script src="/site-anim.js" defer></script>
-<style>
-  /* Layout */
-  .cv-wrap { max-width: 1100px; margin: 0 auto; padding: 32px 40px 80px; }
-  .cv-kicker { font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
-  .cv-title { font-family: var(--serif); font-weight: 400; font-size: 44px; line-height: 1.05; letter-spacing: -.012em; margin: 0 0 18px; }
-  .cv-sub { font-size: 16px; line-height: 1.55; color: var(--ink-2); max-width: 780px; margin: 0 0 40px; }
+<!-- mammoth.js for DOCX → HTML rendering of the uploaded brief -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.7.2/mammoth.browser.min.js" defer></script>
+<!-- JSZip for client-side DOCX zip manipulation when exporting the corrected brief -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+<style is:global>
+  /* ============================================================
+     Citation Verifier — scoped to body.cv-page
+     ============================================================ */
+  body.cv-page .shell{position:relative;z-index:2;max-width:1480px;margin:0 auto;padding:22px 40px 40px}
 
-  /* Steps */
-  .cv-quota { display: flex; align-items: center; gap: 8px; margin: -16px 0 28px; padding: 10px 14px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper-2); }
-  .cv-quota-text { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
-  .cv-quota.is-low .cv-quota-text { color: #b45309; }
-  .cv-quota.is-out .cv-quota-text { color: #b3532f; font-weight: 600; }
-  .cv-paywall { border: 1px solid var(--ink); border-radius: 8px; padding: 36px 36px 32px; background: var(--paper-2); margin-bottom: 28px; }
-  .cv-paywall-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 10px; }
-  .cv-paywall-title { font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; margin: 0 0 14px; }
-  .cv-paywall-title em { font-style: italic; color: var(--accent-deep); }
-  .cv-paywall-sub { font-size: 15px; line-height: 1.6; color: var(--ink-2); max-width: 620px; margin: 0 0 22px; }
-  .cv-paywall-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-  .cv-step { border: 1px solid var(--rule-soft); border-radius: 8px; padding: 28px 30px; background: var(--paper-2); margin-bottom: 24px; }
-  .cv-step.is-active { border-color: var(--ink); background: var(--paper); }
-  .cv-step.is-done { border-style: dashed; opacity: .85; }
-  .cv-step-label { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
-  .cv-step h2 { font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.1; letter-spacing: -.005em; margin: 0 0 14px; }
-  .cv-step p { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); margin: 0 0 16px; }
+  /* viewfinder head */
+  body.cv-page .ws-head{position:relative;padding:14px 24px 22px;margin:0 0 22px}
+  body.cv-page .ws-head::before,
+  body.cv-page .ws-head::after,
+  body.cv-page .ws-head>.br-bl,
+  body.cv-page .ws-head>.br-br{content:'';position:absolute;width:14px;height:14px;border:1px solid var(--ink);pointer-events:none}
+  body.cv-page .ws-head::before{top:0;left:0;border-right:none;border-bottom:none}
+  body.cv-page .ws-head::after{top:0;right:0;border-left:none;border-bottom:none}
+  body.cv-page .ws-head>.br-bl{bottom:0;left:0;border-top:none;border-right:none}
+  body.cv-page .ws-head>.br-br{bottom:0;right:0;border-top:none;border-left:none}
+  body.cv-page .kicker{display:inline-flex;gap:12px;font-family:var(--mono);font-size:10.5px;color:var(--accent-deep);letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px;align-items:center}
+  body.cv-page .k-tag{border:1px solid var(--accent-deep);padding:2px 7px;border-radius:2px;font-size:9.5px}
+  body.cv-page .k-coord{color:var(--ink-4);font-size:9.5px}
+  body.cv-page .head-row{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:20px}
+  body.cv-page .head-title{font-family:var(--serif);font-weight:400;font-size:clamp(40px,5vw,70px);letter-spacing:-.012em;line-height:1;margin:0}
+  body.cv-page .head-title em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .head-sub{font-family:var(--serif);font-size:19px;color:var(--ink-2);max-width:64ch;margin-top:12px;line-height:1.4}
+  body.cv-page .head-actions{display:flex;gap:8px;flex-wrap:wrap}
+  body.cv-page .ws-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;background:var(--ink);color:var(--paper);border:1px solid var(--ink);border-radius:4px;transition:background .15s;text-decoration:none}
+  body.cv-page .ws-btn:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+  body.cv-page .ws-btn:disabled{opacity:.4;cursor:not-allowed}
+  body.cv-page .ws-btn-ghost{background:transparent;color:var(--ink)}
+  body.cv-page .ws-btn-ghost:hover{background:var(--ink);color:var(--paper)}
+  body.cv-page .ws-btn svg{width:12px;height:12px}
 
-  /* Form bits */
-  .cv-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: end; margin-bottom: 18px; }
-  .cv-field { flex: 1; min-width: 180px; }
-  .cv-field label { display: block; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
-  .cv-field select, .cv-field input[type="file"] {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: 4px;
-    font-family: var(--sans); font-size: 14px; color: var(--ink); background: var(--paper);
+  body.cv-page .meta-strip{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);margin:0 0 22px}
+  body.cv-page .ms-cell{padding:13px 18px;border-right:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:5px}
+  body.cv-page .ms-cell:last-child{border-right:none}
+  body.cv-page .ms-l{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);letter-spacing:.14em;text-transform:uppercase}
+  body.cv-page .ms-v{font-family:var(--serif);font-size:24px;color:var(--ink);line-height:1}
+  body.cv-page .ms-v em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .ms-d{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);letter-spacing:.08em;text-transform:uppercase}
+  @media(max-width:1100px){body.cv-page .meta-strip{grid-template-columns:repeat(2,1fr)}body.cv-page .ms-cell:nth-child(2n){border-right:none}}
+
+  body.cv-page .sec-div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;margin:8px 0 14px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.12em;text-transform:uppercase}
+  body.cv-page .sec-num{color:var(--ink)}
+  body.cv-page .sec-rule{height:1px;background:var(--rule-soft)}
+  body.cv-page .sec-meta{color:var(--ink-4);font-size:9.5px}
+
+  /* upload card */
+  body.cv-page .cv-upload{border:1px solid var(--rule-soft);border-radius:8px;padding:32px 36px;background:var(--paper-2);margin-bottom:18px}
+  body.cv-page .cv-upload h2{font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.1;letter-spacing:-.005em;margin:0 0 10px}
+  body.cv-page .cv-upload h2 em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .cv-upload p{font-size:14.5px;line-height:1.55;color:var(--ink-2);margin:0 0 18px}
+  body.cv-page .cv-row{display:flex;gap:18px;flex-wrap:wrap;align-items:end;margin-bottom:16px}
+  body.cv-page .cv-field{flex:1;min-width:180px}
+  body.cv-page .cv-field label{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+  body.cv-page .cv-field select,
+  body.cv-page .cv-field input[type="file"]{
+    width:100%;padding:10px 12px;border:1px solid var(--rule-soft);border-radius:4px;
+    font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--paper);
   }
-  .cv-checkbox { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; color: var(--ink-2); margin-bottom: 14px; }
-  .cv-checkbox input { margin-top: 3px; }
+  body.cv-page .cv-checkbox{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--ink-2);margin-bottom:12px}
+  body.cv-page .cv-checkbox input{margin-top:3px}
+  body.cv-page .cv-checkbox a{color:var(--accent-deep);border-bottom:1px solid var(--accent)}
+  body.cv-page .cv-error{padding:14px 18px;border:1px solid #b22222;background:rgba(178,34,34,.06);border-radius:6px;color:#722;font-size:13.5px;margin-top:14px}
 
-  .cv-btn { display: inline-block; padding: 11px 26px; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; transition: background .2s ease, color .2s ease; }
-  .cv-btn:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
-  .cv-btn:disabled { opacity: .4; cursor: not-allowed; }
-  .cv-btn-secondary { background: var(--paper-2); color: var(--ink); }
+  /* paywall / pending */
+  body.cv-page .cv-paywall{border:1px solid var(--ink);border-radius:8px;padding:30px 32px;background:var(--paper-2);margin-bottom:22px}
+  body.cv-page .cv-paywall-kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-deep);margin-bottom:8px}
+  body.cv-page .cv-paywall-title{font-family:var(--serif);font-weight:400;font-size:28px;line-height:1.1;margin:0 0 12px}
+  body.cv-page .cv-paywall-title em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .cv-paywall-sub{font-size:14.5px;line-height:1.55;color:var(--ink-2);max-width:620px;margin:0 0 18px}
+  body.cv-page .cv-paywall-actions{display:flex;gap:12px;flex-wrap:wrap}
 
-  /* Progress */
-  .cv-progress { margin-top: 14px; padding: 16px 20px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); }
-  .cv-progress-bar { height: 4px; background: var(--rule-soft); border-radius: 2px; overflow: hidden; margin: 12px 0; }
-  .cv-progress-fill { height: 100%; background: var(--accent-deep); width: 0%; transition: width .4s ease; }
-  .cv-progress-status { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
-  .cv-progress-status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-deep); margin-right: 8px; vertical-align: middle; animation: pulse 1.4s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  body.cv-page .cv-quota{display:flex;align-items:center;gap:8px;margin:-6px 0 16px;padding:10px 14px;border:1px solid var(--rule-soft);border-radius:6px;background:var(--paper-2)}
+  body.cv-page .cv-quota-text{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2)}
+  body.cv-page .cv-quota.is-low .cv-quota-text{color:#b45309}
+  body.cv-page .cv-quota.is-out .cv-quota-text{color:#b3532f;font-weight:600}
 
-  /* Results */
-  .cv-summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 14px 0 26px; }
-  .cv-stat { padding: 16px 14px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--paper); text-align: center; }
-  .cv-stat-num { font-family: var(--serif); font-size: 30px; color: var(--ink); line-height: 1; }
-  .cv-stat-label { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
-  .cv-stat.tier-conforming .cv-stat-num { color: var(--accent-deep); }
-  .cv-stat.tier-review .cv-stat-num     { color: #b87f00; }
-  .cv-stat.tier-nonconforming .cv-stat-num { color: #b22222; }
+  /* run banner */
+  body.cv-page .run-banner{position:relative;border:1px solid var(--rule-soft);border-radius:8px;background:var(--paper-2);padding:18px 22px;display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center;margin-bottom:18px;overflow:hidden}
+  body.cv-page .run-banner.is-running::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent-deep),transparent);background-size:200% 100%;animation:cv-scan 2.4s linear infinite}
+  @keyframes cv-scan{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  body.cv-page .rb-l{display:flex;flex-direction:column;gap:5px}
+  body.cv-page .rb-kick{font-family:var(--mono);font-size:9.5px;color:var(--accent-deep);letter-spacing:.14em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px}
+  body.cv-page .rb-kick .pip{width:6px;height:6px;border-radius:50%;background:var(--accent-deep)}
+  body.cv-page .run-banner.is-running .rb-kick .pip{animation:cv-pulse 2s ease-in-out infinite}
+  @keyframes cv-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  body.cv-page .rb-t{font-family:var(--serif);font-size:24px;letter-spacing:-.01em;color:var(--ink);line-height:1.1}
+  body.cv-page .rb-t em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .rb-meta{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;display:flex;gap:14px;flex-wrap:wrap;margin-top:5px}
 
-  .cv-downloads { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
-  .cv-download { padding: 14px 22px; border: 1px solid var(--ink); border-radius: 4px; text-decoration: none; color: var(--ink); font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; transition: background .2s ease; }
-  .cv-download:hover { background: var(--paper); }
+  body.cv-page .rb-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-left:1px dotted var(--rule-soft);padding-left:18px}
+  body.cv-page .rb-stat{padding:0 12px;border-right:1px dotted var(--rule-soft);display:flex;flex-direction:column;gap:3px}
+  body.cv-page .rb-stat:last-child{border-right:none}
+  body.cv-page .rb-stat-l{font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.14em;text-transform:uppercase}
+  body.cv-page .rb-stat-v{font-family:var(--serif);font-size:22px;line-height:1;color:var(--ink)}
+  body.cv-page .rb-stat-v em{font-style:italic}
+  body.cv-page .rb-stat-v.hi{color:var(--hi)}
+  body.cv-page .rb-stat-v.md{color:var(--md)}
+  body.cv-page .rb-stat-v.ok{color:var(--ins)}
 
-  .cv-citations table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .cv-citations th, .cv-citations td { padding: 10px 8px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; text-align: left; }
-  .cv-citations th { font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
-  .cv-tier { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
-  .cv-tier.t-conforming    { background: rgba(10,125,87,.12); color: #0a7d57; }
-  .cv-tier.t-review        { background: rgba(184,127,0,.14);  color: #b87f00; }
-  .cv-tier.t-nonconforming { background: rgba(178,34,34,.14);  color: #b22222; }
+  body.cv-page .rb-actions{display:flex;flex-direction:column;gap:6px}
 
-  .cv-error { padding: 16px 20px; border: 1px solid #b22222; background: rgba(178,34,34,.06); border-radius: 6px; color: #722; font-size: 14px; }
+  /* split */
+  body.cv-page .split{display:grid;grid-template-columns:1fr 380px;gap:14px;align-items:start}
+  @media(max-width:1100px){body.cv-page .split{grid-template-columns:1fr}}
 
-  @media (max-width: 700px) {
-    .cv-wrap { padding: 24px 18px 60px; }
-    .cv-title { font-size: 32px; }
-    .cv-summary { grid-template-columns: repeat(2, 1fr); }
+  body.cv-page .brief{border:1px solid var(--rule-soft);border-radius:8px;background:var(--paper-2);overflow:hidden;display:flex;flex-direction:column;height:760px}
+  body.cv-page .brief-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid var(--rule-soft);background:rgba(0,0,0,.02);font-family:var(--mono);font-size:9.5px;color:var(--ink-3);letter-spacing:.12em;text-transform:uppercase}
+  body.cv-page .brief-head .lab{display:flex;align-items:center;gap:8px}
+  body.cv-page .brief-head .lab .pip{width:6px;height:6px;border-radius:50%;background:var(--accent-deep)}
+  body.cv-page .brief-head .legend{display:flex;gap:14px;font-size:9px}
+  body.cv-page .brief-head .legend span{display:inline-flex;align-items:center;gap:4px}
+  body.cv-page .brief-head .legend .pp{width:6px;height:6px;border-radius:50%}
+  body.cv-page .legend .ok-pp{background:var(--ins)}
+  body.cv-page .legend .md-pp{background:var(--md)}
+  body.cv-page .legend .hi-pp{background:var(--hi)}
+
+  body.cv-page .brief-body{flex:1;overflow-y:auto;padding:32px 56px;background:var(--doc);font-family:'Times New Roman',Times,'Liberation Serif',serif;font-size:14.5px;line-height:1.6;color:var(--ink);counter-reset:fn;position:relative}
+  body.cv-page .brief-body::-webkit-scrollbar{width:6px}
+  body.cv-page .brief-body::-webkit-scrollbar-thumb{background:var(--rule-thread);border-radius:3px}
+  body.cv-page .brief-body h2{font-family:'Times New Roman',Times,'Liberation Serif',serif;font-size:18px;color:var(--ink);font-weight:700;margin:24px 0 12px;letter-spacing:0;text-transform:uppercase}
+  body.cv-page .brief-body h2:first-child{margin-top:0}
+  body.cv-page .brief-body h2 em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .brief-body h3{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:500;margin:18px 0 8px}
+  body.cv-page .brief-body p{margin:0 0 16px}
+  body.cv-page .brief-body p .num{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em;margin-right:4px}
+  body.cv-page .brief-empty{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);text-align:center;margin-top:60px}
+  body.cv-page .brief-empty .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-deep);margin-right:8px;vertical-align:middle;animation:cv-pulse 1.4s ease-in-out infinite}
+
+  /* mammoth-rendered DOCX content uses standard HTML — keep it cohesive with brief-body */
+  body.cv-page .brief-body ol,body.cv-page .brief-body ul{margin:0 0 16px 24px;padding:0}
+  body.cv-page .brief-body li{margin-bottom:8px}
+  body.cv-page .brief-body strong{font-weight:700}
+  body.cv-page .brief-body em{font-style:italic}
+  body.cv-page .brief-body table{border-collapse:collapse;margin:16px 0}
+  body.cv-page .brief-body td,body.cv-page .brief-body th{border:1px solid var(--rule-soft);padding:6px 10px;font-size:13px}
+
+  /* PDF page rendering */
+  body.cv-page .pdf-page{position:relative;margin:0 auto 18px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid var(--rule-soft)}
+  body.cv-page .pdf-page canvas{display:block;width:100%;height:auto}
+  body.cv-page .pdf-textlayer{position:absolute;inset:0;overflow:hidden;line-height:1;opacity:.999}
+  body.cv-page .pdf-textlayer > span{color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0;pointer-events:auto}
+  body.cv-page .pdf-textlayer ::selection{background:rgba(10,125,87,.25)}
+  body.cv-page .pdf-textlayer .cite{color:transparent;background:transparent;border-bottom:none;cursor:pointer}
+  body.cv-page .pdf-textlayer .cite::after{display:none}
+  /* For PDFs we draw highlight rectangles via an absolutely-positioned overlay div instead of styling the transparent text spans */
+  body.cv-page .pdf-hl{position:absolute;pointer-events:auto;border-radius:2px;cursor:pointer;transition:background .15s,box-shadow .15s}
+  body.cv-page .pdf-hl.ok{background:rgba(74,138,100,.18);border-bottom:2px solid var(--ins)}
+  body.cv-page .pdf-hl.md{background:rgba(201,138,20,.22);border-bottom:2px solid var(--md)}
+  body.cv-page .pdf-hl.hi{background:rgba(178,34,34,.22);border-bottom:2px solid var(--hi)}
+  body.cv-page .pdf-hl.is-active{box-shadow:0 0 0 2px var(--accent-deep)}
+  body.cv-page .pdf-hl .pdf-hl-num{position:absolute;top:-10px;right:-4px;font-family:var(--mono);font-size:9px;color:var(--ink-4);background:var(--paper);padding:0 3px;border-radius:2px;border:1px solid var(--rule-soft)}
+
+  body.cv-page .cite{font-style:italic;cursor:pointer;border-bottom:1px dotted var(--ink-3);padding:0 1px;transition:background .15s,color .15s}
+  body.cv-page .cite::after{counter-increment:fn;content:" [" counter(fn) "]";font-style:normal;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;vertical-align:super;margin-left:1px;border-bottom:none}
+  body.cv-page .cite.ok{border-bottom-color:var(--ins);color:var(--ins)}
+  body.cv-page .cite.md{border-bottom-color:var(--md);color:var(--md);background:rgba(201,138,20,.07)}
+  body.cv-page .cite.hi{border-bottom-color:var(--hi);color:var(--hi);background:rgba(178,34,34,.08)}
+  body.cv-page .cite.is-active{background:var(--accent-tint);color:var(--accent-deep);border-bottom-color:var(--accent-deep)}
+
+  /* citations panel */
+  body.cv-page .cites{border:1px solid var(--rule-soft);border-radius:8px;background:var(--paper-2);display:flex;flex-direction:column;height:760px;overflow:hidden}
+  body.cv-page .cites-head{padding:14px 16px;border-bottom:1px solid var(--rule-soft);background:rgba(0,0,0,.02)}
+  body.cv-page .cites-kick{font-family:var(--mono);font-size:9.5px;color:var(--accent-deep);letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px}
+  body.cv-page .cites-h{font-family:var(--serif);font-size:22px;letter-spacing:-.01em;line-height:1.1;color:var(--ink);margin:0;font-weight:400}
+  body.cv-page .cites-h em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .cite-tabs{display:flex;gap:0;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-top:10px;border-top:1px dotted var(--rule-soft);padding-top:10px}
+  body.cv-page .ct{padding:5px 10px;background:transparent;border:none;cursor:pointer;color:var(--ink-3);transition:color .15s;display:inline-flex;gap:5px;align-items:center}
+  body.cv-page .ct:hover{color:var(--ink)}
+  body.cv-page .ct.is-active{color:var(--accent-deep)}
+  body.cv-page .ct .cnt{opacity:.7;font-size:9px}
+  body.cv-page .ct.is-active .cnt{color:currentColor}
+  body.cv-page .ct-sep{width:1px;height:11px;background:var(--rule-soft);align-self:center}
+
+  body.cv-page .cites-list{overflow-y:auto;flex:1;position:relative}
+  body.cv-page .cites-list::-webkit-scrollbar{width:6px}
+  body.cv-page .cites-list::-webkit-scrollbar-thumb{background:var(--rule-thread);border-radius:3px}
+  body.cv-page .cites-empty{padding:60px 24px;text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+  body.cv-page .cites-empty .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-deep);margin-right:8px;vertical-align:middle;animation:cv-pulse 1.4s ease-in-out infinite}
+  body.cv-page .cite-row{padding:14px 16px;border-bottom:1px solid var(--rule-soft);cursor:pointer;display:flex;flex-direction:column;gap:7px;transition:background .15s,border-left-color .15s var(--motion-snap);border-left:2px solid transparent;animation:cv-slide-in .35s var(--motion-snap)}
+  @keyframes cv-slide-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  body.cv-page .cite-row:hover{background:rgba(255,255,255,.5);border-left-color:var(--ink-3)}
+  body.cv-page .cite-row.is-active{background:rgba(255,255,255,.7);border-left-color:var(--accent-deep)}
+  body.cv-page .cr-row{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9.5px;color:var(--ink-3);letter-spacing:.12em;text-transform:uppercase}
+  body.cv-page .cr-id{color:var(--ink)}
+  body.cv-page .cr-status{display:inline-flex;align-items:center;gap:5px}
+  body.cv-page .cr-status .pip{width:5px;height:5px;border-radius:50%}
+  body.cv-page .cr-status.ok{color:var(--ins)}
+  body.cv-page .cr-status.ok .pip{background:var(--ins)}
+  body.cv-page .cr-status.md{color:var(--md)}
+  body.cv-page .cr-status.md .pip{background:var(--md)}
+  body.cv-page .cr-status.hi{color:var(--hi)}
+  body.cv-page .cr-status.hi .pip{background:var(--hi)}
+  body.cv-page .cr-cite{font-family:var(--serif);font-size:15px;line-height:1.3;color:var(--ink);font-style:italic}
+  body.cv-page .cr-finding{font-family:var(--sans);font-size:12.5px;color:var(--ink-2);line-height:1.4}
+  body.cv-page .cr-finding em{font-style:italic;color:var(--accent-deep)}
+  body.cv-page .cr-meta{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.08em;text-transform:uppercase;border-top:1px dotted var(--rule-soft);padding-top:6px}
+  body.cv-page .cr-meta .checks{display:flex;gap:10px}
+  body.cv-page .cr-meta .check{display:inline-flex;align-items:center;gap:4px}
+  body.cv-page .cr-meta .check.ok{color:var(--ins)}
+  body.cv-page .cr-meta .check.bad{color:var(--hi)}
+  body.cv-page .cr-meta .check.warn{color:var(--md)}
+  body.cv-page .cr-meta .check svg{width:10px;height:10px}
+  body.cv-page .cite-row.no-anchor{opacity:.92}
+  body.cv-page .cite-row.no-anchor .cr-id::after{content:' · NOT LOCATED';color:var(--ink-4);font-size:8.5px}
+  body.cv-page .cr-fix{display:flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;border:1px solid var(--rule-soft);border-radius:4px;background:var(--paper);font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);cursor:pointer;align-self:flex-start;transition:background .15s,border-color .15s}
+  body.cv-page .cr-fix:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  body.cv-page .cr-fix.is-applied{background:rgba(74,138,100,.15);border-color:var(--ins);color:var(--ins)}
+  body.cv-page .cr-fix.is-applied:hover{background:var(--ins);color:var(--paper)}
+  body.cv-page .cr-fix svg{width:11px;height:11px}
+  body.cv-page .cr-fix-preview{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-2);margin-top:4px;padding:6px 10px;border-left:2px solid var(--ins);background:rgba(74,138,100,.06)}
+  body.cv-page .cr-fix-preview b{font-style:normal;font-weight:500;color:var(--ins)}
+  body.cv-page .cite.is-fixed{border-bottom-color:var(--ins);color:var(--ins);background:rgba(74,138,100,.08)}
+  body.cv-page .pdf-hl.is-fixed{background:rgba(74,138,100,.22);border-bottom-color:var(--ins)}
+  body.cv-page .cr-comment-hint{display:flex;align-items:center;gap:6px;margin-top:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-deep)}
+  body.cv-page .cr-comment-hint svg{width:11px;height:11px}
+
+  @media(max-width:980px){
+    body.cv-page .shell{padding:18px 16px}
+    body.cv-page .run-banner{grid-template-columns:1fr}
+    body.cv-page .rb-stats{grid-template-columns:repeat(2,1fr);border-left:none;padding-left:0;border-top:1px dotted var(--rule-soft);padding-top:10px}
+    body.cv-page .brief,body.cv-page .cites{height:560px}
   }
 </style>
 </head>
-<body>
+<body class="cv-page">
 <div id="grain"></div>
 
 <header class="nav">
@@ -105,66 +255,75 @@ import Consent from '../../partials/consent.astro';
   <nav class="nav-links">
     <a href="/#skills">Skills</a>
     <a href="/#articles">Resources</a>
-    <a href="/agents/">Agents</a>
+    <a href="/agents/" class="is-active">Agents</a>
     <a href="/workspace/">Workspace</a>
     <a href="/tracker/">Tracker</a>
     <a href="/#services">Services</a>
     <a href="/about/">About</a>
   </nav>
   <div class="nav-right">
-    <span class="nav-meta" id="nav-clock">—</span>
-    <button id="cv-signout" class="nav-sub" style="border:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;">Sign out</button>
+    <a href="/account/" class="nav-sub">Account</a>
   </div>
 </header>
 
-<main class="cv-wrap">
-  <div class="cv-kicker">Agent 02 · Citation Verifier</div>
-  <h1 class="cv-title">Bluebook 22e citation form-check &amp; <em>verification</em>.</h1>
-  <p class="cv-sub">
-    Upload a brief, motion, or memorandum. The assistant extracts every citation, classifies each one against
-    the Bluebook 22nd Edition, runs the table validators, checks each case against CourtListener, and emits
-    a tracked-changes redline plus a sign-off-ready form-check report.
-    <a href="/agents/citation-verifier/methodology/" style="color: var(--accent-deep);">See the methodology →</a>
-  </p>
+<main class="shell">
 
-  <!-- Quota counter — populated on page load by querying verification_runs
-       directly via Supabase (RLS limits the query to the signed-in user's
-       rows). When the user has exhausted their cap, the upload form below
-       is hidden and the paywall card takes its place. -->
+  <header class="ws-head">
+    <span class="br-bl"></span><span class="br-br"></span>
+    <div class="kicker">
+      <span class="k-tag">AGENT · CITATION VERIFIER</span>
+      <span class="k-coord">/AGENTS.02 · BLUEBOOK 22E · COURTLISTENER</span>
+    </div>
+    <div class="head-row">
+      <div>
+        <h1 class="head-title">Every cite, <em>verified</em>.</h1>
+        <p class="head-sub">Upload a brief, motion, or memorandum. The agent extracts every citation, classifies each one against the Bluebook 22nd Edition, runs the table validators, checks each case against CourtListener, and emits a tracked-changes redline plus a sign-off-ready form-check report.</p>
+      </div>
+      <div class="head-actions">
+        <a class="ws-btn ws-btn-ghost" href="/agents/citation-verifier/methodology/">Methodology</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="meta-strip">
+    <div class="ms-cell"><span class="ms-l">RUNS · ALL TIME</span><span class="ms-v" id="cv-stat-runs">—</span><span class="ms-d">YOUR HISTORY</span></div>
+    <div class="ms-cell"><span class="ms-l">CITES VERIFIED</span><span class="ms-v" style="color:var(--ins)" id="cv-stat-verified">—</span><span class="ms-d">EXACT QUOTE MATCH</span></div>
+    <div class="ms-cell"><span class="ms-l">FLAGGED</span><span class="ms-v" style="color:var(--md)" id="cv-stat-flagged">—</span><span class="ms-d">PINPOINT / TREATMENT</span></div>
+    <div class="ms-cell"><span class="ms-l">NOT FOUND</span><span class="ms-v" style="color:var(--hi)" id="cv-stat-notfound">—</span><span class="ms-d">NOT IN COURTLISTENER</span></div>
+    <div class="ms-cell"><span class="ms-l">QUOTA</span><span class="ms-v" id="cv-stat-quota">—</span><span class="ms-d">TRIAL · 30-DAY WINDOW</span></div>
+  </div>
+
+  <!-- Quota (mirrors stat-quota with detail messaging) -->
   <div id="cv-quota" class="cv-quota" style="display:none;">
     <span class="cv-quota-text" id="cv-quota-text">— of 3 citation checks left</span>
   </div>
 
-  <!-- Pending-approval panel — shown when verify-citations-start returns
-       403 with pending_approval: true. Replaces the upload UI for new,
-       not-yet-approved users. Reuses the cv-paywall styling for visual
-       consistency. -->
+  <!-- Pending-approval panel -->
   <section id="cv-pending" class="cv-paywall" style="display:none;">
     <div class="cv-paywall-kicker">Account pending approval</div>
     <h2 class="cv-paywall-title">Your account is <em>under review</em>.</h2>
     <p class="cv-paywall-sub">We review every signup before granting access to the citation verifier. Most requests are reviewed within one business day. You'll receive an email once your account is approved.</p>
     <div class="cv-paywall-actions">
-      <a class="cv-btn" href="mailto:blake@beyelbrothers.com?subject=Account%20approval%20%E2%80%94%20citation%20verifier">Email about my request</a>
+      <a class="ws-btn" href="mailto:blake@beyelbrothers.com?subject=Account%20approval%20%E2%80%94%20citation%20verifier">Email about my request</a>
     </div>
   </section>
 
-  <!-- Paywall — shown when the user has used all their checks. Replaces
-       the upload card; restored to "hidden" only when quota frees up. -->
+  <!-- Paywall -->
   <section id="cv-paywall" class="cv-paywall" style="display:none;">
     <div class="cv-paywall-kicker">Out of citation checks</div>
     <h2 class="cv-paywall-title">You've used all <em>3</em> trial verifications.</h2>
     <p class="cv-paywall-sub">Your trial allows three citation checks per 30-day window. The window resets automatically. To unlock more capacity now, get in touch and we'll set up a paid tier sized to your usage.</p>
     <div class="cv-paywall-actions">
-      <a class="cv-btn" href="mailto:contact@beyelbrothers.com?subject=Citation%20Verifier%20%E2%80%94%20upgrade">Contact us to upgrade</a>
+      <a class="ws-btn" href="mailto:contact@beyelbrothers.com?subject=Citation%20Verifier%20%E2%80%94%20upgrade">Contact us to upgrade</a>
     </div>
   </section>
 
   <!-- ============================================================
-       STEP 1 — Upload + options
+       UPLOAD — visible until user submits a run
        ============================================================ -->
-  <section id="cv-step-upload" class="cv-step is-active">
-    <div class="cv-step-label">Step 1 · Upload</div>
-    <h2>Pick a draft to verify</h2>
+  <section id="cv-upload" class="cv-upload">
+    <div class="sec-div" style="margin-top:0;"><span class="sec-num">§ 02.A</span><span class="sec-rule"></span><span class="sec-meta">UPLOAD A DRAFT</span></div>
+    <h2>Pick a draft to <em>verify</em></h2>
     <p>.docx or .pdf, up to 50 MB. Format in = format out — your draft is returned as the same file type with tracked changes (DOCX) or sticky-note annotations (PDF).</p>
 
     <div class="cv-row">
@@ -172,7 +331,7 @@ import Consent from '../../partials/consent.astro';
         <label for="cv-file">Document</label>
         <input type="file" id="cv-file" accept=".docx,.pdf" />
       </div>
-      <div class="cv-field" style="max-width:200px;">
+      <div class="cv-field" style="max-width:220px;">
         <label for="cv-style">Style</label>
         <select id="cv-style">
           <option value="bluepages" selected>Bluepages (practitioner)</option>
@@ -205,46 +364,74 @@ import Consent from '../../partials/consent.astro';
         does not include every state opinion, recent unpublished disposition, or sealed matter. I am responsible for
         independently verifying every citation before filing, and for ensuring my use of this tool complies with my
         own confidentiality and competence obligations under the rules of professional conduct in my jurisdiction.
-        See the <a href="/legal/disclaimer/" target="_blank" rel="noopener" style="color:var(--accent-deep);border-bottom:1px solid var(--accent);">Disclaimer</a>,
-        <a href="/legal/privacy/" target="_blank" rel="noopener" style="color:var(--accent-deep);border-bottom:1px solid var(--accent);">Privacy Policy</a>,
-        and <a href="/legal/terms/" target="_blank" rel="noopener" style="color:var(--accent-deep);border-bottom:1px solid var(--accent);">Terms</a>.
+        See the <a href="/legal/disclaimer/" target="_blank" rel="noopener">Disclaimer</a>,
+        <a href="/legal/privacy/" target="_blank" rel="noopener">Privacy Policy</a>,
+        and <a href="/legal/terms/" target="_blank" rel="noopener">Terms</a>.
         <em>(disclaimer v1.1)</em>
       </label>
     </div>
 
-    <button id="cv-start-btn" class="cv-btn" disabled>Start verification</button>
-    <div id="cv-error" class="cv-error" style="display:none; margin-top:14px;"></div>
+    <button id="cv-start-btn" class="ws-btn" disabled>Start verification</button>
+    <div id="cv-error" class="cv-error" style="display:none;"></div>
   </section>
 
   <!-- ============================================================
-       STEP 2 — Progress
+       UNIFIED RUN WORKSPACE — streams while in-progress, settles on complete
        ============================================================ -->
-  <section id="cv-step-progress" class="cv-step" style="display:none;">
-    <div class="cv-step-label">Step 2 · In progress</div>
-    <h2 id="cv-progress-headline">Verifying citations…</h2>
-    <p>Pipeline runs in the background; this page polls every two seconds. You can leave and come back — your run history is on the agents archive.</p>
-    <div class="cv-progress">
-      <div class="cv-progress-bar"><div class="cv-progress-fill" id="cv-progress-fill"></div></div>
-      <div class="cv-progress-status"><span class="dot"></span><span id="cv-progress-status">Queued…</span></div>
+  <section id="cv-run" style="display:none;">
+    <div class="sec-div"><span class="sec-num">§ 02.B</span><span class="sec-rule"></span><span class="sec-meta" id="cv-sec-meta">CURRENT RUN</span></div>
+
+    <div class="run-banner is-running" id="cv-banner">
+      <div class="rb-l">
+        <span class="rb-kick" id="cv-rb-kick"><span class="pip"></span>QUEUED · 0/0 CHECKED</span>
+        <span class="rb-t" id="cv-rb-title"><em>Preparing run…</em></span>
+        <span class="rb-meta" id="cv-rb-meta"><span id="cv-rb-pages">— PP</span><span id="cv-rb-submitted">SUBMITTED —</span><span id="cv-rb-runtime">RUNTIME · 00:00</span></span>
+      </div>
+      <div class="rb-stats">
+        <div class="rb-stat"><span class="rb-stat-l">CITES</span><span class="rb-stat-v" id="cv-rb-cites"><em>0</em></span></div>
+        <div class="rb-stat"><span class="rb-stat-l">VERIFIED</span><span class="rb-stat-v ok" id="cv-rb-ok">0</span></div>
+        <div class="rb-stat"><span class="rb-stat-l">FLAGGED</span><span class="rb-stat-v md" id="cv-rb-md">0</span></div>
+        <div class="rb-stat"><span class="rb-stat-l">NOT FOUND</span><span class="rb-stat-v hi" id="cv-rb-hi">0</span></div>
+      </div>
+      <div class="rb-actions" id="cv-rb-actions">
+        <button class="ws-btn" id="cv-corrected-btn" style="display:none;">↓ Corrected brief</button>
+        <button class="ws-btn" id="cv-restart-btn" style="display:none;">New run</button>
+      </div>
     </div>
-  </section>
 
-  <!-- ============================================================
-       STEP 3 — Results
-       ============================================================ -->
-  <section id="cv-step-results" class="cv-step" style="display:none;">
-    <div class="cv-step-label">Step 3 · Results</div>
-    <h2 id="cv-results-headline">Verification complete</h2>
+    <div class="split">
+      <div class="brief">
+        <div class="brief-head">
+          <span class="lab"><span class="pip"></span>BRIEF · <span id="cv-brief-state">STREAMING</span></span>
+          <span class="legend">
+            <span><span class="pp ok-pp"></span>VERIFIED</span>
+            <span><span class="pp md-pp"></span>FLAGGED</span>
+            <span><span class="pp hi-pp"></span>NOT FOUND</span>
+          </span>
+        </div>
+        <div class="brief-body" id="cv-brief-body">
+          <div class="brief-empty" id="cv-brief-empty"><span class="pulse"></span>Rendering your document…</div>
+        </div>
+      </div>
 
-    <div class="cv-summary" id="cv-summary"></div>
-
-    <div class="cv-downloads" id="cv-downloads"></div>
-
-    <h3 style="font-family:var(--serif);font-weight:400;font-size:20px;margin:24px 0 12px;">Per-citation findings</h3>
-    <div class="cv-citations" id="cv-citations"></div>
-
-    <div style="margin-top:30px;">
-      <button id="cv-restart-btn" class="cv-btn cv-btn-secondary">Verify another draft</button>
+      <aside class="cites">
+        <div class="cites-head">
+          <div class="cites-kick" id="cv-cites-kick">— STREAMING · 0 OF —</div>
+          <h3 class="cites-h" id="cv-cites-h"><em>Verifying…</em></h3>
+          <div class="cite-tabs" id="cv-tabs">
+            <button class="ct is-active" data-tab="issues"><span>Issues</span><span class="cnt" id="cv-cnt-issues">[0]</span></button>
+            <span class="ct-sep"></span>
+            <button class="ct" data-tab="all"><span>All</span><span class="cnt" id="cv-cnt-all">[0]</span></button>
+            <span class="ct-sep"></span>
+            <button class="ct" data-tab="cases"><span>Cases</span><span class="cnt" id="cv-cnt-cases">[0]</span></button>
+            <span class="ct-sep"></span>
+            <button class="ct" data-tab="statutes"><span>Statutes</span><span class="cnt" id="cv-cnt-statutes">[0]</span></button>
+          </div>
+        </div>
+        <div class="cites-list" id="cv-cites-list">
+          <div class="cites-empty" id="cv-cites-empty"><span class="pulse"></span>Streaming citations…</div>
+        </div>
+      </aside>
     </div>
   </section>
 </main>
@@ -266,6 +453,7 @@ import Consent from '../../partials/consent.astro';
   import { getSupabase } from '../../lib/supabase';
 
   const supabase = getSupabase();
+  console.log('[citation-verifier] init');
 
   // ---- Auth gate ----
   const { data: { session } } = await supabase.auth.getSession();
@@ -274,9 +462,6 @@ import Consent from '../../partials/consent.astro';
     throw new Error('Not signed in — redirecting');
   }
 
-  // If the signed-in user changes (sign-out, or a different user signs in
-  // via another tab and the session syncs), hard-reload so all in-tab JS
-  // state is dropped and every gate re-runs under the new identity.
   let currentSessionUserId = session?.user?.id || null;
   supabase.auth.onAuthStateChange((event, newSession) => {
     const newUserId = newSession?.user?.id || null;
@@ -294,63 +479,50 @@ import Consent from '../../partials/consent.astro';
   const disclaimCb  = document.getElementById('cv-disclaimer');
   const startBtn    = document.getElementById('cv-start-btn');
   const errorBox    = document.getElementById('cv-error');
-  const progressFill = document.getElementById('cv-progress-fill');
-  const progressStatus = document.getElementById('cv-progress-status');
-  const summaryEl   = document.getElementById('cv-summary');
-  const downloadsEl = document.getElementById('cv-downloads');
-  const citationsEl = document.getElementById('cv-citations');
+
+  const uploadEl    = document.getElementById('cv-upload');
+  const runEl       = document.getElementById('cv-run');
+  const banner      = document.getElementById('cv-banner');
+  const rbKick      = document.getElementById('cv-rb-kick');
+  const rbTitle     = document.getElementById('cv-rb-title');
+  const rbPages     = document.getElementById('cv-rb-pages');
+  const rbSubmitted = document.getElementById('cv-rb-submitted');
+  const rbRuntime   = document.getElementById('cv-rb-runtime');
+  const rbCites     = document.getElementById('cv-rb-cites');
+  const rbOk        = document.getElementById('cv-rb-ok');
+  const rbMd        = document.getElementById('cv-rb-md');
+  const rbHi        = document.getElementById('cv-rb-hi');
+  const rbActions   = document.getElementById('cv-rb-actions');
+  const restartBtn  = document.getElementById('cv-restart-btn');
+  const briefBody   = document.getElementById('cv-brief-body');
+  const briefEmpty  = document.getElementById('cv-brief-empty');
+  const briefState  = document.getElementById('cv-brief-state');
+  const citesList   = document.getElementById('cv-cites-list');
+  const citesEmpty  = document.getElementById('cv-cites-empty');
+  const citesKick   = document.getElementById('cv-cites-kick');
+  const citesH      = document.getElementById('cv-cites-h');
+  const cntIssues   = document.getElementById('cv-cnt-issues');
+  const cntAll      = document.getElementById('cv-cnt-all');
+  const cntCases    = document.getElementById('cv-cnt-cases');
+  const cntStatutes = document.getElementById('cv-cnt-statutes');
+  const tabsEl      = document.getElementById('cv-tabs');
+  const secMeta     = document.getElementById('cv-sec-meta');
+
+  // ---- Stats refs ----
+  const statRuns     = document.getElementById('cv-stat-runs');
+  const statVerified = document.getElementById('cv-stat-verified');
+  const statFlagged  = document.getElementById('cv-stat-flagged');
+  const statNotfound = document.getElementById('cv-stat-notfound');
+  const statQuota    = document.getElementById('cv-stat-quota');
 
   function gate() {
     startBtn.disabled = !(fileInput.files?.length && disclaimCb.checked);
   }
   fileInput.addEventListener('change', gate);
   disclaimCb.addEventListener('change', gate);
-
   startBtn.addEventListener('click', startRun);
-
-  // ---- Quota check ----
-  // Trial users get 3 citation verifications per 30-day window. We count
-  // their verification_runs directly via Supabase (RLS scopes the read to
-  // their own rows). When the quota is exhausted we hide the upload step
-  // and show the paywall card.
-  const TRIAL_CAP = 3;
-  const QUOTA_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-  async function refreshCitationQuota() {
-    try {
-      const since = new Date(Date.now() - QUOTA_WINDOW_MS).toISOString();
-      const { count, error } = await supabase
-        .from('verification_runs')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', since);
-      if (error) {
-        console.error('citation quota:', error);
-        return;
-      }
-      const used = count || 0;
-      const remaining = Math.max(0, TRIAL_CAP - used);
-      const quotaEl = document.getElementById('cv-quota');
-      const quotaText = document.getElementById('cv-quota-text');
-      const paywall = document.getElementById('cv-paywall');
-      const uploadStep = document.getElementById('cv-step-upload');
-      quotaEl.style.display = 'flex';
-      quotaText.textContent = `${remaining} of ${TRIAL_CAP} citation checks left this 30-day window`;
-      quotaEl.classList.remove('is-low', 'is-out');
-      if (remaining === 0) {
-        quotaEl.classList.add('is-out');
-        paywall.style.display = 'block';
-        if (uploadStep) uploadStep.style.display = 'none';
-      } else if (remaining === 1) {
-        quotaEl.classList.add('is-low');
-      }
-    } catch (e) {
-      console.error('citation quota:', e);
-    }
-  }
-  refreshCitationQuota();
-
-  document.getElementById('cv-restart-btn')?.addEventListener('click', () => {
-    location.reload();
-  });
+  restartBtn.addEventListener('click', () => location.reload());
+  document.getElementById('cv-corrected-btn')?.addEventListener('click', () => downloadCorrectedDocx());
 
   document.getElementById('cv-signout')?.addEventListener('click', async () => {
     await supabase.auth.signOut();
@@ -363,22 +535,113 @@ import Consent from '../../partials/consent.astro';
   }
   function clearError() { errorBox.style.display = 'none'; errorBox.textContent = ''; }
 
-  function showStep(step) {
-    document.getElementById('cv-step-upload').style.display    = step === 'upload' ? '' : 'none';
-    document.getElementById('cv-step-progress').style.display  = step === 'progress' ? '' : 'none';
-    document.getElementById('cv-step-results').style.display   = step === 'results' ? '' : 'none';
-  }
+  // ---- Quota & lifetime stats ----
+  const QUOTA_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+  // Mirrors limits in netlify/lib/supabase-admin.js. The actual cap is the
+  // user's profile.citation_cap_override, falling back to the tier default.
+  const TIER_LIMITS = { trial: 3, standard: 25, pro: 100, admin: 9999, enterprise: 99999 };
 
+  async function refreshStats() {
+    try {
+      const userId = session.user.id;
+
+      // Pull the user's profile so we know their real cap. RLS policy on
+      // profiles permits a user to read their own row.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('tier, citation_cap_override')
+        .eq('id', userId)
+        .maybeSingle();
+      const tier = profile?.tier || 'trial';
+      const cap = (profile?.citation_cap_override != null && profile.citation_cap_override >= 0)
+        ? profile.citation_cap_override
+        : (TIER_LIMITS[tier] ?? 3);
+
+      const since = new Date(Date.now() - QUOTA_WINDOW_MS).toISOString();
+      // Quota count (window)
+      const { count: usedCount, error: quotaErr } = await supabase
+        .from('verification_runs')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', since);
+      if (!quotaErr) {
+        const used = usedCount || 0;
+        const remaining = Math.max(0, cap - used);
+        statQuota.innerHTML = `${remaining}<em>/${cap}</em>`;
+        const quotaEl = document.getElementById('cv-quota');
+        const quotaText = document.getElementById('cv-quota-text');
+        const paywall = document.getElementById('cv-paywall');
+        quotaEl.style.display = 'flex';
+        quotaText.textContent = `${remaining} of ${cap} citation checks left this 30-day window · tier: ${tier}`;
+        quotaEl.classList.remove('is-low', 'is-out');
+        if (remaining === 0) {
+          quotaEl.classList.add('is-out');
+          paywall.style.display = 'block';
+          if (uploadEl) uploadEl.style.display = 'none';
+        } else if (remaining <= Math.max(1, Math.floor(cap * 0.1))) {
+          quotaEl.classList.add('is-low');
+        }
+      }
+
+      // Lifetime aggregates (all runs)
+      const { data: rows, error: aggErr } = await supabase
+        .from('verification_runs')
+        .select('id, citation_count, flag_count_review, flag_count_nonconforming, existence_not_found_count')
+        .eq('status', 'complete');
+      if (!aggErr) {
+        let totalCites = 0, totalFlagged = 0, totalNotFound = 0;
+        (rows || []).forEach(r => {
+          totalCites += (r.citation_count || 0);
+          totalFlagged += (r.flag_count_review || 0) + (r.flag_count_nonconforming || 0);
+          totalNotFound += (r.existence_not_found_count || 0);
+        });
+        const verified = Math.max(0, totalCites - totalFlagged - totalNotFound);
+        statRuns.textContent = (rows || []).length.toString();
+        statVerified.textContent = verified.toString();
+        statFlagged.textContent = totalFlagged.toString();
+        statNotfound.textContent = totalNotFound.toString();
+      }
+    } catch (e) {
+      console.error('[citation-verifier] refreshStats:', e);
+    }
+  }
+  refreshStats();
+
+  // ---- Run start ----
   async function startRun() {
     clearError();
     if (!fileInput.files?.length) return showError('Please pick a file first.');
     if (!disclaimCb.checked) return showError('Please acknowledge the disclaimer.');
 
     startBtn.disabled = true;
-    showStep('progress');
+    const file = fileInput.files[0];
+
+    // Switch to unified run view
+    uploadEl.style.display = 'none';
+    runEl.style.display = '';
+    banner.classList.add('is-running');
+    secMeta.textContent = `CURRENT RUN · ${file.name.toUpperCase()}`;
+    rbTitle.innerHTML = `<em>${escapeHtml(file.name)}</em>`;
+
+    // Kick off the local document render in parallel with the upload — gives
+    // the user a live preview of their actual brief while the backend runs.
+    renderDocument(file).catch(e => console.error('[citation-verifier] render error:', e));
+    const submitTime = new Date();
+    const hh = String(submitTime.getHours()).padStart(2,'0');
+    const mm = String(submitTime.getMinutes()).padStart(2,'0');
+    rbSubmitted.textContent = `SUBMITTED ${hh}:${mm}`;
+    rbKick.innerHTML = `<span class="pip"></span>QUEUED · 0/0 CHECKED`;
+
+    // Local runtime tick
+    const runtimeStart = Date.now();
+    const runtimeTicker = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - runtimeStart) / 1000);
+      const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+      const s = String(elapsed % 60).padStart(2,'0');
+      rbRuntime.textContent = `RUNTIME · ${m}:${s}`;
+    }, 1000);
 
     const fd = new FormData();
-    fd.append('file', fileInput.files[0]);
+    fd.append('file', file);
     fd.append('style', styleSel.value);
     fd.append('ruleset', rulesetSel.value);
     fd.append('retain_text', retainCb.checked ? 'true' : 'false');
@@ -392,7 +655,9 @@ import Consent from '../../partials/consent.astro';
         body: fd,
       });
     } catch (e) {
-      showStep('upload');
+      clearInterval(runtimeTicker);
+      runEl.style.display = 'none';
+      uploadEl.style.display = '';
       showError('Upload failed: ' + e.message);
       startBtn.disabled = false;
       return;
@@ -400,48 +665,63 @@ import Consent from '../../partials/consent.astro';
 
     const data = await res.json().catch(() => ({}));
     if (res.status === 403 && data.pending_approval) {
-      // Account hasn't been approved yet — show the pending panel.
-      showStep('upload');
+      clearInterval(runtimeTicker);
+      runEl.style.display = 'none';
+      uploadEl.style.display = '';
       const pending = document.getElementById('cv-pending');
-      const upload = document.getElementById('cv-step-upload');
       if (pending) pending.style.display = 'block';
-      if (upload) upload.style.display = 'none';
+      uploadEl.style.display = 'none';
       startBtn.disabled = false;
       return;
     }
     if (res.status === 429 && data.quota) {
-      // Quota exceeded — flip to paywall instead of leaving the user on a
-      // raw error toast.
-      showStep('upload');
+      clearInterval(runtimeTicker);
+      runEl.style.display = 'none';
+      uploadEl.style.display = 'none';
       document.getElementById('cv-paywall').style.display = 'block';
-      const upload = document.getElementById('cv-step-upload');
-      if (upload) upload.style.display = 'none';
       startBtn.disabled = false;
       return;
     }
     if (!res.ok || !data.ok) {
-      showStep('upload');
+      clearInterval(runtimeTicker);
+      runEl.style.display = 'none';
+      uploadEl.style.display = '';
       showError(data.error || `Server returned ${res.status}`);
       startBtn.disabled = false;
       return;
     }
 
-    pollStatus(data.run_id);
+    pollStatus(data.run_id, runtimeTicker);
   }
 
-  async function pollStatus(runId) {
+  // ---- Poll + stream ----
+  const STATUS_LABELS = {
+    queued: 'QUEUED',
+    extracting: 'EXTRACTING CITATIONS',
+    classifying: 'CLASSIFYING AGAINST BLUEBOOK',
+    checking_existence: 'CHECKING COURTLISTENER',
+    validating: 'RUNNING TABLE VALIDATORS',
+    judging: 'REVIEWING CROSS-CITATION ISSUES',
+    building_outputs: 'BUILDING REPORT',
+    complete: 'RUN COMPLETE',
+    failed: 'RUN FAILED',
+  };
+
+  let renderedIds = new Set();
+  let currentTab = 'issues';
+  let allCitations = [];
+  let runFormat = null;
+
+  // Tab switching
+  tabsEl.querySelectorAll('.ct').forEach(b => b.addEventListener('click', () => {
+    tabsEl.querySelectorAll('.ct').forEach(x => x.classList.remove('is-active'));
+    b.classList.add('is-active');
+    currentTab = b.dataset.tab;
+    renderCites();
+  }));
+
+  async function pollStatus(runId, runtimeTicker) {
     const POLL_MS = 2000;
-    const STATUS_LABELS = {
-      queued: 'Queued…',
-      extracting: 'Extracting citations from your document…',
-      classifying: 'Classifying each citation against Bluebook 22e…',
-      checking_existence: 'Checking each case against CourtListener…',
-      validating: 'Running Bluebook table validators…',
-      judging: 'Reviewing cross-citation issues…',
-      building_outputs: 'Building report and marking up your document…',
-      complete: 'Complete.',
-      failed: 'Failed.',
-    };
 
     const tick = async () => {
       try {
@@ -450,133 +730,1242 @@ import Consent from '../../partials/consent.astro';
           { headers: { Authorization: `Bearer ${session.access_token}` } }
         );
         if (!r.ok) {
-          progressStatus.textContent = `Status check returned ${r.status}; retrying…`;
           setTimeout(tick, POLL_MS * 2);
           return;
         }
         const data = await r.json();
         if (!data.ok || !data.run) {
-          progressStatus.textContent = data.error || 'Unknown error';
           setTimeout(tick, POLL_MS * 2);
           return;
         }
         const run = data.run;
-        progressFill.style.width = `${Math.max(2, Math.min(100, run.status_progress || 0))}%`;
-        progressStatus.textContent = STATUS_LABELS[run.status] || run.status;
+        const cites = data.citations || [];
+        runFormat = run.file_format;
+
+        updateBanner(run, cites);
+        ingestCitations(cites);
+        renderCites();
 
         if (run.status === 'complete') {
-          renderResults(run, data.citations || []);
+          clearInterval(runtimeTicker);
+          banner.classList.remove('is-running');
+          briefState.textContent = 'COMPLETE';
+          rbKick.innerHTML = `<span class="pip"></span>RUN COMPLETE · ${cites.length}/${cites.length} CHECKED`;
+          renderDownloadActions(run);
+          refreshStats();
           return;
         }
         if (run.status === 'failed') {
-          showStep('upload');
-          showError(run.error_message || 'The pipeline reported a failure. Please try again.');
-          startBtn.disabled = false;
+          clearInterval(runtimeTicker);
+          banner.classList.remove('is-running');
+          briefState.textContent = 'FAILED';
+          rbKick.innerHTML = `<span class="pip" style="background:var(--hi)"></span>RUN FAILED`;
+          rbActions.innerHTML = '';
+          const back = document.createElement('button');
+          back.className = 'ws-btn';
+          back.textContent = 'New run';
+          back.addEventListener('click', () => location.reload());
+          rbActions.appendChild(back);
+          if (run.error_message) {
+            const errEl = document.createElement('div');
+            errEl.className = 'cv-error';
+            errEl.style.marginTop = '14px';
+            errEl.textContent = run.error_message;
+            runEl.insertBefore(errEl, runEl.firstChild);
+          }
           return;
         }
         setTimeout(tick, POLL_MS);
       } catch (e) {
-        progressStatus.textContent = `Network error; retrying…`;
+        console.error('[citation-verifier] poll error:', e);
         setTimeout(tick, POLL_MS * 2);
       }
     };
-
     tick();
   }
 
-  function renderResults(run, citations) {
-    showStep('results');
-
-    const total = run.citation_count || citations.length || 0;
+  function updateBanner(run, cites) {
+    const total = run.citation_count || cites.length || 0;
     const review = run.flag_count_review || 0;
     const nonConforming = run.flag_count_nonconforming || 0;
-    const conforming = Math.max(0, total - review - nonConforming);
     const notFound = run.existence_not_found_count || 0;
+    const verified = Math.max(0, total - review - nonConforming - notFound);
 
-    summaryEl.innerHTML = `
-      <div class="cv-stat tier-conforming">
-        <div class="cv-stat-num">${conforming}</div>
-        <div class="cv-stat-label">✓ Conforming</div>
-      </div>
-      <div class="cv-stat tier-review">
-        <div class="cv-stat-num">${review}</div>
-        <div class="cv-stat-label">▲ Needs correction</div>
-      </div>
-      <div class="cv-stat tier-nonconforming">
-        <div class="cv-stat-num">${nonConforming}</div>
-        <div class="cv-stat-label">✗ Non-conforming</div>
-      </div>
-      <div class="cv-stat">
-        <div class="cv-stat-num">${notFound}</div>
-        <div class="cv-stat-label">CourtListener not found</div>
-      </div>
-      <div class="cv-stat">
-        <div class="cv-stat-num">${total}</div>
-        <div class="cv-stat-label">Total citations</div>
-      </div>
-    `;
+    rbCites.innerHTML = `<em>${total}</em>`;
+    rbOk.textContent = String(verified).padStart(2,'0');
+    rbMd.textContent = String(review + nonConforming).padStart(2,'0');
+    rbHi.textContent = String(notFound).padStart(2,'0');
 
-    downloadsEl.innerHTML = '';
+    const checked = cites.filter(c => c.flags !== undefined).length || cites.length;
+    if (run.status !== 'complete' && run.status !== 'failed') {
+      const label = STATUS_LABELS[run.status] || run.status.toUpperCase();
+      rbKick.innerHTML = `<span class="pip"></span>${label} · ${checked}/${total || '—'} CHECKED`;
+    }
+
+    // Right panel header
+    const issues = review + nonConforming + notFound;
+    citesKick.textContent = `— ${run.status === 'complete' ? 'CITATIONS' : 'STREAMING'} · ${total} TOTAL`;
+    if (run.status === 'complete') {
+      if (issues === 0) {
+        citesH.innerHTML = `<em>All ${total} verified</em>.`;
+      } else {
+        const crit = nonConforming + notFound;
+        citesH.innerHTML = `<em>${issues} issue${issues===1?'':'s'}</em>. ${crit} critical.`;
+      }
+    } else {
+      citesH.innerHTML = `<em>Verifying…</em> ${checked}/${total || '—'}`;
+    }
+  }
+
+  // Map of cid → anchor info. Anchors come in two flavors:
+  //   { kind: 'el', el: HTMLElement }      — exact-match wrap or PDF rect
+  //   { kind: 'fallback', ratio: number }  — proportional scroll target (0..1)
+  const citeAnchors = new Map();
+  // Map of cid → 1-indexed document position. Recomputed by walking the brief
+  // body in DOM order so the [N] footnote in the document and the CITE · NN
+  // label in the right panel always agree, regardless of the order the
+  // backend streamed the citations in.
+  let docOrder = new Map();
+
+  function recomputeDocOrder() {
+    docOrder = new Map();
+    if (docKind === 'pdf') {
+      // For PDFs, walk pages top-to-bottom; within each page sort highlights
+      // by visual top, then left.
+      const pages = briefBody.querySelectorAll('.pdf-page');
+      let n = 1;
+      pages.forEach(page => {
+        const seen = new Set();
+        const hls = Array.from(page.querySelectorAll('.pdf-hl'));
+        hls.sort((a, b) => {
+          const ta = parseFloat(a.style.top), tb = parseFloat(b.style.top);
+          if (Math.abs(ta - tb) > 4) return ta - tb;
+          return parseFloat(a.style.left) - parseFloat(b.style.left);
+        });
+        hls.forEach(hl => {
+          const cid = hl.dataset.c;
+          if (!cid || seen.has(cid)) return;
+          seen.add(cid);
+          docOrder.set(cid, n++);
+          // Update the [N] number chip on the first highlight rectangle of
+          // each citation so it matches the right panel.
+          const chip = hl.querySelector('.pdf-hl-num');
+          if (chip) chip.textContent = `[${docOrder.get(cid)}]`;
+        });
+      });
+    } else {
+      const seen = new Set();
+      let n = 1;
+      briefBody.querySelectorAll('.cite').forEach(span => {
+        const cid = span.dataset.c;
+        if (!cid || seen.has(cid)) return;
+        seen.add(cid);
+        docOrder.set(cid, n++);
+        // The CSS `counter(fn)` already produces this number visually for
+        // .cite::after — but only when the wraps are in DOM order. Since we
+        // append wraps as citations stream in, DOM order DOES equal document
+        // order (Range.surroundContents preserves position). So the CSS
+        // counter and our docOrder map agree.
+      });
+    }
+  }
+
+  function ingestCitations(cites) {
+    allCitations = cites;
+    cites.forEach((c, i) => {
+      const cid = c.id || `c${i+1}`;
+      const tier = tierOf(c);
+      if (!renderedIds.has(cid)) {
+        // First time we've seen this citation — try to overlay it on the rendered document.
+        const anchor = highlightInBrief(c, i, cid, tier);
+        if (anchor) {
+          renderedIds.add(cid);
+          citeAnchors.set(cid, anchor);
+        } else if (docRendered) {
+          // Document rendered but we couldn't locate the cite — set a
+          // proportional fallback so clicking still moves to the right area.
+          renderedIds.add(cid);
+          citeAnchors.set(cid, { kind: 'fallback', ratio: cites.length ? i / cites.length : 0 });
+        }
+        // If render isn't ready, retry next tick (don't add to renderedIds).
+      } else {
+        // Already overlaid — just update the tier in case classification changed.
+        updateBriefBadge(cid, tier);
+      }
+    });
+    // After every ingest pass, refresh the document-position map so the right
+    // panel's CITE · NN labels match the [N] footnotes in the document.
+    recomputeDocOrder();
+    // Also refresh the corrected-brief CTA so its label & visibility stay
+    // in sync with the latest streamed findings.
+    refreshCorrectedDownloadAffordance();
+  }
+
+  function tierOf(c) {
+    const flags = c.flags || [];
+    if (c.existence_status === 'existence_not_found') return 'hi';
+    if (flags.some(f => f.severity === 'non_conforming')) return 'hi';
+    if (flags.some(f => f.severity === 'review')) return 'md';
+    return 'ok';
+  }
+
+  // ---- Document rendering ----
+  // The brief panel renders the actual uploaded file so the user can see their
+  // own document with citation badges overlaid. DOCX uses mammoth → HTML;
+  // PDF uses pdf.js with a text layer + absolutely-positioned highlight overlays.
+  let docRendered = false;
+  let docKind = null;          // 'docx' | 'pdf'
+  let pdfPagesInfo = [];       // for PDF mode: { pageEl, textItems, viewport }
+  let originalDocxBytes = null; // ArrayBuffer of the uploaded DOCX (for corrected-brief export)
+  let originalFileName = '';
+  // Map of "fixKey" → { cid, original, corrected, flagIndex, applied }
+  // fixKey = `${cid}::${flagIndex}` so each flag with a suggested_fix is
+  // independently togglable.
+  const appliedFixes = new Map();
+
+  async function renderDocument(file) {
+    docRendered = false;
+    originalFileName = file.name || 'document';
+    const name = (file.name || '').toLowerCase();
+    if (name.endsWith('.docx')) {
+      docKind = 'docx';
+      // Stash the raw bytes so we can rebuild a corrected DOCX later
+      // without re-uploading or relying on a server round-trip.
+      originalDocxBytes = await file.arrayBuffer();
+      await renderDocx(file);
+    } else if (name.endsWith('.pdf')) {
+      docKind = 'pdf';
+      originalDocxBytes = null;
+      await renderPdf(file);
+    } else {
+      briefBody.innerHTML = '<div class="brief-empty">Preview not available for this file type.</div>';
+      return;
+    }
+    docRendered = true;
+    // Reapply any citations we already received while the doc was rendering.
+    if (allCitations.length) {
+      const pending = allCitations.slice();
+      renderedIds = new Set();
+      citeAnchors.clear();
+      ingestCitations(pending);
+      renderCites();
+    }
+  }
+
+  async function renderDocx(file) {
+    if (typeof mammoth === 'undefined') {
+      // Wait briefly for the deferred CDN script.
+      await new Promise(r => {
+        const t = setInterval(() => {
+          if (typeof mammoth !== 'undefined') { clearInterval(t); r(); }
+        }, 50);
+        setTimeout(() => { clearInterval(t); r(); }, 5000);
+      });
+    }
+    if (typeof mammoth === 'undefined') {
+      briefBody.innerHTML = '<div class="brief-empty">Could not load DOCX renderer. Citations will still verify.</div>';
+      return;
+    }
+    const ab = originalDocxBytes || await file.arrayBuffer();
+    const result = await mammoth.convertToHtml({ arrayBuffer: ab });
+    briefBody.innerHTML = result.value || '<div class="brief-empty">Document was empty.</div>';
+  }
+
+  async function renderPdf(file) {
+    // Lazy-load pdf.js as an ES module (avoids needing a build dep)
+    const pdfjsLib = await import(/* @vite-ignore */ 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+    briefBody.innerHTML = '';
+    pdfPagesInfo = [];
+    const targetWidth = briefBody.clientWidth - 48;
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = targetWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+      const pageEl = document.createElement('div');
+      pageEl.className = 'pdf-page';
+      pageEl.style.width = viewport.width + 'px';
+      pageEl.style.height = viewport.height + 'px';
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      pageEl.appendChild(canvas);
+      const textLayer = document.createElement('div');
+      textLayer.className = 'pdf-textlayer';
+      pageEl.appendChild(textLayer);
+      briefBody.appendChild(pageEl);
+
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      const textContent = await page.getTextContent();
+      const items = textContent.items.map(item => {
+        const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+        const span = document.createElement('span');
+        span.textContent = item.str;
+        const fontHeight = Math.hypot(tx[2], tx[3]);
+        span.style.left = tx[4] + 'px';
+        span.style.top = (tx[5] - fontHeight) + 'px';
+        span.style.fontSize = fontHeight + 'px';
+        span.style.fontFamily = 'serif';
+        textLayer.appendChild(span);
+        return { str: item.str, span };
+      });
+      pdfPagesInfo.push({ pageEl, items, viewport });
+    }
+  }
+
+  // Walks the rendered document, locates the citation text, and wraps it with a
+  // colored badge tied to the cite-row. Returns an anchor descriptor on success,
+  // null on failure.
+  function highlightInBrief(c, idx, cid, tier) {
+    if (!docRendered) return null;
+    if (briefEmpty) briefEmpty.style.display = 'none';
+    const needle = (c.display_text || c.candidate_text || '').trim();
+    if (!needle) return null;
+
+    const variants = buildNeedleVariants(needle);
+    if (docKind === 'pdf') {
+      const el = highlightPdf(variants, idx, cid, tier);
+      return el ? { kind: 'el', el } : null;
+    }
+    const el = highlightHtml(variants, idx, cid, tier);
+    return el ? { kind: 'el', el } : null;
+  }
+
+  // Build progressively-looser candidate strings to search for. Order matters —
+  // first match wins, so put the most-specific variants first.
+  function buildNeedleVariants(needle) {
+    const norm = (s) => s.replace(/\s+/g, ' ').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').trim();
+    const out = [];
+    const add = (s) => { if (s && s.length >= 6 && !out.includes(s)) out.push(s); };
+
+    add(needle);
+    add(norm(needle));
+    add(needle.replace(/\s+/g, ' '));
+
+    // Reporter pattern e.g. "207 So. 3d 207" or "550 U.S. 544"
+    const reporter = needle.match(/\d+\s+[A-Z][A-Za-z\.\s]{1,12}\s+\d+(?:\s*,\s*\d+)?/);
+    if (reporter) add(reporter[0]);
+
+    // Case name only: text before " v. " ... up to the comma before the reporter
+    const vMatch = needle.match(/^([^,]+v\.\s+[^,]+),/);
+    if (vMatch) add(vMatch[1].trim());
+
+    // First clause before the first comma (e.g. case name without reporter)
+    const firstClause = needle.split(',')[0];
+    if (firstClause && firstClause.length >= 12) add(firstClause.trim());
+
+    // Statute pattern e.g. "Fla. Stat. § 218.74(2)" or "§ 218.74"
+    const statute = needle.match(/§\s*[\d\.]+(?:\([^)]+\))?/);
+    if (statute) add(statute[0]);
+
+    // Federal-rule pattern e.g. "Fed. R. Civ. P. 12(b)(6)"
+    const fedRule = needle.match(/Fed\.\s*R\.\s*[A-Za-z\.]+\s*\d+(?:\([^)]+\))?/);
+    if (fedRule) add(fedRule[0]);
+
+    return out;
+  }
+
+  function highlightHtml(variants, idx, cid, tier) {
+    // First pass: try to wrap inside a single text node (preserves inline styling).
+    const walker = document.createTreeWalker(briefBody, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => n.parentElement?.closest('.cite, script, style') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+
+    for (const variant of variants) {
+      for (const node of nodes) {
+        const idxIn = node.textContent.indexOf(variant);
+        if (idxIn < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, idxIn);
+        range.setEnd(node, idxIn + variant.length);
+        const span = document.createElement('span');
+        span.className = `cite ${tier}`;
+        span.dataset.c = cid;
+        span.dataset.idx = String(idx + 1);
+        try {
+          range.surroundContents(span);
+          span.addEventListener('click', () => activateCite(cid));
+          return span;
+        } catch (e) {
+          // Range crosses element boundary — try cross-node match below.
+        }
+      }
+    }
+
+    // Second pass: try matching across adjacent text nodes (for cases where
+    // bold/italic styling splits the citation, e.g. "<i>Walbridge</i>, 207...").
+    for (const variant of variants) {
+      const wrapped = wrapAcrossNodes(nodes, variant, cid, tier, idx);
+      if (wrapped) return wrapped;
+    }
+    return null;
+  }
+
+  // Concatenate text-node content into one string, locate the variant, then
+  // walk back to the originating nodes and create one wrapping span per node
+  // (each marked with the same cid so they all activate together).
+  function wrapAcrossNodes(nodes, variant, cid, tier, idx) {
+    if (!nodes.length || variant.length < 8) return null;
+    let concat = '';
+    const offsets = []; // [{ node, start, end }]
+    for (const node of nodes) {
+      offsets.push({ node, start: concat.length, end: concat.length + node.textContent.length });
+      concat += node.textContent;
+    }
+    const at = concat.indexOf(variant);
+    if (at < 0) return null;
+    const stop = at + variant.length;
+
+    const spans = [];
+    let firstSpan = null;
+    for (const seg of offsets) {
+      const overlapStart = Math.max(at, seg.start);
+      const overlapEnd = Math.min(stop, seg.end);
+      if (overlapEnd <= overlapStart) continue;
+      try {
+        const range = document.createRange();
+        range.setStart(seg.node, overlapStart - seg.start);
+        range.setEnd(seg.node, overlapEnd - seg.start);
+        const span = document.createElement('span');
+        span.className = `cite ${tier}`;
+        span.dataset.c = cid;
+        if (!firstSpan) span.dataset.idx = String(idx + 1);
+        range.surroundContents(span);
+        span.addEventListener('click', () => activateCite(cid));
+        spans.push(span);
+        if (!firstSpan) firstSpan = span;
+      } catch (e) {
+        // If any sub-range fails, abort and undo prior wraps.
+        spans.forEach(s => {
+          const parent = s.parentNode;
+          while (s.firstChild) parent.insertBefore(s.firstChild, s);
+          parent.removeChild(s);
+        });
+        return null;
+      }
+      if (overlapEnd >= stop) break;
+    }
+    return firstSpan;
+  }
+
+  function highlightPdf(variants, idx, cid, tier) {
+    // For PDFs we can't wrap text spans cleanly (each char run is its own
+    // <span>), so we draw highlight rectangles over the union of matching
+    // spans. We search per-page by concatenating items and locating the slice.
+    const norm = (s) => s.replace(/\s+/g, ' ');
+    let target = null;
+    let foundPage = null;
+    let at = -1;
+    let concat = null;
+
+    outer: for (const v of variants) {
+      const t = norm(v);
+      for (const page of pdfPagesInfo) {
+        const c = norm(page.items.map(it => it.str).join(' '));
+        const i = c.indexOf(t);
+        if (i >= 0) { foundPage = page; at = i; target = t; concat = c; break outer; }
+      }
+    }
+    if (!foundPage) return null;
+
+    const page = foundPage;
+    // Map the concatenated index back to source items by walking until we
+    // cover [at, at+target.length].
+    let cursor = 0;
+    const matchSpans = [];
+    for (const it of page.items) {
+      const s = norm(it.str);
+      const segStart = cursor;
+      const segEnd = cursor + s.length;
+      const overlapStart = Math.max(at, segStart);
+      const overlapEnd = Math.min(at + target.length, segEnd);
+      if (overlapEnd > overlapStart) matchSpans.push(it.span);
+      cursor = segEnd + 1; // +1 for the joining space
+      if (cursor > at + target.length) break;
+    }
+    if (!matchSpans.length) return null;
+
+    // Build one highlight per visual line (group spans whose top is within
+    // a few px of each other).
+    const groups = [];
+    matchSpans.forEach(sp => {
+      const top = parseFloat(sp.style.top);
+      const left = parseFloat(sp.style.left);
+      const width = sp.offsetWidth;
+      const height = parseFloat(sp.style.fontSize);
+      const g = groups.find(x => Math.abs(x.top - top) < 4);
+      if (g) {
+        g.left = Math.min(g.left, left);
+        g.right = Math.max(g.right, left + width);
+        g.height = Math.max(g.height, height);
+      } else {
+        groups.push({ top, left, right: left + width, height });
+      }
+    });
+
+    let firstHl = null;
+    groups.forEach((g, gi) => {
+      const hl = document.createElement('div');
+      hl.className = `pdf-hl ${tier}`;
+      hl.dataset.c = cid;
+      hl.style.left = (g.left - 2) + 'px';
+      hl.style.top = (g.top - 1) + 'px';
+      hl.style.width = (g.right - g.left + 4) + 'px';
+      hl.style.height = (g.height + 4) + 'px';
+      if (gi === 0) {
+        // Placeholder number — recomputeDocOrder() will overwrite this with the
+        // citation's true document position once highlight placement settles.
+        const num = document.createElement('span');
+        num.className = 'pdf-hl-num';
+        num.textContent = `[—]`;
+        hl.appendChild(num);
+      }
+      hl.addEventListener('click', () => activateCite(cid));
+      page.pageEl.appendChild(hl);
+      if (!firstHl) firstHl = hl;
+    });
+    return firstHl;
+  }
+
+  function updateBriefBadge(cid, tier) {
+    if (docKind === 'pdf') {
+      briefBody.querySelectorAll(`.pdf-hl[data-c="${cid}"]`).forEach(el => {
+        el.classList.remove('ok','md','hi');
+        el.classList.add(tier);
+      });
+    } else {
+      const badge = briefBody.querySelector(`.cite[data-c="${cid}"]`);
+      if (!badge) return;
+      badge.classList.remove('ok','md','hi');
+      badge.classList.add(tier);
+    }
+  }
+
+  function renderCites() {
+    if (!allCitations.length) {
+      if (citesEmpty) citesEmpty.style.display = '';
+      return;
+    }
+    if (citesEmpty) citesEmpty.style.display = 'none';
+
+    // Filter
+    let filtered = allCitations.map((c, i) => ({ c, i, tier: tierOf(c) }));
+    let issuesCount = 0, casesCount = 0, statutesCount = 0;
+    filtered.forEach(({ c, tier }) => {
+      if (tier !== 'ok') issuesCount++;
+      const t = (c.citation_type || '').toLowerCase();
+      if (t.includes('case')) casesCount++;
+      else if (t.includes('statute') || t.includes('regulation') || t.includes('rule')) statutesCount++;
+    });
+
+    cntIssues.textContent = `[${issuesCount}]`;
+    cntAll.textContent = `[${allCitations.length}]`;
+    cntCases.textContent = `[${casesCount}]`;
+    cntStatutes.textContent = `[${statutesCount}]`;
+
+    if (currentTab === 'issues') filtered = filtered.filter(x => x.tier !== 'ok');
+    else if (currentTab === 'cases') filtered = filtered.filter(x => (x.c.citation_type || '').toLowerCase().includes('case'));
+    else if (currentTab === 'statutes') filtered = filtered.filter(x => {
+      const t = (x.c.citation_type || '').toLowerCase();
+      return t.includes('statute') || t.includes('regulation') || t.includes('rule');
+    });
+
+    // Always sort by document position so the panel reads top-to-bottom in the
+    // same order as the citations appear in the document. Citations whose
+    // anchor wasn't located fall to the bottom (preserving array order among
+    // themselves).
+    const posOf = (cid) => docOrder.has(cid) ? docOrder.get(cid) : 9e9;
+    filtered.sort((a, b) => {
+      const cidA = a.c.id || `c${a.i+1}`;
+      const cidB = b.c.id || `c${b.i+1}`;
+      return posOf(cidA) - posOf(cidB);
+    });
+
+    if (!filtered.length) {
+      citesList.innerHTML = `<div class="cites-empty">No ${currentTab === 'issues' ? 'issues' : currentTab} in this run.</div>`;
+      return;
+    }
+
+    citesList.innerHTML = filtered.map(({ c, i, tier }) => {
+      const cid = c.id || `c${i+1}`;
+      // Use document position for the CITE · NN label so the right panel and
+      // the [N] footnote in the brief always agree. Citations that couldn't
+      // be located in the document show "—".
+      const docNum = docOrder.get(cid);
+      const numLabel = docNum != null ? String(docNum).padStart(2,'0') : '—';
+      const flags = c.flags || [];
+      const statusLabel = tier === 'hi' ? (c.existence_status === 'existence_not_found' ? 'NOT FOUND' : 'NON-CONFORMING')
+        : tier === 'md' ? `FLAGGED${flags[0]?.rule_cite ? ' · ' + escapeHtml(flags[0].rule_cite.split(/\s+/)[0] || '').toUpperCase() : ''}`
+        : 'VERIFIED';
+      const findingsHtml = flags.length === 0
+        ? '<em>passes all applicable form tests</em>'
+        : flags.map((f, fi) => {
+            const fixKey = `${cid}::${fi}`;
+            const isApplied = appliedFixes.has(fixKey) && appliedFixes.get(fixKey).applied;
+            const ruleStr = f.rule_cite ? `${escapeHtml(f.rule_cite)} — ` : '';
+            const original = c.display_text || c.candidate_text || '';
+            // Only render a Fix button for STRUCTURAL / Bluebook-format issues —
+            // things the validator can mechanically rewrite (missing periods,
+            // "vs." → "v.", wrong reporter abbreviation, comma placement, etc.).
+            // Existence and substantive findings get embedded as Word comments
+            // in the corrected DOCX instead (see NON_FIXABLE_CATEGORIES above).
+            const canFix = !!f.suggested_fix
+              && !!original
+              && original.trim() !== String(f.suggested_fix).trim()
+              && !NON_FIXABLE_CATEGORIES.has((f.category || '').toLowerCase());
+            const previewBlock = isApplied
+              ? `<div class="cr-fix-preview"><b>Applied:</b> ${escapeHtml(f.suggested_fix)}</div>`
+              : '';
+            const fixBtn = canFix
+              ? `<button class="cr-fix${isApplied ? ' is-applied' : ''}"
+                          data-fix-key="${fixKey}"
+                          data-cid="${cid}"
+                          data-flag-idx="${fi}">
+                   ${isApplied
+                      ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l3 3 7-7"/></svg>Fixed · undo'
+                      : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 8h12M8 2l6 6-6 6"/></svg>Fix citation'}
+                 </button>`
+              : '';
+            // The corrected-brief export only embeds Word comments for
+            // existence-verdict issues — i.e. cases the verifier couldn't
+            // confirm via CL / Justia / Cornell. Format/substantive flags
+            // either get auto-fixed or are surface-level noise the lawyer
+            // doesn't need re-flagged at the comment level.
+            const isExistenceFinding = (f.category || '').toLowerCase() === 'existence';
+            const commentHint = isExistenceFinding && docKind === 'docx'
+              ? `<div class="cr-comment-hint">
+                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                     <path d="M2 3h12v9H7l-3 3v-3H2V3z"/>
+                   </svg>
+                   Will be commented in corrected brief
+                 </div>`
+              : '';
+            return `<div class="cr-flag">${ruleStr}${escapeHtml(f.message || '')}${fixBtn}${commentHint}${previewBlock}</div>`;
+          }).join('');
+
+      const existenceCheck = c.existence_status;
+      const existsClass = existenceCheck === 'existence_not_found' ? 'bad'
+        : existenceCheck === 'existence_verified' ? 'ok'
+        : existenceCheck === 'not_applicable' || !existenceCheck ? 'warn' : 'warn';
+      const quoteClass = flags.some(f => /quote|pinpoint/i.test(f.message || f.rule_cite || '')) ? 'warn' : (tier === 'hi' ? 'bad' : 'ok');
+      const treatmentClass = flags.some(f => /treatment|overruled|distinguished|abrogated/i.test(f.message || f.rule_cite || '')) ? 'warn' : (tier === 'hi' ? 'bad' : 'ok');
+
+      let cm = c.court_meta || c.citation_type || '';
+      // Surface the verification source when it wasn't CourtListener — the
+      // citation was rescued via the Justia / Cornell fallback waterfall.
+      const url = c.courtlistener_url || '';
+      let viaTag = '';
+      if (c.existence_status === 'existence_verified') {
+        if (/justia\.com/i.test(url)) viaTag = ' · VIA JUSTIA';
+        else if (/law\.cornell\.edu/i.test(url)) viaTag = ' · VIA CORNELL';
+      }
+      cm = (cm || '') + viaTag;
+
+      const anchor = citeAnchors.get(cid);
+      const noAnchor = !anchor || anchor.kind === 'fallback';
+      return `<div class="cite-row${noAnchor ? ' no-anchor' : ''}" data-c="${cid}">
+        <div class="cr-row"><span class="cr-id">CITE · ${numLabel}</span><span class="cr-status ${tier}"><span class="pip"></span>${statusLabel}</span></div>
+        <span class="cr-cite">${escapeHtml(c.display_text || c.candidate_text || '(text not retained)')}</span>
+        <span class="cr-finding">${findingsHtml}</span>
+        <div class="cr-meta">
+          <span>${escapeHtml(cm.toUpperCase())}</span>
+          <span class="checks">
+            <span class="check ${existsClass}">${iconFor(existsClass)}EXISTS</span>
+            <span class="check ${quoteClass}">${iconFor(quoteClass)}QUOTE</span>
+            <span class="check ${treatmentClass}">${iconFor(treatmentClass)}TREATMENT</span>
+          </span>
+        </div>
+      </div>`;
+    }).join('');
+
+    citesList.querySelectorAll('.cite-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        // Don't bubble row-clicks from the inner Fix button — that has its
+        // own handler and we don't want activateCite to fire on top of it.
+        if (e.target.closest('.cr-fix')) return;
+        activateCite(row.dataset.c);
+      });
+    });
+    citesList.querySelectorAll('.cr-fix').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const fixKey = btn.dataset.fixKey;
+        const cid = btn.dataset.cid;
+        const flagIdx = parseInt(btn.dataset.flagIdx, 10);
+        toggleFix({ fixKey, cid, flagIdx });
+      });
+    });
+  }
+
+  // Categories whose findings can't be mechanically rewritten — they get
+  // embedded as Word comments instead of as text replacements when the
+  // user downloads the corrected brief. Existence findings (CL/Justia/Cornell
+  // could not locate the case) and substantive-law flags need human judgment;
+  // dropping them silently from the corrected DOCX would be dangerous.
+  const NON_FIXABLE_CATEGORIES = new Set(['existence', 'substantive']);
+
+  // ---- Fix application ----
+  // Toggling a fix updates the live document preview AND records the fix so
+  // we can rebuild a corrected DOCX on download. Each flag with a
+  // suggested_fix is independently togglable.
+  function toggleFix({ fixKey, cid, flagIdx }) {
+    const cite = allCitations.find((c, i) => (c.id || `c${i+1}`) === cid);
+    if (!cite) return;
+    const flag = (cite.flags || [])[flagIdx];
+    if (!flag || !flag.suggested_fix) return;
+    const original = cite.display_text || cite.candidate_text || '';
+    if (!original) return;
+    const corrected = String(flag.suggested_fix);
+
+    const existing = appliedFixes.get(fixKey);
+    if (existing && existing.applied) {
+      // Undo
+      undoFixInBrief({ cid, original: existing.corrected, restored: existing.original });
+      appliedFixes.set(fixKey, { ...existing, applied: false });
+    } else {
+      // Apply
+      applyFixToBrief({ cid, original, corrected });
+      appliedFixes.set(fixKey, { cid, original, corrected, flagIdx, applied: true });
+    }
+    renderCites();          // re-render so the button label flips
+    refreshCorrectedDownloadAffordance();
+    activateCite(cid);      // keep the same row selected so user doesn't lose context
+  }
+
+  function applyFixToBrief({ cid, original, corrected }) {
+    if (docKind === 'pdf') {
+      // PDFs aren't editable in-place — flip the highlight tier so the user
+      // visually sees that this cite is "fixed" but the download stays the
+      // marked source.
+      briefBody.querySelectorAll(`.pdf-hl[data-c="${cid}"]`).forEach(el => el.classList.add('is-fixed'));
+      return;
+    }
+    // DOCX (mammoth-rendered) — replace the text content of the wrapped
+    // .cite span(s) with the corrected text. If the citation was wrapped
+    // across multiple text nodes (italic case-name + plain reporter), we
+    // join them into the first span and empty the rest so the line still
+    // flows naturally.
+    const spans = Array.from(briefBody.querySelectorAll(`.cite[data-c="${cid}"]`));
+    if (!spans.length) return;
+    spans[0].textContent = corrected;
+    spans[0].classList.add('is-fixed');
+    for (let i = 1; i < spans.length; i++) {
+      spans[i].textContent = '';
+      spans[i].classList.add('is-fixed');
+    }
+  }
+
+  function undoFixInBrief({ cid, restored }) {
+    if (docKind === 'pdf') {
+      briefBody.querySelectorAll(`.pdf-hl[data-c="${cid}"]`).forEach(el => el.classList.remove('is-fixed'));
+      return;
+    }
+    const spans = Array.from(briefBody.querySelectorAll(`.cite[data-c="${cid}"]`));
+    if (!spans.length) return;
+    spans[0].textContent = restored;
+    spans[0].classList.remove('is-fixed');
+    for (let i = 1; i < spans.length; i++) {
+      spans[i].textContent = '';
+      spans[i].classList.remove('is-fixed');
+    }
+  }
+
+  // Show / hide the "Corrected brief" download. Visible whenever we have a
+  // DOCX in memory AND there's something worth exporting — either a Fix has
+  // been applied, or there are non-fixable findings that should be embedded
+  // as Word comments. The button label tells the user exactly what they're
+  // about to download.
+  function refreshCorrectedDownloadAffordance() {
+    const btn = document.getElementById('cv-corrected-btn');
+    if (!btn) return;
+    const supported = docKind === 'docx' && !!originalDocxBytes;
+    if (!supported) { btn.style.display = 'none'; return; }
+
+    const fixCount = Array.from(appliedFixes.values()).filter(v => v.applied).length;
+    const commentCount = countCommentTargets();
+
+    if (fixCount === 0 && commentCount === 0) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = '';
+    const parts = [];
+    if (fixCount) parts.push(`${fixCount} fix${fixCount === 1 ? '' : 'es'}`);
+    if (commentCount) parts.push(`${commentCount} comment${commentCount === 1 ? '' : 's'}`);
+    btn.textContent = `↓ Corrected brief (${parts.join(' · ')})`;
+  }
+
+  function countCommentTargets() {
+    // Mirror buildCommentTargets — only existence-verdict issues become
+    // comments, everything else is either fixed or not worth commenting.
+    let n = 0;
+    allCitations.forEach((c) => {
+      if (
+        c.existence_status === 'existence_not_found' ||
+        c.existence_status === 'existence_name_mismatch' ||
+        c.existence_status === 'existence_location_mismatch'
+      ) n++;
+    });
+    return n;
+  }
+
+  // ---- Corrected DOCX export ----
+  // Rebuild the original DOCX with two passes:
+  //   1. Apply every "Fix" the user clicked — string-replace the original
+  //      citation text with the validator's suggested_fix inside
+  //      word/document.xml. Preserves original Word formatting because we
+  //      mutate the existing zip rather than re-serializing fresh markup.
+  //   2. Embed every NON-fixable finding (existence-check failures, substantive
+  //      flags) as a native Word comment anchored to the post-fix citation
+  //      text. The lawyer sees these in Word's review pane the same way they'd
+  //      see any tracked-changes comment — impossible to miss when reviewing
+  //      the corrected file.
+  async function downloadCorrectedDocx() {
+    if (!originalDocxBytes) {
+      alert('Original document is no longer in memory. Re-upload to export a corrected brief.');
+      return;
+    }
+    if (typeof JSZip === 'undefined') {
+      // Wait briefly for the deferred CDN script.
+      await new Promise(r => {
+        const t = setInterval(() => { if (typeof JSZip !== 'undefined') { clearInterval(t); r(); } }, 50);
+        setTimeout(() => { clearInterval(t); r(); }, 5000);
+      });
+    }
+    if (typeof JSZip === 'undefined') {
+      alert('Could not load DOCX writer (JSZip). Try again or refresh.');
+      return;
+    }
+
+    const fixes = Array.from(appliedFixes.values()).filter(v => v.applied);
+
+    // Build the list of citations that need a Word comment in the output.
+    // A citation gets a comment if it has any flag in NON_FIXABLE_CATEGORIES,
+    // OR if the existence check returned not_found / name_mismatch / location_mismatch
+    // and wasn't rescued by the Justia/Cornell fallback. This is the lawyer's
+    // safety net for things they shouldn't forget to investigate manually.
+    const commentTargets = buildCommentTargets(fixes);
+
+    if (!fixes.length && !commentTargets.length) {
+      alert('Nothing to export — apply at least one Fix or run on a brief that has issues to comment.');
+      return;
+    }
+
+    let zip;
+    try {
+      zip = await JSZip.loadAsync(originalDocxBytes);
+    } catch (e) {
+      alert('Could not parse the original DOCX: ' + e.message);
+      return;
+    }
+    const docXmlFile = zip.file('word/document.xml');
+    if (!docXmlFile) {
+      alert('Unexpected DOCX structure — word/document.xml missing.');
+      return;
+    }
+    let xml = await docXmlFile.async('string');
+
+    // ---- Pass 1: Structural fixes ----
+    // Sort fixes by original-string length descending so a longer original
+    // (e.g. full citation) is replaced before any of its substrings, which
+    // could otherwise be partially overwritten by an earlier shorter fix.
+    fixes.sort((a, b) => b.original.length - a.original.length);
+
+    let appliedCount = 0;
+    const skipped = [];
+    for (const fix of fixes) {
+      if (xml.includes(fix.original)) {
+        xml = xml.split(fix.original).join(escapeXml(fix.corrected));
+        appliedCount++;
+        continue;
+      }
+      const tolerantRe = buildTolerantDocxRegex(fix.original);
+      if (tolerantRe && tolerantRe.test(xml)) {
+        xml = xml.replace(tolerantRe, escapeXml(fix.corrected));
+        appliedCount++;
+        continue;
+      }
+      skipped.push(fix.original);
+    }
+
+    // ---- Pass 2: Word comments for non-fixable findings ----
+    // Find existing max comment id so we don't collide with anything Word
+    // already had in the source file.
+    let nextCommentId = await getNextCommentId(zip);
+    const addedComments = [];
+    const commentSkipped = [];
+    for (const tgt of commentTargets) {
+      const id = nextCommentId++;
+      const insertion = insertCommentMarkers(xml, tgt.targetText, id);
+      if (insertion.applied) {
+        xml = insertion.xml;
+        addedComments.push({ id, body: tgt.body, target: tgt.targetText });
+      } else {
+        commentSkipped.push(tgt.targetText);
+      }
+    }
+
+    // Persist mutated document.xml.
+    zip.file('word/document.xml', xml);
+
+    // Write/update word/comments.xml + relationships + content types if we
+    // added any comments.
+    if (addedComments.length) {
+      await ensureCommentsPart(zip, addedComments);
+    }
+
+    const blob = await zip.generateAsync({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+
+    const baseName = (originalFileName || 'document').replace(/\.docx$/i, '');
+    triggerDownload(blob, `${baseName} — corrected.docx`);
+
+    // Summary alert — only if anything's worth telling the user.
+    const lines = [];
+    if (fixes.length) {
+      lines.push(`${appliedCount} of ${fixes.length} fix${fixes.length === 1 ? '' : 'es'} applied.`);
+    }
+    if (commentTargets.length) {
+      lines.push(`${addedComments.length} of ${commentTargets.length} unfixable finding${commentTargets.length === 1 ? '' : 's'} embedded as Word comment${commentTargets.length === 1 ? '' : 's'}.`);
+    }
+    const allSkipped = [...skipped, ...commentSkipped];
+    if (allSkipped.length) {
+      lines.push('');
+      lines.push(`${allSkipped.length} citation${allSkipped.length === 1 ? '' : 's'} couldn't be located in the document XML (typically because the text was split across italic/plain runs):`);
+      allSkipped.slice(0, 6).forEach(s => lines.push('• ' + (s.length > 80 ? s.slice(0, 77) + '…' : s)));
+      if (allSkipped.length > 6) lines.push(`• …and ${allSkipped.length - 6} more`);
+    }
+    if (lines.length) alert(lines.join('\n'));
+  }
+
+  // ---- Comment-target collection ----
+  // The corrected brief IS the final brief — structural fixes the user clicked
+  // are already baked in as plain-text edits (no track changes needed). The
+  // only annotations that should remain are Word comments asking the lawyer
+  // to manually verify cases that the existence-check waterfall couldn't
+  // confirm. Everything else has been resolved.
+  //
+  // So a citation gets a comment if and only if its existence verdict is one
+  // of:
+  //   - existence_not_found       (CL + Justia + Cornell all came up dry)
+  //   - existence_name_mismatch   (cite resolves to a different case name)
+  //   - existence_location_mismatch (case is real but at a different cite)
+  //
+  // Format flags, abbreviation flags, etc. are NOT commented — they were
+  // either auto-fixed or are below-the-line noise the lawyer doesn't need to
+  // re-review at the comment level.
+  function buildCommentTargets(fixes) {
+    const out = [];
+    // Comments must anchor to the post-fix text — if the user fixed a cite,
+    // the original text is no longer in the document.
+    const fixedTextByCid = new Map();
+    fixes.forEach(f => fixedTextByCid.set(f.cid, f.corrected));
+
+    allCitations.forEach((c, i) => {
+      const cid = c.id || `c${i+1}`;
+      const targetText = fixedTextByCid.get(cid) || c.display_text || c.candidate_text;
+      if (!targetText) return;
+
+      let body = null;
+      if (c.existence_status === 'existence_not_found') {
+        body = 'NOT LOCATED · Citation Verifier could not find this citation in CourtListener, Justia, or Cornell. Verify against your source before filing.';
+      } else if (c.existence_status === 'existence_name_mismatch') {
+        body = 'NAME MISMATCH · The cited case name does not match what the reporter at this volume/page contains. Verify the case name.';
+      } else if (c.existence_status === 'existence_location_mismatch') {
+        body = 'LOCATION MISMATCH · The case exists but at a different volume/page. Verify the pinpoint cite.';
+      }
+      if (!body) return;
+
+      out.push({ cid, targetText, body });
+    });
+    return out;
+  }
+
+  // ---- Word comment XML helpers ----
+
+  // Walk the original word/comments.xml (if present) to find the highest w:id
+  // already in use so we can pick safe new IDs.
+  async function getNextCommentId(zip) {
+    const f = zip.file('word/comments.xml');
+    if (!f) return 1000; // start well clear of any IDs Word might re-use
+    let s = '';
+    try { s = await f.async('string'); } catch { return 1000; }
+    let max = -1;
+    s.replace(/<w:comment\b[^>]*\bw:id="(\d+)"/g, (_, id) => {
+      const n = parseInt(id, 10);
+      if (n > max) max = n;
+      return _;
+    });
+    return Math.max(1000, max + 1);
+  }
+
+  // Locate the citation text in document.xml and wrap the surrounding
+  // <w:r>...</w:r> with comment range markers + a commentReference run.
+  // Falls back gracefully if the text was split across multiple runs.
+  function insertCommentMarkers(xml, targetText, commentId) {
+    if (!targetText) return { xml, applied: false };
+
+    // Try to find a single <w:t> run that contains the literal text.
+    const at = xml.indexOf(targetText);
+    if (at < 0) {
+      // Last-resort: tolerant regex that allows tag boundaries between chars.
+      const re = buildTolerantDocxRegex(targetText);
+      if (!re) return { xml, applied: false };
+      const m = re.exec(xml);
+      if (!m) return { xml, applied: false };
+      return wrapRangeAt(xml, m.index, m.index + m[0].length, commentId);
+    }
+    return wrapRangeAt(xml, at, at + targetText.length, commentId);
+  }
+
+  // Given a [start, end] character range that's known to land inside one or
+  // more <w:r>...</w:r> elements, expand outward to the surrounding run
+  // boundaries and inject the comment markers.
+  function wrapRangeAt(xml, start, end, commentId) {
+    // Walk back from `start` to find the nearest <w:r ...> opening.
+    const before = xml.slice(0, start);
+    const runOpen = Math.max(before.lastIndexOf('<w:r '), before.lastIndexOf('<w:r>'));
+    if (runOpen < 0) return { xml, applied: false };
+
+    // Walk forward from `end` to find the next </w:r> closing.
+    const after = xml.indexOf('</w:r>', end);
+    if (after < 0) return { xml, applied: false };
+    const runClose = after + '</w:r>'.length;
+
+    const startMarker = `<w:commentRangeStart w:id="${commentId}"/>`;
+    const endMarker = `<w:commentRangeEnd w:id="${commentId}"/>` +
+                      `<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr>` +
+                      `<w:commentReference w:id="${commentId}"/></w:r>`;
+
+    const newXml =
+      xml.slice(0, runOpen) +
+      startMarker +
+      xml.slice(runOpen, runClose) +
+      endMarker +
+      xml.slice(runClose);
+    return { xml: newXml, applied: true };
+  }
+
+  // Build (or extend) word/comments.xml with the new comment definitions, and
+  // make sure the relationship + content-type entries exist so Word actually
+  // loads the comments part.
+  async function ensureCommentsPart(zip, comments) {
+    const NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const existing = zip.file('word/comments.xml');
+    let body = '';
+    if (existing) {
+      const s = await existing.async('string');
+      // Splice new <w:comment> nodes in just before </w:comments>.
+      const closeIdx = s.lastIndexOf('</w:comments>');
+      if (closeIdx > 0) {
+        body = s.slice(0, closeIdx) + comments.map(buildCommentXml).join('') + s.slice(closeIdx);
+      } else {
+        body = buildFreshCommentsXml(comments);
+      }
+    } else {
+      body = buildFreshCommentsXml(comments);
+    }
+    zip.file('word/comments.xml', body);
+
+    // Relationships
+    const relsFile = zip.file('word/_rels/document.xml.rels');
+    if (relsFile) {
+      let rels = await relsFile.async('string');
+      if (!/Type="[^"]*\/comments"/.test(rels)) {
+        const insert = `<Relationship Id="rIdCV${Date.now()}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>`;
+        rels = rels.replace('</Relationships>', insert + '</Relationships>');
+        zip.file('word/_rels/document.xml.rels', rels);
+      }
+    }
+
+    // Content types
+    const ctFile = zip.file('[Content_Types].xml');
+    if (ctFile) {
+      let ct = await ctFile.async('string');
+      if (!/wordprocessingml\.comments\+xml/.test(ct)) {
+        const override = `<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>`;
+        ct = ct.replace('</Types>', override + '</Types>');
+        zip.file('[Content_Types].xml', ct);
+      }
+    }
+  }
+
+  function buildFreshCommentsXml(comments) {
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+      comments.map(buildCommentXml).join('') +
+      `</w:comments>`;
+  }
+
+  function buildCommentXml(c) {
+    const date = new Date().toISOString();
+    // Preserve paragraph breaks in the body — split on blank lines.
+    const paragraphs = String(c.body || '').split(/\n\n+/).map(par => {
+      const lines = par.split('\n');
+      const runs = lines.map((line, i) => {
+        const text = `<w:t xml:space="preserve">${escapeXml(line)}</w:t>`;
+        // Insert a soft line break between consecutive lines within the same paragraph.
+        return i === 0
+          ? `<w:r>${text}</w:r>`
+          : `<w:r><w:br/>${text}</w:r>`;
+      }).join('');
+      return `<w:p>${runs}</w:p>`;
+    }).join('');
+    return `<w:comment w:id="${c.id}" w:author="Citation Verifier" w:initials="CV" w:date="${date}">${paragraphs}</w:comment>`;
+  }
+
+  function escapeXml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+  // Allow runs of inline tags (e.g. <w:rPr>...</w:rPr></w:r><w:r>...<w:t>) to
+  // appear between any two characters of the original text — handles the
+  // common "italic case name + plain reporter" run-split.
+  function buildTolerantDocxRegex(original) {
+    if (!original || original.length < 4) return null;
+    const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Insert "(?:<[^>]+>)*" between every literal char so any number of
+    // intervening XML tags is allowed. Cap original length to keep the
+    // regex from getting absurd.
+    if (original.length > 200) return null;
+    const tolerant = escaped.split('').join('(?:<[^>]+>)*');
+    try { return new RegExp(tolerant); } catch { return null; }
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+  }
+
+  function iconFor(cls) {
+    if (cls === 'ok') return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l3 3 7-7"/></svg>';
+    if (cls === 'bad') return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+    return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 4v5M8 12h.01"/></svg>';
+  }
+
+  // Scroll a target element into the centered visible area of a scrollable
+  // container, using getBoundingClientRect — works regardless of whether the
+  // container or any intermediate ancestor is the offsetParent of the target.
+  function scrollIntoContainer(container, target, opts = {}) {
+    if (!container || !target) return;
+    const cRect = container.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    const currentScroll = container.scrollTop;
+    // Distance from the container's top edge to the target's top edge.
+    const delta = tRect.top - cRect.top;
+    // Center the target vertically within the container's visible area.
+    const desired = currentScroll + delta - (container.clientHeight - tRect.height) / 2;
+    const max = container.scrollHeight - container.clientHeight;
+    container.scrollTo({
+      top: Math.max(0, Math.min(max, desired)),
+      behavior: opts.behavior || 'smooth',
+    });
+  }
+
+  function activateCite(cid) {
+    document.querySelectorAll('body.cv-page .cite').forEach(x => x.classList.toggle('is-active', x.dataset.c === cid));
+    document.querySelectorAll('body.cv-page .pdf-hl').forEach(x => x.classList.toggle('is-active', x.dataset.c === cid));
+
+    // ---- Right panel: bring the matching cite-row into view ----
+    // If the row for this citation isn't visible under the current tab filter
+    // (e.g. user clicked a verified cite while the Issues tab is active),
+    // auto-switch to "All" so the card always shows up.
+    let tgtRow = citesList.querySelector(`.cite-row[data-c="${cid}"]`);
+    if (!tgtRow && currentTab !== 'all') {
+      currentTab = 'all';
+      tabsEl.querySelectorAll('.ct').forEach(x => x.classList.toggle('is-active', x.dataset.tab === 'all'));
+      renderCites();
+      tgtRow = citesList.querySelector(`.cite-row[data-c="${cid}"]`);
+    }
+
+    document.querySelectorAll('body.cv-page .cite-row').forEach(x => x.classList.toggle('is-active', x.dataset.c === cid));
+
+    if (tgtRow) {
+      // Wait one frame so the layout from any tab switch / re-render settles
+      // before we measure rects — otherwise getBoundingClientRect can return
+      // stale values from before the new innerHTML painted.
+      requestAnimationFrame(() => {
+        scrollIntoContainer(citesList, tgtRow);
+        // Flash the row briefly so it's obvious which card just opened.
+        tgtRow.style.transition = 'background .3s ease';
+        const prev = tgtRow.style.background;
+        tgtRow.style.background = 'rgba(10,125,87,.12)';
+        setTimeout(() => { tgtRow.style.background = prev; }, 600);
+      });
+    }
+
+    // ---- Left panel: scroll the brief to the citation ----
+    const anchor = citeAnchors.get(cid);
+    if (anchor && anchor.kind === 'el' && anchor.el && document.contains(anchor.el)) {
+      scrollIntoContainer(briefBody, anchor.el);
+      // Flash the anchor so the user can see where it landed.
+      anchor.el.style.transition = 'box-shadow .35s ease';
+      anchor.el.style.boxShadow = '0 0 0 2px var(--accent-deep)';
+      setTimeout(() => { anchor.el.style.boxShadow = ''; }, 800);
+    } else if (anchor && anchor.kind === 'fallback') {
+      // No exact location — scroll proportionally so the user lands roughly
+      // where this citation is in the document.
+      const max = briefBody.scrollHeight - briefBody.clientHeight;
+      briefBody.scrollTo({ top: Math.max(0, max * anchor.ratio - 80), behavior: 'smooth' });
+    }
+  }
+
+  function renderDownloadActions(run) {
+    rbActions.innerHTML = '';
     if (run.form_report_url) {
       const a = document.createElement('a');
       a.href = run.form_report_url;
-      a.className = 'cv-download';
+      a.className = 'ws-btn';
       a.download = 'form-check-report.docx';
-      a.textContent = '↓ Form-check report (.docx)';
-      downloadsEl.appendChild(a);
+      a.textContent = 'Download report';
+      rbActions.appendChild(a);
     }
     if (run.marked_source_url) {
       const a = document.createElement('a');
       a.href = run.marked_source_url;
-      a.className = 'cv-download';
+      a.className = 'ws-btn ws-btn-ghost';
+      a.style.fontSize = '10px';
       a.download = `marked-source.${run.file_format}`;
-      a.textContent = `↓ Marked source (.${run.file_format})`;
-      downloadsEl.appendChild(a);
+      a.textContent = 'Open annotated brief';
+      rbActions.appendChild(a);
     }
+    // Corrected-brief button — DOCX only, only renders when at least one fix
+    // is currently applied. Re-created here because we just blew away
+    // rbActions.innerHTML; refreshCorrectedDownloadAffordance() decides
+    // whether to show it.
+    const correctedBtn = document.createElement('button');
+    correctedBtn.id = 'cv-corrected-btn';
+    correctedBtn.className = 'ws-btn';
+    correctedBtn.style.display = 'none';
+    correctedBtn.textContent = '↓ Corrected brief';
+    correctedBtn.addEventListener('click', () => downloadCorrectedDocx());
+    rbActions.appendChild(correctedBtn);
 
-    if (!citations.length) {
-      citationsEl.innerHTML = '<p style="color:var(--ink-3);">No citations were extracted from this document.</p>';
-      return;
-    }
+    const back = document.createElement('button');
+    back.className = 'ws-btn ws-btn-ghost';
+    back.style.fontSize = '10px';
+    back.textContent = 'New run';
+    back.addEventListener('click', () => location.reload());
+    rbActions.appendChild(back);
 
-    const rows = citations.map((c, i) => {
-      const flags = c.flags || [];
-      let tier = 'conforming';
-      let label = '✓';
-      if (flags.some((f) => f.severity === 'non_conforming')) { tier = 'nonconforming'; label = '✗'; }
-      else if (flags.some((f) => f.severity === 'review'))    { tier = 'review';        label = '▲'; }
-
-      const findings = flags.length === 0
-        ? '<em style="color:var(--ink-3);">passes all applicable form tests</em>'
-        : flags.map((f) =>
-            `<div style="margin-bottom:4px;"><span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);">${escapeHtml(f.rule_cite || '')}</span> — ${escapeHtml(f.message)}</div>`
-          ).join('');
-
-      const exists = c.existence_status && c.existence_status !== 'not_applicable'
-        ? `<div style="margin-top:6px; font-family:var(--mono); font-size:11px; color:${c.existence_status === 'existence_verified' ? '#0a7d57' : '#b87f00'};">${c.existence_status.replace('existence_', '').replace('_', ' ')}</div>`
-        : '';
-
-      return `<tr>
-        <td>${i + 1}</td>
-        <td><span class="cv-tier t-${tier}">${label}</span></td>
-        <td>${escapeHtml(c.display_text || c.candidate_text || '(text not retained)')}${exists}</td>
-        <td>${c.citation_type || '—'}</td>
-        <td>${findings}</td>
-      </tr>`;
-    }).join('');
-
-    citationsEl.innerHTML = `
-      <table>
-        <thead><tr>
-          <th style="width:32px;">#</th>
-          <th style="width:40px;">Tier</th>
-          <th>Citation</th>
-          <th style="width:130px;">Type</th>
-          <th>Findings</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    `;
+    refreshCorrectedDownloadAffordance();
   }
 
   function escapeHtml(s) {

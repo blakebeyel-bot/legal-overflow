@@ -19,6 +19,16 @@ import { completeText, findModel } from '../lib/llm-providers.js';
 import { REDLINE_SYSTEM, buildRedlinePrompt, parseRedlineResponse } from '../lib/redline-prompt.js';
 
 export default async (req) => {
+  // Internal-trigger gate — prevents arbitrary callers from running
+  // redline pipelines on someone else's run_id+user_id pair. Browsers
+  // can't set custom request headers cross-origin without an explicit
+  // CORS preflight allowlist, so this literal-string header match is
+  // an effective CSRF defense. Same pattern as
+  // workspace-chat-verify-background.js (X-Internal-Trigger: chat-verify).
+  if (req.headers.get('X-Internal-Trigger') !== 'redline-run') {
+    return new Response('forbidden', { status: 403 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const runId = body.run_id;
   const userId = body.user_id;

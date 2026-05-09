@@ -102,7 +102,22 @@
       overlay.querySelector('.site-confirm-msg').textContent = String(message);
       document.body.appendChild(overlay);
       requestAnimationFrame(() => overlay.classList.add('is-visible'));
+      // Keyboard handler — declared up here so close() (defined below)
+      // can detach it from EVERY close path. Previous version only
+      // detached on Esc / Enter, which leaked one stale listener for
+      // every overlay-click and every button-click dismiss.
+      function keyHandler(e) {
+        if (e.key === 'Escape') {
+          close(false);
+        } else if (e.key === 'Enter' && document.activeElement === overlay.querySelector('.site-confirm-ok')) {
+          close(true);
+        }
+      }
       function close(result) {
+        // Always detach the keydown listener — covers cancel-button,
+        // ok-button, overlay-click, and Esc paths. Closing the dialog
+        // any way must leave the document with zero stale listeners.
+        document.removeEventListener('keydown', keyHandler);
         overlay.classList.remove('is-visible');
         setTimeout(() => overlay.remove(), 180);
         resolve(result);
@@ -114,16 +129,6 @@
       });
       // Focus the OK button so Enter confirms
       requestAnimationFrame(() => overlay.querySelector('.site-confirm-ok').focus());
-      // Esc cancels
-      const keyHandler = (e) => {
-        if (e.key === 'Escape') {
-          document.removeEventListener('keydown', keyHandler);
-          close(false);
-        } else if (e.key === 'Enter' && document.activeElement === overlay.querySelector('.site-confirm-ok')) {
-          document.removeEventListener('keydown', keyHandler);
-          close(true);
-        }
-      };
       document.addEventListener('keydown', keyHandler);
     });
   }

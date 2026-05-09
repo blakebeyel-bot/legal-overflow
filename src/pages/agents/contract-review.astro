@@ -15,22 +15,11 @@ import Consent from '../../partials/consent.astro';
 <script src="/site-dialog.js" defer></script>
 <script src="/site-notify.js" defer></script>
 <link rel="stylesheet" href="/contract-review.css" />
+<link rel="stylesheet" href="/futuristic.css" />
 <style>
-  /* Page-local overrides so the preview's CSS plays with the site nav */
-  .cr-sub-nav {
-    max-width: 1400px; margin: 0 auto; padding: 14px 40px 0;
-    display: flex; gap: 24px; align-items: center;
-    border-bottom: 1px solid var(--rule-soft);
-  }
-  .cr-sub-nav .tab {
-    font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--ink-3); padding: 10px 0; cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: color .2s ease, border-color .2s ease;
-  }
-  .cr-sub-nav .tab:hover { color: var(--ink); }
-  .cr-sub-nav .tab.active { color: var(--ink); border-bottom-color: var(--accent-deep); }
-  .cr-quota { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+  /* Sub-nav layout — actual tab styling comes from the global block below.
+     Kept minimal here; the .cr-tab / .is-active rules in <style is:global>
+     own the colors so they don't fight Astro's scoped-style specificity. */
   .cr-quota .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: middle; }
   /* Hide duplicate elements from the ported preview (its own nav, kickers we don't want) */
   .view .banner { background: rgba(10,125,87,.06); border: 1px solid var(--rule-soft); padding: 14px 18px; border-radius: 6px; font-size: 13.5px; color: var(--ink-2); display: flex; gap: 14px; align-items: center; margin: 16px 0 24px; }
@@ -49,10 +38,488 @@ import Consent from '../../partials/consent.astro';
   .walkaway-icon { font-size: 16px; flex-shrink: 0; }
   .walkaway-text { flex: 1; }
 </style>
+<style is:global>
+  /* ============================================================
+     Contract Review prototype overlay — scoped to Steps 2 and 3 only.
+     Step 1 (Configure) keeps its existing styling from /contract-review.css.
+     ============================================================ */
+
+  /* sub-nav: terminal segmented control */
+  body.cr-page .cr-sub-nav {
+    position: relative; z-index: 2;
+    max-width: 1280px; margin: 14px auto 0; padding: 0 40px;
+    display: flex; align-items: center; gap: 18px;
+    border-bottom: none;
+  }
+  body.cr-page .cr-sub-nav .cr-tabs {
+    display: flex;
+    border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255,255,255,.4);
+    position: relative;
+  }
+  body.cr-page .cr-sub-nav .cr-tab {
+    position: relative;
+    padding: 9px 18px;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: transparent; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    border-right: 1px solid var(--rule-soft);
+    transition: color .15s, background .15s;
+  }
+  body.cr-page .cr-sub-nav .cr-tab:last-child { border-right: none; }
+  body.cr-page .cr-sub-nav .cr-tab:hover { color: var(--ink); background: rgba(255,255,255,.6); }
+  body.cr-page .cr-sub-nav .cr-tab.is-active { color: var(--paper); background: var(--ink); padding-left: 22px; }
+  body.cr-page .cr-sub-nav .cr-tab.is-active::before {
+    content: ''; position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+    animation: cr-blink 1.4s ease-in-out infinite;
+  }
+  @keyframes cr-blink { 50% { opacity: 0; } }
+  body.cr-page .cr-sub-nav .cr-tab .tn { font-size: 9px; color: var(--ink-4); letter-spacing: .14em; font-weight: 400; }
+  body.cr-page .cr-sub-nav .cr-tab.is-active .tn { color: rgba(243,239,230,.5); }
+  body.cr-page .cr-sub-nav .cr-quota {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase;
+    border: 1px solid var(--rule-soft);
+    padding: 7px 12px; border-radius: 4px;
+    background: rgba(255,255,255,.4);
+  }
+  body.cr-page .cr-sub-nav .q-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-deep); }
+  body.cr-page .cr-sub-nav .cr-quota b { color: var(--ink); font-weight: 500; }
+
+  /* hero head — corner brackets — scoped to views 2 + 3 */
+  body.cr-page #view-review .cr-head,
+  body.cr-page #view-history .cr-head {
+    position: relative;
+    padding: 36px 24px 28px;
+    margin: 8px 0 28px;
+  }
+  body.cr-page #view-review .cr-head::before,
+  body.cr-page #view-review .cr-head::after,
+  body.cr-page #view-review .cr-head > .br-bl,
+  body.cr-page #view-review .cr-head > .br-br,
+  body.cr-page #view-history .cr-head::before,
+  body.cr-page #view-history .cr-head::after,
+  body.cr-page #view-history .cr-head > .br-bl,
+  body.cr-page #view-history .cr-head > .br-br {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    border: 1px solid var(--ink); pointer-events: none;
+  }
+  body.cr-page #view-review .cr-head::before,
+  body.cr-page #view-history .cr-head::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+  body.cr-page #view-review .cr-head::after,
+  body.cr-page #view-history .cr-head::after { top: 0; right: 0; border-left: none; border-bottom: none; }
+  body.cr-page #view-review .cr-head > .br-bl,
+  body.cr-page #view-history .cr-head > .br-bl { bottom: 0; left: 0; border-top: none; border-right: none; }
+  body.cr-page #view-review .cr-head > .br-br,
+  body.cr-page #view-history .cr-head > .br-br { bottom: 0; right: 0; border-top: none; border-left: none; }
+
+  body.cr-page #view-review .cr-head .kicker,
+  body.cr-page #view-history .cr-head .kicker {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  body.cr-page #view-review .cr-head .k-tag,
+  body.cr-page #view-history .cr-head .k-tag {
+    border: 1px solid var(--accent-deep); padding: 2px 7px; border-radius: 2px;
+    font-size: 9.5px; letter-spacing: .12em;
+  }
+  body.cr-page #view-review .cr-head .k-coord,
+  body.cr-page #view-history .cr-head .k-coord { font-size: 9.5px; color: var(--ink-4); letter-spacing: .14em; }
+  body.cr-page #view-review .cr-head .k-step,
+  body.cr-page #view-history .cr-head .k-step { color: var(--ink-2); }
+
+  body.cr-page #view-review .cr-head .hero-title,
+  body.cr-page #view-history .cr-head .hero-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(44px, 5.4vw, 76px);
+    line-height: .98; letter-spacing: -.02em;
+    margin: 0 0 18px;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  body.cr-page #view-review .cr-head .hero-title em,
+  body.cr-page #view-history .cr-head .hero-title em { font-style: italic; color: var(--accent-deep); }
+  body.cr-page #view-review .cr-head .hero-title .l,
+  body.cr-page #view-history .cr-head .hero-title .l { display: block; }
+  body.cr-page #view-review .cr-head .hero-sub,
+  body.cr-page #view-history .cr-head .hero-sub {
+    font-size: 15.5px; line-height: 1.55; color: var(--ink-2);
+    max-width: 62ch; margin: 0;
+  }
+
+  /* section divider */
+  body.cr-page #view-review .sec-div,
+  body.cr-page #view-history .sec-div {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 16px;
+    margin: 38px 0 18px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.cr-page #view-review .sec-div .sec-num,
+  body.cr-page #view-history .sec-div .sec-num { color: var(--ink); }
+  body.cr-page #view-review .sec-div .sec-rule,
+  body.cr-page #view-history .sec-div .sec-rule { height: 1px; background: var(--rule-soft); }
+  body.cr-page #view-review .sec-div .sec-meta,
+  body.cr-page #view-history .sec-div .sec-meta { color: var(--ink-4); font-size: 9.5px; }
+
+  /* posture as 4-way segmented control */
+  body.cr-page #view-review .posture-seg {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255,255,255,.4);
+  }
+  body.cr-page #view-review .posture-opt {
+    position: relative;
+    padding: 11px 12px 10px;
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); text-align: left;
+    background: transparent; border: none;
+    border-right: 1px solid var(--rule-soft);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  body.cr-page #view-review .posture-opt:last-child { border-right: none; }
+  body.cr-page #view-review .posture-opt .po-num { font-size: 9px; color: var(--ink-4); letter-spacing: .14em; }
+  body.cr-page #view-review .posture-opt .po-label { font-size: 10px; letter-spacing: .12em; color: var(--ink-2); text-transform: uppercase; }
+  body.cr-page #view-review .posture-opt .po-sub { font-family: var(--sans); font-size: 11.5px; color: var(--ink-3); text-transform: none; letter-spacing: 0; line-height: 1.35; }
+  body.cr-page #view-review .posture-opt:hover { background: rgba(255,255,255,.6); }
+  body.cr-page #view-review .posture-opt:hover .po-label { color: var(--ink); }
+  body.cr-page #view-review .posture-opt.is-active { background: var(--ink); color: var(--paper); }
+  body.cr-page #view-review .posture-opt.is-active .po-num { color: rgba(243,239,230,.55); }
+  body.cr-page #view-review .posture-opt.is-active .po-label { color: var(--paper); }
+  body.cr-page #view-review .posture-opt.is-active .po-sub { color: rgba(243,239,230,.7); }
+  @media (max-width: 980px) {
+    body.cr-page #view-review .posture-seg { grid-template-columns: 1fr 1fr; }
+    body.cr-page #view-review .posture-opt:nth-child(2n) { border-right: none; }
+    body.cr-page #view-review .posture-opt:nth-child(-n+2) { border-bottom: 1px solid var(--rule-soft); }
+  }
+
+  /* dropzone with viewfinder corners (override existing styling) */
+  body.cr-page #view-review .dropzone {
+    position: relative;
+    margin: 18px 26px 0;
+    padding: 56px 24px;
+    text-align: center;
+    border: 1px dashed var(--rule-thread);
+    border-radius: 6px;
+    background: rgba(255,255,255,.3);
+    cursor: pointer;
+    transition: background .2s var(--motion-snap), border-color .15s;
+    overflow: hidden;
+  }
+  body.cr-page #view-review .dropzone::before,
+  body.cr-page #view-review .dropzone::after,
+  body.cr-page #view-review .dropzone > .dz-tr,
+  body.cr-page #view-review .dropzone > .dz-br {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    border: 1px solid var(--ink-3); pointer-events: none;
+    transition: border-color .2s, width .2s var(--motion-snap), height .2s var(--motion-snap);
+  }
+  body.cr-page #view-review .dropzone::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+  body.cr-page #view-review .dropzone::after  { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+  body.cr-page #view-review .dropzone > .dz-tr { bottom: 8px; left: 8px; border-top: none; border-right: none; }
+  body.cr-page #view-review .dropzone > .dz-br { bottom: 8px; right: 8px; border-top: none; border-left: none; }
+  body.cr-page #view-review .dropzone:hover,
+  body.cr-page #view-review .dropzone.is-over {
+    background: rgba(255,255,255,.55);
+    border-color: var(--ink);
+  }
+  body.cr-page #view-review .dropzone:hover::before,
+  body.cr-page #view-review .dropzone:hover::after,
+  body.cr-page #view-review .dropzone:hover > .dz-tr,
+  body.cr-page #view-review .dropzone:hover > .dz-br,
+  body.cr-page #view-review .dropzone.is-over::before,
+  body.cr-page #view-review .dropzone.is-over::after,
+  body.cr-page #view-review .dropzone.is-over > .dz-tr,
+  body.cr-page #view-review .dropzone.is-over > .dz-br {
+    border-color: var(--accent-deep); width: 22px; height: 22px;
+  }
+  body.cr-page #view-review .dropzone .dz-title {
+    font-family: var(--serif); font-size: 32px; line-height: 1.1;
+    color: var(--ink); letter-spacing: -.01em;
+    margin-bottom: 8px;
+  }
+  body.cr-page #view-review .dropzone .dz-title em { font-style: italic; color: var(--accent-deep); }
+  body.cr-page #view-review .dropzone .dz-sub {
+    font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.cr-page #view-review .dropzone .format-row {
+    display: inline-flex; gap: 12px; margin-top: 18px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-4);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.cr-page #view-review .dropzone .format-row span {
+    padding: 3px 8px;
+    border: 1px solid var(--rule-thread); border-radius: 2px;
+  }
+
+  body.cr-page #view-review .upload-posture-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  body.cr-page #view-review .upload-posture-label .req { color: var(--sev-block, #b22222); margin-left: 2px; }
+  body.cr-page #view-review .upload-posture-hint {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+    padding: 10px 26px 0;
+  }
+
+  /* progress: split layout with live-document preview pane */
+  body.cr-page #view-review .rp-work {
+    display: grid; grid-template-columns: 380px 1fr;
+    gap: 0;
+    border-top: 1px solid var(--rule-soft);
+    margin-top: 8px;
+  }
+  body.cr-page #view-review .rp-side { border-right: 1px solid var(--rule-soft); display: flex; flex-direction: column; }
+  body.cr-page #view-review .rp-side .stage-list { padding: 14px 22px 18px; display: flex; flex-direction: column; gap: 0; }
+  body.cr-page #view-review .rp-side .stream-findings { padding: 0 22px 18px; }
+  body.cr-page #view-review .rp-side .stage {
+    display: grid; grid-template-columns: 36px 1fr auto;
+    gap: 18px; align-items: center;
+    padding: 11px 0;
+    border-bottom: 1px dotted var(--rule-soft);
+  }
+  body.cr-page #view-review .rp-side .stage:last-child { border-bottom: none; }
+  body.cr-page #view-review .rp-side .stage-icon {
+    width: 28px; height: 28px;
+    border: 1px solid var(--rule-soft); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+    letter-spacing: .04em; background: rgba(255,255,255,.4);
+    position: relative;
+    transition: border-color .2s, color .2s, background .2s;
+  }
+  body.cr-page #view-review .rp-side .stage.running .stage-icon { border-color: var(--ink); color: var(--ink); background: rgba(255,255,255,.7); }
+  body.cr-page #view-review .rp-side .stage.running .stage-icon::after {
+    content: ''; position: absolute; inset: -3px;
+    border: 1px solid var(--accent-deep); border-radius: 5px;
+    animation: cr-stageScan 1.2s linear infinite;
+  }
+  @keyframes cr-stageScan {
+    0%   { opacity: 0; transform: scale(.96); }
+    50%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.06); }
+  }
+  body.cr-page #view-review .rp-side .stage.done .stage-icon { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  body.cr-page #view-review .rp-side .stage.done .stage-icon::before {
+    content: '✓'; font-family: var(--sans); font-size: 12px;
+  }
+  body.cr-page #view-review .rp-side .stage.done .stage-icon span { display: none; }
+  body.cr-page #view-review .rp-side .stage.error .stage-icon { border-color: var(--sev-block, #b22222); color: var(--sev-block, #b22222); }
+  body.cr-page #view-review .rp-side .stage-label { font-family: var(--serif); font-size: 14.5px; color: var(--ink); }
+  body.cr-page #view-review .rp-side .stage.pending .stage-label { color: var(--ink-3); }
+  body.cr-page #view-review .rp-side .stage-detail { font-family: var(--mono); font-size: 9px; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; text-align: right; min-width: 80px; }
+  body.cr-page #view-review .rp-side .stage.running .stage-detail { color: var(--accent-deep); animation: cr-pulseDim 1.6s ease-in-out infinite; }
+  @keyframes cr-pulseDim { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  body.cr-page #view-review .rp-doc-wrap { display: flex; flex-direction: column; min-width: 0; background: rgba(0,0,0,.018); }
+  body.cr-page #view-review .rp-doc-head {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 14px; align-items: center;
+    padding: 9px 18px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .12em; text-transform: uppercase;
+    background: rgba(255,255,255,.4);
+  }
+  body.cr-page #view-review .rp-doc-head .rp-cursor {
+    justify-self: center;
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--accent-deep);
+    font-size: 9.5px; letter-spacing: .12em;
+  }
+  body.cr-page #view-review .rp-doc-head .rp-cursor::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-deep);
+    animation: cr-pulseDim 1.4s ease-in-out infinite;
+  }
+  body.cr-page #view-review .rp-doc-paper {
+    position: relative;
+    flex: 1; min-height: 520px;
+    padding: 32px 56px 40px;
+    background: var(--paper-2);
+    font-family: 'Times New Roman', Times, 'Liberation Serif', serif;
+    font-size: 14.5px; line-height: 1.55; color: var(--ink);
+    background-image: repeating-linear-gradient(180deg, rgba(0,0,0,.018) 0 1px, transparent 1px 28px);
+    overflow: auto;
+    max-height: 720px;
+  }
+  body.cr-page #view-review .rp-scanner {
+    position: absolute; left: 0; right: 0;
+    height: 64px; pointer-events: none;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(10,125,87,.05) 30%,
+      rgba(10,125,87,.18) 50%,
+      rgba(10,125,87,.05) 70%,
+      transparent 100%);
+    top: 0; opacity: 0;
+    transition: opacity .4s ease;
+    z-index: 1;
+  }
+  body.cr-page #view-review .rp-scanner::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0;
+    height: 1px; background: var(--accent-deep); opacity: .55;
+  }
+  body.cr-page #view-review .rp-doc-paper.is-scanning .rp-scanner { opacity: 1; animation: cr-rpScan 5.5s ease-in-out infinite alternate; }
+  @keyframes cr-rpScan { 0% { top: 6%; } 100% { top: 88%; } }
+  body.cr-page #view-review .rp-h {
+    font-family: 'Times New Roman', Times, 'Liberation Serif', serif;
+    font-weight: 700; font-size: 14px; text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink);
+    margin: 22px 0 8px;
+    position: relative; padding-left: 14px;
+    transition: color .25s, background .25s;
+  }
+  body.cr-page #view-review .rp-h::before {
+    content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+    width: 2px; background: transparent;
+    transition: background .25s;
+  }
+  body.cr-page #view-review .rp-h:first-child { margin-top: 0; }
+  body.cr-page #view-review .rp-sec {
+    position: relative;
+    margin-bottom: 12px;
+    padding: 4px 12px 4px 16px;
+    border-left: 2px solid transparent;
+    transition: border-color .35s var(--motion-snap), background .35s;
+  }
+  body.cr-page #view-review .rp-sec.is-active { border-left-color: var(--accent-deep); background: rgba(10,125,87,.04); }
+  body.cr-page #view-review .rp-sec.is-active .rp-h::before { background: var(--accent-deep); }
+  body.cr-page #view-review .rp-sec.is-done { border-left-color: var(--ink-4); }
+  body.cr-page #view-review .rp-sec.is-done .rp-h::before { background: var(--ink-4); }
+  body.cr-page #view-review .rp-sec.is-flag { border-left-color: var(--sev-block, #b22222); background: rgba(178,34,34,.05); }
+  body.cr-page #view-review .rp-sec.is-flag .rp-h::before { background: var(--sev-block, #b22222); }
+  body.cr-page #view-review .rp-p { margin: 0 0 8px; text-indent: 0; }
+  body.cr-page #view-review .rp-num { color: var(--ink-3); margin-right: 6px; font-variant-numeric: tabular-nums; }
+  body.cr-page #view-review .rp-mark {
+    background: transparent;
+    padding: 0 1px;
+    border-bottom: 0 solid transparent;
+    transition: background .35s ease, border-color .35s ease, padding .25s ease;
+  }
+  body.cr-page #view-review .rp-mark.is-on {
+    background: rgba(201,138,20,.18);
+    border-bottom: 1px solid var(--sev-major, #c98a14);
+  }
+  body.cr-page #view-review .rp-mark.is-on.sev-blocker { background: rgba(178,34,34,.16); border-bottom-color: var(--sev-block, #b22222); }
+  body.cr-page #view-review .rp-mark.is-on.sev-major   { background: rgba(178,34,34,.10); border-bottom-color: var(--sev-major, #c98a14); }
+  body.cr-page #view-review .rp-mark.is-on.sev-moderate{ background: rgba(201,138,20,.16); border-bottom-color: var(--sev-mod, #6a7c8e); }
+  body.cr-page #view-review .rp-mark.is-on.sev-minor   { background: rgba(74,138,100,.14); border-bottom-color: var(--sev-minor, #8a9690); }
+  body.cr-page #view-review .rp-pin {
+    display: none;
+    font-family: var(--mono); font-size: 8.5px;
+    background: var(--ink); color: var(--paper);
+    padding: 1px 5px; border-radius: 2px;
+    vertical-align: 2px;
+    margin-left: 4px;
+    letter-spacing: .04em;
+  }
+  body.cr-page #view-review .rp-mark.is-on .rp-pin { display: inline-block; animation: cr-rpPop .4s var(--motion-snap); }
+  body.cr-page #view-review .rp-mark.is-on.sev-blocker .rp-pin { background: var(--sev-block, #b22222); }
+  body.cr-page #view-review .rp-mark.is-on.sev-major   .rp-pin { background: var(--sev-major, #c98a14); }
+  body.cr-page #view-review .rp-mark.is-on.sev-moderate .rp-pin { background: var(--sev-mod, #6a7c8e); }
+  body.cr-page #view-review .rp-mark.is-on.sev-minor   .rp-pin { background: var(--sev-minor, #8a9690); }
+  @keyframes cr-rpPop {
+    0% { transform: translateY(-3px) scale(.8); opacity: 0; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  @media (max-width: 1100px) {
+    body.cr-page #view-review .rp-work { grid-template-columns: 1fr; }
+    body.cr-page #view-review .rp-side { border-right: none; border-bottom: 1px solid var(--rule-soft); }
+  }
+
+  /* archive list — new row design */
+  body.cr-page #view-history .history-list {
+    padding: 0; border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper-2); overflow: hidden;
+  }
+  body.cr-page #view-history .history-col-head {
+    display: grid;
+    grid-template-columns: 1fr 180px 130px 100px 130px;
+    gap: 16px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-4);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.cr-page #view-history .history-row-wrap { border-bottom: 1px dotted var(--rule-soft); }
+  body.cr-page #view-history .history-row-wrap:last-child { border-bottom: none; }
+  body.cr-page #view-history .history-row {
+    display: grid;
+    grid-template-columns: 1fr 180px 130px 100px 130px;
+    gap: 16px; align-items: center;
+    padding: 12px 22px;
+    cursor: pointer;
+    position: relative;
+    transition: background .15s var(--motion-snap), padding-left .15s var(--motion-snap);
+  }
+  body.cr-page #view-history .history-row::before {
+    content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 0;
+    background: var(--accent-deep);
+    transition: width .15s var(--motion-snap);
+  }
+  body.cr-page #view-history .history-row:hover {
+    background: rgba(255,255,255,.4);
+    padding-left: 28px;
+  }
+  body.cr-page #view-history .history-row:hover::before { width: 2px; }
+  body.cr-page #view-history .h-name {
+    font-family: var(--serif); font-size: 15.5px; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 8px;
+  }
+  body.cr-page #view-history .h-icon {
+    font-family: var(--mono); font-size: 8px; color: var(--ink-3);
+    letter-spacing: .12em;
+    border: 1px solid var(--rule-thread); border-radius: 2px;
+    padding: 2px 5px; flex-shrink: 0;
+  }
+  body.cr-page #view-history .h-meta {
+    font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+    letter-spacing: .04em;
+  }
+  body.cr-page #view-history .h-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  body.cr-page #view-history .h-status::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+  }
+  body.cr-page #view-history .h-status.complete { color: var(--accent-deep); }
+  body.cr-page #view-history .h-status.running { color: var(--sev-mod, #6a7c8e); animation: cr-pulseDim 1.6s ease-in-out infinite; }
+  body.cr-page #view-history .h-status.error { color: var(--sev-block, #b22222); }
+  @media (max-width: 980px) {
+    body.cr-page #view-history .history-col-head, body.cr-page #view-history .history-row {
+      grid-template-columns: 1fr 100px 130px;
+    }
+    body.cr-page #view-history .history-col-head .hh-type,
+    body.cr-page #view-history .history-col-head .hh-findings,
+    body.cr-page #view-history .history-row .hr-type,
+    body.cr-page #view-history .history-row .hr-findings { display: none; }
+  }
+</style>
   <link rel="stylesheet" href="/site-anim.css" />
   <script src="/site-anim.js" defer></script>
 </head>
-<body>
+<body class="cr-page">
 <div id="grain"></div>
 
 <header class="nav">
@@ -70,17 +537,27 @@ import Consent from '../../partials/consent.astro';
     <a href="/about/">About</a>
   </nav>
   <div class="nav-right">
-    <span class="nav-meta" id="nav-clock">—</span>
-    <button id="cr-signout" class="nav-sub" style="border:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;">Sign out</button>
+    <a href="/account/" class="nav-sub">Account</a>
   </div>
 </header>
 
 <!-- Sub-nav — view tabs for Configure | Review | Archive -->
 <div class="cr-sub-nav">
-  <span class="tab active" data-view="configure">Configure</span>
-  <span class="tab" data-view="review">Review</span>
-  <span class="tab" data-view="history">Archive</span>
-  <span class="cr-quota" id="quota-indicator"><span class="dot"></span><span id="quota-text">Loading…</span></span>
+  <div class="cr-tabs" role="tablist">
+    <button type="button" class="cr-tab is-active" data-view="configure" role="tab">
+      <span class="tn">01</span><span>Configure</span>
+    </button>
+    <button type="button" class="cr-tab" data-view="review" role="tab">
+      <span class="tn">02</span><span>Review</span>
+    </button>
+    <button type="button" class="cr-tab" data-view="history" role="tab">
+      <span class="tn">03</span><span>Archive</span>
+    </button>
+  </div>
+  <span class="cr-quota" id="quota-indicator">
+    <span class="q-dot"></span>
+    <span><b id="quota-text">Loading…</b></span>
+  </span>
 </div>
 
 <main>
@@ -258,21 +735,29 @@ import Consent from '../../partials/consent.astro';
        VIEW: Review — upload contract → progress → results
        ============================================================ -->
   <section id="view-review" class="view">
-    <div class="kicker">
-      <span class="kicker-dash"></span>
-      <span>Step 2 · Review</span>
+    <header class="cr-head">
+      <span class="br-bl"></span><span class="br-br"></span>
+      <div class="kicker">
+        <span class="k-tag">STEP 02</span>
+        <span class="k-coord">/AGT.01.RVW · INTAKE</span>
+        <span class="k-step">Review</span>
+      </div>
+      <h1 class="hero-title">
+        <span class="l">Upload a contract.</span>
+        <span class="l">Get it <em>back</em>, fully redlined,</span>
+        <span class="l">in 10 minutes.</span>
+      </h1>
+      <p class="hero-sub">
+        PDF or Word. The platform classifies the document, fans out to every specialist in your profile,
+        applies native tracked changes, and returns the file in the format you sent it.
+      </p>
+    </header>
+
+    <div class="sec-div">
+      <span class="sec-num">§ 02.A</span>
+      <span class="sec-rule"></span>
+      <span class="sec-meta">INTAKE · POSTURE → DROPZONE → ACK</span>
     </div>
-
-    <h1 class="hero-title">
-      <span class="rise rise-1">Upload a contract.</span>
-      <span class="rise rise-2">Get it <em>back</em>, fully redlined,</span>
-      <span class="rise rise-3">in minutes.</span>
-    </h1>
-
-    <p class="hero-sub rise rise-3">
-      PDF or Word. The platform classifies the document, fans out to every specialist in your profile,
-      applies native tracked changes, and returns the file in the format you sent it.
-    </p>
 
     <!-- Pending-approval state — shown when start-review returns 403 with
          pending_approval: true. New users see this until the operator
@@ -298,25 +783,54 @@ import Consent from '../../partials/consent.astro';
     </div>
 
     <!-- Upload -->
-    <div id="review-upload" class="panel" style="padding:40px;">
-      <div class="upload-posture">
-        <label for="deal-posture-select" class="upload-posture-label">Deal posture <span class="req">*</span></label>
-        <select id="deal-posture-select" required>
-          <option value="">Select the deal's negotiating posture…</option>
-          <option value="our_paper">Our paper — client's own form</option>
+    <div id="review-upload" class="panel" style="padding:0;">
+      <div class="upload-posture" style="padding: 22px 26px 0;">
+        <span class="upload-posture-label">Deal posture <span class="req">*</span></span>
+      </div>
+      <div style="padding: 14px 26px 0;">
+        <div class="posture-seg" id="posture-seg" role="radiogroup" aria-label="Deal posture">
+          <button type="button" class="posture-opt is-active" data-posture="our_paper" role="radio" aria-checked="true">
+            <span class="po-num">P · 01</span>
+            <span class="po-label">Our paper</span>
+            <span class="po-sub">Client's own form. Push hardest.</span>
+          </button>
+          <button type="button" class="posture-opt" data-posture="their_paper_high_leverage" role="radio" aria-checked="false">
+            <span class="po-num">P · 02</span>
+            <span class="po-label">Their paper — we need this</span>
+            <span class="po-sub">Pick our battles. Surgical edits.</span>
+          </button>
+          <button type="button" class="posture-opt" data-posture="their_paper_low_leverage" role="radio" aria-checked="false">
+            <span class="po-num">P · 03</span>
+            <span class="po-label">Their paper — they need this</span>
+            <span class="po-sub">Negotiate aggressively from below.</span>
+          </button>
+          <button type="button" class="posture-opt" data-posture="negotiated_draft" role="radio" aria-checked="false">
+            <span class="po-num">P · 04</span>
+            <span class="po-label">Negotiated draft</span>
+            <span class="po-sub">Both sides editing. Light touch.</span>
+          </button>
+        </div>
+        <!-- Hidden select shadows the segmented control so existing JS that
+             reads #deal-posture-select keeps working unchanged. Default value
+             matches the .is-active button above so uploads aren't gated on a
+             posture click — the user can still change it before upload. -->
+        <select id="deal-posture-select" required style="display:none;">
+          <option value="our_paper" selected>Our paper</option>
           <option value="their_paper_high_leverage">Their paper — we need this deal</option>
           <option value="their_paper_low_leverage">Their paper — they need this deal</option>
-          <option value="negotiated_draft">Negotiated draft — both sides editing</option>
+          <option value="negotiated_draft">Negotiated draft</option>
         </select>
-        <div class="upload-posture-hint">Affects how aggressively the specialists push back on deviations from the playbook.</div>
       </div>
-      <div class="dropzone" id="dropzone">
-        <div class="dropzone-title">Drop a contract <em>here</em></div>
-        <div class="dropzone-sub">or click to select a file</div>
+      <div class="upload-posture-hint">Affects how aggressively the specialists push back on deviations from the playbook.</div>
+
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop a contract here or click to select">
+        <span class="dz-tr"></span><span class="dz-br"></span>
+        <div class="dz-title dropzone-title">Drop a contract <em>here</em></div>
+        <div class="dz-sub dropzone-sub">— or click to select a file —</div>
         <div class="format-row">
           <span>.pdf</span>
           <span>.docx</span>
-          <span>Up to 50 MB</span>
+          <span>≤ 50 MB</span>
         </div>
       </div>
       <input type="file" id="contract-file-input" accept=".pdf,.docx,.txt,.md" style="display:none;" />
@@ -549,22 +1063,32 @@ import Consent from '../../partials/consent.astro';
        VIEW: Archive
        ============================================================ -->
   <section id="view-history" class="view">
-    <div class="kicker">
-      <span class="kicker-dash"></span>
-      <span>Archive</span>
+    <header class="cr-head">
+      <span class="br-bl"></span><span class="br-br"></span>
+      <div class="kicker">
+        <span class="k-tag">STEP 03</span>
+        <span class="k-coord">/AGT.01.ARC · LEDGER</span>
+        <span class="k-step">Archive</span>
+      </div>
+      <h1 class="hero-title">
+        <span class="l">Every contract</span>
+        <span class="l">the platform has <em>read</em>.</span>
+      </h1>
+      <p class="hero-sub">Click any row to reopen its outputs.</p>
+    </header>
+
+    <div class="sec-div">
+      <span class="sec-num">§ 03.A</span>
+      <span class="sec-rule"></span>
+      <span class="sec-meta" id="archive-sec-meta">LEDGER · LAST 30 DAYS</span>
     </div>
-    <h1 class="hero-title">
-      <span class="rise rise-1">Every contract</span>
-      <span class="rise rise-2">the platform has <em>read</em>.</span>
-    </h1>
-    <p class="hero-sub rise rise-3">Click any row to reopen its outputs.</p>
 
     <div class="panel history-list" id="history-list">
       <div class="history-col-head">
         <div>Contract</div>
-        <div>Type</div>
+        <div class="hh-type">Type</div>
         <div>Date</div>
-        <div>Findings</div>
+        <div class="hh-findings">Findings</div>
         <div>Status</div>
       </div>
       <div id="history-rows">
@@ -626,15 +1150,33 @@ import Consent from '../../partials/consent.astro';
   })();
 
   // ---- View switcher ----
-  const tabs = document.querySelectorAll('.cr-sub-nav .tab');
+  const tabs = document.querySelectorAll('.cr-sub-nav .cr-tab');
   const views = document.querySelectorAll('.view');
   function switchView(name) {
-    tabs.forEach(t => t.classList.toggle('active', t.dataset.view === name));
+    tabs.forEach(t => t.classList.toggle('is-active', t.dataset.view === name));
     views.forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
     if (name === 'history') loadArchive();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   tabs.forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+
+  // ---- Posture segmented control ----
+  // The new .posture-seg buttons replace the old <select>. We mirror the
+  // chosen posture into the hidden #deal-posture-select so all the
+  // existing JS that reads postureSelect.value keeps working unchanged.
+  const postureSeg = document.getElementById('posture-seg');
+  const postureSelectEl = document.getElementById('deal-posture-select');
+  postureSeg?.querySelectorAll('.posture-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      postureSeg.querySelectorAll('.posture-opt').forEach(x => {
+        x.classList.remove('is-active');
+        x.setAttribute('aria-checked', 'false');
+      });
+      btn.classList.add('is-active');
+      btn.setAttribute('aria-checked', 'true');
+      if (postureSelectEl) postureSelectEl.value = btn.dataset.posture || '';
+    });
+  });
   document.getElementById('goto-review-btn')?.addEventListener('click', () => switchView('review'));
   document.getElementById('review-another-btn')?.addEventListener('click', () => {
     document.getElementById('review-results').classList.add('hidden');
@@ -1161,13 +1703,37 @@ import Consent from '../../partials/consent.astro';
       return;
     }
 
-    document.getElementById('review-upload').classList.add('hidden');
+    // Hide upload but DON'T show the progress stages yet — the party picker
+    // (confirm panel) needs to pop up first so the user picks which side
+    // they're on. Progress stages only start running visibly after they
+    // click "Run review" on the confirm panel.
+    const uploadEl = document.getElementById('review-upload');
+    uploadEl.classList.add('hidden');
     const progress = document.getElementById('review-progress');
-    progress.classList.remove('hidden');
+
+    // Brief inline "classifying" panel during the few-second window between
+    // upload and the confirm-panel pop-up. Keeps the screen alive instead
+    // of flashing blank.
+    let classifyingEl = document.getElementById('review-classifying');
+    if (!classifyingEl) {
+      classifyingEl = document.createElement('div');
+      classifyingEl.id = 'review-classifying';
+      classifyingEl.className = 'panel';
+      classifyingEl.style.cssText = 'padding: 36px 28px; display: flex; align-items: center; gap: 16px;';
+      classifyingEl.innerHTML = `
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-deep);animation:cr-pulseDim 1.4s ease-in-out infinite;"></span>
+        <span style="font-family: var(--serif); font-size: 19px; color: var(--ink);">Classifying <em style="font-style:italic;color:var(--accent-deep);">${escapeHtml(file.name)}</em>…</span>
+        <span style="margin-left:auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing:.08em; text-transform:uppercase;">A few seconds</span>
+      `;
+      uploadEl.parentNode.insertBefore(classifyingEl, uploadEl.nextSibling);
+    }
+    classifyingEl.classList.remove('hidden');
+
+    // Pre-populate progress metadata so it renders correctly when shown later.
     const ext = (file.name.split('.').pop() || '').toUpperCase();
     document.getElementById('progress-file-icon').textContent = ext;
     document.getElementById('progress-file-name').textContent = file.name;
-    document.getElementById('progress-file-sub').textContent = `${Math.round(file.size / 1024)} KB · classifying…`;
+    document.getElementById('progress-file-sub').textContent = `${Math.round(file.size / 1024)} KB · pipeline running`;
 
     try {
       const kickoff = await api.startReview(file, dealPosture);
@@ -1191,11 +1757,14 @@ import Consent from '../../partials/consent.astro';
       markStage('extract', 'done');
       markStage('classify', 'done');
 
-      // Transition to the confirmation panel. Hide progress until confirm fires.
-      progress.classList.add('hidden');
+      // Confirm panel (with party picker) pops up first. Progress stays
+      // hidden until the user confirms — that's the "which side are you
+      // on?" question the user wants before any progress UI appears.
+      document.getElementById('review-classifying')?.classList.add('hidden');
       showConfirmPanel(kickoff);
     } catch (err) {
       const msg = err.message || '';
+      document.getElementById('review-classifying')?.classList.add('hidden');
       // 403 with pending_approval — new account hasn't been approved yet.
       if (/pending approval/i.test(msg)) {
         progress.classList.add('hidden');
@@ -1216,7 +1785,9 @@ import Consent from '../../partials/consent.astro';
         if (upload) upload.classList.add('hidden');
         return;
       }
-      document.getElementById('progress-file-sub').textContent = 'Error: ' + err.message;
+      // Generic error — surface it on the upload area, not the progress panel.
+      document.getElementById('review-upload')?.classList.remove('hidden');
+      alert('Error starting review: ' + err.message);
     }
   }
 
@@ -1344,6 +1915,7 @@ import Consent from '../../partials/consent.astro';
   document.getElementById('confirm-cancel-btn')?.addEventListener('click', () => {
     cancelConfirmCountdown();
     document.getElementById('review-confirm').classList.add('hidden');
+    document.getElementById('review-classifying')?.classList.add('hidden');
     document.getElementById('review-upload').classList.remove('hidden');
     pendingKickoff = null;
     pendingFile = null;
@@ -1408,6 +1980,26 @@ import Consent from '../../partials/consent.astro';
       if (elapsedEl) elapsedEl.textContent = `${m}:${s}`;
     }, 1000);
 
+    // After 5 minutes, surface a "still reviewing — longer contracts take
+    // longer" banner so the user knows the run is healthy. Banner stays in
+    // place until the run completes or fails (cleared in finally).
+    const longRunTimer = setTimeout(() => {
+      if (document.getElementById('long-run-banner')) return;
+      const banner = document.createElement('div');
+      banner.id = 'long-run-banner';
+      banner.className = 'banner';
+      banner.style.cssText = 'margin: 14px 28px; border-color: var(--accent-deep); background: rgba(10,125,87,.06);';
+      banner.innerHTML = `
+        <span class="banner-tag">Still reviewing</span>
+        <span style="flex:1;">
+          The pipeline is still working. Longer contracts take longer to review — we're processing your document. You can step away; we'll ping your browser when it's ready, and you can also reopen this run from the Archive tab.
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" id="long-run-dismiss" style="margin-left:auto;">Dismiss</button>
+      `;
+      progress.insertBefore(banner, progress.firstChild);
+      banner.querySelector('#long-run-dismiss')?.addEventListener('click', () => banner.remove());
+    }, 5 * 60 * 1000);
+
     try {
       await api.confirmReview(pendingKickoff.review_id, finalMode, governingCtx, clientParty);
 
@@ -1470,6 +2062,9 @@ import Consent from '../../partials/consent.astro';
       document.getElementById('progress-file-sub').textContent = 'Error: ' + err.message;
     } finally {
       clearInterval(tickInterval);
+      clearTimeout(longRunTimer);
+      // Tear down the long-run banner if it was shown — the run is over.
+      document.getElementById('long-run-banner')?.remove();
       pendingKickoff = null;
       pendingFile = null;
     }
@@ -2001,22 +2596,21 @@ import Consent from '../../partials/consent.astro';
         rows.innerHTML = '<div class="cr-empty-state">No reviews yet. Head to Review and drop a contract in.</div>';
         return;
       }
+      const archiveSecMeta = document.getElementById('archive-sec-meta');
+      if (archiveSecMeta) archiveSecMeta.textContent = `LEDGER · ${reviews.length} RUN${reviews.length === 1 ? '' : 'S'} · LAST 30 DAYS`;
       rows.innerHTML = reviews.map(r => {
         const findings = (r.severity_counts?.blocker || 0) + (r.severity_counts?.major || 0) + (r.severity_counts?.moderate || 0) + (r.severity_counts?.minor || 0);
         const statusLabel = r.status === 'complete' ? 'Complete' : r.status === 'failed' ? 'Failed' : 'In progress';
-        const statusClass = r.status === 'complete' ? 'complete' : r.status === 'failed' ? 'escalated' : '';
-        // Each row is wrapped so we can append a collapsible drawer below
+        const statusKlass = r.status === 'complete' ? 'complete' : r.status === 'failed' ? 'error' : 'running';
+        const fmtIcon = (r.filename || '').toLowerCase().endsWith('.pdf') ? 'PDF' : 'DOCX';
         return `
           <div class="history-row-wrap" data-review-id="${r.id}">
             <div class="history-row" role="button" aria-expanded="false" tabindex="0">
-              <div class="h-name">${escapeHtml(r.filename)}</div>
-              <div class="h-meta">${escapeHtml(humanize(r.contract_type) || '—')}</div>
+              <div class="h-name"><span class="h-icon">${fmtIcon}</span>${escapeHtml(r.filename)}</div>
+              <div class="h-meta hr-type">${escapeHtml(humanize(r.contract_type) || '—')}</div>
               <div class="h-meta emph">${new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-              <div class="h-meta">${findings} findings</div>
-              <div>
-                <span class="status-pill ${statusClass}">${statusLabel}</span>
-                <span class="history-row-arrow" aria-hidden="true">▸</span>
-              </div>
+              <div class="h-meta hr-findings">${findings} findings</div>
+              <div><span class="h-status ${statusKlass}">${statusLabel}</span></div>
             </div>
             <div class="history-row-drawer hidden"></div>
           </div>`;

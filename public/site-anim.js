@@ -13,6 +13,15 @@
     window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Cleanup registry — every install function that adds a global
+  // listener or creates an IntersectionObserver pushes a single
+  // teardown closure here. The pagehide listener at the bottom of
+  // this IIFE runs them all when the page navigates away. Mainly
+  // matters for dev-server HMR (which can re-execute this script in
+  // the same document); production navigations drop the document
+  // anyway so the cleanup is harmless overhead.
+  var _siteAnimCleanups = [];
+
   // ----------------------------------------------------------
   // 1. Page-load curtain — paper sweep that lifts away
   // ----------------------------------------------------------
@@ -94,28 +103,41 @@
       }
       raf = requestAnimationFrame(loop);
 
-      window.addEventListener('mousemove', function (e) {
-        tx = e.clientX;
-        ty = e.clientY;
-      }, { passive: true });
+      // Listeners are stored in the module-level _siteAnimCleanups
+      // registry so the single `pagehide` handler at the bottom of
+      // this file can remove them all. Without that, dev-server HMR
+      // reloads (which re-execute this script in the same document)
+      // accumulate stale handlers indefinitely.
+      var onMouseMove = function (e) { tx = e.clientX; ty = e.clientY; };
+      window.addEventListener('mousemove', onMouseMove, { passive: true });
+      _siteAnimCleanups.push(function () {
+        window.removeEventListener('mousemove', onMouseMove, { passive: true });
+        if (raf) cancelAnimationFrame(raf);
+      });
 
       // Grow over interactive elements
       var INTERACTIVE = 'a, button, [role="button"], input, textarea, select, .pillar-card, .skill-card, .article-card, .btn-primary, .btn-ghost, .btn';
-      document.addEventListener('mouseover', function (e) {
+      var onMouseOver = function (e) {
         var t = e.target;
         if (!(t instanceof Element)) return;
         if (t.closest(INTERACTIVE)) dot.classList.add('sx-cursor-hover');
-      });
-      document.addEventListener('mouseout', function (e) {
+      };
+      var onMouseOut = function (e) {
         var t = e.target;
         if (!(t instanceof Element)) return;
         if (t.closest(INTERACTIVE)) dot.classList.remove('sx-cursor-hover');
-      });
-      document.addEventListener('mouseleave', function () {
-        dot.style.opacity = '0';
-      });
-      document.addEventListener('mouseenter', function () {
-        dot.style.opacity = '';
+      };
+      var onDocLeave = function () { dot.style.opacity = '0'; };
+      var onDocEnter = function () { dot.style.opacity = ''; };
+      document.addEventListener('mouseover', onMouseOver);
+      document.addEventListener('mouseout', onMouseOut);
+      document.addEventListener('mouseleave', onDocLeave);
+      document.addEventListener('mouseenter', onDocEnter);
+      _siteAnimCleanups.push(function () {
+        document.removeEventListener('mouseover', onMouseOver);
+        document.removeEventListener('mouseout', onMouseOut);
+        document.removeEventListener('mouseleave', onDocLeave);
+        document.removeEventListener('mouseenter', onDocEnter);
       });
     } catch (e) { console.warn('[sandbox-anim] cursor failed:', e); }
   }
@@ -889,4 +911,14 @@
   } else {
     boot();
   }
+
+  // Run every registered cleanup when the page navigates away. Uses
+  // pagehide rather than unload so the bfcache (back-forward cache)
+  // path also fires it on browsers that opt out of unload.
+  window.addEventListener('pagehide', function () {
+    while (_siteAnimCleanups.length) {
+      var fn = _siteAnimCleanups.pop();
+      try { fn(); } catch (e) { console.warn('[sandbox-anim] cleanup failed:', e); }
+    }
+  });
 })();

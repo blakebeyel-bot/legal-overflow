@@ -46,11 +46,16 @@ export default async (req) => {
     .single();
   if (error) return json({ error: error.message }, 500);
 
-  // Fire background fanout (best-effort)
+  // Fire background fanout (best-effort). The background function
+  // gates on X-Internal-Trigger so external callers can't trigger
+  // redline pipelines with arbitrary run_id/user_id pairs.
   const base = process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
   fetch(`${base}/.netlify/functions/workspace-redline-run-background`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Trigger': 'redline-run',
+    },
     body: JSON.stringify({ run_id: run.id, user_id: auth.user.id }),
   }).catch((err) => console.error('redline fanout fire failed:', err.message));
 

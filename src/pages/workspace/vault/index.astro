@@ -1,0 +1,2152 @@
+---
+// Personal Vault — per-user RAG knowledge base.
+// Verbatim port of the Vault.html prototype design with all
+// existing JS handlers preserved (auth gate, cache-first list,
+// semantic search, bulk import + ops, OCR pipeline, modals).
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Vault — Legal Overflow</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/workspace.css" />
+<link rel="stylesheet" href="/site-anim.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
+<script src="/site-anim.js" defer></script>
+<style is:global>
+  /* ============================================================
+     Vault — page-local stylesheet (verbatim port of the prototype).
+     is:global because rows + detail panel + upload strip are all
+     rendered via JS — those nodes don't get Astro's auto-scoped
+     attribute, so a normal scoped <style> would fail to match.
+     Page-local-ness enforced by body.ws-vault ancestor selector.
+     ============================================================ */
+
+  body.ws-vault {
+    --rule-thread: #cbc4b1;
+    --motion-snap: cubic-bezier(.2,.8,.2,1);
+    --hi: #b22222; --md: #c98a14; --lo: #6a7c8e;
+    background-image:
+      radial-gradient(1100px 600px at 80% -10%, rgba(208,219,213,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(220,212,196,.25), transparent 70%);
+  }
+
+  /* ---------- shell ---------- */
+  body.ws-vault main.ws-wrap {
+    position: relative; z-index: 2;
+    max-width: 1480px; width: 100%;
+    margin: 0 auto;
+    padding: 22px 40px 40px !important;
+    background: transparent;
+    border: none !important;
+  }
+  @media (max-width: 980px) {
+    body.ws-vault main.ws-wrap { padding: 18px 16px 40px !important; }
+  }
+
+  /* ---------- ws-head with all four corner brackets ---------- */
+  body.ws-vault .ws-head {
+    position: relative !important;
+    display: block !important;
+    padding: 14px 24px 22px !important;
+    margin: 0 0 22px !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  body.ws-vault .ws-head::before, body.ws-vault .ws-head::after,
+  body.ws-vault .ws-head > .br-bl, body.ws-vault .ws-head > .br-br {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid var(--ink); pointer-events: none;
+  }
+  body.ws-vault .ws-head::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+  body.ws-vault .ws-head::after  { top: 0; right: 0; border-left: none; border-bottom: none; }
+  body.ws-vault .ws-head > .br-bl { bottom: 0; left: 0; border-top: none; border-right: none; }
+  body.ws-vault .ws-head > .br-br { bottom: 0; right: 0; border-top: none; border-left: none; }
+
+  body.ws-vault .kicker {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  body.ws-vault .kicker .k-tag {
+    border: 1px solid var(--accent-deep);
+    padding: 2px 7px; border-radius: 2px; font-size: 9.5px;
+  }
+  body.ws-vault .kicker .k-coord { color: var(--ink-4); font-size: 9.5px; }
+
+  body.ws-vault .head-row {
+    display: flex; gap: 20px; justify-content: space-between;
+    align-items: flex-end; flex-wrap: wrap;
+  }
+  body.ws-vault .head-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(40px, 5vw, 68px);
+    letter-spacing: -.012em; line-height: 1; margin: 0;
+    color: var(--ink);
+  }
+  body.ws-vault .head-title em { font-style: italic; color: var(--accent-deep); }
+  body.ws-vault .head-sub {
+    font-family: var(--serif); font-size: 19px;
+    color: var(--ink-2); max-width: 64ch;
+    margin-top: 12px; line-height: 1.4;
+  }
+  body.ws-vault .head-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+
+  body.ws-vault .head-actions .ws-btn,
+  body.ws-vault .head-actions .ws-btn-ghost {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; cursor: pointer;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    text-decoration: none;
+    transition: background .15s var(--motion-snap), border-color .15s, color .15s;
+  }
+  body.ws-vault .head-actions .ws-btn:hover {
+    background: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-vault .head-actions .ws-btn-ghost {
+    background: transparent !important; color: var(--ink) !important;
+  }
+  body.ws-vault .head-actions .ws-btn-ghost:hover {
+    background: var(--ink) !important; color: var(--paper) !important;
+  }
+  body.ws-vault .head-actions .ws-btn svg { width: 12px; height: 12px; }
+
+  /* ---------- meta strip (top stats row) ---------- */
+  body.ws-vault .meta-strip {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+    margin-bottom: 24px;
+  }
+  body.ws-vault .ms-cell {
+    padding: 14px 18px;
+    border-right: 1px solid var(--rule-soft);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  body.ws-vault .ms-cell:last-child { border-right: none; }
+  body.ws-vault .ms-l {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-vault .ms-v {
+    font-family: var(--serif); font-size: 26px;
+    color: var(--ink); line-height: 1;
+  }
+  body.ws-vault .ms-v em { font-style: italic; color: var(--accent-deep); }
+  body.ws-vault .ms-d {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-4);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  @media (max-width: 1100px) {
+    body.ws-vault .meta-strip { grid-template-columns: repeat(2, 1fr); }
+    body.ws-vault .ms-cell:nth-child(2n) { border-right: none; }
+  }
+
+  /* ---------- sec-div ---------- */
+  body.ws-vault .sec-div {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 16px;
+    margin: 8px 0 14px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-vault .sec-div .sec-num { color: var(--ink); }
+  body.ws-vault .sec-div .sec-rule { height: 1px; background: var(--rule-soft); }
+  body.ws-vault .sec-div .sec-meta { color: var(--ink-4); font-size: 9.5px; }
+
+  /* ---------- search bar ---------- */
+  body.ws-vault .vault-search {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: stretch;
+  }
+  body.ws-vault .search-input-wrap {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,.4);
+    transition: border-color .15s, box-shadow .25s;
+  }
+  body.ws-vault .search-input-wrap:focus-within {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+  body.ws-vault .search-input-wrap svg {
+    width: 13px; height: 13px;
+    color: var(--ink-3); flex-shrink: 0;
+  }
+  body.ws-vault .search-input-wrap input {
+    border: none; outline: none; background: transparent;
+    font-family: var(--sans); font-size: 14px;
+    color: var(--ink); width: 100%;
+  }
+  body.ws-vault .search-input-wrap input::placeholder {
+    color: var(--ink-4); font-style: italic;
+    font-family: var(--serif); font-size: 16px;
+  }
+  body.ws-vault .search-input-wrap .pre {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase;
+    border-right: 1px solid var(--rule-soft); padding-right: 10px;
+  }
+  body.ws-vault .search-input-wrap .kbd {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    border: 1px solid var(--rule-thread); border-radius: 2px;
+    padding: 1px 5px;
+  }
+  body.ws-vault .search-mode {
+    display: inline-flex;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.4);
+    overflow: hidden;
+  }
+  body.ws-vault .search-mode-btn {
+    padding: 0 14px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); background: transparent;
+    border: none; cursor: pointer;
+    border-right: 1px solid var(--rule-soft);
+    transition: color .15s, background .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  body.ws-vault .search-mode-btn:last-child { border-right: none; }
+  body.ws-vault .search-mode-btn:hover {
+    color: var(--ink); background: rgba(255,255,255,.6);
+  }
+  body.ws-vault .search-mode-btn.is-active {
+    color: var(--paper); background: var(--ink);
+  }
+
+  /* ---------- filter row ---------- */
+  body.ws-vault .filter-row {
+    display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.3);
+    padding: 4px 10px;
+    margin-bottom: 16px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  body.ws-vault .filter-row .fl-l {
+    font-size: 9px; color: var(--ink-4);
+    letter-spacing: .14em;
+    margin-right: 10px; padding: 4px 0;
+  }
+  body.ws-vault .fl-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 11px;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-3);
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-vault .fl-toggle:hover { color: var(--ink); }
+  body.ws-vault .fl-toggle.is-on { color: var(--accent-deep); }
+  body.ws-vault .fl-toggle .fl-pip {
+    width: 5px; height: 5px; border-radius: 50%;
+    border: 1px solid currentColor; transition: background .15s;
+  }
+  body.ws-vault .fl-toggle.is-on .fl-pip { background: currentColor; }
+  body.ws-vault .fl-toggle .fl-cnt { font-size: 9px; opacity: .7; }
+  body.ws-vault .fl-sep {
+    width: 1px; height: 12px; background: var(--rule-soft);
+    margin: 0 1px;
+  }
+  body.ws-vault .fl-spacer { flex: 1; }
+  body.ws-vault .fl-sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; cursor: pointer;
+    color: var(--ink-3);
+    background: transparent; border: none;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    transition: color .15s;
+  }
+  body.ws-vault .fl-sort:hover { color: var(--ink); }
+  body.ws-vault .fl-sort .v {
+    font-family: var(--sans); text-transform: none; letter-spacing: 0;
+    font-size: 11.5px;
+    color: var(--ink); border-bottom: 1px dotted var(--ink-3);
+  }
+
+  /* ---------- in-flight upload strip ---------- */
+  body.ws-vault .upload-strip,
+  body.ws-vault .vault-uploads-strip {
+    display: flex; flex-direction: column; gap: 0;
+    margin-bottom: 16px;
+    border: 1px solid var(--rule-soft); border-radius: 6px;
+    background: rgba(255,255,255,.4);
+    overflow: hidden;
+  }
+  body.ws-vault .vault-uploads-strip[hidden] { display: none; }
+  body.ws-vault .upload-strip-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--paper-2);
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-2);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-vault .upload-strip-head .live {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent-deep);
+  }
+  body.ws-vault .live-pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+    animation: vaultPulseDim 1.6s ease-in-out infinite;
+  }
+  @keyframes vaultPulseDim { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  body.ws-vault .vault-upload-row {
+    display: grid; grid-template-columns: 24px 1fr auto auto;
+    gap: 14px; align-items: center;
+    padding: 10px 14px;
+    border-top: 1px dotted var(--rule-soft);
+  }
+  body.ws-vault .vault-upload-row:first-of-type { border-top: none; }
+  body.ws-vault .vault-upload-spinner {
+    width: 24px; height: 28px;
+    border: 1px solid var(--ink-3); border-radius: 2px;
+    position: relative;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 3px;
+    font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+    letter-spacing: .04em;
+  }
+  body.ws-vault .vault-upload-row.is-done .vault-upload-spinner {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-vault .vault-upload-row.is-failed .vault-upload-spinner {
+    color: var(--hi); border-color: var(--hi);
+  }
+  body.ws-vault .vault-upload-meta {
+    display: flex; flex-direction: column; gap: 5px; min-width: 0;
+  }
+  body.ws-vault .vault-upload-name {
+    font-family: var(--sans); font-size: 13px; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.ws-vault .vault-upload-status {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  body.ws-vault .vault-upload-bar {
+    width: 220px; height: 4px;
+    background: var(--rule-soft); border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  body.ws-vault .vault-upload-bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--accent-deep);
+    width: 0%;
+    transition: width .8s var(--motion-snap);
+  }
+  body.ws-vault .vault-upload-row.is-failed .vault-upload-bar-fill { background: var(--hi); }
+
+  /* ---------- bulk action bar ---------- */
+  body.ws-vault .vault-bulk-bar {
+    align-items: center; gap: 14px;
+    padding: 10px 16px;
+    background: var(--ink); color: var(--paper);
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.ws-vault .vault-bulk-bar:not([hidden]) { display: flex; }
+  body.ws-vault .vault-bulk-bar .vault-bulk-count {
+    color: var(--accent);
+  }
+  body.ws-vault .vault-bulk-bar .ws-btn,
+  body.ws-vault .vault-bulk-bar .ws-btn-ghost {
+    background: transparent !important;
+    color: var(--paper) !important;
+    border: 1px solid rgba(243,239,230,.3) !important;
+    padding: 5px 11px !important;
+    border-radius: 2px;
+    cursor: pointer;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    transition: background .15s, border-color .15s;
+  }
+  body.ws-vault .vault-bulk-bar .ws-btn:hover,
+  body.ws-vault .vault-bulk-bar .ws-btn-ghost:hover {
+    background: var(--accent-deep) !important;
+    border-color: var(--accent-deep) !important;
+  }
+  body.ws-vault .vault-bulk-progress {
+    margin-bottom: 12px; padding: 8px 14px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: var(--paper-2);
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink-2);
+    letter-spacing: .04em;
+  }
+
+  /* ---------- vault layout ----------
+     The detail panel is right-side sticky. When it's hidden (no item
+     selected) the list takes the full width; when shown it shrinks
+     to leave 360px for the panel. The .has-detail flag is added on
+     the parent by JS when openDetail fires. */
+  body.ws-vault .vault-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 22px;
+    align-items: start;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+  body.ws-vault .vault-layout.has-detail {
+    grid-template-columns: 1fr 360px;
+  }
+  @media (max-width: 1100px) {
+    body.ws-vault .vault-layout,
+    body.ws-vault .vault-layout.has-detail { grid-template-columns: 1fr; }
+    body.ws-vault .vault-detail { position: relative !important; top: auto !important; }
+  }
+
+  body.ws-vault .vault-list-wrap,
+  body.ws-vault .vault-card {
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper-2);
+    overflow: visible;
+  }
+
+  /* table head — sits at top of the card (not sticky to avoid
+     overlap glitches with the first row when the page scrolls). */
+  body.ws-vault .vault-list-head,
+  body.ws-vault .vault-head {
+    display: grid;
+    grid-template-columns: 28px 100px 1fr 200px 80px 110px;
+    gap: 14px; align-items: center;
+    padding: 11px 18px;
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule-soft);
+    border-top-left-radius: 8px; border-top-right-radius: 8px;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.ws-vault .vault-list-head .vault-row-check,
+  body.ws-vault .vault-list-head input[type="checkbox"] {
+    accent-color: var(--accent-deep);
+  }
+
+  /* --- rows --- */
+  body.ws-vault .vault-row {
+    display: grid;
+    grid-template-columns: 28px 100px 1fr 200px 80px 110px;
+    gap: 14px; align-items: center;
+    padding: 12px 18px;
+    border-top: 1px dotted var(--rule-soft);
+    cursor: pointer;
+    transition: background .15s, padding-left .15s var(--motion-snap);
+    position: relative;
+  }
+  body.ws-vault .vault-row.sk-list-item { cursor: default; }
+  body.ws-vault .vault-row:hover { background: rgba(255,255,255,.5); padding-left: 22px; }
+  body.ws-vault .vault-row.is-active {
+    background: var(--accent-tint, rgba(215,237,224,.5));
+    padding-left: 22px;
+  }
+  body.ws-vault .vault-row.is-active::before {
+    content: ''; position: absolute; left: 0; top: 8px; bottom: 8px;
+    width: 2px; background: var(--accent-deep);
+  }
+  body.ws-vault .vault-row.is-selected { background: rgba(255,255,255,.65); }
+
+  body.ws-vault .vault-row-check,
+  body.ws-vault .vault-row > .vault-col-check {
+    display: inline-flex; align-items: center;
+  }
+  body.ws-vault .vault-row-check input[type="checkbox"] { accent-color: var(--accent-deep); }
+
+  /* kind badge */
+  body.ws-vault .vr-kind,
+  body.ws-vault .vault-kind-badge {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--accent-deep);
+    letter-spacing: .12em; text-transform: uppercase;
+    border: 1px solid var(--accent-deep);
+    padding: 2px 7px; border-radius: 2px;
+    display: inline-flex; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  body.ws-vault .vr-kind.is-pdf,
+  body.ws-vault .vault-kind-badge.is-pdf,
+  body.ws-vault .vault-kind-document.is-pdf { color: var(--hi); border-color: var(--hi); }
+  body.ws-vault .vr-kind.is-doc,
+  body.ws-vault .vault-kind-badge.is-doc,
+  body.ws-vault .vault-kind-document.is-doc { color: var(--ink-2); border-color: var(--ink-2); }
+  body.ws-vault .vr-kind.is-mail,
+  body.ws-vault .vault-kind-badge.is-mail,
+  body.ws-vault .vault-kind-chat { color: var(--lo); border-color: var(--lo); }
+  body.ws-vault .vr-kind.is-img,
+  body.ws-vault .vault-kind-badge.is-img,
+  body.ws-vault .vault-kind-review_finding { color: var(--md); border-color: var(--md); }
+  body.ws-vault .vr-kind.is-txt,
+  body.ws-vault .vault-kind-badge.is-txt,
+  body.ws-vault .vault-kind-manual_note { color: var(--ink-3); border-color: var(--ink-3); }
+
+  /* title + sub line */
+  body.ws-vault .vr-title-wrap,
+  body.ws-vault .vault-col-title {
+    display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  }
+  body.ws-vault .vr-title,
+  body.ws-vault .vault-row-title {
+    font-family: var(--serif); font-size: 17px;
+    color: var(--ink); line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.ws-vault .vr-title em { font-style: italic; }
+  body.ws-vault .vr-sub,
+  body.ws-vault .vault-row-summary {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+    display: flex; gap: 10px;
+  }
+  body.ws-vault .vr-sub .ok { color: var(--accent-deep); }
+  body.ws-vault .vr-sub .pending { color: var(--md); }
+
+  /* tag chips */
+  body.ws-vault .vr-tags,
+  body.ws-vault .vault-col-tags {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  body.ws-vault .tag-chip,
+  body.ws-vault .vault-tag {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .04em;
+    border: 1px solid var(--rule-soft);
+    padding: 2px 7px; border-radius: 2px;
+    background: rgba(255,255,255,.4);
+    display: inline-flex; align-items: center;
+  }
+  body.ws-vault .tag-chip.acc {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+
+  /* size + updated */
+  body.ws-vault .vr-size,
+  body.ws-vault .vr-updated,
+  body.ws-vault .vault-col-meta {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-2); letter-spacing: .04em;
+  }
+  body.ws-vault .vr-size .u { color: var(--ink-4); font-size: 9px; }
+
+  /* skeleton placeholder */
+  body.ws-vault .sk-block-title,
+  body.ws-vault .sk-block-meta {
+    display: block;
+    height: 10px;
+    background: linear-gradient(90deg, rgba(0,0,0,.04) 0%, rgba(0,0,0,.09) 50%, rgba(0,0,0,.04) 100%);
+    background-size: 200% 100%;
+    animation: vaultShimmer 1.4s linear infinite;
+    border-radius: 2px;
+  }
+  @keyframes vaultShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  body.ws-vault .vault-row.sk-list-item {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  body.ws-vault .vault-empty {
+    grid-column: 1 / -1;
+    padding: 60px 28px; text-align: center;
+    color: var(--ink-3);
+    font-family: var(--serif); font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* responsive collapse — hide some columns */
+  @media (max-width: 1100px) {
+    body.ws-vault .vault-list-head { grid-template-columns: 28px 80px 1fr 100px; }
+    body.ws-vault .vault-row { grid-template-columns: 28px 80px 1fr 100px; }
+    body.ws-vault .vault-list-head .vault-col-tags,
+    body.ws-vault .vault-list-head .vault-col-tags-h,
+    body.ws-vault .vault-row .vr-tags,
+    body.ws-vault .vault-row .vault-col-tags,
+    body.ws-vault .vault-list-head .vault-col-size,
+    body.ws-vault .vault-row .vr-size,
+    body.ws-vault .vault-row .vault-col-size { display: none; }
+  }
+
+  /* ---------- detail panel ---------- */
+  body.ws-vault .vault-detail {
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper-2);
+    position: sticky; top: 96px;
+    max-height: calc(100vh - 120px);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    padding: 0 !important;
+  }
+  body.ws-vault .vault-detail[hidden] { display: none; }
+  body.ws-vault .vault-detail-close {
+    position: absolute; top: 8px; right: 8px; z-index: 6;
+    width: 24px; height: 24px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ink-3);
+    border-radius: 4px; cursor: pointer;
+    font-size: 14px; line-height: 1;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  body.ws-vault .vault-detail-close:hover {
+    color: var(--ink); border-color: var(--ink);
+    background: rgba(255,255,255,.6);
+  }
+  body.ws-vault .dp-head,
+  body.ws-vault .vault-detail-head {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--rule-soft);
+    position: relative;
+  }
+  body.ws-vault .dp-head::before, body.ws-vault .dp-head::after {
+    content: ''; position: absolute;
+    width: 10px; height: 10px;
+    border-color: var(--ink-3); pointer-events: none;
+  }
+  body.ws-vault .dp-head::before { top: 4px; left: 4px; border-top: 1px solid; border-left: 1px solid; }
+  body.ws-vault .dp-head::after  { top: 4px; right: 4px; border-top: 1px solid; border-right: 1px solid; }
+
+  body.ws-vault .dp-kicker,
+  body.ws-vault .vault-detail-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+    display: flex; gap: 10px; align-items: center;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  body.ws-vault .dp-kicker .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-deep);
+  }
+  body.ws-vault .dp-title,
+  body.ws-vault .vault-detail-title {
+    font-family: var(--serif); font-size: 22px;
+    line-height: 1.2; letter-spacing: -.005em;
+    color: var(--ink); margin: 0;
+  }
+  body.ws-vault .dp-title em { font-style: italic; }
+  body.ws-vault .dp-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  body.ws-vault .dp-meta b { color: var(--ink); font-weight: 500; }
+
+  body.ws-vault .dp-body,
+  body.ws-vault #vault-detail-body {
+    flex: 1; overflow-y: auto; min-height: 0;
+    padding: 14px 18px 18px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  body.ws-vault #vault-detail-body::-webkit-scrollbar { width: 6px; }
+  body.ws-vault #vault-detail-body::-webkit-scrollbar-thumb {
+    background: var(--rule-soft); border-radius: 3px;
+  }
+
+  body.ws-vault .dp-section { display: flex; flex-direction: column; gap: 8px; }
+  body.ws-vault .dp-section-l {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px solid var(--rule-soft);
+    padding-bottom: 6px;
+  }
+  body.ws-vault .dp-section-l span:last-child {
+    color: var(--ink-4); font-size: 9px;
+  }
+  body.ws-vault .dp-meta-grid {
+    display: grid; grid-template-columns: 88px 1fr;
+    gap: 6px 12px;
+    font-size: 12.5px;
+  }
+  body.ws-vault .dp-meta-grid dt {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+    padding-top: 2px;
+  }
+  body.ws-vault .dp-meta-grid dd {
+    margin: 0; color: var(--ink); font-family: var(--sans);
+  }
+  body.ws-vault .dp-snippet,
+  body.ws-vault .vault-detail-summary {
+    font-family: var(--serif); font-size: 14.5px; line-height: 1.5;
+    color: var(--ink-2);
+    border-left: 2px solid var(--rule-soft);
+    padding: 4px 0 4px 12px;
+    margin: 0;
+  }
+  body.ws-vault .dp-snippet b {
+    background: var(--accent-tint, rgba(215,237,224,.5));
+    color: var(--ink);
+    padding: 0 2px; font-weight: 400;
+  }
+  body.ws-vault .dp-tag-row { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  body.ws-vault .dp-actions,
+  body.ws-vault .vault-detail-actions {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  body.ws-vault .dp-action,
+  body.ws-vault .vault-detail-actions .ws-btn,
+  body.ws-vault .vault-detail-actions .ws-btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: transparent !important;
+    color: var(--ink-2) !important;
+    border: 1px solid var(--rule-soft) !important; border-radius: 4px;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  body.ws-vault .dp-action:hover,
+  body.ws-vault .vault-detail-actions .ws-btn:hover,
+  body.ws-vault .vault-detail-actions .ws-btn-ghost:hover {
+    background: var(--ink) !important; color: var(--paper) !important;
+    border-color: var(--ink) !important;
+  }
+  body.ws-vault .dp-action.primary {
+    background: var(--ink) !important; color: var(--paper) !important;
+    border-color: var(--ink) !important;
+    grid-column: 1 / 3;
+  }
+  body.ws-vault .dp-action.primary:hover {
+    background: var(--accent-deep) !important;
+    border-color: var(--accent-deep) !important;
+  }
+  body.ws-vault .dp-action svg { width: 11px; height: 11px; }
+  body.ws-vault .vault-detail-delete {
+    color: var(--hi) !important; border-color: rgba(178,34,34,.3) !important;
+  }
+  body.ws-vault .vault-detail-delete:hover {
+    background: var(--hi) !important; color: white !important;
+    border-color: var(--hi) !important;
+  }
+
+  body.ws-vault .vault-detail-content {
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.55;
+    background: var(--paper);
+    border: 1px solid var(--rule-thread);
+    border-radius: 4px;
+    padding: 12px 14px;
+    max-height: 320px; overflow: auto;
+    white-space: pre-wrap; word-break: break-word;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  body.ws-vault .vault-card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  body.ws-vault .vault-pin-dot { font-size: 11px; }
+  body.ws-vault .vault-arch-chip {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--md); border: 1px solid var(--md);
+    padding: 1px 5px; border-radius: 2px;
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  body.ws-vault .vault-score {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--accent-deep);
+    margin-left: 6px;
+  }
+
+  /* ---------- foot line ---------- */
+  body.ws-vault .ws-foot {
+    margin-top: 36px; padding-top: 18px;
+    border-top: 1px solid var(--rule-soft);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  body.ws-vault .ws-foot a {
+    color: var(--ink-3); text-decoration: none;
+    border-bottom: 1px solid var(--rule-soft); padding-bottom: 1px;
+  }
+  body.ws-vault .ws-foot a:hover {
+    color: var(--accent-deep); border-color: var(--accent-deep);
+  }
+
+  /* ---------- Modal restyle (keep existing JS-bound IDs) ---------- */
+  body.ws-vault .ws-modal {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(14,21,18,.4);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  body.ws-vault .ws-modal[hidden] { display: none; }
+  body.ws-vault .ws-modal-inner {
+    background: var(--paper);
+    border: 1px solid var(--ink); border-radius: 8px;
+    max-width: 580px; width: 100%;
+    max-height: 90vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  body.ws-vault .ws-modal-inner::before, body.ws-vault .ws-modal-inner::after {
+    content: ''; position: absolute;
+    width: 12px; height: 12px;
+    border: 1px solid var(--ink); pointer-events: none;
+  }
+  body.ws-vault .ws-modal-inner::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
+  body.ws-vault .ws-modal-inner::after { top: 6px; right: 6px; border-left: none; border-bottom: none; }
+  body.ws-vault .ws-modal-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  body.ws-vault .ws-modal-head h2 {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 22px; letter-spacing: -.005em;
+    margin: 0;
+  }
+  body.ws-vault .ws-modal-close {
+    width: 28px; height: 28px;
+    background: transparent; border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    color: var(--ink-3); cursor: pointer;
+    font-size: 14px; line-height: 1;
+    transition: border-color .15s, color .15s;
+  }
+  body.ws-vault .ws-modal-close:hover {
+    border-color: var(--ink); color: var(--ink);
+  }
+  body.ws-vault .ws-modal-body {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: 18px 22px;
+  }
+
+  body.ws-vault .vault-tabs {
+    display: flex; border: 1px solid var(--rule-soft); border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  body.ws-vault .vault-tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: transparent; border: none;
+    border-right: 1px solid var(--rule-soft);
+    cursor: pointer;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    transition: color .15s, background .15s;
+  }
+  body.ws-vault .vault-tab:last-child { border-right: none; }
+  body.ws-vault .vault-tab.is-active {
+    color: var(--paper); background: var(--ink);
+  }
+  body.ws-vault .vault-tab:hover:not(.is-active) {
+    color: var(--ink); background: rgba(255,255,255,.4);
+  }
+
+  body.ws-vault .vault-form-label {
+    display: block;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 12px 0 6px;
+  }
+  body.ws-vault .vault-form-label:first-child { margin-top: 0; }
+  body.ws-vault .vault-form-hint {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-4);
+    letter-spacing: .04em;
+    text-transform: none;
+  }
+  body.ws-vault .vault-form-input,
+  body.ws-vault .vault-form-textarea {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: var(--paper);
+    font-family: var(--sans); font-size: 14px;
+    color: var(--ink);
+    outline: none;
+  }
+  body.ws-vault .vault-form-input:focus,
+  body.ws-vault .vault-form-textarea:focus {
+    border-color: var(--ink);
+  }
+  body.ws-vault .vault-form-textarea { resize: vertical; min-height: 120px; }
+
+  body.ws-vault .vault-provider-radios {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  body.ws-vault .vault-provider-radio {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.4);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  body.ws-vault .vault-provider-radio:hover { border-color: var(--ink-2); }
+  body.ws-vault .vault-provider-radio:has(input:checked) {
+    border-color: var(--accent-deep);
+    background: rgba(215,237,224,.4);
+  }
+  body.ws-vault .vault-provider-name {
+    font-family: var(--serif); font-size: 15px; color: var(--ink);
+  }
+  body.ws-vault .vault-provider-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .04em;
+  }
+
+  body.ws-vault .vault-checkbox {
+    display: flex; align-items: center; gap: 8px;
+    margin: 6px 0;
+    font-size: 13.5px; color: var(--ink);
+  }
+  body.ws-vault .vault-checkbox input { accent-color: var(--accent-deep); }
+
+  body.ws-vault .ws-modal-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule-soft);
+  }
+  body.ws-vault .ws-modal-actions .ws-btn,
+  body.ws-vault .ws-modal-actions .ws-btn-ghost {
+    padding: 9px 16px; cursor: pointer;
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    background: var(--ink); color: var(--paper);
+    border: 1px solid var(--ink); border-radius: 4px;
+    transition: background .15s, border-color .15s;
+  }
+  body.ws-vault .ws-modal-actions .ws-btn:hover {
+    background: var(--accent-deep); border-color: var(--accent-deep);
+  }
+  body.ws-vault .ws-modal-actions .ws-btn-ghost {
+    background: transparent; color: var(--ink); border-color: var(--rule-soft);
+  }
+  body.ws-vault .ws-modal-actions .ws-btn-ghost:hover {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+
+  body.ws-vault .vault-bulk-dest-options {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 14px;
+  }
+  body.ws-vault .vault-bulk-dest-option {
+    text-align: left;
+    padding: 12px 14px;
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    background: rgba(255,255,255,.4); cursor: pointer;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: border-color .15s, background .15s;
+  }
+  body.ws-vault .vault-bulk-dest-option:hover {
+    border-color: var(--accent-deep);
+    background: rgba(215,237,224,.4);
+  }
+  body.ws-vault .vault-modal-upload-status {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--paper-2); border: 1px solid var(--rule-soft);
+    border-radius: 4px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--ink-2); letter-spacing: .04em;
+  }
+
+  /* row spinner inside detail "Loading…" */
+  body.ws-vault .rv-spin {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 1.5px solid var(--rule-thread);
+    border-top-color: var(--accent-deep);
+    border-radius: 50%;
+    animation: vaultSpin .7s linear infinite;
+    vertical-align: -1px;
+  }
+  @keyframes vaultSpin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body class="ws-vault">
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/workspace/" class="is-active">Workspace</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <a href="/account/" class="nav-sub">Account</a>
+  </div>
+</header>
+
+<main class="ws-wrap">
+
+  <header class="ws-head">
+    <span class="br-bl"></span><span class="br-br"></span>
+    <div class="kicker">
+      <span class="k-tag">VAULT</span>
+      <span class="k-coord">/WS.02 · KNOWLEDGE BASE · PERSONAL</span>
+    </div>
+    <div class="head-row">
+      <div>
+        <h1 class="head-title">Your <em>vault</em>.</h1>
+        <p class="head-sub">Documents, saved chats, review findings, and notes — semantic-indexed and OCR-clean. Strictly per-user; never shared.</p>
+      </div>
+      <div class="head-actions">
+        <button id="vault-settings-btn" class="ws-btn ws-btn-ghost" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+        <button id="vault-bulk-import-btn" class="ws-btn ws-btn-ghost" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Bulk import
+        </button>
+        <input type="file" id="vault-bulk-import-input" hidden multiple
+          accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.tiff,.tif,.heic,.heif,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,image/*" />
+        <button id="vault-new-btn" class="ws-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add document
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- meta strip -->
+  <div class="meta-strip">
+    <div class="ms-cell">
+      <span class="ms-l">DOCUMENTS</span>
+      <span class="ms-v" id="ms-doc-count">—</span>
+      <span class="ms-d" id="ms-doc-recent">indexed</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">EMBEDDINGS</span>
+      <span class="ms-v" id="ms-embed-provider">—</span>
+      <span class="ms-d" id="ms-embed-meta">vector index</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">CHARS</span>
+      <span class="ms-v" id="ms-chars">—</span>
+      <span class="ms-d">total content</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">PINNED</span>
+      <span class="ms-v" id="ms-pinned">—</span>
+      <span class="ms-d">never archived</span>
+    </div>
+    <div class="ms-cell">
+      <span class="ms-l">LAST UPDATED</span>
+      <span class="ms-v" id="ms-last-updated" style="font-family: var(--mono); font-size: 17px">—</span>
+      <span class="ms-d" id="ms-last-updated-date">—</span>
+    </div>
+  </div>
+
+  <div class="sec-div">
+    <span class="sec-num">§ 02.A</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">SEMANTIC + KEYWORD HYBRID</span>
+  </div>
+
+  <div class="vault-search">
+    <div class="search-input-wrap">
+      <span class="pre">QRY ›</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input id="vault-search" type="search" placeholder="Search across every document by meaning or exact phrase…" />
+      <span class="kbd">⌘K</span>
+    </div>
+    <div class="search-mode" role="radiogroup" aria-label="Search mode">
+      <button type="button" class="search-mode-btn is-active" data-search-mode="hybrid">Hybrid</button>
+      <button type="button" class="search-mode-btn" data-search-mode="semantic">Semantic</button>
+      <button type="button" class="search-mode-btn" data-search-mode="keyword">Keyword</button>
+    </div>
+  </div>
+
+  <div class="filter-row" role="toolbar" aria-label="Vault filters">
+    <span class="fl-l">FILTER ·</span>
+    <button type="button" class="fl-toggle is-on" data-kind=""><span class="fl-pip"></span>All <span class="fl-cnt" id="fl-cnt-all">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-kind="document"><span class="fl-pip"></span>Documents <span class="fl-cnt" id="fl-cnt-document">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-kind="chat"><span class="fl-pip"></span>Chat <span class="fl-cnt" id="fl-cnt-chat">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-kind="review_finding"><span class="fl-pip"></span>Findings <span class="fl-cnt" id="fl-cnt-review_finding">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-kind="manual_note"><span class="fl-pip"></span>Notes <span class="fl-cnt" id="fl-cnt-manual_note">[—]</span></button>
+    <span class="fl-spacer"></span>
+    <button type="button" class="fl-sort" id="vault-sort"><span>Sort</span><span class="v" id="sort-v">Updated · newest</span></button>
+    <!-- Hidden legacy select so existing JS that reads/writes #vault-kind-filter keeps working -->
+    <select id="vault-kind-filter" hidden>
+      <option value="">All kinds</option>
+      <option value="document">Documents</option>
+      <option value="chat">Saved chats</option>
+      <option value="review_finding">Review findings</option>
+      <option value="manual_note">Notes</option>
+    </select>
+  </div>
+
+  <!-- In-flight uploads strip — visible only when there are uploads in flight -->
+  <div id="vault-uploads-strip" class="upload-strip vault-uploads-strip" hidden></div>
+
+  <!-- Sticky bulk action bar — appears when at least one row is checked -->
+  <div id="vault-bulk-bar" class="vault-bulk-bar" hidden>
+    <span class="vault-bulk-count" id="vault-bulk-count">0 selected</span>
+    <span style="opacity:.5">·</span>
+    <span>Bulk action</span>
+    <span style="flex: 1"></span>
+    <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-archive">Archive selected</button>
+    <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-delete">Delete selected</button>
+    <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-cancel">Clear</button>
+  </div>
+
+  <div id="vault-bulk-progress" class="vault-bulk-progress" hidden></div>
+
+  <div class="sec-div">
+    <span class="sec-num">§ 02.B</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta" id="sec-index-meta">INDEX · — ITEMS · ALL DESTINATIONS</span>
+  </div>
+
+  <div class="vault-layout">
+    <div class="vault-list-wrap vault-card">
+      <div class="vault-list-head">
+        <label class="vault-row-check">
+          <input type="checkbox" id="vault-master-check" />
+          <span style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Select all</span>
+        </label>
+        <span class="vault-col-kind">Kind</span>
+        <span class="vault-col-title">Title</span>
+        <span class="vault-col-tags vault-col-tags-h">Tags</span>
+        <span class="vault-col-meta vault-col-size">Chars</span>
+        <span class="vault-col-meta">Updated</span>
+      </div>
+      <div id="vault-list" class="vault-list">
+        <div class="vault-row sk-list-item"><div class="sk-block-title" style="width:55%"></div></div>
+        <div class="vault-row sk-list-item"><div class="sk-block-title" style="width:70%"></div></div>
+        <div class="vault-row sk-list-item"><div class="sk-block-title" style="width:42%"></div></div>
+      </div>
+    </div>
+    <aside id="vault-detail" class="vault-detail" hidden>
+      <button class="vault-detail-close" type="button" aria-label="Close" data-vault-close>×</button>
+      <div id="vault-detail-body"></div>
+    </aside>
+  </div>
+
+  <p class="ws-foot">
+    <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF VAULT</span>
+    <a href="/workspace/">← Workspace home</a>
+  </p>
+</main>
+
+<!-- Add modal — paste text OR upload a file -->
+<div id="vault-new-modal" class="ws-modal" hidden>
+  <div class="ws-modal-inner">
+    <header class="ws-modal-head">
+      <h2>Add to Vault</h2>
+      <button class="ws-modal-close" data-vault-modal-close type="button">×</button>
+    </header>
+    <div class="ws-modal-body">
+      <div class="vault-tabs" role="tablist">
+        <button class="vault-tab is-active" data-vault-tab="paste" type="button" role="tab">Paste text</button>
+        <button class="vault-tab" data-vault-tab="upload" type="button" role="tab">Upload file</button>
+      </div>
+
+      <div class="vault-tab-panel" data-vault-tab-panel="paste">
+        <label class="vault-form-label">Title</label>
+        <input id="vault-new-title" type="text" class="vault-form-input" placeholder="e.g. Smith v. Jones — termination clause analysis" />
+        <label class="vault-form-label">Tags <span class="vault-form-hint">(comma-separated)</span></label>
+        <input id="vault-new-tags" type="text" class="vault-form-input" placeholder="e.g. deposition, smith-v-jones, damages" />
+        <label class="vault-form-label">Content</label>
+        <textarea id="vault-new-content" class="vault-form-textarea" rows="12" placeholder="Paste a deposition excerpt, an internal memo, a precedent clause, or any text you want the AI to remember in future chats."></textarea>
+        <div class="ws-modal-actions">
+          <button class="ws-btn ws-btn-ghost" data-vault-modal-close type="button">Cancel</button>
+          <button id="vault-new-save" class="ws-btn" type="button">Save to Vault</button>
+        </div>
+      </div>
+
+      <div class="vault-tab-panel" data-vault-tab-panel="upload" hidden>
+        <p class="vault-form-hint" style="margin: 0 0 10px;">
+          Pick a file (PDF, DOCX, image, scanned PDF, plaintext) and choose where it goes. Extraction +
+          OCR run the same way regardless — only the visibility differs.
+        </p>
+        <label class="vault-form-label">Pick a file</label>
+        <input type="file" id="vault-modal-file-input"
+          accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.tiff,.tif,.heic,.heif,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,image/*" />
+
+        <label class="vault-form-label" style="margin-top: 16px;">Destination</label>
+        <div class="vault-provider-radios">
+          <label class="vault-provider-radio">
+            <input type="radio" name="vault-modal-dest" value="both" checked />
+            <span class="vault-provider-name">Library + Vault</span>
+            <span class="vault-provider-meta">Default. File visible in Library, text indexed in Vault for chat retrieval.</span>
+          </label>
+          <label class="vault-provider-radio">
+            <input type="radio" name="vault-modal-dest" value="library" />
+            <span class="vault-provider-name">Library only</span>
+            <span class="vault-provider-meta">File stays in Library. AI cannot retrieve it during chats.</span>
+          </label>
+          <label class="vault-provider-radio">
+            <input type="radio" name="vault-modal-dest" value="vault" />
+            <span class="vault-provider-name">Vault only</span>
+            <span class="vault-provider-meta">Hidden from Library list. Indexed for chat retrieval. Original file stays in Storage so the Vault detail can re-download it.</span>
+          </label>
+        </div>
+
+        <div id="vault-modal-upload-status" class="vault-modal-upload-status" hidden></div>
+        <div class="ws-modal-actions">
+          <button class="ws-btn ws-btn-ghost" data-vault-modal-close type="button">Cancel</button>
+          <button id="vault-modal-upload-go" class="ws-btn" type="button" disabled>Upload</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div id="vault-settings-modal" class="ws-modal" hidden>
+  <div class="ws-modal-inner">
+    <header class="ws-modal-head">
+      <h2>Vault settings</h2>
+      <button class="ws-modal-close" data-vault-settings-close type="button">×</button>
+    </header>
+    <div class="ws-modal-body">
+      <label class="vault-form-label">Embedding provider</label>
+      <p class="vault-form-hint">Used for semantic search. Switching re-embeds your entire vault under the new provider — may take a few minutes.</p>
+      <div class="vault-provider-radios" id="vault-provider-radios">
+        <label class="vault-provider-radio">
+          <input type="radio" name="vault-provider" value="gemini" checked />
+          <span class="vault-provider-name">Gemini</span>
+          <span class="vault-provider-meta">gemini-embedding-001 · free tier · 768 dims</span>
+        </label>
+        <label class="vault-provider-radio">
+          <input type="radio" name="vault-provider" value="openai" />
+          <span class="vault-provider-name">OpenAI</span>
+          <span class="vault-provider-meta">text-embedding-3-small · $0.02/M tokens · 1536 dims</span>
+        </label>
+        <label class="vault-provider-radio">
+          <input type="radio" name="vault-provider" value="voyage" />
+          <span class="vault-provider-name">Voyage</span>
+          <span class="vault-provider-meta">voyage-3 · best on legal text · 1024 dims</span>
+        </label>
+      </div>
+
+      <label class="vault-form-label" style="margin-top: 24px;">Auto-capture</label>
+      <label class="vault-checkbox">
+        <input type="checkbox" id="vault-auto-uploads" />
+        <span>Auto-add new library uploads to Vault</span>
+      </label>
+      <label class="vault-checkbox">
+        <input type="checkbox" id="vault-auto-chats" />
+        <span>Auto-add chat conversations to Vault (off by default — chats are noisy)</span>
+      </label>
+
+      <label class="vault-form-label" style="margin-top: 16px;">In chats</label>
+      <label class="vault-checkbox">
+        <input type="checkbox" id="vault-auto-use" />
+        <span>Use Vault for context in every chat by default</span>
+      </label>
+      <p class="vault-form-hint">Per-chat: the chat's own 🗂️ Vault toggle overrides this.</p>
+
+      <div class="ws-modal-actions">
+        <button class="ws-btn ws-btn-ghost" data-vault-settings-close type="button">Cancel</button>
+        <button id="vault-settings-save" class="ws-btn" type="button">Save settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk-import destination modal -->
+<div id="vault-bulk-dest-modal" class="ws-modal" hidden>
+  <div class="ws-modal-inner">
+    <header class="ws-modal-head">
+      <h2>Where should these files go?</h2>
+      <button class="ws-modal-close" data-bulk-dest-cancel type="button">×</button>
+    </header>
+    <div class="ws-modal-body">
+      <p class="vault-form-hint" style="margin: 0 0 14px;">
+        Selected <strong><span id="vault-bulk-dest-count">0</span></strong> file(s). Pick a destination —
+        extraction + OCR run the same way regardless.
+      </p>
+      <div class="vault-bulk-dest-options">
+        <button type="button" class="vault-bulk-dest-option" data-bulk-dest="both">
+          <span class="vault-provider-name">Library + Vault</span>
+          <span class="vault-provider-meta">Default. Visible in Library, indexed for chat retrieval.</span>
+        </button>
+        <button type="button" class="vault-bulk-dest-option" data-bulk-dest="library">
+          <span class="vault-provider-name">Library only</span>
+          <span class="vault-provider-meta">Stays in Library. AI cannot retrieve during chats.</span>
+        </button>
+        <button type="button" class="vault-bulk-dest-option" data-bulk-dest="vault">
+          <span class="vault-provider-name">Vault only</span>
+          <span class="vault-provider-meta">Hidden from Library list. Indexed for chat retrieval.</span>
+        </button>
+      </div>
+      <div class="ws-modal-actions">
+        <button class="ws-btn ws-btn-ghost" data-bulk-dest-cancel type="button">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="foot">
+  <p class="foot-bar-disclosure">
+    <strong>Blake Beyel, Esq.</strong> · Florida Bar No. 1065044 · Cocoa, Florida ·
+    The hiring of a lawyer is an important decision that should not be based solely on advertisements.
+  </p>
+  <div class="foot-bot"><span>© 2026 Legal Overflow</span><span class="foot-version">v2026.05</span></div>
+</footer>
+
+<script>
+  import { getSupabase } from '../../../lib/supabase';
+  const supabase = getSupabase();
+
+  // Body never hidden — match the dashboard's hardened pattern.
+  console.log('[vault] Script started');
+  let session = null;
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    session = data?.session;
+    if (!session) {
+      console.info('[vault] No session — redirecting to /login/');
+      location.href = '/login/?redirect=/workspace/vault/';
+      throw new Error('not signed in');
+    }
+    const { data: profile } = await supabase
+      .from('profiles').select('approved_at').eq('id', session.user.id).maybeSingle();
+    if (!profile?.approved_at) {
+      location.href = '/account/?status=pending';
+      throw new Error('not approved');
+    }
+    console.log('[vault] Auth gate passed, user', session.user?.id);
+  } catch (err) {
+    if (err && !['not signed in','not approved'].includes(err.message)) {
+      console.error('[vault] Gate failed:', err);
+    }
+  }
+
+  if (!session) {
+    // Stop here — gate already redirected.
+    throw new Error('halted: no session');
+  }
+
+  const accessToken = session.access_token;
+  const userId = session.user.id;
+
+  // ---- State ----
+  let items = [];
+  let selected = new Set();
+  let isSearchMode = false;
+  let activeKindFilter = '';
+  let activeSearchMode = 'hybrid';
+  const SORT_VALUES = ['Updated · newest', 'Updated · oldest', 'Title · A–Z', 'Chars · most', 'Kind'];
+  let sortIdx = 0;
+
+  function escapeAttr(s) {
+    return String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function relTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const m = Math.floor(diff / 60_000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h';
+    const days = Math.floor(h / 24);
+    if (days < 30) return days + 'd';
+    return d.toLocaleDateString();
+  }
+  function fmtChars(n) {
+    if (!n) return '—';
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1000) return Math.round(n / 1000) + 'k';
+    return String(n);
+  }
+  function humanizeKind(kind) {
+    return ({ document: 'Document', chat: 'Chat', review_finding: 'Finding', manual_note: 'Note' }[kind] || kind || '').replace(/_/g, ' ');
+  }
+  function shortKindBadge(kind) {
+    if (kind === 'document') return 'DOC';
+    if (kind === 'chat') return 'CHAT';
+    if (kind === 'review_finding') return 'FIND';
+    if (kind === 'manual_note') return 'NOTE';
+    return (kind || '?').toUpperCase().slice(0, 4);
+  }
+  function kindBadgeClass(kind) {
+    if (kind === 'document') return 'is-pdf';   // most documents are PDFs visually
+    if (kind === 'chat') return 'is-mail';
+    if (kind === 'review_finding') return 'is-img';
+    if (kind === 'manual_note') return 'is-txt';
+    return 'is-doc';
+  }
+
+  function applySort(arr) {
+    const sorted = [...arr];
+    const v = SORT_VALUES[sortIdx];
+    if (v === 'Updated · newest') sorted.sort((a, b) => (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || ''));
+    else if (v === 'Updated · oldest') sorted.sort((a, b) => (a.updated_at || a.created_at || '').localeCompare(b.updated_at || b.created_at || ''));
+    else if (v === 'Title · A–Z') sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    else if (v === 'Chars · most') sorted.sort((a, b) => (b.content_chars || 0) - (a.content_chars || 0));
+    else if (v === 'Kind') sorted.sort((a, b) => (a.source_kind || '').localeCompare(b.source_kind || ''));
+    return sorted;
+  }
+
+  // ---- Load list ----
+  async function loadList() {
+    const list = document.getElementById('vault-list');
+    const url = new URL('/.netlify/functions/workspace-vault-list', location.origin);
+    if (activeKindFilter) url.searchParams.set('kind', activeKindFilter);
+    url.searchParams.set('limit', '200');
+    try {
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed to load');
+      items = j.items || [];
+      isSearchMode = false;
+      selected.clear();
+      renderList();
+      updateBulkBar();
+      updateMetaStrip();
+      updateFilterCounts();
+    } catch (err) {
+      list.innerHTML = '<div class="vault-empty">Failed to load: ' + escapeAttr(err.message) + '</div>';
+    }
+  }
+
+  function renderList() {
+    const list = document.getElementById('vault-list');
+    const sorted = applySort(items);
+    if (!sorted.length) {
+      list.innerHTML =
+        '<div class="vault-empty">' +
+        '<p><strong>Your Vault is empty.</strong></p>' +
+        '<p>Add a note above (paste text or upload a file), bulk-import existing files, ' +
+        'or save a chat or review finding from elsewhere in the workspace.</p>' +
+        '</div>';
+      return;
+    }
+    list.innerHTML = sorted.map((it) => {
+      const tags = (it.tags || []).slice(0, 3).map((t) => '<span class="tag-chip">' + escapeAttr(t) + '</span>').join('');
+      const kindBadge = '<span class="vr-kind ' + kindBadgeClass(it.source_kind) + '">' + escapeAttr(shortKindBadge(it.source_kind)) + '</span>';
+      const pinned = it.pinned ? '<span class="vault-pin-dot" title="Pinned">📌</span>' : '';
+      const archived = it.archived_at ? '<span class="vault-arch-chip">archived</span>' : '';
+      const score = (typeof it.score === 'number') ? '<span class="vault-score" title="Similarity">' + Math.round(it.score * 100) + '%</span>' : '';
+      const checked = selected.has(it.id) ? ' checked' : '';
+      const sub = (it.summary || (humanizeKind(it.source_kind) || '').toUpperCase());
+      return (
+        '<div class="vault-row" data-id="' + it.id + '">' +
+          '<label class="vault-row-check" data-stop-row-click>' +
+            '<input type="checkbox" data-vault-row-check="' + it.id + '"' + checked + ' />' +
+          '</label>' +
+          kindBadge +
+          '<div class="vr-title-wrap">' +
+            '<span class="vr-title">' + escapeAttr(it.title || 'Untitled') + '</span>' +
+            '<span class="vr-sub">' + escapeAttr(sub) + (pinned ? ' ' + pinned : '') + (archived ? ' ' + archived : '') + '</span>' +
+          '</div>' +
+          '<div class="vr-tags">' + (tags || '<span style="opacity:.4">—</span>') + '</div>' +
+          '<span class="vr-size">' + (it.content_chars ? fmtChars(it.content_chars) : '—') + '</span>' +
+          '<span class="vr-updated">' + relTime(it.updated_at || it.created_at) + score + '</span>' +
+        '</div>'
+      );
+    }).join('');
+
+    list.querySelectorAll('.vault-row[data-id]').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-stop-row-click]') || e.target.closest('input')) return;
+        // Mark active row
+        list.querySelectorAll('.vault-row').forEach((r) => r.classList.remove('is-active'));
+        row.classList.add('is-active');
+        openDetail(row.dataset.id);
+      });
+    });
+    list.querySelectorAll('[data-vault-row-check]').forEach((cb) => {
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        const id = cb.dataset.vaultRowCheck;
+        if (cb.checked) selected.add(id); else selected.delete(id);
+        cb.closest('.vault-row')?.classList.toggle('is-selected', cb.checked);
+        updateBulkBar();
+      });
+    });
+  }
+
+  function updateMetaStrip() {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ms-doc-count', items.length || '0');
+    set('ms-doc-recent', items.length === 1 ? '1 indexed' : items.length + ' indexed');
+    set('ms-chars', fmtChars(items.reduce((s, it) => s + (it.content_chars || 0), 0)));
+    set('ms-pinned', items.filter((it) => it.pinned).length || '0');
+    const newest = items.reduce((acc, it) => {
+      const d = new Date(it.updated_at || it.created_at || 0);
+      return (!acc || d > acc) ? d : acc;
+    }, null);
+    if (newest) {
+      const pad = (n) => String(n).padStart(2, '0');
+      set('ms-last-updated', pad(newest.getHours()) + ':' + pad(newest.getMinutes()) + ':' + pad(newest.getSeconds()));
+      set('ms-last-updated-date', newest.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase());
+    } else {
+      set('ms-last-updated', '—');
+      set('ms-last-updated-date', '—');
+    }
+    const sec = document.getElementById('sec-index-meta');
+    if (sec) sec.textContent = 'INDEX · ' + items.length + ' ITEM' + (items.length === 1 ? '' : 'S') + ' · ALL DESTINATIONS';
+  }
+
+  function updateFilterCounts() {
+    const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = '[' + n + ']'; };
+    set('fl-cnt-all', items.length);
+    set('fl-cnt-document', items.filter((it) => it.source_kind === 'document').length);
+    set('fl-cnt-chat', items.filter((it) => it.source_kind === 'chat').length);
+    set('fl-cnt-review_finding', items.filter((it) => it.source_kind === 'review_finding').length);
+    set('fl-cnt-manual_note', items.filter((it) => it.source_kind === 'manual_note').length);
+  }
+
+  // ---- Bulk select bar ----
+  function updateBulkBar() {
+    const bar = document.getElementById('vault-bulk-bar');
+    const count = document.getElementById('vault-bulk-count');
+    const master = document.getElementById('vault-master-check');
+    bar.hidden = selected.size === 0;
+    count.textContent = selected.size === 1 ? '1 selected' : selected.size + ' selected';
+    if (master) {
+      master.indeterminate = selected.size > 0 && selected.size < items.length;
+      master.checked = items.length > 0 && selected.size === items.length;
+    }
+  }
+  document.getElementById('vault-master-check').addEventListener('change', (e) => {
+    if (e.target.checked) items.forEach((it) => selected.add(it.id));
+    else selected.clear();
+    renderList();
+    updateBulkBar();
+  });
+  document.getElementById('vault-bulk-cancel').addEventListener('click', () => {
+    selected.clear();
+    renderList();
+    updateBulkBar();
+  });
+  document.getElementById('vault-bulk-delete').addEventListener('click', async () => {
+    if (selected.size === 0) return;
+    const n = selected.size;
+    if (!confirm('Permanently delete ' + n + ' vault item' + (n === 1 ? '' : 's') + '? This cannot be undone.')) return;
+    await runBulk(Array.from(selected), async (id) => {
+      const r = await fetch('/.netlify/functions/workspace-vault-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+        body: JSON.stringify({ id, hard: true }),
+      });
+      if (!r.ok) throw new Error('Delete failed for ' + id);
+    }, 'Deleting');
+    await loadList();
+  });
+  document.getElementById('vault-bulk-archive').addEventListener('click', async () => {
+    if (selected.size === 0) return;
+    await runBulk(Array.from(selected), async (id) => {
+      const r = await fetch('/.netlify/functions/workspace-vault-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+        body: JSON.stringify({ id, archived: true }),
+      });
+      if (!r.ok) throw new Error('Archive failed for ' + id);
+    }, 'Archiving');
+    await loadList();
+  });
+
+  async function runBulk(ids, fn, verb) {
+    const prog = document.getElementById('vault-bulk-progress');
+    prog.hidden = false;
+    let done = 0, failed = 0;
+    const total = ids.length;
+    prog.textContent = verb + ' 0/' + total + '…';
+    for (let i = 0; i < ids.length; i += 5) {
+      const slice = ids.slice(i, i + 5);
+      await Promise.all(slice.map(async (id) => {
+        try { await fn(id); done++; } catch { failed++; }
+        prog.textContent = verb + ' ' + (done + failed) + '/' + total + '…';
+      }));
+    }
+    prog.textContent = (failed === 0)
+      ? verb.replace(/ing$/, 'ed') + ' ' + done + ' item' + (done === 1 ? '' : 's')
+      : verb.replace(/ing$/, 'ed') + ' ' + done + ' · ' + failed + ' failed';
+    setTimeout(() => { prog.hidden = true; }, 3500);
+  }
+
+  // ---- Detail panel ----
+  async function openDetail(id) {
+    const detail = document.getElementById('vault-detail');
+    const body = document.getElementById('vault-detail-body');
+    detail.hidden = false;
+    // Tell the layout to make room for the 360px right-side panel.
+    document.querySelector('.vault-layout')?.classList.add('has-detail');
+    body.innerHTML = '<div class="vault-empty"><span class="rv-spin"></span> Loading…</div>';
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-get?id=' + encodeURIComponent(id), {
+        headers: { Authorization: 'Bearer ' + accessToken },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed to load');
+      renderDetail(j.item, j.chunk_count);
+    } catch (err) {
+      body.innerHTML = '<div class="vault-empty">Failed: ' + escapeAttr(err.message) + '</div>';
+    }
+  }
+  function renderDetail(item, chunkCount) {
+    const body = document.getElementById('vault-detail-body');
+    const tagsHtml = (item.tags || []).map((t) => '<span class="tag-chip">' + escapeAttr(t) + '</span>').join(' ');
+    const kindShort = shortKindBadge(item.source_kind);
+    body.innerHTML =
+      '<div class="dp-head">' +
+        '<div class="dp-kicker">' +
+          '<span class="pip"></span>' +
+          '<span>VAULT ITEM · ' + escapeAttr(kindShort) + '</span>' +
+          '<span style="color:var(--ink-4)">/V/' + escapeAttr((item.id || '').slice(0, 4).toUpperCase()) + '</span>' +
+        '</div>' +
+        '<h2 class="dp-title">' + escapeAttr(item.title || 'Untitled') + '</h2>' +
+        '<div class="dp-meta">' +
+          '<span><b>' + (chunkCount || 0) + '</b> CHUNK' + ((chunkCount || 0) === 1 ? '' : 'S') + '</span>' +
+          (item.embedding_provider ? '<span>' + escapeAttr(item.embedding_provider.toUpperCase()) + '</span>' : '') +
+          '<span>ADDED ' + escapeAttr(relTime(item.created_at)) + '</span>' +
+          (item.pinned ? '<span style="color:var(--accent-deep)">● PINNED</span>' : '') +
+          (item.archived_at ? '<span style="color:var(--md)">● ARCHIVED</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="dp-body">' +
+
+        '<div class="dp-section">' +
+          '<span class="dp-section-l"><span>Metadata</span><span>SECTION 01</span></span>' +
+          '<dl class="dp-meta-grid">' +
+            '<dt>KIND</dt><dd>' + escapeAttr(humanizeKind(item.source_kind)) + '</dd>' +
+            '<dt>CHARS</dt><dd>' + escapeAttr(fmtChars(item.content_chars)) + '</dd>' +
+            '<dt>UPDATED</dt><dd>' + escapeAttr(relTime(item.updated_at || item.created_at)) + '</dd>' +
+          '</dl>' +
+        '</div>' +
+
+        (item.summary ? (
+          '<div class="dp-section">' +
+            '<span class="dp-section-l"><span>Summary</span><span>SECTION 02</span></span>' +
+            '<p class="dp-snippet">' + escapeAttr(item.summary) + '</p>' +
+          '</div>'
+        ) : '') +
+
+        (tagsHtml ? (
+          '<div class="dp-section">' +
+            '<span class="dp-section-l"><span>Tags</span><span>' + (item.tags || []).length + '</span></span>' +
+            '<div class="dp-tag-row">' + tagsHtml + '</div>' +
+          '</div>'
+        ) : '') +
+
+        '<div class="dp-section">' +
+          '<span class="dp-section-l"><span>Content</span><span>RAW</span></span>' +
+          '<pre class="vault-detail-content">' + escapeAttr((item.content || '').slice(0, 8000)) + '</pre>' +
+        '</div>' +
+
+        '<div class="dp-section">' +
+          '<span class="dp-section-l"><span>Actions</span><span>03</span></span>' +
+          '<div class="dp-actions">' +
+            '<button class="dp-action" data-action="pin" type="button">' + (item.pinned ? '★ Unpin' : '📌 Pin') + '</button>' +
+            '<button class="dp-action" data-action="archive" type="button">' + (item.archived_at ? 'Unarchive' : 'Archive') + '</button>' +
+            '<button class="dp-action vault-detail-delete" data-action="delete" type="button">Delete</button>' +
+          '</div>' +
+        '</div>' +
+
+      '</div>';
+
+    body.querySelectorAll('[data-action]').forEach((btn) => {
+      btn.addEventListener('click', () => doAction(item, btn.dataset.action));
+    });
+  }
+  async function doAction(item, action) {
+    try {
+      if (action === 'pin') {
+        await call('workspace-vault-update', { id: item.id, pinned: !item.pinned });
+      } else if (action === 'archive') {
+        await call('workspace-vault-update', { id: item.id, archived: !item.archived_at });
+      } else if (action === 'delete') {
+        if (!confirm('Permanently delete this vault item? This cannot be undone.')) return;
+        await call('workspace-vault-delete', { id: item.id, hard: true });
+        document.getElementById('vault-detail').hidden = true;
+        document.querySelector('.vault-layout')?.classList.remove('has-detail');
+        await loadList();
+        return;
+      }
+      await loadList();
+      await openDetail(item.id);
+    } catch (err) {
+      alert('Action failed: ' + err.message);
+    }
+  }
+
+  // ---- Search ----
+  let searchTimer = null;
+  document.getElementById('vault-search').addEventListener('input', (e) => {
+    if (searchTimer) clearTimeout(searchTimer);
+    const q = e.target.value.trim();
+    if (!q) { loadList(); return; }
+    searchTimer = setTimeout(() => runSearch(q), 350);
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      const inp = document.getElementById('vault-search');
+      if (inp) { e.preventDefault(); inp.focus(); inp.select(); }
+    }
+  });
+  async function runSearch(q) {
+    const list = document.getElementById('vault-list');
+    list.innerHTML = '<div class="vault-empty"><span class="rv-spin"></span> Searching your vault…</div>';
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+        body: JSON.stringify({ query: q, top_k: 30, kinds: activeKindFilter ? [activeKindFilter] : undefined }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Search failed');
+      const seen = new Set();
+      items = (j.results || []).reduce((acc, res) => {
+        if (!res.item || seen.has(res.item.id)) return acc;
+        seen.add(res.item.id);
+        acc.push({ ...res.item, score: res.score, content_chars: res.item.content_chars || 0 });
+        return acc;
+      }, []);
+      isSearchMode = true;
+      selected.clear();
+      renderList();
+      updateBulkBar();
+      updateMetaStrip();
+      updateFilterCounts();
+    } catch (err) {
+      list.innerHTML = '<div class="vault-empty">Search failed: ' + escapeAttr(err.message) + '</div>';
+    }
+  }
+
+  // Filter row
+  document.querySelectorAll('.fl-toggle').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.fl-toggle').forEach((x) => x.classList.remove('is-on'));
+      b.classList.add('is-on');
+      activeKindFilter = b.dataset.kind || '';
+      // Sync the legacy hidden select for any code that reads it.
+      const sel = document.getElementById('vault-kind-filter');
+      if (sel) sel.value = activeKindFilter;
+      const q = document.getElementById('vault-search').value.trim();
+      if (q) runSearch(q); else loadList();
+    });
+  });
+
+  // Search mode (visual only — endpoint already does hybrid; this just labels intent)
+  document.querySelectorAll('.search-mode-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.search-mode-btn').forEach((x) => x.classList.remove('is-active'));
+      b.classList.add('is-active');
+      activeSearchMode = b.dataset.searchMode || 'hybrid';
+    });
+  });
+
+  // Sort cycle
+  document.getElementById('vault-sort').addEventListener('click', () => {
+    sortIdx = (sortIdx + 1) % SORT_VALUES.length;
+    document.getElementById('sort-v').textContent = SORT_VALUES[sortIdx];
+    renderList();
+  });
+
+  // ---- Add modal: tabs ----
+  const newModal = document.getElementById('vault-new-modal');
+  document.getElementById('vault-new-btn').addEventListener('click', () => {
+    document.getElementById('vault-new-title').value = '';
+    document.getElementById('vault-new-tags').value = '';
+    document.getElementById('vault-new-content').value = '';
+    document.getElementById('vault-modal-file-input').value = '';
+    document.getElementById('vault-modal-upload-status').hidden = true;
+    document.getElementById('vault-modal-upload-go').disabled = true;
+    activateTab('paste');
+    newModal.hidden = false;
+  });
+  newModal.querySelectorAll('[data-vault-modal-close]').forEach((b) => b.addEventListener('click', () => { newModal.hidden = true; }));
+
+  newModal.querySelectorAll('[data-vault-tab]').forEach((tab) => {
+    tab.addEventListener('click', () => activateTab(tab.dataset.vaultTab));
+  });
+  function activateTab(name) {
+    newModal.querySelectorAll('[data-vault-tab]').forEach((t) => t.classList.toggle('is-active', t.dataset.vaultTab === name));
+    newModal.querySelectorAll('[data-vault-tab-panel]').forEach((p) => p.hidden = p.dataset.vaultTabPanel !== name);
+  }
+
+  document.getElementById('vault-new-save').addEventListener('click', async () => {
+    const title = document.getElementById('vault-new-title').value.trim();
+    const content = document.getElementById('vault-new-content').value.trim();
+    const tagsRaw = document.getElementById('vault-new-tags').value.trim();
+    if (!title || !content) { alert('Title and content are both required.'); return; }
+    const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim()).filter(Boolean) : null;
+    const btn = document.getElementById('vault-new-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+        body: JSON.stringify({ source_kind: 'manual_note', title, content, tags }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Save failed');
+      newModal.hidden = true;
+      await loadList();
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save to Vault';
+    }
+  });
+
+  const modalFileInput = document.getElementById('vault-modal-file-input');
+  modalFileInput.addEventListener('change', () => {
+    document.getElementById('vault-modal-upload-go').disabled = !modalFileInput.files?.length;
+  });
+  document.getElementById('vault-modal-upload-go').addEventListener('click', async () => {
+    const file = modalFileInput.files?.[0];
+    if (!file) return;
+    const status = document.getElementById('vault-modal-upload-status');
+    const btn = document.getElementById('vault-modal-upload-go');
+    const dest = document.querySelector('input[name="vault-modal-dest"]:checked')?.value || 'both';
+    btn.disabled = true; status.hidden = false; status.textContent = 'Uploading…';
+    try {
+      const result = await uploadOneFile(file, { destination: dest });
+      status.textContent = result.message;
+      newModal.hidden = true;
+      if (dest !== 'library') await loadList();
+    } catch (err) {
+      status.textContent = 'Failed: ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---- Bulk import ----
+  const bulkInput = document.getElementById('vault-bulk-import-input');
+  document.getElementById('vault-bulk-import-btn').addEventListener('click', () => bulkInput.click());
+  bulkInput.addEventListener('change', async () => {
+    const files = Array.from(bulkInput.files || []);
+    bulkInput.value = '';
+    if (!files.length) return;
+    const destination = await askBulkDestination(files.length);
+    if (!destination) return;
+    const prog = document.getElementById('vault-bulk-progress');
+    prog.hidden = false;
+    let done = 0, failed = 0;
+    const total = files.length;
+    prog.textContent = 'Uploading 0/' + total + '…';
+    for (let i = 0; i < files.length; i += 3) {
+      const slice = files.slice(i, i + 3);
+      await Promise.all(slice.map(async (file) => {
+        try { await uploadOneFile(file, { destination }); done++; } catch (err) { console.error(err); failed++; }
+        prog.textContent = 'Uploading ' + (done + failed) + '/' + total + '…';
+      }));
+    }
+    prog.textContent = (failed === 0)
+      ? 'Uploaded ' + done + ' file' + (done === 1 ? '' : 's') + destLabel(destination)
+      : 'Uploaded ' + done + ' · ' + failed + ' failed';
+    setTimeout(() => { prog.hidden = true; }, 4500);
+    if (destination !== 'library') await loadList();
+  });
+
+  function askBulkDestination(n) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('vault-bulk-dest-modal');
+      const countEl = document.getElementById('vault-bulk-dest-count');
+      countEl.textContent = String(n);
+      modal.hidden = false;
+      const cleanup = () => {
+        modal.hidden = true;
+        modal.querySelectorAll('[data-bulk-dest]').forEach((b) => b.removeEventListener('click', onPick));
+        modal.querySelector('[data-bulk-dest-cancel]').removeEventListener('click', onCancel);
+      };
+      const onPick = (e) => { cleanup(); resolve(e.currentTarget.dataset.bulkDest); };
+      const onCancel = () => { cleanup(); resolve(null); };
+      modal.querySelectorAll('[data-bulk-dest]').forEach((b) => b.addEventListener('click', onPick));
+      modal.querySelector('[data-bulk-dest-cancel]').addEventListener('click', onCancel);
+    });
+  }
+
+  // ---- Upload helper ----
+  function destFlags(destination) {
+    if (destination === 'library') return { skip_vault_ingest: true,  library_hidden: false };
+    if (destination === 'vault')   return { skip_vault_ingest: false, library_hidden: true  };
+    return                                { skip_vault_ingest: false, library_hidden: false };
+  }
+  function destLabel(destination) {
+    if (destination === 'library') return ' · Library only';
+    if (destination === 'vault')   return ' · Vault only';
+    return ' · Library + Vault';
+  }
+
+  async function uploadOneFile(file, opts = {}) {
+    const destination = opts.destination || 'both';
+    const flags = destFlags(destination);
+    const docId = crypto.randomUUID();
+    const versionId = crypto.randomUUID();
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+    const storagePath = userId + '/' + docId + '/' + versionId + '.' + ext;
+    const progressRow = startUploadProgress({ docId, filename: file.name, destination, initialStatus: 'Uploading to storage…' });
+    try {
+      const { error: upErr } = await supabase.storage
+        .from('library')
+        .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+      if (upErr) throw new Error('Storage upload: ' + upErr.message);
+      progressRow.update('Extracting text…');
+      const r = await fetch('/.netlify/functions/workspace-library-register', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name, original_filename: file.name,
+          file_type: file.type || 'application/octet-stream',
+          size_bytes: file.size, storage_path: storagePath,
+          skip_vault_ingest: flags.skip_vault_ingest,
+          library_hidden: flags.library_hidden,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      const status = j.extraction?.status;
+      const tail = destLabel(destination);
+      if (status === 'pending_ocr') {
+        progressRow.update('OCR queued — running in background…');
+        progressRow.poll({ destination });
+        const vaultBit = (destination !== 'library') ? ' (vault add follows OCR)' : '';
+        return { ok: true, message: file.name + ' uploaded; OCR running in background' + vaultBit };
+      }
+      if (status === 'done') {
+        progressRow.complete({ chars: j.extraction?.chars || 0, destination });
+        return { ok: true, message: file.name + ' ready · ' + (j.extraction?.chars || 0).toLocaleString() + ' chars' + tail };
+      }
+      progressRow.complete({ chars: 0, destination, message: 'uploaded · status: ' + (status || 'unknown') });
+      return { ok: true, message: file.name + ' uploaded · status: ' + (status || 'unknown') };
+    } catch (err) {
+      progressRow.fail(err.message || String(err));
+      throw err;
+    }
+  }
+
+  function startUploadProgress({ docId, filename, destination, initialStatus }) {
+    const strip = document.getElementById('vault-uploads-strip');
+    if (strip.children.length === 0) {
+      strip.innerHTML = '<div class="upload-strip-head"><span class="live"><span class="live-pip"></span>UPLOAD QUEUE · ACTIVE</span><span style="color:var(--ink-4)">QUEUE</span></div>';
+    }
+    strip.hidden = false;
+    const row = document.createElement('div');
+    row.className = 'vault-upload-row';
+    row.dataset.docId = docId;
+    const ext = (filename.split('.').pop() || 'BIN').toUpperCase().slice(0, 3);
+    row.innerHTML =
+      '<span class="vault-upload-spinner">' + escapeAttr(ext) + '</span>' +
+      '<div class="vault-upload-meta">' +
+        '<span class="vault-upload-name">' + escapeAttr(filename) + '</span>' +
+        '<span class="vault-upload-status">' + escapeAttr(initialStatus || 'Uploading…') + '</span>' +
+      '</div>' +
+      '<div class="vault-upload-bar"><div class="vault-upload-bar-fill" style="width: 0%"></div></div>' +
+      '<button class="up-cancel" type="button" style="font-family:var(--mono);font-size:9.5px;color:var(--ink-3);letter-spacing:.12em;text-transform:uppercase;background:transparent;border:none;cursor:pointer;">Hide</button>';
+    strip.appendChild(row);
+
+    const statusEl = row.querySelector('.vault-upload-status');
+    const spinnerEl = row.querySelector('.vault-upload-spinner');
+    const fillEl = row.querySelector('.vault-upload-bar-fill');
+    row.querySelector('.up-cancel').addEventListener('click', () => row.remove());
+    let pollTimer = null;
+
+    function update(text, pct) {
+      statusEl.textContent = text;
+      if (typeof pct === 'number') fillEl.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    }
+    function complete({ chars, destination, message }) {
+      stopPoll();
+      row.classList.add('is-done');
+      spinnerEl.textContent = '✓';
+      fillEl.style.width = '100%';
+      const charsBit = chars ? Math.round(chars / 1000) + 'k chars · ' : '';
+      statusEl.textContent = message || (charsBit + (destination === 'library' ? 'Library only' : destination === 'vault' ? 'Added to Vault' : 'Library + Vault'));
+      if (destination !== 'library') loadList();
+      scheduleStripCleanup(row);
+    }
+    function fail(detail) {
+      stopPoll();
+      row.classList.add('is-failed');
+      spinnerEl.textContent = '✗';
+      fillEl.style.width = '100%';
+      statusEl.textContent = 'Failed: ' + detail;
+      scheduleStripCleanup(row, 12000);
+    }
+    function poll({ destination }) {
+      stopPoll();
+      pollTimer = setInterval(async () => {
+        try {
+          const r = await fetch('/.netlify/functions/workspace-library-get?id=' + encodeURIComponent(docId), {
+            headers: { Authorization: 'Bearer ' + accessToken },
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+          const versions = j.versions || [];
+          const v = versions[0];
+          if (!v) return;
+          const status = v.extraction_status;
+          const detail = v.extraction_detail || '';
+          const m = detail.match(/(\d+)\/(\d+)\s+chunks/);
+          if (m) {
+            const pct = Math.round((parseInt(m[1], 10) / Math.max(1, parseInt(m[2], 10))) * 100);
+            update(detail, Math.max(5, pct - 5));
+          } else if (detail) update(detail);
+          else if (status === 'running') update('OCR running…');
+
+          if (status === 'done') complete({ chars: v.extracted_chars || 0, destination });
+          else if (status === 'failed') fail(detail || 'unknown error');
+          else if (status === 'skipped') fail('Extraction skipped');
+        } catch (err) {
+          console.warn('[vault-upload-poll] failed:', err.message);
+        }
+      }, 3000);
+    }
+    function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+    return { update, complete, fail, poll };
+  }
+
+  function scheduleStripCleanup(row, ms = 6000) {
+    setTimeout(() => {
+      row.remove();
+      const strip = document.getElementById('vault-uploads-strip');
+      if (!strip.querySelector('.vault-upload-row')) strip.hidden = true;
+    }, ms);
+  }
+
+  // ---- Settings modal ----
+  const settingsModal = document.getElementById('vault-settings-modal');
+  document.getElementById('vault-settings-btn').addEventListener('click', async () => {
+    settingsModal.hidden = false;
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-settings-get', {
+        headers: { Authorization: 'Bearer ' + accessToken },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Failed to load settings');
+      const s = j.settings || {};
+      const provRadio = document.querySelector('input[name="vault-provider"][value="' + (s.vault_embedding_provider || 'gemini') + '"]');
+      if (provRadio) provRadio.checked = true;
+      document.getElementById('vault-auto-uploads').checked = !!s.vault_auto_ingest_uploads;
+      document.getElementById('vault-auto-chats').checked = !!s.vault_auto_ingest_chats;
+      document.getElementById('vault-auto-use').checked = !!s.vault_auto_use_in_chats;
+    } catch (err) {
+      alert('Failed to load settings: ' + err.message);
+    }
+  });
+  settingsModal.querySelectorAll('[data-vault-settings-close]').forEach((b) => b.addEventListener('click', () => { settingsModal.hidden = true; }));
+  document.getElementById('vault-settings-save').addEventListener('click', async () => {
+    const provider = document.querySelector('input[name="vault-provider"]:checked')?.value || 'gemini';
+    const auto_uploads = document.getElementById('vault-auto-uploads').checked;
+    const auto_chats = document.getElementById('vault-auto-chats').checked;
+    const auto_use = document.getElementById('vault-auto-use').checked;
+    const btn = document.getElementById('vault-settings-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-settings-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+        body: JSON.stringify({
+          vault_embedding_provider: provider,
+          vault_auto_ingest_uploads: auto_uploads,
+          vault_auto_ingest_chats: auto_chats,
+          vault_auto_use_in_chats: auto_use,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Save failed');
+      settingsModal.hidden = true;
+      // Update meta-strip embedding label
+      const provEl = document.getElementById('ms-embed-provider');
+      if (provEl) provEl.textContent = (provider || '').toUpperCase();
+      if (j.reembed_kicked_off && typeof window.siteToast === 'function') {
+        window.siteToast('Embedding provider changed — re-embedding your vault in the background. May take a few minutes.', { kind: 'info' });
+      }
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save settings';
+    }
+  });
+
+  document.querySelectorAll('[data-vault-close]').forEach((b) => b.addEventListener('click', () => {
+    document.getElementById('vault-detail').hidden = true;
+    document.querySelector('.vault-layout')?.classList.remove('has-detail');
+    document.querySelectorAll('.vault-row').forEach((r) => r.classList.remove('is-active'));
+  }));
+
+  async function call(fn, body) {
+    const r = await fetch('/.netlify/functions/' + fn, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed');
+    return j;
+  }
+
+  // ---- Initial load + URL ?id= deep link ----
+  // Pull settings to populate the embedding-provider in the meta-strip.
+  fetch('/.netlify/functions/workspace-vault-settings-get', {
+    headers: { Authorization: 'Bearer ' + accessToken },
+  }).then((r) => r.ok ? r.json() : null).then((j) => {
+    if (!j) return;
+    const s = j.settings || {};
+    const prov = s.vault_embedding_provider || 'gemini';
+    const dims = prov === 'gemini' ? '768d' : prov === 'openai' ? '1536d' : '1024d';
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ms-embed-provider', prov.toUpperCase());
+    set('ms-embed-meta', dims + ' VECTOR INDEX');
+  }).catch(() => {});
+
+  const initialId = new URL(location.href).searchParams.get('id');
+  loadList().then(() => { if (initialId) openDetail(initialId); });
+</script>
+</body>
+</html>

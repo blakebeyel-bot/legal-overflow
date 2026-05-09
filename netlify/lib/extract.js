@@ -8,10 +8,14 @@
  * converts formats — it only extracts text. The original file bytes go
  * to the appropriate markup module later.
  *
- * Rule from CLAUDE.md §4.7: scanned PDFs (<200 chars extractable) are
- * rejected here, not silently processed to produce bad redlines.
+ * Scanned PDFs (DocuSign-style, image-only) used to be rejected outright.
+ * They are now routed through Gemini Flash 2.5 Vision OCR (see
+ * `netlify/lib/ocr.js`) so the contract review pipeline can read them
+ * directly. The caller passes a `userId` so the OCR module can resolve
+ * a BYOK Google key (preferred) or fall back to GOOGLE_AI_API_KEY.
  */
 import mammoth from 'mammoth';
+import { ocrPdf, resolveOcrKey, shouldOcrPdf } from './ocr.js';
 // pdfjs-dist is lazy-loaded inside extractPdf() (see below). Static import
 // at the top caused a prod cold-start failure because esbuild's handling
 // of pdfjs-dist's dynamic worker import was fragile — DOCX uploads died
@@ -23,19 +27,24 @@ export const SCANNED_PDF_MIN_CHARS = 200;
 /**
  * Extract canonical text from a file buffer.
  *
- * @param {Buffer} buffer   — raw file bytes
- * @param {string} filename — used to infer format from extension
- * @returns {Promise<{ text: string, format: 'docx'|'pdf'|'txt', pages?: number }>}
- * @throws if format is unsupported, file is corrupt, or PDF appears scanned
+ * @param {Buffer} buffer    — raw file bytes
+ * @param {string} filename  — used to infer format from extension
+ * @param {object} [opts]
+ * @param {string} [opts.userId]  — used by the OCR fallback to resolve a
+ *                                   BYOK Google key. Optional; without it
+ *                                   we fall back to the server env key.
+ * @returns {Promise<{ text: string, format: 'docx'|'pdf'|'txt', pages?: number, ocr?: boolean }>}
+ * @throws if format is unsupported, file is corrupt, or PDF is scanned AND
+ *         OCR also fails (the rare double-failure case).
  */
-export async function extractDocumentText(buffer, filename) {
+export async function extractDocumentText(buffer, filename, opts = {}) {
   const ext = (filename.split('.').pop() || '').toLowerCase();
 
   if (ext === 'docx') {
     return await extractDocx(buffer);
   }
   if (ext === 'pdf') {
-    return await extractPdf(buffer);
+    return await extractPdf(buffer, opts);
   }
   if (ext === 'txt' || ext === 'md') {
     return { text: buffer.toString('utf8'), format: 'txt' };
@@ -62,7 +71,7 @@ async function extractDocx(buffer) {
   }
 }
 
-async function extractPdf(buffer) {
+async function extractPdf(buffer, opts = {}) {
   // pdfjs-dist v5+ expects DOMMatrix / Path2D / ImageData on globalThis.
   // Its own auto-polyfill via @napi-rs/canvas is unreliable in Netlify
   // Functions: pdfjs evaluates `const SCALE_MATRIX = new DOMMatrix();`
@@ -113,12 +122,42 @@ async function extractPdf(buffer) {
     pageTexts.push(itemsToParagraphedText(content.items));
   }
   const text = pageTexts.join('\n\n').trim();
-  if (text.length < SCANNED_PDF_MIN_CHARS) {
-    throw new Error(
-      `PDF appears to be scanned or image-only (only ${text.length} extractable characters). ` +
-      'Please re-OCR externally and re-upload, request a native file from the counterparty, ' +
-      'or agree to a review-letter-only approach.'
-    );
+
+  // Scanned / image-only PDF (DocuSign-completed contracts, faxes, etc.):
+  // text layer is essentially empty, so OCR the file with Gemini Flash 2.5
+  // Vision and use that markdown instead. ocr.js already has the per-page
+  // chunking, prompt, and Gemini wiring used by the citation-verifier vault
+  // — we just call it here with the user's BYOK key (or server fallback).
+  if (shouldOcrPdf({ extractedText: text, pageCount: pdf.numPages })) {
+    console.warn(`[extract] PDF text layer sparse (${text.length} chars / ${pdf.numPages} pages) — falling back to OCR`);
+    try {
+      const apiKey = await resolveOcrKey({ userId: opts.userId || null });
+      if (!apiKey) {
+        throw new Error(
+          `PDF appears to be scanned or image-only (only ${text.length} extractable characters), ` +
+          'and no Google API key is available for OCR fallback. ' +
+          'Add a Google AI Studio key in your settings, or upload a native (non-scanned) PDF.'
+        );
+      }
+      const ocrText = await ocrPdf({ pdfBytes: new Uint8Array(buffer), apiKey });
+      const trimmed = (ocrText || '').trim();
+      if (trimmed.length < SCANNED_PDF_MIN_CHARS) {
+        throw new Error(
+          `OCR completed but produced only ${trimmed.length} characters — the document may be blank, ` +
+          'too low-resolution to read, or image-corrupt. Please supply a higher-quality scan or a native PDF.'
+        );
+      }
+      console.log(`[extract] OCR fallback recovered ${trimmed.length} chars from ${pdf.numPages}-page scanned PDF`);
+      return { text: trimmed, format: 'pdf', pages: pdf.numPages, ocr: true };
+    } catch (err) {
+      // Re-throw with a clearer message so the user sees both: text-layer
+      // was sparse AND OCR couldn't recover it. Original detection message
+      // is preserved as a fallback if OCR throws cleanly.
+      throw new Error(
+        `PDF appears to be scanned or image-only (only ${text.length} extractable characters), ` +
+        `and OCR fallback failed: ${err.message}`
+      );
+    }
   }
   return { text, format: 'pdf', pages: pdf.numPages };
 }

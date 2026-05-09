@@ -14,8 +14,372 @@ import DownloadGate from '../partials/download-gate.astro';
 <link rel="stylesheet" href="/styles.css" />
 <script src="/nav-autohide.js" defer></script>
 <script src="/site-dialog.js" defer></script>
-  <link rel="stylesheet" href="/site-anim.css" />
-  <script src="/site-anim.js" defer></script>
+<link rel="stylesheet" href="/site-anim.css" />
+<script src="/site-anim.js" defer></script>
+<style>
+  /* ============================================================
+     Agents Index — page-local stylesheet (verbatim port of the
+     design prototype). Keeps every page self-contained so layered
+     overrides don't fight each other.
+     ============================================================ */
+
+  /* All selectors are scoped under .agents-page to override the
+     site-wide .hero / .hero-grid / .hero-title / .hero-sub rules in
+     /styles.css (which are sized for the homepage hero with min-height:
+     calc(100vh - 70px) — that was producing a viewport-tall empty box). */
+
+  /* Page wrapper — wider canvas than the workspace pages */
+  main.agents-page.shell {
+    position: relative; z-index: 2;
+    max-width: 1480px; margin: 0 auto;
+    padding: 22px 40px 60px;
+  }
+
+  /* Hero block with all four corner brackets */
+  .agents-page .hero {
+    position: relative;
+    padding: 42px 32px 32px;
+    margin-bottom: 22px;
+    min-height: 0;                 /* defeat styles.css min-height: calc(100vh - 70px) */
+    border: 1px solid var(--rule-soft);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(255,255,255,.35) 0%, transparent 80%);
+    overflow: hidden;
+  }
+  .agents-page .hero::before, .agents-page .hero::after,
+  .agents-page .hero > .br-bl, .agents-page .hero > .br-br {
+    content: ''; position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid var(--ink);
+    pointer-events: none;
+  }
+  .agents-page .hero::before  { top: -1px; left: -1px;  border-right: none; border-bottom: none; }
+  .agents-page .hero::after   { top: -1px; right: -1px; border-left: none;  border-bottom: none; }
+  .agents-page .hero > .br-bl { bottom: -1px; left: -1px;  border-top: none; border-right: none; }
+  .agents-page .hero > .br-br { bottom: -1px; right: -1px; border-top: none; border-left: none; }
+
+  .agents-page .hero-grid {
+    position: static;              /* defeat styles.css positioning */
+    max-width: none;               /* defeat styles.css max-width: 1400px */
+    margin: 0;
+    display: grid; grid-template-columns: 1.4fr 1fr;
+    gap: 40px; align-items: end;
+  }
+  @media (max-width: 980px) { .agents-page .hero-grid { grid-template-columns: 1fr; } }
+
+  .agents-page .kicker {
+    display: inline-flex; gap: 12px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--accent-deep); letter-spacing: .14em; text-transform: uppercase;
+    margin-bottom: 16px; align-items: center;
+  }
+  .agents-page .k-tag {
+    border: 1px solid var(--accent-deep);
+    padding: 2px 7px; border-radius: 2px;
+    font-size: 9.5px;
+  }
+  .agents-page .k-coord { color: var(--ink-4); font-size: 9.5px; }
+
+  .agents-page .hero-title {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(48px, 6.8vw, 104px);
+    letter-spacing: -.013em; line-height: .96;
+    margin: 0 0 18px; color: var(--ink);
+    grid-area: auto;               /* defeat styles.css grid-area assignment */
+  }
+  .agents-page .hero-title em { font-style: italic; color: var(--accent-deep); }
+  .agents-page .hero-sub {
+    font-family: var(--serif); font-size: 22px;
+    color: var(--ink-2); max-width: 38ch; line-height: 1.35;
+    grid-area: auto;
+  }
+  .agents-page .hero-sub em { font-style: italic; color: var(--accent-deep); }
+
+  .agents-page .hero-r { display: flex; flex-direction: column; gap: 14px; }
+  .agents-page .hero-stats {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .agents-page .hs {
+    padding: 13px 16px;
+    border-right: 1px solid var(--rule-soft);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .agents-page .hs:last-child { border-right: none; }
+  .agents-page .hs-l {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .14em; text-transform: uppercase;
+  }
+  .agents-page .hs-v {
+    font-family: var(--serif); font-size: 28px;
+    line-height: 1; color: var(--ink);
+  }
+  .agents-page .hs-v em { font-style: italic; color: var(--accent-deep); }
+  .agents-page .hs-d {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-4); letter-spacing: .06em; text-transform: uppercase;
+  }
+  .agents-page .hero-tag {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3); letter-spacing: .08em; line-height: 1.55;
+  }
+  .agents-page .hero-tag em {
+    font-style: italic; color: var(--accent-deep);
+    font-family: var(--serif); font-size: 13px;
+  }
+
+  /* Section dividers */
+  .agents-page .sec-div {
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 16px;
+    margin: 28px 0 16px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3); letter-spacing: .12em; text-transform: uppercase;
+  }
+  .agents-page .sec-num { color: var(--ink); }
+  .agents-page .sec-rule { height: 1px; background: var(--rule-soft); }
+  .agents-page .sec-meta { color: var(--ink-4); font-size: 9.5px; }
+
+  /* Agents grid */
+  .agents-page .agents-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  }
+  @media (max-width: 900px) { .agents-page .agents-grid { grid-template-columns: 1fr; } }
+
+  /* Agent card */
+  .agents-page .agent {
+    position: relative;
+    background: var(--paper-2);
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    overflow: hidden; cursor: pointer;
+    display: flex; flex-direction: column;
+    text-decoration: none; color: var(--ink);
+    transition: border-color .15s var(--motion-snap), transform .15s;
+  }
+  .agents-page .agent:hover { border-color: var(--ink); transform: translateY(-2px); }
+  .agents-page .agent::before, .agents-page .agent::after {
+    content: ''; position: absolute;
+    width: 9px; height: 9px;
+    border-color: var(--ink-4);
+    pointer-events: none;
+    transition: border-color .15s var(--motion-snap), width .15s, height .15s;
+  }
+  .agents-page .agent::before { top: 5px; left: 5px;  border-top: 1px solid; border-left: 1px solid; }
+  .agents-page .agent::after  { bottom: 5px; right: 5px; border-bottom: 1px solid; border-right: 1px solid; }
+  .agents-page .agent:hover::before, .agents-page .agent:hover::after {
+    border-color: var(--accent-deep); width: 14px; height: 14px;
+  }
+
+  .agents-page .agent-head {
+    padding: 18px 22px 16px;
+    border-bottom: 1px solid var(--rule-soft);
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 14px;
+  }
+  .agents-page .agent-h-l { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .agents-page .agent-kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--accent-deep); letter-spacing: .14em; text-transform: uppercase;
+  }
+  .agents-page .agent-kicker .k-tag {
+    border: 1px solid var(--accent-deep);
+    padding: 2px 6px; border-radius: 2px; font-size: 9px;
+  }
+  .agents-page .agent-state {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--accent-deep); letter-spacing: .14em; text-transform: uppercase;
+  }
+  .agents-page .agent-state .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-deep);
+    animation: agentsPulse 2s ease-in-out infinite;
+  }
+  @keyframes agentsPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  .agents-page .agent-title {
+    font-family: var(--serif); font-size: 32px;
+    line-height: 1.05; letter-spacing: -.012em;
+    color: var(--ink); margin: 0; font-weight: 400;
+  }
+  .agents-page .agent-title em { font-style: italic; color: var(--accent-deep); }
+  .agents-page .agent-sub {
+    font-family: var(--serif); font-size: 17px;
+    color: var(--ink-2); line-height: 1.35; margin-top: 4px;
+  }
+
+  .agents-page .agent-mark {
+    width: 64px; height: 64px;
+    border: 1px solid var(--rule-soft); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: var(--doc, #fafaf6);
+    position: relative; overflow: hidden;
+  }
+  .agents-page .agent-mark::before {
+    content: ''; position: absolute;
+    top: 6px; left: 6px; right: 6px; bottom: 6px;
+    border: 1px solid var(--rule-soft); border-radius: 3px;
+  }
+  .agents-page .agent-mark .glyph {
+    font-family: var(--serif); font-size: 34px;
+    color: var(--ink); font-style: italic;
+    letter-spacing: -.02em; position: relative; z-index: 1;
+  }
+  .agents-page .agent-mark .glyph em { color: var(--accent-deep); }
+
+  .agents-page .agent-body {
+    padding: 14px 22px 12px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .agents-page .agent-features { display: flex; flex-direction: column; gap: 6px; }
+  .agents-page .feat {
+    display: grid; grid-template-columns: 24px 1fr;
+    gap: 8px; align-items: start;
+    padding: 5px 0;
+    border-bottom: 1px dotted var(--rule-soft);
+  }
+  .agents-page .feat:last-child { border-bottom: none; }
+  .agents-page .feat .n {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-4); letter-spacing: .14em;
+  }
+  .agents-page .feat .t {
+    font-family: var(--sans); font-size: 13px;
+    color: var(--ink-2); letter-spacing: 0; line-height: 1.4;
+  }
+  .agents-page .feat .t em { font-style: italic; color: var(--accent-deep); }
+
+  .agents-page .agent-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border-top: 1px dotted var(--rule-soft);
+    padding-top: 10px;
+  }
+  .agents-page .as {
+    display: flex; flex-direction: column; gap: 2px;
+    border-right: 1px dotted var(--rule-soft);
+    padding-right: 8px;
+  }
+  .agents-page .as:last-child { border-right: none; padding-right: 0; }
+  .agents-page .as-l {
+    font-family: var(--mono); font-size: 9px;
+    color: var(--ink-4); letter-spacing: .14em; text-transform: uppercase;
+  }
+  .agents-page .as-v {
+    font-family: var(--serif); font-size: 20px;
+    color: var(--ink); line-height: 1;
+  }
+  .agents-page .as-v em { font-style: italic; color: var(--accent-deep); }
+
+  .agents-page .agent-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .agents-page .tg {
+    font-family: var(--mono); font-size: 9px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+    border: 1px solid var(--rule-thread, #cbc4b1);
+    border-radius: 2px; padding: 2px 6px;
+  }
+
+  .agents-page .agent-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 22px;
+    border-top: 1px solid var(--rule-soft);
+    background: rgba(0,0,0,.02);
+    font-family: var(--mono); font-size: 10px;
+    color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase;
+  }
+  .agents-page .agent-foot .open {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--ink); transition: color .15s, gap .15s;
+  }
+  .agents-page .agent:hover .agent-foot .open { color: var(--accent-deep); gap: 10px; }
+  .agents-page .agent-foot .open svg { width: 12px; height: 12px; }
+
+  /* Coming-soon dashed variant */
+  .agents-page .agent.soon { border-style: dashed; background: transparent; cursor: default; }
+  .agents-page .agent.soon:hover { transform: none; border-color: var(--rule-thread, #cbc4b1); }
+  .agents-page .agent.soon::before, .agents-page .agent.soon::after { display: none; }
+  .agents-page .agent.soon .agent-state { color: var(--ink-4); }
+  .agents-page .agent.soon .agent-state .pip { background: var(--ink-4); animation: none; }
+  .agents-page .agent.soon .agent-title { color: var(--ink-3); }
+  .agents-page .agent.soon .agent-title em { color: var(--ink-3); }
+  .agents-page .agent.soon .agent-sub { color: var(--ink-3); }
+  .agents-page .agent.soon .agent-mark { border-style: dashed; background: transparent; }
+  .agents-page .agent.soon .agent-mark .glyph,
+  .agents-page .agent.soon .agent-mark .glyph em { color: var(--ink-4); }
+
+  /* Methodology block */
+  .agents-page .method {
+    margin-top: 24px;
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper-2);
+    padding: 22px 24px;
+  }
+  .agents-page .method-row {
+    display: grid; grid-template-columns: 1fr 1.6fr;
+    gap: 24px; align-items: start;
+  }
+  @media (max-width: 900px) { .agents-page .method-row { grid-template-columns: 1fr; } }
+  .agents-page .method-l h3 {
+    font-family: var(--serif); font-weight: 400;
+    font-size: 30px; line-height: 1.05; letter-spacing: -.01em;
+    margin: 0 0 8px;
+  }
+  .agents-page .method-l h3 em { font-style: italic; color: var(--accent-deep); }
+  .agents-page .method-l p {
+    font-family: var(--serif); font-size: 17px;
+    color: var(--ink-2); line-height: 1.4; margin: 0;
+  }
+  .agents-page .method-r {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--rule-soft);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  @media (max-width: 700px) { .agents-page .method-r { grid-template-columns: 1fr; } }
+  .agents-page .mc {
+    padding: 12px 14px;
+    border-right: 1px solid var(--rule-soft);
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .agents-page .mc:last-child { border-right: none; }
+  @media (max-width: 700px) {
+    .agents-page .mc { border-right: none; border-bottom: 1px solid var(--rule-soft); }
+    .agents-page .mc:last-child { border-bottom: none; }
+  }
+  .agents-page .mc-l {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .14em; text-transform: uppercase;
+  }
+  .agents-page .mc-t {
+    font-family: var(--serif); font-size: 18px;
+    color: var(--ink); line-height: 1.15;
+  }
+  .agents-page .mc-t em { font-style: italic; color: var(--accent-deep); }
+  .agents-page .mc-d {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-4); letter-spacing: .04em; text-transform: uppercase;
+  }
+
+  @media (max-width: 980px) {
+    main.agents-page.shell { padding: 18px 16px; }
+    .agents-page .hero { padding: 24px 18px; }
+  }
+
+  /* Footnote-style end-of-page line, matching the workspace pages */
+  .agents-page .agents-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 28px; padding-top: 18px;
+    border-top: 1px solid var(--rule-soft);
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3); letter-spacing: .04em;
+  }
+  .agents-page .agents-foot a {
+    color: var(--ink-3); border-bottom: 1px solid var(--rule-soft); padding-bottom: 1px;
+    transition: color .15s, border-color .15s;
+  }
+  .agents-page .agents-foot a:hover { color: var(--accent-deep); border-color: var(--accent-deep); }
+</style>
 </head>
 <body>
 <div id="grain"></div>
@@ -29,70 +393,221 @@ import DownloadGate from '../partials/download-gate.astro';
   <nav class="nav-links">
     <a href="/#skills">Skills</a>
     <a href="/#articles">Resources</a>
-    <a href="/agents/">Agents</a>
+    <a href="/agents/" class="is-active">Agents</a>
     <a href="/workspace/">Workspace</a>
     <a href="/tracker/">Tracker</a>
     <a href="/#services">Services</a>
     <a href="/about/">About</a>
   </nav>
   <div class="nav-right">
-    <div class="live-dot"></div>
-    <span class="nav-meta" id="nav-clock">—</span>
-    <a href="/#subscribe" class="nav-sub">Subscribe</a>
+    <a href="/account/" class="nav-sub">Account</a>
   </div>
 </header>
 
-<div class="about-wrap">
-  <section class="about-hero">
-    <div>
-      <div class="about-kicker">Agentic workflows · In practice</div>
-      <h1 class="about-title">Agents built for<br/>legal <em>practice</em>.</h1>
+<main class="agents-page shell">
+
+  <section class="hero">
+    <span class="br-bl"></span><span class="br-br"></span>
+    <div class="hero-grid">
+      <div>
+        <div class="kicker">
+          <span class="k-tag">AGENTS</span>
+          <span class="k-coord">/AGENTS · 02 ACTIVE · 02 IN DEVELOPMENT</span>
+        </div>
+        <h1 class="hero-title">Agents that <em>do the work</em>.</h1>
+        <p class="hero-sub">Single-purpose programs that read the document, run the procedure, and hand back something <em>checkable</em>. No conversational layer. No hand-waving.</p>
+      </div>
+      <div class="hero-r">
+        <div class="hero-stats">
+          <div class="hs"><span class="hs-l">RUNS · 30D</span><span class="hs-v" id="agents-stat-runs"><em>—</em></span><span class="hs-d">ACROSS BOTH AGENTS</span></div>
+          <div class="hs"><span class="hs-l">MEDIAN COMPLETION</span><span class="hs-v" id="agents-stat-median">—<em>s</em></span><span class="hs-d">P50 ACROSS RUNS</span></div>
+          <div class="hs"><span class="hs-l">FINDINGS RAISED</span><span class="hs-v" id="agents-stat-findings">—</span><span class="hs-d">CITED · CHECKABLE</span></div>
+          <div class="hs"><span class="hs-l">FALSE-POSITIVE</span><span class="hs-v" id="agents-stat-fp" style="color:var(--accent-deep)">—<em>%</em></span><span class="hs-d">REPORTED · 90D</span></div>
+        </div>
+        <span class="hero-tag">— A second pair of eyes on the procedural layer. <em>Each agent shows its work.</em></span>
+      </div>
     </div>
   </section>
 
-  <section class="about-bio">
-    <p>An agent is a multi-step AI pipeline that does real work: reads a document, fans out to specialists, assembles a deliverable. Each one listed below has been built, tested, and is running behind sign-in below.</p>
-  </section>
+  <div class="sec-div">
+    <span class="sec-num">§ A</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">ACTIVE · PRODUCTION</span>
+  </div>
 
-  <section style="max-width: 900px; margin: 30px auto 80px; padding: 0 24px;">
-    <a href="/agents/contract-review/" style="display:block; padding: 36px 30px; border: 1px solid var(--ink); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--paper-2); transition: background .2s ease, transform .2s ease;"
-       onmouseover="this.style.background='var(--paper)'; this.style.transform='translateY(-2px)';"
-       onmouseout="this.style.background='var(--paper-2)'; this.style.transform='translateY(0)';">
-      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;">Agent 01 · Active</div>
-      <h3 style="font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; letter-spacing: -.01em; margin: 0 0 14px;">Contract review &amp; redline <em>assistant</em></h3>
-      <p style="font-size: 15px; line-height: 1.6; color: var(--ink-2); margin: 0 0 18px;">Upload a contract as .docx or .pdf. The assistant runs your profile against it — seven specialist reviewers in parallel, a critical-issues sweep, then native tracked changes applied to the original file in its original format. Three deliverables: annotated contract, review summary, structured findings.</p>
-      <div style="display:flex; gap:24px; flex-wrap:wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase;">
-        <span>3 trial reviews / 30 days</span>
-        <span>· ~60s turnaround</span>
-        <span>· Format-in, format-out</span>
+  <div class="agents-grid">
+
+    <a href="/agents/contract-review/" class="agent">
+      <div class="agent-head">
+        <div class="agent-h-l">
+          <div class="agent-kicker">
+            <span class="k-tag">AGENT · 01</span>
+            <span class="agent-state"><span class="pip"></span>ACTIVE</span>
+          </div>
+          <h3 class="agent-title">Contract <em>Review</em></h3>
+          <span class="agent-sub">Reads the contract against your playbook. Flags every deviation with rationale, redline, and citation.</span>
+        </div>
+        <div class="agent-mark"><span class="glyph">§<em>I</em></span></div>
       </div>
-      <div style="margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: var(--accent-deep); letter-spacing: .04em; text-transform: uppercase;">
-        Open the assistant →
+      <div class="agent-body">
+        <div class="agent-features">
+          <div class="feat"><span class="n">01</span><span class="t">Configure a <em>playbook</em> — your standards, deal-breakers, jurisdictional rules.</span></div>
+          <div class="feat"><span class="n">02</span><span class="t">Upload the contract — DOCX or PDF, format-in / format-out.</span></div>
+          <div class="feat"><span class="n">03</span><span class="t">Pipeline runs: seven specialists in parallel → critical-issues sweep → tracked changes.</span></div>
+          <div class="feat"><span class="n">04</span><span class="t">Output — annotated contract, review summary, structured findings.</span></div>
+        </div>
+        <div class="agent-stats">
+          <div class="as"><span class="as-l">TURNAROUND</span><span class="as-v">~60<em>s</em></span></div>
+          <div class="as"><span class="as-l">TRIAL</span><span class="as-v"><em>3</em></span></div>
+          <div class="as"><span class="as-l">FORMATS</span><span class="as-v">2</span></div>
+        </div>
+        <div class="agent-tags">
+          <span class="tg">DOCX</span>
+          <span class="tg">PDF</span>
+          <span class="tg">TRACKED CHANGES</span>
+          <span class="tg">PLAYBOOK</span>
+        </div>
+      </div>
+      <div class="agent-foot">
+        <span>3 TRIAL REVIEWS / 30 DAYS</span>
+        <span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 5l7 7-7 7"/></svg></span>
       </div>
     </a>
 
-    <a href="/agents/citation-verifier/" style="display:block; margin-top: 30px; padding: 36px 30px; border: 1px solid var(--ink); border-radius: 8px; text-decoration: none; color: var(--ink); background: var(--paper-2); transition: background .2s ease, transform .2s ease;"
-       onmouseover="this.style.background='var(--paper)'; this.style.transform='translateY(-2px)';"
-       onmouseout="this.style.background='var(--paper-2)'; this.style.transform='translateY(0)';">
-      <div style="font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;">Agent 02 · Active</div>
-      <h3 style="font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.1; letter-spacing: -.01em; margin: 0 0 14px;">Citation form-check &amp; verification <em>assistant</em></h3>
-      <p style="font-size: 15px; line-height: 1.6; color: var(--ink-2); margin: 0 0 18px;">Upload a brief, motion, or memorandum as .docx or .pdf. The assistant extracts every citation, classifies it under Bluebook 22e, runs table validators, checks each case against CourtListener, and emits a tracked-changes redline plus a sign-off-ready form-check report. Two deliverables: marked-up source, form-check report.</p>
-      <div style="display:flex; gap:24px; flex-wrap:wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase;">
-        <span>Bluebook 22e</span>
-        <span>· CourtListener existence-check</span>
-        <span>· Format-in, format-out</span>
+    <a href="/agents/citation-verifier/" class="agent">
+      <div class="agent-head">
+        <div class="agent-h-l">
+          <div class="agent-kicker">
+            <span class="k-tag">AGENT · 02</span>
+            <span class="agent-state"><span class="pip"></span>ACTIVE</span>
+          </div>
+          <h3 class="agent-title">Citation <em>Verifier</em></h3>
+          <span class="agent-sub">Scans briefs, motions, and memos. Confirms each citation conforms to Bluebook 22e and that every case actually exists.</span>
+        </div>
+        <div class="agent-mark"><span class="glyph"><em>¶</em>·</span></div>
       </div>
-      <div style="margin-top: 22px; font-family: var(--mono); font-size: 11.5px; color: var(--accent-deep); letter-spacing: .04em; text-transform: uppercase;">
-        Open the assistant →
+      <div class="agent-body">
+        <div class="agent-features">
+          <div class="feat"><span class="n">01</span><span class="t">Upload the brief — DOCX or PDF accepted, format-in / format-out.</span></div>
+          <div class="feat"><span class="n">02</span><span class="t">Every citation extracted; classified under <em>Bluebook 22nd Edition</em>.</span></div>
+          <div class="feat"><span class="n">03</span><span class="t">Table validators run; each case checked against <em>CourtListener</em>.</span></div>
+          <div class="feat"><span class="n">04</span><span class="t">Output — tracked-changes redline plus a sign-off-ready form-check report.</span></div>
+        </div>
+        <div class="agent-stats">
+          <div class="as"><span class="as-l">STANDARD</span><span class="as-v"><em>22e</em></span></div>
+          <div class="as"><span class="as-l">VERIFIER</span><span class="as-v">CL</span></div>
+          <div class="as"><span class="as-l">FORMATS</span><span class="as-v">2</span></div>
+        </div>
+        <div class="agent-tags">
+          <span class="tg">BLUEBOOK</span>
+          <span class="tg">22e</span>
+          <span class="tg">COURTLISTENER</span>
+          <span class="tg">TRACKED CHANGES</span>
+        </div>
+      </div>
+      <div class="agent-foot">
+        <span>METHODOLOGY · INSIDE</span>
+        <span class="open">Open <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 5l7 7-7 7"/></svg></span>
       </div>
     </a>
 
-    <div style="margin-top: 30px; padding: 30px; border: 1px dashed var(--rule-soft); border-radius: 8px; text-align: center; color: var(--ink-3);">
-      <div style="font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px;">More agents in development</div>
-      <p style="margin: 0; font-size: 14px;">Deposition prep agent, motion drafter, and clause-review fan-out are on the roadmap.</p>
+  </div>
+
+  <div class="sec-div">
+    <span class="sec-num">§ B</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">IN DEVELOPMENT · PRIVATE BETA</span>
+  </div>
+
+  <div class="agents-grid">
+
+    <div class="agent soon">
+      <div class="agent-head">
+        <div class="agent-h-l">
+          <div class="agent-kicker">
+            <span class="k-tag" style="border-color:var(--ink-4);color:var(--ink-4)">AGENT · 03</span>
+            <span class="agent-state"><span class="pip"></span>BETA · Q3</span>
+          </div>
+          <h3 class="agent-title">Deposition <em>Prep</em></h3>
+          <span class="agent-sub">Reads the case file, builds a topic outline keyed to deposition objectives, drafts question scaffolding with exhibit links.</span>
+        </div>
+        <div class="agent-mark"><span class="glyph">Q.<em>A</em></span></div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-features">
+          <div class="feat"><span class="n">01</span><span class="t">Pull case file from a Project — pleadings, productions, prior testimony.</span></div>
+          <div class="feat"><span class="n">02</span><span class="t">Build topic outline — facts, foundation, impeachment, exhibits.</span></div>
+          <div class="feat"><span class="n">03</span><span class="t">Draft questions per topic; cross-link to source exhibits inline.</span></div>
+        </div>
+        <div class="agent-tags">
+          <span class="tg">DEPO PREP</span>
+          <span class="tg">EXHIBIT LINKING</span>
+        </div>
+      </div>
+      <div class="agent-foot">
+        <span>WAITLIST OPEN</span>
+        <span class="open" style="color:var(--ink-4)">Request access <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 5l7 7-7 7"/></svg></span>
+      </div>
     </div>
-  </section>
-</div>
+
+    <div class="agent soon">
+      <div class="agent-head">
+        <div class="agent-h-l">
+          <div class="agent-kicker">
+            <span class="k-tag" style="border-color:var(--ink-4);color:var(--ink-4)">AGENT · 04</span>
+            <span class="agent-state"><span class="pip"></span>BETA · Q4</span>
+          </div>
+          <h3 class="agent-title">Motion <em>Drafter</em></h3>
+          <span class="agent-sub">Reads the case file plus a motion-type playbook and drafts a first-pass motion with citations and a proposed order.</span>
+        </div>
+        <div class="agent-mark"><span class="glyph">M<em>D</em></span></div>
+      </div>
+      <div class="agent-body">
+        <div class="agent-features">
+          <div class="feat"><span class="n">01</span><span class="t">Pick motion type — <em>summary judgment, dismiss, compel, in limine</em>.</span></div>
+          <div class="feat"><span class="n">02</span><span class="t">Pull facts + record cites from the Project's case file.</span></div>
+          <div class="feat"><span class="n">03</span><span class="t">Generate a first-pass draft, proposed order, and a deficiency checklist.</span></div>
+        </div>
+        <div class="agent-tags">
+          <span class="tg">MSJ</span>
+          <span class="tg">MTD</span>
+          <span class="tg">DRAFTING</span>
+        </div>
+      </div>
+      <div class="agent-foot">
+        <span>WAITLIST OPEN</span>
+        <span class="open" style="color:var(--ink-4)">Request access <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 5l7 7-7 7"/></svg></span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="sec-div">
+    <span class="sec-num">§ C</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">HOW THEY WORK · UNDER THE HOOD</span>
+  </div>
+
+  <div class="method">
+    <div class="method-row">
+      <div class="method-l">
+        <h3>Each agent <em>shows its work</em>.</h3>
+        <p>Findings are linked to source spans. Pipelines stream their steps. The trace is auditable end-to-end — so you can defend the output, not just trust it.</p>
+      </div>
+      <div class="method-r">
+        <div class="mc"><span class="mc-l">— GROUNDING</span><span class="mc-t">Cited <em>spans</em>, not paraphrase</span><span class="mc-d">EVERY FINDING ANCHORS</span></div>
+        <div class="mc"><span class="mc-l">— TRACE</span><span class="mc-t">Pipeline steps <em>streamed live</em></span><span class="mc-d">VIEWABLE PER RUN</span></div>
+        <div class="mc"><span class="mc-l">— EVAL</span><span class="mc-t">Quarterly <em>blind benchmark</em></span><span class="mc-d">PUBLISHED · METHODOLOGY</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="agents-foot">
+    <span><span style="color:var(--ink-4)">EOF</span> &nbsp; · &nbsp; END OF AGENTS</span>
+    <a href="/workspace/">Workspace →</a>
+  </p>
+
+</main>
 
 <footer class="foot">
   <div class="foot-top">
@@ -130,6 +645,44 @@ import DownloadGate from '../partials/download-gate.astro';
   }
   tick();
   setInterval(tick, 1000);
+})();
+
+// Hero stats — pull live aggregates from /api/agents-stats so the four
+// values in the hero (runs, median completion, findings raised, false-
+// positive rate) reflect real database numbers instead of placeholders.
+// Endpoint is public, no-auth, 5-minute server-side cached.
+(function loadAgentStats() {
+  const fmt = (n) => Number(n).toLocaleString('en-US');
+  const runs = document.getElementById('agents-stat-runs');
+  const median = document.getElementById('agents-stat-median');
+  const findings = document.getElementById('agents-stat-findings');
+  const fp = document.getElementById('agents-stat-fp');
+
+  fetch('/.netlify/functions/agents-stats')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data?.ok || !data.stats) return;
+      const s = data.stats;
+      if (runs) runs.innerHTML = `<em>${fmt(s.runs_30d || 0)}</em>`;
+      if (median) {
+        median.innerHTML = s.median_completion_s != null
+          ? `${s.median_completion_s}<em>s</em>`
+          : `—<em>s</em>`;
+      }
+      if (findings) findings.textContent = fmt(s.findings_raised || 0);
+      if (fp) {
+        if (s.false_positive_pct != null) {
+          fp.innerHTML = `${s.false_positive_pct}<em>%</em>`;
+        } else {
+          // No feedback-tracking schema yet — hide the row's value cleanly
+          // so the lawyer doesn't see a fabricated number.
+          fp.textContent = '—';
+        }
+      }
+    })
+    .catch((err) => {
+      console.warn('[agents stats] failed to load:', err?.message);
+    });
 })();
 </script>
 
