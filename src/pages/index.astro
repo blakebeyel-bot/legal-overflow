@@ -1518,6 +1518,181 @@ State X (UPC-based)
   startSkill();
 })();
 
+// ============ skill-card → workflow / chat integration ============
+// Repurpose every "Download prompt pack" link as a save-to-workflows
+// action AND inject a sibling "Run in chat" button. Saves the user
+// from leaving the site to use the prompt pack — they can drop it
+// into their workspace workflows tab and run it directly inside the
+// chat surface. Falls back to the original .md download for users
+// who aren't logged in (they get a toast nudging them to sign in).
+(function skillCardWorkflowGlue() {
+  // The download links carry hrefs like:
+  //   /assets/skills/<slug>-prompts.md
+  // We use that to fetch the .md content client-side, then POST to
+  // /api/workspace-workflows-save with kind='chat' + the body as
+  // prompt_md. The card's H3 supplies the workflow title.
+  const SUPA_URL = window.__SUPABASE_URL || (window.localStorage && (
+    Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'))
+  )) || null;
+
+  // Read Supabase auth from localStorage (the supabase-js client
+  // persists tokens there). No SDK import needed in this static
+  // marketing page — we just need to know if a session exists and
+  // grab the access_token to call our API.
+  function readAccessToken() {
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (!key.startsWith('sb-') || !key.endsWith('-auth-token')) continue;
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const j = JSON.parse(raw);
+        const tok = j?.access_token || j?.currentSession?.access_token;
+        if (tok) return tok;
+      }
+    } catch {}
+    return null;
+  }
+
+  function toast(msg, opts) {
+    if (typeof window.siteToast === 'function') return window.siteToast(msg, opts || {});
+    // Fallback if site-dialog hasn't loaded yet
+    console.log('[skill-pack]', msg);
+  }
+
+  // Title parsing — the .md files commonly start with `# Title` —
+  // but we already have the visible card title which is usually
+  // cleaner. Use the card title for the workflow row name.
+  function cardTitle(card) {
+    const h = card.querySelector('.skill-title');
+    return (h?.textContent || 'Imported prompt pack').trim();
+  }
+  function cardDescription(card) {
+    const p = card.querySelector('.skill-desc');
+    return (p?.textContent || '').trim().slice(0, 1500);
+  }
+
+  async function saveToWorkflows(card, mdUrl) {
+    const token = readAccessToken();
+    if (!token) {
+      toast('Sign in to save this to your workflows', { kind: 'warn' });
+      // Optional: redirect after a short delay so the user can read the toast
+      setTimeout(() => { location.href = '/login/?redirect=' + encodeURIComponent(location.pathname + '#skills'); }, 1500);
+      return null;
+    }
+    let promptMd = '';
+    try {
+      const r = await fetch(mdUrl, { cache: 'no-cache' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      promptMd = await r.text();
+    } catch (err) {
+      toast('Could not fetch prompt pack: ' + err.message, { kind: 'error' });
+      return null;
+    }
+    try {
+      const r = await fetch('/.netlify/functions/workspace-workflows-save', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'chat',
+          title: cardTitle(card),
+          description: cardDescription(card),
+          prompt_md: promptMd,
+          // Mark as prompt-pack so chats bound to this workflow
+          // auto-prime an opening assistant message — the model
+          // greets the user and asks the first guided question
+          // to walk them toward the final deliverable.
+          is_prompt_pack: true,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        toast(j.error || 'Save failed', { kind: 'error' });
+        return null;
+      }
+      return j.workflow;
+    } catch (err) {
+      toast('Save failed: ' + err.message, { kind: 'error' });
+      return null;
+    }
+  }
+
+  async function runInChat(card, mdUrl) {
+    const wf = await saveToWorkflows(card, mdUrl);
+    if (!wf) return;   // saveToWorkflows already toasted the failure / login nudge
+    const token = readAccessToken();
+    // Pull the user's preferred model from the universal pref key
+    // the dashboard / chat page write to. If unset, the server
+    // falls back to claude-sonnet-4-5. Either way the user can
+    // change it from the chat dropdown afterward.
+    let preferredModel = '';
+    try { preferredModel = localStorage.getItem('workspace.dash.model') || ''; } catch {}
+    try {
+      const r = await fetch('/.netlify/functions/workspace-chats-create', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflow_id: wf.id,
+          ...(preferredModel ? { model: preferredModel } : {}),
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j.id) {
+        toast(j.error || 'Could not start chat', { kind: 'error' });
+        return;
+      }
+      // Soft transition — toast first so they know the save succeeded
+      toast('Saved to your workflows · opening chat…', { kind: 'success', duration: 1500 });
+      setTimeout(() => { location.href = '/workspace/chat/?id=' + encodeURIComponent(j.id); }, 700);
+    } catch (err) {
+      toast('Could not start chat: ' + err.message, { kind: 'error' });
+    }
+  }
+
+  function rewireSkillCard(card) {
+    // Find the existing "Download prompt pack" link.
+    const dl = Array.from(card.querySelectorAll('a.skill-dl[href*="-prompts.md"]'))[0];
+    if (!dl) return;
+    if (dl.dataset.workflowWired) return;
+    dl.dataset.workflowWired = '1';
+    const mdUrl = dl.getAttribute('href');
+    // Repurpose: change label, intercept click → save to workflows.
+    const label = dl.querySelector('span');
+    if (label) label.textContent = 'Save to my workflows';
+    dl.removeAttribute('download');
+    dl.setAttribute('href', '#');
+    dl.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const wf = await saveToWorkflows(card, mdUrl);
+      if (wf) toast(`"${wf.title}" saved to your workflows`, { kind: 'success', duration: 3000 });
+    });
+    // Inject the new "Run in chat" sibling next to the save button.
+    const run = document.createElement('a');
+    run.href = '#';
+    run.className = 'skill-dl skill-run primary';
+    run.dataset.skillRun = '1';
+    run.innerHTML = `
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+        <path d="M5 3l8 5-8 5V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+      <span>Run in chat</span>
+    `;
+    run.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await runInChat(card, mdUrl);
+    });
+    dl.parentNode.insertBefore(run, dl);
+  }
+
+  function rewireAll() {
+    document.querySelectorAll('.skill-card').forEach(rewireSkillCard);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', rewireAll);
+  } else {
+    rewireAll();
+  }
+})();
+
 </script>
 
 <DownloadGate />

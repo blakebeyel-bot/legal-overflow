@@ -310,15 +310,26 @@ async function* parseSSE(body: ReadableStream<Uint8Array>) {
   }
 }
 
-async function* streamAnthropic(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
+async function* streamAnthropic(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] }; deepThink?: boolean }) {
   const body: any = {
     model: opts.model,
     system: opts.system,
     messages: opts.messages,
-    max_tokens: 4096,
+    max_tokens: opts.deepThink ? 16000 : 4096,   // bump output budget when thinking is enabled
     temperature: 0.4,
     stream: true,
   };
+  // Anthropic extended thinking — Claude 3.7+ and Claude 4+ support
+  // a private scratchpad before the visible answer. budget_tokens
+  // governs how much the model reasons; 10k is a good middle ground
+  // (stronger than default, doesn't blow latency through the roof).
+  // When deep-think is off, we send no thinking field so the model
+  // uses its standard fast-response mode.
+  if (opts.deepThink) {
+    body.thinking = { type: 'enabled', budget_tokens: 10_000 };
+    // Extended thinking REQUIRES temperature=1 per Anthropic's API.
+    body.temperature = 1;
+  }
   // Anthropic's server-side web_search tool. When enabled, the model
   // can issue searches on its own; results stream back as
   // server_tool_use + web_search_tool_result content blocks. We
@@ -401,7 +412,28 @@ async function* streamAnthropic(opts: { key: string; model: string; system: stri
   }
 }
 
-async function* streamOpenAI(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
+// True when the OpenAI model ID requires the Responses API
+// (/v1/responses) instead of Chat Completions (/v1/chat/completions).
+// OpenAI returns 404 "this is not a chat model" on Chat Completions
+// for o1/o3/o4 reasoning models and the GPT-5 Pro / heavy variants.
+// Pattern: o-series and any gpt-5 with "pro" or "reasoning" in name.
+// Plain gpt-5 / gpt-5-mini still work on Chat Completions today.
+function openaiNeedsResponsesApi(model: string): boolean {
+  const s = (model || '').toLowerCase();
+  if (/^o[1-9]/.test(s)) return true;
+  if (/^gpt-5.*-pro\b/.test(s)) return true;
+  if (/^gpt-5.*-reasoning\b/.test(s)) return true;
+  if (/^gpt-5\.5/.test(s)) return true;          // gpt-5.5 family
+  return false;
+}
+
+async function* streamOpenAI(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] }; deepThink?: boolean }) {
+  // Route newer reasoning-heavy models to the Responses API; older
+  // gpt-4* / gpt-5 base / gpt-5-mini stay on Chat Completions.
+  if (openaiNeedsResponsesApi(opts.model)) {
+    yield* streamOpenAIResponses(opts);
+    return;
+  }
   const msgs: any[] = [];
   if (opts.system) msgs.push({ role: 'system', content: opts.system });
   msgs.push(...opts.messages);
@@ -409,16 +441,18 @@ async function* streamOpenAI(opts: { key: string; model: string; system: string;
   // max_tokens. Use the new name for everything modern; OpenAI accepts
   // it for older models too as a graceful fallback.
   //
-  // We do NOT cap reasoning_effort. This site is built around legal
-  // reasoning — users WANT the model to think hard. Default effort
-  // (medium) is fine; if a user needs faster turnaround they can pick
-  // a non-reasoning model like gpt-4.1.
+  // reasoning_effort applies to o1/o3/o4 and GPT-5 reasoning models.
+  // When deep-think is on we set 'high'; otherwise omit so the API
+  // uses its default ('medium' for reasoning models, n/a for non).
   const body: any = {
     model: opts.model,
     messages: msgs,
-    max_completion_tokens: 4096,
+    max_completion_tokens: opts.deepThink ? 16000 : 4096,
     stream: true,
   };
+  if (opts.deepThink) {
+    body.reasoning_effort = 'high';
+  }
   // OpenAI Chat Completions web search is model-specific. Only attach
   // the tool for models that explicitly support it (gpt-4o-search-*,
   // gpt-5-search-*, etc.). For non-search models the system prompt
@@ -441,7 +475,74 @@ async function* streamOpenAI(opts: { key: string; model: string; system: string;
   }
 }
 
-async function* streamXAI(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
+// OpenAI Responses API — required for o1/o3/o4 reasoning models and
+// gpt-5 reasoning-heavy variants (Pro, Reasoning, 5.5). Same shape
+// as xAI's Responses path: instructions for system, input array of
+// {role, content}, content blocks use input_text / input_image.
+//
+// CRITICAL: when an upstream caller has rewritten the user message
+// to OpenAI Chat Completions image format ({type: 'image_url',
+// image_url: {url}}), we re-shape it here to Responses format
+// ({type: 'input_image', image_url: '<url-string>'}). The chat
+// pipeline doesn't know in advance which OpenAI endpoint will be
+// used — it builds Chat Completions blocks and we adapt here.
+async function* streamOpenAIResponses(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] }; deepThink?: boolean }) {
+  const input = opts.messages.map((m: any) => {
+    if (Array.isArray(m.content)) {
+      // Adapt Chat Completions content blocks → Responses blocks
+      const parts = m.content.map((b: any) => {
+        if (b?.type === 'text')  return { type: 'input_text',  text: b.text || '' };
+        if (b?.type === 'image_url') {
+          const url = typeof b.image_url === 'string' ? b.image_url : (b.image_url?.url || '');
+          return { type: 'input_image', image_url: url, detail: 'high' };
+        }
+        // input_* blocks pass through unchanged (already correct shape)
+        if (b?.type === 'input_text' || b?.type === 'input_image') return b;
+        return { type: 'input_text', text: String(b?.text || '') };
+      });
+      return { role: m.role, content: parts };
+    }
+    // Plain string content stays a string
+    return { role: m.role, content: m.content };
+  });
+  const body: any = {
+    model: opts.model,
+    instructions: opts.system,
+    input,
+    max_output_tokens: opts.deepThink ? 16000 : 4096,
+    stream: true,
+  };
+  if (opts.webSearch?.enabled) {
+    body.tools = [{ type: 'web_search' }];
+  }
+  if (opts.deepThink) {
+    body.reasoning = { effort: 'high' };
+  }
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.key}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`OpenAI Responses ${res.status}: ${(await res.text()).slice(0, 400)}`);
+  for await (const ev of parseSSE(res.body!)) {
+    if (!ev.data || ev.data === '[DONE]') continue;
+    let d: any;
+    try { d = JSON.parse(ev.data); } catch { continue; }
+    if (d.type === 'response.web_search_call.in_progress' || d.type === 'response.web_search_call.searching') {
+      yield { type: 'status', message: 'Searching the web for relevant authority…' };
+      continue;
+    }
+    if (d.type === 'response.web_search_call.completed') {
+      yield { type: 'status', message: 'Reading search results…' };
+      continue;
+    }
+    if (d.type === 'response.output_text.delta' && typeof d.delta === 'string') {
+      yield { type: 'text', delta: d.delta };
+    }
+  }
+}
+
+async function* streamXAI(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] }; deepThink?: boolean }) {
   // xAI's Responses API (/v1/responses) — replaces the deprecated
   // Live Search on /v1/chat/completions. Mirrors OpenAI's Responses
   // shape closely:
@@ -464,12 +565,26 @@ async function* streamXAI(opts: { key: string; model: string; system: string; me
     model: opts.model,
     instructions: opts.system,
     input,
-    max_output_tokens: 4096,
+    max_output_tokens: opts.deepThink ? 16000 : 4096,
     temperature: 0.4,
     stream: true,
   };
   if (opts.webSearch?.enabled) {
     body.tools = [{ type: 'web_search' }];
+  }
+  // xAI Responses API exposes reasoning effort via a `reasoning`
+  // object, mirroring OpenAI's Responses API. high = max scratchpad,
+  // medium = default, low = quick. Omitted entirely when deep-think
+  // is off so non-reasoning Grok variants don't get a payload they
+  // don't understand.
+  //
+  // CRITICAL: Grok "*-reasoning" SKUs (e.g. grok-4.20-0309-reasoning,
+  // grok-4-fast-reasoning) are dedicated reasoning models that
+  // ALWAYS reason at max effort. They REJECT the explicit
+  // reasoning_effort parameter with a 400. Skip the param for them;
+  // they're already doing what deep-think requests.
+  if (opts.deepThink && !/-reasoning(?:-|$)/.test(opts.model)) {
+    body.reasoning = { effort: 'high' };
   }
   const res = await fetch('https://api.x.ai/v1/responses', {
     method: 'POST',
@@ -498,16 +613,36 @@ async function* streamXAI(opts: { key: string; model: string; system: string; me
   }
 }
 
-async function* streamGoogle(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] } }) {
+async function* streamGoogle(opts: { key: string; model: string; system: string; messages: any[]; webSearch?: { enabled: boolean; allowedDomains?: string[] }; deepThink?: boolean }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(opts.key)}`;
   console.log(`[chat-stream] Google URL: ${url.replace(opts.key, '<REDACTED>')}`);
-  const contents = opts.messages.map((m: any) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
+  const contents = opts.messages.map((m: any) => {
+    // Google's parts[] format mixes text + inline_data (images)
+    // freely. When the upstream chat-stream attached `images` to a
+    // user message (vision-capable Gemini models), expand them into
+    // inline_data parts alongside the text.
+    const role = m.role === 'assistant' ? 'model' : 'user';
+    const parts: any[] = [];
+    if (Array.isArray(m.images) && m.images.length) {
+      for (const img of m.images) {
+        parts.push({ inline_data: { mime_type: img.mimeType, data: img.data } });
+      }
+    }
+    parts.push({ text: typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.map((c: any) => c.text || '').filter(Boolean).join('\n') : '') });
+    return { role, parts };
+  });
   const body: any = {
     contents,
-    generationConfig: { maxOutputTokens: 4096, temperature: 0.4 },
+    generationConfig: {
+      maxOutputTokens: opts.deepThink ? 16000 : 4096,
+      temperature: 0.4,
+      // Gemini 2.5+ thinkingConfig — the model spends extra tokens
+      // reasoning before producing visible text. thinkingBudget=10k
+      // gives a strong scratchpad without absurd latency. Field is
+      // ignored by older Gemini versions, so it's safe even if
+      // detectReasoning misclassifies (additive only).
+      ...(opts.deepThink ? { thinkingConfig: { thinkingBudget: 10_000 } } : {}),
+    },
     // Google Search grounding. No domain restriction available; the
     // system prompt's domain preferences carry the constraint.
     ...(opts.webSearch?.enabled ? { tools: [{ google_search: {} }] } : {}),
@@ -633,15 +768,24 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const content = String(body.content || '').trim();
   const requestedModel = body.model;
   const attachmentIds: string[] = Array.isArray(body.attachments) ? body.attachments.filter((x: any) => typeof x === 'string') : [];
+  // Deep-think toggle — when true AND the selected model supports
+  // extended reasoning, we pass the provider's reasoning-effort knob
+  // set high. Models that don't support reasoning silently ignore it
+  // (we omit the param in their respective stream functions).
+  const deepThink: boolean = body.deep_think === true;
   // Research-mode toggles — { statutes_enabled, case_law_enabled,
   // legiscan_enabled, state }. All optional; default to off.
   const lawSettingsRaw = body.law_settings && typeof body.law_settings === 'object' ? body.law_settings : {};
   if (!chatId) return json({ error: 'Missing chat_id' }, 400);
-  if (!content) return json({ error: 'Empty message' }, 400);
+  // Allow an empty message body WHEN at least one attachment is
+  // present — user can drop a file and hit send with no typed text.
+  // The model still has the attachment context to react to.
+  if (!content && attachmentIds.length === 0) return json({ error: 'Empty message' }, 400);
   if (content.length > 50_000) return json({ error: 'Message too long' }, 400);
 
-  // Verify chat ownership
-  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id,law_settings`);
+  // Verify chat ownership; also pull anchored_item_ids so the vault
+  // retrieval below can guarantee chunks + images from pinned docs.
+  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id,law_settings,anchored_item_ids`);
   const chat = chats[0];
   if (!chat) return json({ error: 'Chat not found' }, 404);
 
@@ -704,9 +848,51 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   let workflowSystemPrompt: string | null = null;
   if (chat.workflow_id) {
     try {
-      const wfRows = await sbSelect(`workspace_workflows?id=eq.${chat.workflow_id}&or=(user_id.eq.${user.id},and(user_id.is.null,is_published.eq.true))&select=prompt_md,kind`);
+      const wfRows = await sbSelect(`workspace_workflows?id=eq.${chat.workflow_id}&or=(user_id.eq.${user.id},and(user_id.is.null,is_published.eq.true))&select=prompt_md,kind,is_prompt_pack`);
       const wf = wfRows[0];
-      if (wf?.kind === 'chat' && wf.prompt_md) workflowSystemPrompt = wf.prompt_md;
+      if (wf?.kind === 'chat' && wf.prompt_md) {
+        // For homepage-imported prompt packs, wrap the raw pack
+        // content with a conversational instruction. Without this,
+        // the model sees a multi-step methodology in its system
+        // prompt and dumps the entire final deliverable in one
+        // response — the user can't follow along or correct
+        // course. The wrapper instructs the model to walk through
+        // the methodology step by step, conversationally.
+        // User-created workflows skip the wrapper — those authors
+        // wrote the prompt assuming direct execution.
+        if (wf.is_prompt_pack) {
+          workflowSystemPrompt = `You are guiding the user through a piece of legal work as a back-and-forth conversation. You have a methodology (below) that you follow internally, but the user should NEVER see the seams of that methodology. Talk like a colleague who happens to know what to do next, not a script reading itself out loud.
+
+CONVERSATION STYLE — ABSOLUTE RULES:
+
+1. NEVER reference the methodology's internal structure in user-facing text. Don't say "Prompt 5", "Step 3", "Phase 2", "the next step in the workflow", "per the methodology", "let's run X next", etc. The user does not know there's a script.
+
+2. Talk naturally. "Want me to look at the liability cap next?" — yes. "Would you like me to run Prompt 5 (limitation-of-liability deep-read) next?" — no, that's robotic.
+
+3. Acknowledge briefly what the user just shared, then move forward — don't recap or summarize what they said back to them in formal language.
+
+4. Take ONE step forward per turn — the smallest concrete unit of progress that produces something the user can react to (a finding, an observation, a question, a draft suggestion).
+
+5. Ask a focused clarifying question whenever something is ambiguous or a real decision-point appears. Don't ask permission for every step — only when there's a genuine choice the user should make.
+
+6. Show your work as you go — quote the relevant clause or fact you're operating on so the user can follow along. Use light formatting (a quoted sentence, a short list) but no heavy headings or numbered playbooks.
+
+7. Use first-person plural sparingly ("we", "let's") and second-person freely ("you"). Avoid stilted hedges like "I would suggest that we consider..." — just say "I'd push back on..." or "Worth flagging that..."
+
+8. When you've gathered all the inputs the methodology needs, produce the final deliverable in one clear response and offer to refine specific parts.
+
+9. If the user explicitly says "just give me the final output" or similar, you may produce it directly — but otherwise default to the conversational mode.
+
+You're a sharp colleague working through this with them. Not a chatbot. Not a tutorial. Not a script.
+
+YOUR METHODOLOGY (the user does NOT see this — internal-only guide for what to cover):
+====================
+${wf.prompt_md}
+====================`;
+        } else {
+          workflowSystemPrompt = wf.prompt_md;
+        }
+      }
     } catch (err) {
       console.error('[chat-stream] workflow lookup failed:', err);
     }
@@ -737,9 +923,13 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const rawDocs: { id: string; filename: string; text: string }[] = [];
   if (attachmentIds.length > 0) {
     try {
-      // Get the docs (filtered to user-owned)
-      const idList = attachmentIds.map((id) => `"${id}"`).join(',');
+      // Get the docs (filtered to user-owned). PostgREST `in.()`
+      // wants UUIDs UNQUOTED — quoted form sometimes silently
+      // returns empty result, which would make the attachment
+      // chip render but the model never see the doc text.
+      const idList = attachmentIds.join(',');
       const docs = await sbSelect(`workspace_documents?id=in.(${idList})&user_id=eq.${user.id}&deleted_at=is.null&select=id,filename,current_version_id`);
+      console.log(`[chat-stream] attachment lookup: ${attachmentIds.length} requested, ${(docs as any[])?.length || 0} resolved`);
       for (const d of docs as any[]) {
         if (!d.current_version_id) continue;
         const versions = await sbSelect(`workspace_document_versions?id=eq.${d.current_version_id}&select=extracted_text,extraction_status`);
@@ -829,12 +1019,29 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
 
   // Load history (excluding the just-inserted user msg, we'll add it explicitly)
   const histRows = await sbSelect(`workspace_chat_messages?chat_id=eq.${chatId}&id=neq.${userMsgRow.id}&status=eq.complete&order=created_at.asc&limit=40&select=role,content`);
+  // Filter history rows: skip any with truly empty content (these
+  // are user attachment-only turns where the chip is the message).
+  // The model will see the attachment context via the system prompt's
+  // attachmentContext block — no need for a placeholder per turn,
+  // and including empty content here would 400 most LLM APIs.
+  // EXCEPT for the just-being-sent turn (handled below) where we
+  // synthesize a minimal placeholder so the LLM accepts the request.
   const messages = (histRows as any[])
     .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .filter((m) => (m.content && String(m.content).trim().length > 0))
     .map((m) => ({ role: m.role, content: m.content || '' }));
   // Use the abstracted content as the current user turn for the
-  // model — so the LLM only ever sees the hypothetical form.
-  messages.push({ role: 'user', content: privacyContent });
+  // model — so the LLM only ever sees the hypothetical form. When
+  // the user sent ONLY an attachment (no typed text), the
+  // privacyContent / content is empty. The LLM APIs require
+  // non-empty user content, so we substitute a minimal placeholder.
+  // The user does not see this — only the LLM does. They see the
+  // attachment chip in their bubble; the model gets the file text
+  // via the attachmentContext block in the system prompt.
+  const llmUserContent = (privacyContent && privacyContent.trim())
+    ? privacyContent
+    : '(The user sent an attached document with no message. Please review the document and respond conversationally.)';
+  messages.push({ role: 'user', content: llmUserContent });
 
   // ---- Research-mode pre-grounding ----
   // Pre-grounding now runs INSIDE the stream's start() callback below
@@ -845,6 +1052,13 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   let caseLawBlock = '';
   let legiscanBlock = '';
   let vaultBlock = '';
+  // Image hits captured from the vault retrieval. Used after the
+  // promise settles to attach pixel bytes to the user message when
+  // the chat model is vision-capable. Each entry has the storage_path
+  // we'll download from + caption text we'll surface even for
+  // non-vision models. Capped to 3 by the time we attach (cost +
+  // latency control).
+  let vaultImageHits: any[] = [];
 
   const asstRow = await sbInsert('workspace_chat_messages', {
     chat_id: chatId, role: 'assistant', content: '', status: 'streaming', model_used: modelId,
@@ -861,8 +1075,20 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      // Guarded SSE send — once the stream has been closed (e.g. an
+      // LLM-call error fired its own send→close sequence), further
+      // enqueue calls throw "stream controller cannot close or
+      // enqueue". Catch + log so a single late event doesn't bubble
+      // up as an uncaught exception in the edge runtime.
+      let _streamClosed = false;
       const send = (event: string, data: any) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (_streamClosed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch (err) {
+          _streamClosed = true;
+          console.warn(`[chat-stream] send(${event}) after close: ${(err as any)?.message}`);
+        }
       };
       send('start', {
         message_id: asstRow.id,
@@ -925,9 +1151,16 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
                 return '';
               }
 
-              // 4. RPC the vector search (workspace_vault_search)
+              // 4. RPC the vector search (workspace_vault_search) AND
+              //    in parallel, the image-vector search (added in
+              //    migration 0032). Image hits surface alongside text
+              //    chunks so the chat model can answer "what's in the
+              //    diagram on page 4?" via captions even when no text
+              //    chunk mentions the image. The image RPC silently
+              //    returns nothing if migration 0032 isn't applied,
+              //    keeping this code safe to ship before the migration.
               const lit = '[' + queryVec.map((n: number) => Number(n).toFixed(7)).join(',') + ']';
-              const rpc = await fetch(`${SB_URL}/rest/v1/rpc/workspace_vault_search`, {
+              const textRpcPromise = fetch(`${SB_URL}/rest/v1/rpc/workspace_vault_search`, {
                 method: 'POST',
                 headers: {
                   apikey: SB_SERVICE_KEY,
@@ -943,12 +1176,194 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
                   p_include_archived: false,
                 }),
               });
+              // Map text-embedding provider → multimodal-capable
+              // provider for the image RPC. Voyage / Gemini share
+              // vector spaces with their multimodal siblings (we use
+              // matching dimensions); OpenAI users get an empty image
+              // result (no public OpenAI multimodal embedding API).
+              const mmProvider = vaultProvider === 'voyage' ? 'voyage'
+                : vaultProvider === 'gemini' ? 'gemini'
+                : null;
+              const imageRpcPromise = mmProvider
+                ? fetch(`${SB_URL}/rest/v1/rpc/workspace_vault_image_search`, {
+                    method: 'POST',
+                    headers: {
+                      apikey: SB_SERVICE_KEY,
+                      Authorization: `Bearer ${SB_SERVICE_KEY}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      p_user_id: user.id,
+                      p_query_vec: lit,
+                      p_top_k: 4,
+                      p_provider: mmProvider,
+                      p_include_archived: false,
+                    }),
+                  }).catch(() => null)
+                : Promise.resolve(null);
+
+              const [rpc, imageRpc] = await Promise.all([textRpcPromise, imageRpcPromise]);
               if (!rpc.ok) {
                 send('status', { phase: 'vault_done', message: '🗂️ Vault search RPC failed' });
                 return '';
               }
               const rows: any[] = await rpc.json();
-              if (!Array.isArray(rows) || rows.length === 0) {
+              const imageRows: any[] = (imageRpc && imageRpc.ok) ? await imageRpc.json().catch(() => []) : [];
+
+              // ---- Anchored items ----
+              // Pinned vault items get a guaranteed seat at the table:
+              //   - Top 3 chunks per anchored item ALWAYS go into rows
+              //     (sorted by chunk_index ASC for predictability),
+              //     letting the model see the doc's opening + key
+              //     content even when the user's query text doesn't
+              //     match anything semantically.
+              //   - All images from anchored items always go into the
+              //     image-attachment lookup, so vision-capable models
+              //     re-see the diagrams the user is following up on.
+              // anchored_item_ids is missing on chats created before
+              // migration 0033 — Array.isArray check handles that case.
+              const anchoredIds: string[] = Array.isArray((chat as any).anchored_item_ids)
+                ? (chat as any).anchored_item_ids.filter((x: any) => typeof x === 'string')
+                : [];
+              if (anchoredIds.length > 0) {
+                try {
+                  // Pull chunks for every anchored item. Cap at 3 per
+                  // item to keep prompt size bounded with multiple
+                  // anchors. Hydrate item metadata in parallel.
+                  const idList = anchoredIds.join(',');
+                  const [chunkRes, itemRes] = await Promise.all([
+                    fetch(
+                      `${SB_URL}/rest/v1/workspace_vault_chunks?item_id=in.(${idList})&select=item_id,chunk_index,content&order=item_id.asc,chunk_index.asc&limit=${anchoredIds.length * 3}`,
+                      { headers: { apikey: SB_SERVICE_KEY, Authorization: `Bearer ${SB_SERVICE_KEY}` } },
+                    ),
+                    fetch(
+                      `${SB_URL}/rest/v1/workspace_vault_items?id=in.(${idList})&select=id,title,summary,source_kind,source_doc_id,created_at,pinned`,
+                      { headers: { apikey: SB_SERVICE_KEY, Authorization: `Bearer ${SB_SERVICE_KEY}` } },
+                    ),
+                  ]);
+                  const anchoredChunks: any[] = chunkRes.ok ? await chunkRes.json() : [];
+                  const anchoredItemsArr: any[] = itemRes.ok ? await itemRes.json() : [];
+                  const itemById = new Map(anchoredItemsArr.map((it) => [it.id, it]));
+                  const seenChunkKeys = new Set(rows.map((r: any) => `${r.item_id}#${r.chunk_index}`));
+                  for (const c of anchoredChunks) {
+                    const key = `${c.item_id}#${c.chunk_index}`;
+                    if (seenChunkKeys.has(key)) continue;
+                    seenChunkKeys.add(key);
+                    const it = itemById.get(c.item_id);
+                    if (!it) continue;
+                    rows.push({
+                      chunk_id: null,
+                      item_id: c.item_id,
+                      chunk_index: c.chunk_index,
+                      chunk_content: c.content,
+                      distance: 0,
+                      item_title: `${it.title} 📌`,    // pin-marked so chat sees it as anchor context
+                      item_summary: it.summary,
+                      item_source_kind: it.source_kind,
+                      item_source_doc_id: it.source_doc_id,
+                      item_created_at: it.created_at,
+                      item_pinned: !!it.pinned,
+                      _anchored: true,
+                    });
+                  }
+                  console.log(`[chat-stream] anchors: pulled ${anchoredChunks.length} chunks across ${anchoredIds.length} anchored item(s)`);
+                } catch (err) {
+                  console.warn('[chat-stream] anchor chunk pull failed:', (err as any)?.message);
+                }
+              }
+
+              // ---- Image attachment fallback ----
+              // For users on Gemini/OpenAI text embeddings, the image
+              // RPC returns nothing because we have no multimodal
+              // vector for them (Vertex AI auth required and we don't
+              // wire it). But the doc's text chunks DO contain
+              // [image-N: <caption>] markers wherever an image lives.
+              // When a retrieved chunk references an image, look up
+              // the actual image rows by item_id from
+              // workspace_vault_images so chat-stream can attach the
+              // bytes downstream. This is the path that makes vision
+              // attachments work for ALL users, not just Voyage ones.
+              // Match both forms:
+              //   `[image]`        → uncaptioned (caption job failed or skipped)
+              //   `[image-1: ...]` → captioned numbered marker
+              // Either form signals "this item has at least one image
+              // worth attaching for vision-capable models".
+              const IMG_MARKER_RE = /\[image(\]|-\d+)/;
+              const itemsWithImageMarkers = new Set<string>();
+              for (const r of rows) {
+                if (typeof r.chunk_content === 'string' && IMG_MARKER_RE.test(r.chunk_content) && r.item_id) {
+                  itemsWithImageMarkers.add(r.item_id);
+                }
+              }
+              // Anchored items get images attached regardless of
+              // whether the chunk text happens to mention an image
+              // marker. This is the whole point of anchoring — the
+              // pinned doc's full multimodal context follows the
+              // conversation.
+              for (const aid of anchoredIds) {
+                if (aid) itemsWithImageMarkers.add(aid);
+              }
+              let fallbackImageRows: any[] = [];
+              if (itemsWithImageMarkers.size > 0) {
+                try {
+                  // PostgREST `in.()` filter — UUIDs go in plain
+                  // (unquoted) since they have no special chars.
+                  // Quoting them was causing the request to fail
+                  // silently with an empty result, which is why the
+                  // fallback path looked dead.
+                  const ids = Array.from(itemsWithImageMarkers).join(',');
+                  const fbUrl = `${SB_URL}/rest/v1/workspace_vault_images?item_id=in.(${ids})&select=id,item_id,storage_path,mime_type,description,source_page,source_paragraph&limit=10`;
+                  const r = await fetch(fbUrl, {
+                    headers: {
+                      apikey: SB_SERVICE_KEY,
+                      Authorization: `Bearer ${SB_SERVICE_KEY}`,
+                    },
+                  });
+                  if (!r.ok) {
+                    console.warn(`[chat-stream] image fallback HTTP ${r.status} from ${fbUrl}`);
+                  } else {
+                    const fb: any[] = await r.json().catch(() => []);
+                    console.log(`[chat-stream] image fallback found ${fb.length} image(s) for ${itemsWithImageMarkers.size} item(s) with markers; itemIds=${ids}`);
+                    // Hydrate with item-level fields so the merge
+                    // below treats them like vector-search hits.
+                    for (const img of fb) {
+                      const matchingChunk = rows.find((row) => row.item_id === img.item_id);
+                      fallbackImageRows.push({
+                        image_id: img.id,
+                        item_id: img.item_id,
+                        storage_path: img.storage_path,
+                        mime_type: img.mime_type,
+                        description: img.description,
+                        source_page: img.source_page,
+                        source_paragraph: img.source_paragraph,
+                        item_title: matchingChunk?.item_title,
+                        item_summary: matchingChunk?.item_summary,
+                      });
+                    }
+                  }
+                } catch (err) {
+                  console.warn('[chat-stream] image fallback lookup failed:', (err as any)?.message);
+                }
+              }
+
+              // Merge vector-search hits and fallback hits, dedup by
+              // image_id, cap at 3 for cost/latency.
+              const seenImg = new Set<string>();
+              const mergedImages: any[] = [];
+              for (const list of [imageRows, fallbackImageRows]) {
+                if (!Array.isArray(list)) continue;
+                for (const img of list) {
+                  const id = img?.image_id || img?.id;
+                  if (!id || seenImg.has(id)) continue;
+                  seenImg.add(id);
+                  mergedImages.push(img);
+                  if (mergedImages.length >= 3) break;
+                }
+                if (mergedImages.length >= 3) break;
+              }
+              // Publish to outer scope for the chat-attachment step.
+              vaultImageHits = mergedImages;
+              if ((!Array.isArray(rows) || rows.length === 0) && (!Array.isArray(imageRows) || imageRows.length === 0)) {
                 send('status', { phase: 'vault_done', message: '🗂️ No relevant vault snippets' });
                 return '';
               }
@@ -997,11 +1412,62 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
                 lines.push(String(row.chunk_content || '').trim());
                 lines.push('');
               });
+              // Append image hits (Phase 6 multimodal RAG). Captions
+              // are inlined as text — every chat model, multimodal or
+              // not, can read them. Vision-capable models also get
+              // the actual bytes attached to the user message
+              // downstream (see "Vault image attachment" block).
+              // Use the merged image set so users on any embedding
+              // provider see their image content here, not just
+              // Voyage users with a populated vector index.
+              if (mergedImages.length > 0) {
+                lines.push('--- Image references (captioned by AI) ---');
+                lines.push('');
+                mergedImages.forEach((row: any, i: number) => {
+                  const title = row.item_title || 'Untitled';
+                  const pageBit = row.source_page ? ` p.${row.source_page}` : '';
+                  const desc = (row.description || '(no caption)').toString().trim();
+                  lines.push(`[img ${i + 1}] ${title}${pageBit}: ${desc}`);
+                });
+                lines.push('');
+              }
               lines.push('=== END VAULT ===');
+              const totalHits = snippets.length + mergedImages.length;
+              const imgBit = mergedImages.length ? ` + ${mergedImages.length} image${mergedImages.length === 1 ? '' : 's'}` : '';
               send('status', {
                 phase: 'vault_done',
-                message: `🗂️ Pulled ${snippets.length} vault snippet${snippets.length === 1 ? '' : 's'}`,
+                message: `🗂️ Pulled ${snippets.length} vault snippet${snippets.length === 1 ? '' : 's'}${imgBit}`,
               });
+              // Surface which vault items contributed to this turn so
+              // the UI can offer "Anchor this doc?" suggestions after
+              // the assistant's response. Dedup by item_id; tag
+              // already-anchored items so the UI hides the anchor
+              // pill for those (it'd be a no-op).
+              try {
+                const seenItems = new Map<string, any>();
+                for (const r of rows) {
+                  if (!r.item_id || seenItems.has(r.item_id)) continue;
+                  seenItems.set(r.item_id, {
+                    item_id: r.item_id,
+                    title: String(r.item_title || '').replace(/ 📌$/, ''),
+                    source_kind: r.item_source_kind,
+                    anchored: anchoredIds.includes(r.item_id),
+                  });
+                }
+                for (const img of mergedImages) {
+                  const id = img.item_id || img.item?.id;
+                  if (!id || seenItems.has(id)) continue;
+                  seenItems.set(id, {
+                    item_id: id,
+                    title: String(img.item_title || '').replace(/ 📌$/, ''),
+                    source_kind: img.item_source_kind,
+                    anchored: anchoredIds.includes(id),
+                  });
+                }
+                if (seenItems.size > 0) {
+                  send('vault_items', { items: Array.from(seenItems.values()) });
+                }
+              } catch {}
               return lines.join('\n');
             } catch (err) {
               console.warn('[chat-stream] vault retrieval failed:', (err as any)?.message);
@@ -1193,6 +1659,143 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
       // with pre-grounding when both are on; runs alone otherwise).
       vaultBlock = await vaultPromise;
 
+      // ---- Vault image attachment (Phase 6.5 multimodal) ----
+      // For vision-capable chat models, fetch the actual image bytes
+      // for each top vault-image hit and attach them to the LAST user
+      // message as a content-array block. The chat model then "sees"
+      // the diagram/signature/etc. instead of only reading its caption.
+      //
+      // Vision-capable detection — pattern-matched per provider so
+      // new models auto-classify without a code edit. Mirrors the
+      // logic in netlify/functions/workspace-models-list.js.
+      //   Anthropic — Claude 3+, sonnet-4*, opus-4*, haiku-3-5* / haiku-4*
+      //   OpenAI    — gpt-4o, gpt-4-turbo, gpt-4.1, gpt-5 family
+      //   Google    — gemini-1.5+, 2.x (all natively multimodal)
+      //   xAI       — grok-4*, grok-2-vision, grok-3-vision
+      // For text-only models we skip the byte fetch; captions in
+      // vaultBlock still give semantic awareness.
+      function detectVision(p: string, id: string): boolean {
+        const s = (id || '').toLowerCase();
+        if (p === 'anthropic') return /^claude-(3|sonnet-4|opus-4|haiku-(3-5|4))/.test(s);
+        if (p === 'openai')    return /^gpt-(4o|4-turbo|4\.1|5)/.test(s);
+        if (p === 'google')    return /^gemini-(1\.5|2\.0|2\.5|3|exp)/.test(s);
+        // xAI: grok-4+ is multimodal via the /v1/responses endpoint
+        // when the request uses the right content-block schema
+        // (input_text / input_image). Earlier 422s came from sending
+        // OpenAI Chat-Completions-style blocks to a Responses API.
+        // Now that the message builder emits the correct shape, all
+        // grok-4 variants and explicit vision SKUs work.
+        // The "-non-reasoning" suffix is text-only by design.
+        if (p === 'xai') {
+          if (/non-reasoning/.test(s)) return false;
+          if (/(.*-vision|.*-fast-vision)/.test(s)) return true;
+          if (/^grok-(4|3-vision|2-vision)/.test(s)) return true;
+          return false;
+        }
+        return false;
+      }
+      const isVisionCapable = detectVision(provider, modelId);
+
+      // Each entry: { mimeType, data (base64), title, page }
+      let attachedImages: Array<{ mimeType: string; data: string; title: string; page: number | null }> = [];
+
+      if (isVisionCapable && vaultImageHits.length > 0) {
+        send('status', { phase: 'vault_images', message: `Attaching ${vaultImageHits.length} vault image${vaultImageHits.length === 1 ? '' : 's'} to chat…` });
+        const fetched = await Promise.all(
+          vaultImageHits.map(async (hit) => {
+            try {
+              // Supabase Storage signed-URL download. We use the service
+              // role to get the bytes since chat-stream runs server-side.
+              const url = `${SB_URL}/storage/v1/object/library/${encodeURI(hit.storage_path)}`;
+              const r = await fetch(url, {
+                headers: {
+                  apikey: SB_SERVICE_KEY,
+                  Authorization: `Bearer ${SB_SERVICE_KEY}`,
+                },
+              });
+              if (!r.ok) {
+                console.warn(`[chat-stream] image fetch ${hit.storage_path} → ${r.status}`);
+                return null;
+              }
+              const ab = await r.arrayBuffer();
+              // Anthropic / OpenAI / Google all accept base64. Keep
+              // bytes uniform, transform per-provider downstream.
+              const u8 = new Uint8Array(ab);
+              let bin = '';
+              for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+              const data = btoa(bin);
+              return {
+                mimeType: hit.mime_type || 'image/jpeg',
+                data,
+                title: String(hit.item_title || 'Document'),
+                page: hit.source_page ?? null,
+              };
+            } catch (err) {
+              console.warn('[chat-stream] image attach failed:', (err as any)?.message);
+              return null;
+            }
+          }),
+        );
+        attachedImages = fetched.filter((x): x is { mimeType: string; data: string; title: string; page: number | null } => !!x);
+        if (attachedImages.length > 0) {
+          send('status', { phase: 'vault_images_done', message: `Vision: ${attachedImages.length} image${attachedImages.length === 1 ? '' : 's'} attached for inspection` });
+        }
+      }
+
+      // Rewrite the LAST user message into a per-provider content-
+      // array form when we have images to attach. Each streamX
+      // function understands its native format already (Anthropic
+      // accepts Anthropic-style; OpenAI accepts OpenAI-style; Google
+      // gets transformed inside streamGoogle). We branch by provider
+      // here so each function gets exactly what it expects.
+      if (attachedImages.length > 0 && messages.length > 0) {
+        const last = messages[messages.length - 1];
+        const userText = String(last.content || '');
+        if (provider === 'anthropic') {
+          // Anthropic Messages API — content array of typed blocks.
+          // Image first, text last is conventional but order is free.
+          const blocks: any[] = attachedImages.map((img) => ({
+            type: 'image',
+            source: { type: 'base64', media_type: img.mimeType, data: img.data },
+          }));
+          blocks.push({ type: 'text', text: userText });
+          last.content = blocks;
+        } else if (provider === 'openai') {
+          // OpenAI Chat Completions schema — content array with
+          // { type: 'text', text } and { type: 'image_url', image_url: { url } }.
+          const blocks: any[] = attachedImages.map((img) => ({
+            type: 'image_url',
+            image_url: { url: `data:${img.mimeType};base64,${img.data}`, detail: 'high' },
+          }));
+          blocks.unshift({ type: 'text', text: userText });
+          last.content = blocks;
+        } else if (provider === 'xai') {
+          // xAI uses the OpenAI RESPONSES API (/v1/responses), NOT
+          // Chat Completions. The Responses API has a different
+          // content-block schema:
+          //   text  → { type: 'input_text',  text: '...' }
+          //   image → { type: 'input_image', image_url: 'data:...', detail: 'high' }
+          // Note image_url is a STRING here (not nested object).
+          // The Chat Completions shape (type: 'image_url' with
+          // nested object) returns 422 from xAI's deserializer, which
+          // is why earlier attempts failed on every grok-4 variant.
+          const blocks: any[] = attachedImages.map((img) => ({
+            type: 'input_image',
+            image_url: `data:${img.mimeType};base64,${img.data}`,
+            detail: 'high',
+          }));
+          blocks.unshift({ type: 'input_text', text: userText });
+          last.content = blocks;
+        } else {
+          // Google: streamGoogle does its own transformation. Stash a
+          // sidecar field so it can build parts[] correctly.
+          (last as any).images = attachedImages.map((img) => ({
+            mimeType: img.mimeType,
+            data: img.data,
+          }));
+        }
+      }
+
       let acc = '';
       try {
         // Compose the system prompt. Order:
@@ -1235,10 +1838,34 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
 
         console.log(`[chat-stream] starting model=${modelId} provider=${provider} keySource=${source} messages=${messages.length} attachments=${attachmentMeta.length} attachChars=${attachmentContext.length} privacy=${lawSettings.privacy_enabled} toggles=${JSON.stringify({sSt:lawSettings.state_statutes_enabled,fSt:lawSettings.federal_statutes_enabled,sCa:lawSettings.state_caselaw_enabled,fCa:lawSettings.federal_caselaw_enabled,sBi:lawSettings.state_bills_enabled,fBi:lawSettings.federal_bills_enabled,st:lawSettings.state})}`);
         let gen: AsyncGenerator<{ delta: string }>;
-        if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: fullSystem, messages, webSearch });
-        else if (provider === 'openai') gen = streamOpenAI({ key, model: modelId, system: fullSystem, messages, webSearch });
-        else if (provider === 'xai') gen = streamXAI({ key, model: modelId, system: fullSystem, messages, webSearch });
-        else gen = streamGoogle({ key, model: modelId, system: fullSystem, messages, webSearch });
+        // Deep-think compatibility — only true when the model
+        // ACCEPTS the reasoning param (i.e. the toggle does something).
+        // Mirror of modelSupportsReasoning() in workspace-models-list.js.
+        // CRITICAL: xAI's "*-reasoning" SKUs always reason at max
+        // effort and REJECT explicit reasoning_effort with a 400
+        // ("Model X does not support parameter reasoningEffort"),
+        // so we exclude them here. Same for "-non-reasoning"
+        // (no reasoning at all) and any non-Grok-4 base.
+        function detectReasoning(p: string, id: string): boolean {
+          const s = (id || '').toLowerCase();
+          if (p === 'anthropic') return /^claude-(3-7|sonnet-4|opus-4|haiku-4)/.test(s);
+          if (p === 'openai')    return /^(o[1-9]|gpt-5)/.test(s);
+          if (p === 'google')    return /^gemini-(2\.5|3|exp)/.test(s);
+          if (p === 'xai') {
+            if (/-reasoning(?:-|$)/.test(s)) return false;     // already reasoning, param 400s
+            if (/-non-reasoning/.test(s))    return false;     // text-only
+            return /^grok-4/.test(s);
+          }
+          return false;
+        }
+        const reasoningOn = deepThink && detectReasoning(provider, modelId);
+        if (reasoningOn) {
+          send('status', { phase: 'deep_think', message: 'Deep think on — model has a longer scratchpad…' });
+        }
+        if (provider === 'anthropic') gen = streamAnthropic({ key, model: modelId, system: fullSystem, messages, webSearch, deepThink: reasoningOn });
+        else if (provider === 'openai') gen = streamOpenAI({ key, model: modelId, system: fullSystem, messages, webSearch, deepThink: reasoningOn });
+        else if (provider === 'xai') gen = streamXAI({ key, model: modelId, system: fullSystem, messages, webSearch, deepThink: reasoningOn });
+        else gen = streamGoogle({ key, model: modelId, system: fullSystem, messages, webSearch, deepThink: reasoningOn });
 
         // Heartbeat: rotate a sequence of "what we're doing now"
         // messages every few seconds while waiting for the model's

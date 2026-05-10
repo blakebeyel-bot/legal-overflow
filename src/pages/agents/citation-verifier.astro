@@ -471,6 +471,28 @@ import Consent from '../../partials/consent.astro';
     }
   });
 
+  // Universal author override — pull the user's display_name from
+  // profiles so the Word comments embedded in the corrected brief
+  // are attributed to them, not "Citation Verifier". Falls back to
+  // 'Legal Overflow' for new accounts (matches the server-side
+  // getUserDisplayName helper). RLS allows reading own profile row.
+  let commentAuthor = 'Legal Overflow';
+  let commentInitials = 'LO';
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    const name = (profile?.display_name || '').trim();
+    if (name) {
+      commentAuthor = name;
+      commentInitials = name.split(/\s+/).map((p) => p[0]?.toUpperCase() || '').join('').slice(0, 4) || 'LO';
+    }
+  } catch (err) {
+    console.warn('[citation-verifier] display_name lookup failed:', err?.message);
+  }
+
   // ---- Element refs ----
   const fileInput   = document.getElementById('cv-file');
   const styleSel    = document.getElementById('cv-style');
@@ -1819,7 +1841,13 @@ import Consent from '../../partials/consent.astro';
       }).join('');
       return `<w:p>${runs}</w:p>`;
     }).join('');
-    return `<w:comment w:id="${c.id}" w:author="Citation Verifier" w:initials="CV" w:date="${date}">${paragraphs}</w:comment>`;
+    // Author + initials come from the user's display_name (set in
+    // /account/) so the comments in the corrected brief read as the
+    // user's redlines, not platform-branded notes. Falls back to
+    // 'Legal Overflow' / 'LO' for accounts that haven't set a name.
+    const escAuthor = escapeXml(commentAuthor);
+    const escInitials = escapeXml(commentInitials);
+    return `<w:comment w:id="${c.id}" w:author="${escAuthor}" w:initials="${escInitials}" w:date="${date}">${paragraphs}</w:comment>`;
   }
 
   function escapeXml(s) {

@@ -230,6 +230,135 @@ async function embedGemini(texts, apiKey, f) {
 }
 
 // ---------------------------------------------------------------
+// Multimodal embeddings (Phase 5 — vault images)
+// ---------------------------------------------------------------
+
+/**
+ * Multimodal-capable provider config.
+ *
+ * VOYAGE — `voyage-multimodal-3` exposes a true multimodal embedding
+ * API at /v1/multimodalembeddings that takes text + image content
+ * blocks together. Requires VOYAGE_API_KEY env var.
+ *
+ * GEMINI — Google's TRUE multimodal embedding model is
+ * `multimodalembedding@001` and lives ONLY on Vertex AI (not on the
+ * standard Generative Language API). Vertex requires GCP service-
+ * account auth (OAuth2 access tokens), not the simple API-key auth
+ * used by the rest of this file. We deliberately do NOT expose Gemini
+ * as a multimodal embedding provider — users on Gemini text
+ * embeddings get image attachment via the chat-stream fallback path
+ * (text chunks containing `[image-N:` markers trigger image lookup
+ * by item_id without needing a vector match).
+ *
+ * OPENAI — no public multimodal embedding API; same fallback applies.
+ *
+ * The `column` field MUST match a column in workspace_vault_images.
+ */
+export const MULTIMODAL_PROVIDERS = {
+  voyage: {
+    dim: 1024,
+    column: 'embedding_voyage',
+    model: 'voyage-multimodal-3',
+  },
+};
+
+/**
+ * Embed a single image into a vector under the given provider. The
+ * image is provided as base64-encoded bytes + a mime type. Returns
+ * the vector as a number[] of length PROVIDERS[provider].dim.
+ *
+ * Multimodal providers:
+ *   - voyage  : voyage-multimodal-3 (1024 dim) — accepts image + text
+ *               in the same request via the multimodal/embed endpoint
+ *   - gemini  : Vertex multimodal embeddings (768 dim) — accepts an
+ *               inline_data part with mime_type + base64 data
+ *
+ * If provider is 'openai' (no public multimodal API), returns null.
+ * Caller should fall back to text-only embeddings on the description.
+ *
+ * @param {object} opts
+ * @param {Buffer|Uint8Array} opts.imageBytes
+ * @param {string} opts.mimeType
+ * @param {string} opts.provider — 'voyage' | 'gemini' | 'openai'
+ * @param {string} opts.apiKey
+ * @param {string} [opts.descriptionHint] — optional caption text to
+ *                  include alongside the image (Voyage supports this
+ *                  natively; for Gemini we include it as a separate
+ *                  text part in the same content block)
+ * @param {function} [opts.fetchImpl]
+ * @returns {Promise<number[]|null>}
+ */
+export async function embedImage({
+  imageBytes,
+  mimeType,
+  provider,
+  apiKey,
+  descriptionHint,
+  fetchImpl,
+}) {
+  if (!imageBytes || !mimeType || !provider || !apiKey) return null;
+  const f = fetchImpl || globalThis.fetch;
+  const b64 = Buffer.from(imageBytes).toString('base64');
+
+  if (provider === 'voyage') {
+    // voyage-multimodal-3 — POST to /v1/multimodalembeddings
+    // Inputs: array of content objects; each can mix text + image.
+    const inputs = [{
+      content: [
+        ...(descriptionHint ? [{ type: 'text', text: descriptionHint }] : []),
+        { type: 'image_base64', image_base64: `data:${mimeType};base64,${b64}` },
+      ],
+    }];
+    const r = await withTimeout(f('https://api.voyageai.com/v1/multimodalembeddings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: MULTIMODAL_PROVIDERS.voyage.model,
+        inputs,
+        input_type: 'document',
+      }),
+    }));
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      throw new Error(`embedImage voyage ${r.status}: ${txt.slice(0, 200)}`);
+    }
+    const j = await r.json();
+    const vec = j?.data?.[0]?.embedding;
+    if (!Array.isArray(vec) || vec.length !== MULTIMODAL_PROVIDERS.voyage.dim) {
+      throw new Error(`embedImage voyage: unexpected response shape (got ${vec?.length} dim)`);
+    }
+    return vec;
+  }
+
+  // Gemini and OpenAI: no public multimodal embedding APIs that work
+  // with simple API-key auth. Caller should rely on:
+  //   - Caption text inlined in chunks (every chat model can read)
+  //   - Chat-stream image-attachment fallback (vision models get
+  //     pixels for any item whose chunks reference `[image-N:`
+  //     markers, regardless of vector embedding state)
+  return null;
+}
+
+/**
+ * Map a text-embedding provider preference to a usable multimodal
+ * embedding provider. Voyage is the only currently-supported option
+ * (Vertex AI requires service-account auth we don't wire up).
+ *
+ * Returns null when no multimodal provider is usable. Callers must
+ * gracefully fall back to caption-text retrieval (works for all
+ * users) and chat-stream's text-chunk-anchored image attachment
+ * fallback (works for vision-capable chat models regardless of
+ * embedding provider).
+ */
+export function pickMultimodalProvider(textProvider) {
+  if (textProvider === 'voyage') return 'voyage';
+  // Gemini / OpenAI users: no multimodal vector search. Image
+  // attachment to chat still works via the text-chunk fallback in
+  // workspace-chat-stream.ts.
+  return null;
+}
+
+// ---------------------------------------------------------------
 // Chunking
 // ---------------------------------------------------------------
 

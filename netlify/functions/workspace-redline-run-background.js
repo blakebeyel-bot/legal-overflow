@@ -13,7 +13,7 @@
  * Errors at any stage are persisted on the run row so the polling UI
  * can show them.
  */
-import { getSupabaseAdmin } from '../lib/supabase-admin.js';
+import { getSupabaseAdmin, getUserDisplayName } from '../lib/supabase-admin.js';
 import { resolveProviderKey } from '../lib/byok-keys.js';
 import { completeText, findModel } from '../lib/llm-providers.js';
 import { REDLINE_SYSTEM, buildRedlinePrompt, parseRedlineResponse } from '../lib/redline-prompt.js';
@@ -147,7 +147,8 @@ export default async (req) => {
       body: JSON.stringify({
         docx_b64: originalBytes.toString('base64'),
         edits,
-        author: 'Legal Overflow',
+        // Universal display-name override (migration 0031, /account/)
+        author: await getUserDisplayName(userId),
       }),
     });
     if (!flyRes.ok) {

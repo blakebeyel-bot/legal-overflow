@@ -950,13 +950,19 @@
 
   const chatList = document.getElementById('chat-list');
   const newChatBtn = document.getElementById('new-chat');
-  const accessToken = session.access_token;
+  let accessToken = session.access_token;
+  try { supabase.auth.onAuthStateChange((_e, s) => { if (s?.access_token) accessToken = s.access_token; }); } catch {}
 
   const RAIL_CACHE_KEY = 'workspace.rail.' + (session.user?.id || 'anon');
 
   // Active tab filter held in module scope so re-renders preserve it.
   let activeTab = 'all';
   let allChats = [];
+  // Whether the chats list is fully expanded ("Show all" clicked).
+  // Default false — capped to INITIAL_CHATS_LIMIT in renderChatList()
+  // so the dashboard doesn't grow unbounded as the user accumulates
+  // conversations.
+  let chatsExpanded = false;
 
   function rebuildHeadKeepBody() {
     return `<div class="ws-list-head">
@@ -997,7 +1003,16 @@
       return;
     }
 
-    chatList.innerHTML = rebuildHeadKeepBody() + filtered.map((c) => {
+    // Cap the initial render to keep the dashboard from growing
+    // unbounded as users accumulate chats. "Show all" button below
+    // toggles `chatsExpanded` and re-renders. Default cap is 8 —
+    // covers most users' "what was I just doing?" needs without
+    // pushing other dashboard sections off-screen.
+    const INITIAL_CHATS_LIMIT = 8;
+    const visible = chatsExpanded ? filtered : filtered.slice(0, INITIAL_CHATS_LIMIT);
+    const hiddenCount = filtered.length - visible.length;
+
+    chatList.innerHTML = rebuildHeadKeepBody() + visible.map((c) => {
       const title = (c.title || 'Untitled chat').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
       const date = relTimeFull(c.updated_at);
       const projBadge = c.project_id ? `<span class="ws-row-proj-badge" title="In a project">●</span>` : '';
@@ -1011,6 +1026,23 @@
         <div class="ws-rc ws-rc-action"><button type="button" data-del="${c.id}" data-title="${title}" aria-label="Delete chat" title="Delete chat">×</button></div>
       </div>`;
     }).join('');
+
+    // Show-all / collapse toggle. Visible only when there's more
+    // than INITIAL_CHATS_LIMIT chats in the filtered set, OR when
+    // we're currently expanded (so the user can collapse back).
+    if (hiddenCount > 0 || chatsExpanded) {
+      const label = chatsExpanded
+        ? `Show fewer chats`
+        : `Show all ${filtered.length} chats (${hiddenCount} more)`;
+      chatList.insertAdjacentHTML('beforeend',
+        `<button type="button" id="chats-toggle-all" class="chats-toggle-all">${label}</button>`,
+      );
+      const tgl = document.getElementById('chats-toggle-all');
+      tgl?.addEventListener('click', () => {
+        chatsExpanded = !chatsExpanded;
+        renderChatList();
+      });
+    }
 
     chatList.querySelectorAll('.ws-row-wrap[data-chat-id]').forEach((row) => {
       row.addEventListener('dragstart', (e) => {
@@ -1027,8 +1059,23 @@
         e.stopPropagation();
         const id = btn.dataset.del;
         const title = btn.dataset.title;
-        if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
-        btn.disabled = true;
+        const ok = await window.siteConfirm(`Delete "${title}"? This cannot be undone.`, {
+          okLabel: 'Delete', danger: true,
+        });
+        if (!ok) return;
+        // Optimistic remove — drop the row instantly. Restore on
+        // server error.
+        const row = btn.closest('.ws-row-wrap, [data-chat-id], li') || btn.parentElement;
+        const removedHTML = row?.outerHTML;
+        const removedNext = row?.nextSibling;
+        const removedParent = row?.parentNode;
+        if (row) row.remove();
+        try {
+          const cached = JSON.parse(localStorage.getItem(RAIL_CACHE_KEY) || '[]');
+          if (Array.isArray(cached)) {
+            localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify(cached.filter((c) => c.id !== id)));
+          }
+        } catch {}
         const r = await fetch('/.netlify/functions/workspace-chats-delete', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1036,11 +1083,21 @@
         });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
-          alert('Delete failed: ' + (j.error || 'unknown'));
-          btn.disabled = false;
+          window.siteToast('Delete failed: ' + (j.error || 'unknown'), { kind: 'error' });
+          if (removedParent && removedHTML) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = removedHTML;
+            const restored = tmp.firstElementChild;
+            if (restored) {
+              if (removedNext) removedParent.insertBefore(restored, removedNext);
+              else removedParent.appendChild(restored);
+            }
+          }
           return;
         }
-        try { localStorage.removeItem(RAIL_CACHE_KEY); } catch {}
+        window.siteToast(`"${title}" deleted`, { kind: 'success', duration: 2400 });
+        // Soft refresh in the background to pick up any reordering;
+        // user already sees the row gone.
         loadChats();
       });
     });

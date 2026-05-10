@@ -24,10 +24,23 @@ import {
   resolveProviderForUser,
   embed,
   embedBatch,
+  embedImage,
   chunkText,
   vectorLiteral,
+  pickMultimodalProvider,
   PROVIDERS,
+  MULTIMODAL_PROVIDERS,
 } from './embeddings.js';
+import {
+  imageExtractionEnabledForUser,
+  extractDocxImages,
+  extractPdfImages,
+  extractStandaloneImage,
+  stageVaultImages,
+  captionVaultImages,
+  embedVaultImages,
+  applyImagePlaceholders,
+} from './vault-images.js';
 
 // Postgres rejects U+0000 (NULL bytes) on text columns with
 // "unsupported Unicode escape sequence". DocuSign PDFs and some
@@ -80,6 +93,16 @@ export async function addVaultItem({
   content,
   summary,
   tags,
+  // Optional original file bytes + format. When provided AND the
+  // image-extraction feature flag is enabled (env var + user setting),
+  // images embedded in the doc are staged to storage, captioned, and
+  // their captions are inlined into the body content before chunking.
+  // Without these, behavior is identical to the pre-Phase-2 path.
+  // For format='image', mimeType is also required so the standalone
+  // wrapper knows the encoding without sniffing bytes.
+  originalBytes,
+  format,
+  mimeType,
 }) {
   if (!userId) throw new Error('addVaultItem: userId required');
   if (!supabase) throw new Error('addVaultItem: supabase required');
@@ -118,8 +141,83 @@ export async function addVaultItem({
     .single();
   if (itemErr) throw new Error(`vault item insert failed: ${itemErr.message}`);
 
-  // 2. Chunk the content (~500 tokens each)
-  const chunks = chunkText(cleanContent, { maxTokens: 500, overlapTokens: 50 });
+  // 1b. IMAGE PIPELINE — only runs when:
+  //   - originalBytes + format provided by caller
+  //   - VAULT_IMAGE_EXTRACTION env flag = on
+  //   - user setting vault_image_extraction_enabled = true
+  // Failure at any step is logged and skipped — we never let image
+  // work block the text-extraction path that already succeeded.
+  // Format ∈ 'docx' | 'pdf' | 'image':
+  //   docx  → walk word/media/* in the zip
+  //   pdf   → walk pdfjs operator list for embedded JPEG/PNG/JP2/GIF
+  //   image → wrap the single buffer as a one-element array (used
+  //           by the OCR background after a standalone PNG/JPG upload)
+  let finalContent = cleanContent;
+  if (originalBytes && (format === 'docx' || format === 'pdf' || format === 'image')) {
+    try {
+      const enabled = await imageExtractionEnabledForUser({ supabase, userId });
+      if (enabled) {
+        const rawImages = format === 'docx'
+          ? await extractDocxImages(originalBytes)
+          : format === 'pdf'
+          ? await extractPdfImages(originalBytes)
+          : extractStandaloneImage(originalBytes, mimeType);
+        if (rawImages.length) {
+          const staged = await stageVaultImages({
+            supabase, userId, itemId: item.id, images: rawImages,
+          });
+          // Pair each staged record with its source bytes for captioning
+          const stagedWithBytes = staged.map((s, idx) => ({
+            id: s.id,
+            buffer: rawImages[idx]?.buffer,
+            mimeType: rawImages[idx]?.mimeType,
+          }));
+          const captionMap = await captionVaultImages({
+            supabase, userId, images: stagedWithBytes,
+          });
+          // Generate multimodal embeddings for each image so the
+          // search RPC can rank them in the same vector space as
+          // text chunks. Caption text is passed as a hint so the
+          // embedding incorporates both visual and described content.
+          const embedInputs = stagedWithBytes.map((s) => ({
+            id: s.id,
+            buffer: s.buffer,
+            mimeType: s.mimeType,
+            description: captionMap.get?.(s.id) || null,
+          }));
+          await embedVaultImages({
+            supabase, userId, images: embedInputs, textProvider: provider,
+          });
+          // Replace generic [image] placeholders in body content with
+          // numbered ones, optionally including the caption text. The
+          // placeholders were inserted during text extraction; this
+          // upgrades them to `[image-1: <caption>]` form so chunks
+          // pick up image content via existing keyword + semantic
+          // search even when multimodal embeddings aren't usable.
+          const rewritten = applyImagePlaceholders(cleanContent, staged, captionMap);
+          if (rewritten !== cleanContent) {
+            finalContent = sanitizeForPg(rewritten);
+            await supabase
+              .from('workspace_vault_items')
+              .update({ content: finalContent })
+              .eq('id', item.id);
+            // Sync the local item object so the return value reflects
+            // the rewritten content.
+            item.content = finalContent;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[vault.addVaultItem] image pipeline failed: ${err?.message || err}`);
+      // finalContent remains the plain cleanContent — text path proceeds normally
+    }
+  }
+
+  // 2. Chunk the content (~500 tokens each). NOTE: we chunk the FINAL
+  //    content (with captions inlined if the image pipeline ran), so
+  //    image content is searchable via the existing chunk index even
+  //    before multimodal embeddings are added in Phase 5.
+  const chunks = chunkText(finalContent, { maxTokens: 500, overlapTokens: 50 });
   if (chunks.length === 0) {
     return { item, chunks: [] };
   }
@@ -228,7 +326,14 @@ export async function searchVault({
   // vector, k int, kinds text[] (nullable). Migration 0027 (or rolled
   // into 0026) defines it. Until that migration is applied we no-op.
 
-  const { data, error } = await supabase.rpc('workspace_vault_search', {
+  // Run text-chunk search and image-vector search IN PARALLEL. The
+  // image search is best-effort: if migration 0032 isn't applied, the
+  // image RPC silently returns nothing and we fall back to text-only.
+  // Image embeddings live in the same column space as the user's
+  // text provider for voyage / gemini, so we can use the same query
+  // vector. For openai users, we'd need a separate Gemini embedding
+  // for the query — done here in parallel and cheap enough.
+  const textPromise = supabase.rpc('workspace_vault_search', {
     p_user_id: userId,
     p_query_vec: lit,
     p_top_k: topK,
@@ -236,14 +341,22 @@ export async function searchVault({
     p_provider: provider,
     p_include_archived: includeArchived,
   });
-  if (error) {
-    console.warn('[vault.searchVault] rpc failed:', error.message);
-    return [];
+  const imagePromise = searchImageVectors({
+    supabase, userId, query: query.trim(), topK,
+    textProvider: provider, queryLiteral: lit,
+    includeArchived,
+  });
+
+  const [textResult, imageResult] = await Promise.all([textPromise, imagePromise]);
+  if (textResult.error) {
+    console.warn('[vault.searchVault] rpc failed:', textResult.error.message);
   }
+  const textRows = textResult.data || [];
+
   // Function returns rows with: chunk_id, item_id, chunk_content,
   // chunk_index, distance, item_title, item_summary, item_source_kind,
   // item_source_doc_id, item_created_at, item_pinned
-  return (data || []).map((row) => ({
+  const textHits = textRows.map((row) => ({
     chunk: {
       id: row.chunk_id,
       item_id: row.item_id,
@@ -262,7 +375,267 @@ export async function searchVault({
     // distance is cosine distance (0 = identical, 2 = opposite). Convert
     // to a similarity score for the UI: 1 - (distance / 2).
     score: typeof row.distance === 'number' ? 1 - (row.distance / 2) : null,
+    match_type: 'text',
   }));
+
+  // Merge image hits into the result list. We slightly de-rank
+  // image scores (×0.92) so equally-similar text hits surface first
+  // — text retrieval is a more reliable signal for legal queries —
+  // but a strong image hit can still beat a weak text hit. Dedup by
+  // item: if both text and image hit the same item, keep the
+  // higher-scoring one.
+  const merged = new Map();
+  for (const hit of textHits) {
+    merged.set(hit.item.id, hit);
+  }
+  for (const hit of imageResult || []) {
+    const existing = merged.get(hit.item.id);
+    if (!existing || (hit.score || 0) > (existing.score || 0)) {
+      merged.set(hit.item.id, hit);
+    }
+  }
+  // Sort by score desc, then trim to topK
+  return Array.from(merged.values())
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, topK);
+}
+
+/**
+ * Image-vector search helper. Calls workspace_vault_image_search RPC
+ * (defined in migration 0032). Quietly returns [] on error so the
+ * text-only path always works even if the migration isn't applied
+ * yet or the user has no images embedded.
+ *
+ * For users on OpenAI text embeddings, we fire a separate Gemini
+ * query embedding in parallel since OpenAI's vector space doesn't
+ * match the multimodal columns. Voyage and Gemini text embeddings
+ * share dimension+space with their multimodal siblings (Voyage uses
+ * the same 1024-dim space; Gemini's text-embedding-001 and the
+ * multimodal embedding-001 produce compatible vectors at our
+ * outputDimensionality=768).
+ */
+async function searchImageVectors({
+  supabase, userId, query, topK, textProvider, queryLiteral, includeArchived,
+}) {
+  const mmProvider = pickMultimodalProvider(textProvider);
+  if (!mmProvider) return [];
+
+  // Resolve the query vector for the multimodal column space.
+  let queryLit = queryLiteral;
+  if (textProvider === 'openai') {
+    // OpenAI users: image embeddings are stored in the gemini column;
+    // re-embed the query against Gemini for the image RPC.
+    try {
+      const apiKey = process.env.GOOGLE_AI_API_KEY || '';
+      if (!apiKey) return [];
+      const vec = await embedImage({
+        imageBytes: Buffer.from(query, 'utf-8'),  // dummy: text-only doesn't pass image
+        mimeType: 'text/plain',
+        provider: 'gemini',
+        apiKey,
+        descriptionHint: query,
+      }).catch(() => null);
+      if (!vec) return [];
+      queryLit = vectorLiteral(vec);
+    } catch {
+      return [];
+    }
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('workspace_vault_image_search', {
+      p_user_id: userId,
+      p_query_vec: queryLit,
+      p_top_k: topK,
+      p_provider: mmProvider,
+      p_include_archived: includeArchived,
+    });
+    if (error) {
+      // Migration 0032 not applied → RPC missing. Silent fallback.
+      return [];
+    }
+    return (data || []).map((row) => ({
+      chunk: {
+        id: row.image_id,
+        item_id: row.item_id,
+        chunk_index: -1,           // sentinel: image hit, not a text chunk
+        content: row.description || '',
+      },
+      image: {
+        id: row.image_id,
+        storage_path: row.storage_path,
+        mime_type: row.mime_type,
+        description: row.description,
+        source_page: row.source_page,
+        source_paragraph: row.source_paragraph,
+        width_px: row.width_px,
+        height_px: row.height_px,
+      },
+      item: {
+        id: row.item_id,
+        title: row.item_title,
+        summary: row.item_summary,
+        source_kind: row.item_source_kind,
+        source_doc_id: row.item_source_doc_id,
+        created_at: row.item_created_at,
+        pinned: row.item_pinned,
+      },
+      // ×0.92 slight de-rank vs text hits (see merge logic in caller)
+      score: typeof row.distance === 'number'
+        ? (1 - (row.distance / 2)) * 0.92
+        : null,
+      match_type: 'image',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------
+// keywordSearchVault
+// ---------------------------------------------------------------
+
+/**
+ * Exact-phrase / substring search across a user's vault chunks. No
+ * embeddings — pure ilike on workspace_vault_chunks.content. Use for:
+ *
+ *   - "find this exact clause in any of my contracts"
+ *   - users whose embedding provider isn't configured
+ *   - hybrid mode (paired with semantic results)
+ *
+ * Returns [{ chunk, item, score, match_type }] where score is a
+ * synthetic 1.0 (keyword matches aren't ranked by similarity) and
+ * match_type='keyword' so the UI can label them. Dedups by item id —
+ * the FIRST chunk that contains the phrase wins per item.
+ *
+ * @param {object} opts
+ * @param {object} opts.supabase
+ * @param {string} opts.userId
+ * @param {string} opts.query
+ * @param {number} [opts.topK=30]
+ * @param {string[]} [opts.kinds]
+ * @param {boolean} [opts.includeArchived=false]
+ * @returns {Promise<Array<{ chunk: object, item: object, score: number, match_type: string }>>}
+ */
+export async function keywordSearchVault({
+  supabase,
+  userId,
+  query,
+  topK = 30,
+  kinds = null,
+  includeArchived = false,
+}) {
+  if (!userId || !query || !query.trim()) return [];
+  if (!supabase) throw new Error('keywordSearchVault: supabase required');
+
+  // Strip ilike metacharacters — we want LITERAL substring match, no
+  // wildcard injection. Same strip pattern as workspace-vault-list.js.
+  // Backslash also stripped so users can't smuggle escaped wildcards.
+  const safe = query.trim().replace(/[%_\\]/g, '');
+  if (!safe) return [];
+
+  // 1. Page through the user's items so we can filter chunks by
+  //    item_id (RLS scopes chunks via item_id → items.user_id, but
+  //    PostgREST joins on FK are cleaner via .in()). Also captures
+  //    item metadata for the response.
+  let itemQ = supabase
+    .from('workspace_vault_items')
+    .select('id, title, summary, source_kind, source_doc_id, created_at, pinned, archived_at, content_chars, tags, embedding_provider, updated_at')
+    .eq('user_id', userId);
+  if (!includeArchived) itemQ = itemQ.is('archived_at', null);
+  if (kinds && kinds.length) itemQ = itemQ.in('source_kind', kinds);
+  const { data: items, error: iErr } = await itemQ;
+  if (iErr) {
+    console.warn('[vault.keywordSearchVault] item fetch failed:', iErr.message);
+    return [];
+  }
+  if (!items || items.length === 0) return [];
+  const itemMap = new Map(items.map((it) => [it.id, it]));
+  const itemIds = items.map((it) => it.id);
+
+  // 2. ilike-search chunks. Fetch a bit more than topK so dedup-by-item
+  //    leaves us with a reasonable result set even if one document
+  //    has many matching chunks.
+  const fetchLimit = Math.min(500, topK * 4);
+  const { data: chunks, error: cErr } = await supabase
+    .from('workspace_vault_chunks')
+    .select('id, item_id, chunk_index, content')
+    .in('item_id', itemIds)
+    .ilike('content', `%${safe}%`)
+    .order('chunk_index', { ascending: true })
+    .limit(fetchLimit);
+  if (cErr) {
+    console.warn('[vault.keywordSearchVault] chunk search failed:', cErr.message);
+    return [];
+  }
+  if (!chunks || chunks.length === 0) return [];
+
+  // 3. Dedup by item_id — keep the FIRST matching chunk per item
+  //    (ordered by chunk_index ASC means we get the earliest hit,
+  //    which is usually most representative).
+  const seen = new Set();
+  const results = [];
+  for (const chunk of chunks) {
+    if (seen.has(chunk.item_id)) continue;
+    const item = itemMap.get(chunk.item_id);
+    if (!item) continue;
+    seen.add(chunk.item_id);
+    results.push({
+      chunk: {
+        id: chunk.id,
+        item_id: chunk.item_id,
+        chunk_index: chunk.chunk_index,
+        content: chunk.content,
+      },
+      item,
+      score: 1.0,
+      match_type: 'keyword',
+    });
+    if (results.length >= topK) break;
+  }
+
+  // 4. Also keyword-search image descriptions. Best-effort — silently
+  //    skipped if the workspace_vault_images table doesn't exist.
+  try {
+    const { data: imgRows } = await supabase
+      .from('workspace_vault_images')
+      .select('id, item_id, storage_path, mime_type, description, source_page, source_paragraph')
+      .in('item_id', itemIds)
+      .ilike('description', `%${safe}%`)
+      .limit(Math.min(100, topK * 2));
+    if (Array.isArray(imgRows)) {
+      for (const img of imgRows) {
+        if (seen.has(img.item_id)) continue;     // text chunk already won this item
+        const item = itemMap.get(img.item_id);
+        if (!item) continue;
+        seen.add(img.item_id);
+        results.push({
+          chunk: {
+            id: img.id,
+            item_id: img.item_id,
+            chunk_index: -1,
+            content: img.description || '',
+          },
+          image: {
+            id: img.id,
+            storage_path: img.storage_path,
+            mime_type: img.mime_type,
+            description: img.description,
+            source_page: img.source_page,
+            source_paragraph: img.source_paragraph,
+          },
+          item,
+          score: 0.95,                            // slight de-rank vs text keyword hits
+          match_type: 'image_keyword',
+        });
+        if (results.length >= topK) break;
+      }
+    }
+  } catch {
+    // Migration 0032 not applied yet — skip image keyword search
+  }
+
+  return results;
 }
 
 // ---------------------------------------------------------------

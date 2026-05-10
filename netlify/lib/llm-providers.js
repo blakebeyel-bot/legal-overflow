@@ -28,21 +28,32 @@
 // Display name + provider-specific id. The UI's model toggle uses this list.
 // Add models here; nothing else needs to change.
 export const MODELS = [
-  // Anthropic
-  { id: 'claude-sonnet-4-5',  label: 'Claude Sonnet 4.5',  provider: 'anthropic', context: 200_000, default: true },
-  { id: 'claude-opus-4-5',    label: 'Claude Opus 4.5',    provider: 'anthropic', context: 200_000 },
-  { id: 'claude-haiku-4-5',   label: 'Claude Haiku 4.5',   provider: 'anthropic', context: 200_000 },
-  // OpenAI
-  { id: 'gpt-5',              label: 'GPT-5',              provider: 'openai',    context: 256_000 },
-  { id: 'gpt-5-mini',         label: 'GPT-5 mini',         provider: 'openai',    context: 256_000 },
-  { id: 'gpt-4.1',            label: 'GPT-4.1',            provider: 'openai',    context: 1_000_000 },
-  // Google
-  { id: 'gemini-2.5-pro',     label: 'Gemini 2.5 Pro',     provider: 'google',    context: 2_000_000 },
-  { id: 'gemini-2.5-flash',   label: 'Gemini 2.5 Flash',   provider: 'google',    context: 1_000_000 },
+  // Anthropic — all current Claude generations are vision-capable
+  { id: 'claude-sonnet-4-5',  label: 'Claude Sonnet 4.5',  provider: 'anthropic', context: 200_000, vision: true, default: true },
+  { id: 'claude-opus-4-5',    label: 'Claude Opus 4.5',    provider: 'anthropic', context: 200_000, vision: true },
+  { id: 'claude-haiku-4-5',   label: 'Claude Haiku 4.5',   provider: 'anthropic', context: 200_000, vision: true },
+  // OpenAI — GPT-5 family and GPT-4.1 all support image input
+  { id: 'gpt-5',              label: 'GPT-5',              provider: 'openai',    context: 256_000, vision: true },
+  { id: 'gpt-5-mini',         label: 'GPT-5 mini',         provider: 'openai',    context: 256_000, vision: true },
+  { id: 'gpt-4.1',            label: 'GPT-4.1',            provider: 'openai',    context: 1_000_000, vision: true },
+  // Google — both 2.5 models are natively multimodal
+  { id: 'gemini-2.5-pro',     label: 'Gemini 2.5 Pro',     provider: 'google',    context: 2_000_000, vision: true },
+  { id: 'gemini-2.5-flash',   label: 'Gemini 2.5 Flash',   provider: 'google',    context: 1_000_000, vision: true },
 ];
 
 export function findModel(id) {
   return MODELS.find((m) => m.id === id) || MODELS.find((m) => m.default);
+}
+
+/**
+ * True when the given model id can accept image inputs alongside text.
+ * Used by the chat pipeline to decide whether to attach image bytes
+ * from vault retrieval to the user message — vs. inlining captions
+ * only for text-only models.
+ */
+export function modelSupportsVision(modelId) {
+  const m = findModel(modelId);
+  return !!(m && m.vision);
 }
 
 // ---- Anthropic -------------------------------------------------------------

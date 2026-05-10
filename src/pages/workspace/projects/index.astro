@@ -724,7 +724,8 @@
     throw err;
   }
 
-  const accessToken = session.access_token;
+  let accessToken = session.access_token;
+  try { supabase.auth.onAuthStateChange((_e, s) => { if (s?.access_token) accessToken = s.access_token; }); } catch {}
   const main = document.getElementById('page-main');
   const projectId = new URL(location.href).searchParams.get('id');
 
@@ -770,6 +771,7 @@
   async function renderListView() {
     main.innerHTML = `
       <div class="ws-wrap">
+        <a href="/workspace/" class="ws-back-pill" title="Back to workspace home"><span class="ws-back-arrow">←</span> Workspace home</a>
         <header class="ws-head">
           <span class="br-bl"></span><span class="br-br"></span>
           <div class="kicker">
@@ -1201,7 +1203,7 @@
     });
 
     document.getElementById('proj-delete').addEventListener('click', async () => {
-      if (!confirm(`Delete project "${project.name}"? Contained items will move back to the global workspace (chats, docs, reviews are kept).`)) return;
+      if (!(await window.siteConfirm(`Delete project "${project.name}"? Contained items will move back to the global workspace (chats, docs, reviews are kept).`, { okLabel: 'Delete', danger: true }))) return;
       const r = await fetch('/.netlify/functions/workspace-projects-delete', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },

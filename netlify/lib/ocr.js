@@ -49,18 +49,38 @@ BODY-TEXT RULES:
 - If the page is a stamp / form-watermark only with no real content, output: [stamp/watermark only]
 
 ANNOTATION RULES (CRITICAL):
-Lawyers redline contracts. Capture every visible annotation as a separate markdown line AT THE END of the page (after the body text), each on its own line:
+Lawyers redline contracts. Capture every visible annotation INLINE — adjacent to the text it
+modifies — using the syntax below. This is critical for downstream search: chat retrieval pulls
+the surrounding paragraph + the markup attached to it together, so a query like "what did Joe
+note on the indemnity clause?" returns BOTH the clause text and Joe's note in a single chunk.
 
-- Highlights (yellow/pink/green/etc.) → > [HIGHLIGHT] "<exact highlighted text>"
-- Strikethroughs / redlines crossed out → > [STRIKEOUT] "<crossed-out text>"
-- Underlines added by the reviewer (NOT structural underline-emphasis) → > [UNDERLINE] "<underlined text>"
-- Margin notes / sticky notes / handwritten comments → > [NOTE] "<the note text>"
-- Stamps (RECEIVED, FILED, EXECUTED, etc.) → > [STAMP] "<text inside stamp>"
-- Signatures (handwritten ink) → > [SIGNATURE] "<name if legible, else 'illegible'>"
-- Initials → > [INITIALS] "<initials>"
-- Stickers / tabs / arrows pointing at clauses → > [MARK] "<what's being pointed at>"
+INLINE ANNOTATION SYNTAX (place these directly within the prose, where the markup appears):
 
-If a margin note is associated with a particular clause, include the clause text in quotes after the note: > [NOTE on "the term hereof"] "Push back — too long"
+- Highlights (any color: yellow, pink, green, blue, etc.) → wrap the highlighted span:
+  {{HIGHLIGHT}}highlighted text{{/HIGHLIGHT}}
+- Strikethroughs / redlines crossed out (single line, double line, or scribbled out):
+  {{STRIKEOUT}}crossed-out text{{/STRIKEOUT}}
+- Underlines added by the reviewer (NOT structural emphasis): {{UNDERLINE}}underlined text{{/UNDERLINE}}
+- Boxes / circles drawn AROUND a clause or word → wrap with {{BOX}}circled text{{/BOX}}
+- Checkmarks (✓) next to a clause or in a margin → at the end of the clause: > [CHECK]: "<clause being checked>"
+- Margin notes / sticky notes / handwritten comments attached to a specific clause → after the
+  clause they reference, on a new line as a blockquote: > [NOTE]: "<the note text>"
+- Margin notes that include author or date info (e.g. callout balloon "JS 3/4/24") →
+  > [NOTE · JS · 3/4/24]: "<text>"
+- Stamps (RECEIVED, FILED, EXECUTED, NOTARIZED, APPROVED, etc.) at the top/bottom of the
+  page or on a clause → > [STAMP]: "<text inside stamp>"
+- Signatures (handwritten ink) → > [SIGNATURE]: "<name if legible, else 'illegible'>"
+- Initials in the margin of a clause → at the end of the clause: > [INITIALS]: "<initials>"
+- Arrows drawn from one clause to another or pointing at text → > [ARROW]: "<from> → <to>"
+- Stickers / tabs / sticky-note flags on the edge of the page → > [TAB]: "<label on the tab, e.g. 'Indemnity', 'Schedule A'>"
+- Sticker arrows / Post-It tabs pointing at a clause → > [MARK]: "<what's being pointed at>"
+- Free-floating doodles or marks with no clear text content → > [MARK]: "<best description>"
+
+If a comment / note has visible author or date information (e.g. callout balloon "JS 3/4/24"),
+include it in the bracket: > [NOTE · JS · 3/4/24]: "Push back — too long"
+
+If you cannot tell which clause an annotation belongs to (e.g. a free-floating margin doodle
+with no clear anchor), emit it on its own line right where it appears in vertical reading order.
 
 DO NOT:
 - Add commentary, explanation, or preamble like "Here is the transcription"
@@ -68,8 +88,10 @@ DO NOT:
 - Re-order content (preserve top-to-bottom reading order)
 - Translate or "improve" the language — transcribe verbatim
 - Treat annotations as decorative — they often carry the most important information on the page
+- Group annotations into a separate section at the end of the page — they MUST appear inline,
+  next to the text they modify, so chunk-based retrieval keeps them paired with context
 
-Output ONLY the markdown for this page. Body first, then a blank line, then the annotation lines. No introductions.`;
+Output ONLY the markdown for this page. No introductions.`;
 
 const SHOULD_OCR_MIN_CHARS_PER_PAGE = 50;
 

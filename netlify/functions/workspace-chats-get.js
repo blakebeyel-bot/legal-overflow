@@ -30,7 +30,68 @@ export default async (req) => {
     .order('created_at', { ascending: true });
   if (msgErr) return json({ error: msgErr.message }, 500);
 
-  return json({ chat, messages: messages || [] });
+  // Hydrate anchored vault items so the chat UI can render the
+  // anchor chip strip without a second round-trip. Empty array
+  // when the column is missing (migration 0033 not applied yet).
+  let anchors = [];
+  const anchoredIds = Array.isArray(chat.anchored_item_ids) ? chat.anchored_item_ids : [];
+  if (anchoredIds.length > 0) {
+    try {
+      const { data: items } = await supabase
+        .from('workspace_vault_items')
+        .select('id, title, source_kind')
+        .in('id', anchoredIds)
+        .eq('user_id', auth.user.id);
+      if (Array.isArray(items)) {
+        const byId = new Map(items.map((it) => [it.id, it]));
+        // Preserve anchor order from the chat row
+        anchors = anchoredIds.map((aid) => byId.get(aid)).filter(Boolean);
+      }
+    } catch {
+      // Schema-not-applied case — anchors stay []
+    }
+  }
+
+  // Hydrate the bound workflow (if any). This lets the chat page
+  // render a "Running workflow: <title>" chip + an intro card in
+  // the empty state so the user knows the prompt pack is active
+  // before they send a message.
+  let workflow = null;
+  if (chat.workflow_id) {
+    try {
+      const { data: wf } = await supabase
+        .from('workspace_workflows')
+        .select('id, title, description, kind, prompt_md, practice_area, is_prompt_pack')
+        .eq('id', chat.workflow_id)
+        .or(`user_id.eq.${auth.user.id},and(user_id.is.null,is_published.eq.true)`)
+        .maybeSingle();
+      if (wf) {
+        workflow = {
+          id: wf.id,
+          title: wf.title,
+          description: wf.description || '',
+          kind: wf.kind,
+          practice_area: wf.practice_area || null,
+          // Send a short preview of the system prompt so the user
+          // can see the gist without us shipping the full body.
+          prompt_preview: typeof wf.prompt_md === 'string'
+            ? wf.prompt_md.slice(0, 600)
+            : '',
+          prompt_chars: typeof wf.prompt_md === 'string' ? wf.prompt_md.length : 0,
+          // Whether this workflow came from the homepage prompt-pack
+          // catalog. The chat page uses this to apply the
+          // teal "active workflow mode" tint to the chat container —
+          // visible signal that a guided pack is running.
+          is_prompt_pack: !!wf.is_prompt_pack,
+        };
+      }
+    } catch {
+      // Workflow row missing or inaccessible — chat still works,
+      // just without the workflow metadata.
+    }
+  }
+
+  return json({ chat, messages: messages || [], anchors, workflow });
 };
 
 function json(obj, status = 200) {

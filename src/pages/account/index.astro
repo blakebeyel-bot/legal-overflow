@@ -58,6 +58,28 @@
     </div>
   </header>
 
+  <!-- Display name — single source of truth for the author shown on
+       any document this account marks up: tracked changes in
+       finalized redlines, sticky-note comments on annotated PDFs,
+       Word comments embedded by the citation verifier, etc.
+       Universal override across the entire platform. Falls back to
+       'Legal Overflow' if the field is blank. -->
+  <section class="ws-card">
+    <header class="ws-card-head">
+      <h2 class="ws-card-title">Display name</h2>
+    </header>
+    <div class="acct-displayname-intro" style="font-size:13.5px; color:var(--ink-2); margin-bottom:14px;">
+      <p>The author name attributed on every redline and comment this account produces — tracked changes in compare-finalize and contract-review outputs, sticky notes on annotated PDFs, Word comments in corrected briefs. Falls back to <strong>Legal Overflow</strong> when blank.</p>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input type="text" id="acct-displayname-input" maxlength="80"
+        placeholder="e.g. Blake Beyel"
+        style="flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--rule-soft); border-radius:4px; font-family:var(--sans); font-size:14px;" />
+      <button type="button" id="acct-displayname-save" class="ws-btn">Save</button>
+      <span id="acct-displayname-status" style="font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3);"></span>
+    </div>
+  </section>
+
   <section class="ws-card">
     <header class="ws-card-head">
       <h2 class="ws-card-title">Bring your own keys</h2>
@@ -107,6 +129,62 @@
     await supabase.auth.signOut();
     location.href = '/';
   });
+
+  // Display name — universal author override across the site. The
+  // RLS lockdown in migration 0028 deliberately leaves this column
+  // unpinned, so a `supabase.from('profiles').update(...)` from the
+  // browser succeeds; tier/approved_at/cap_overrides remain locked.
+  const dnInput = document.getElementById('acct-displayname-input');
+  const dnSave = document.getElementById('acct-displayname-save');
+  const dnStatus = document.getElementById('acct-displayname-status');
+
+  async function loadDisplayName() {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (error) throw error;
+      dnInput.value = (data?.display_name || '').trim();
+    } catch (err) {
+      console.warn('display_name load failed:', err?.message);
+    }
+  }
+
+  async function saveDisplayName() {
+    const raw = dnInput.value.trim();
+    if (raw.length > 80) {
+      dnStatus.textContent = 'Too long (max 80)';
+      dnStatus.style.color = 'var(--accent)';
+      return;
+    }
+    dnSave.disabled = true;
+    dnStatus.textContent = 'Saving…';
+    dnStatus.style.color = 'var(--ink-3)';
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: raw || null })
+        .eq('id', session.user.id);
+      if (error) throw error;
+      dnStatus.textContent = 'Saved';
+      dnStatus.style.color = 'var(--ink-3)';
+      setTimeout(() => { if (dnStatus.textContent === 'Saved') dnStatus.textContent = ''; }, 2400);
+    } catch (err) {
+      dnStatus.textContent = 'Failed';
+      dnStatus.style.color = 'var(--accent)';
+      console.warn('display_name save failed:', err?.message);
+    } finally {
+      dnSave.disabled = false;
+    }
+  }
+
+  dnSave.addEventListener('click', saveDisplayName);
+  dnInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveDisplayName(); }
+  });
+  loadDisplayName();
 
   const PROVIDERS = [
     { id: 'anthropic', label: 'Anthropic (Claude)', placeholder: 'sk-ant-…', help: 'From console.anthropic.com → Settings → API keys' },
@@ -168,7 +246,7 @@
     document.querySelectorAll('.byok-remove').forEach((b) => {
       b.addEventListener('click', async () => {
         const provider = b.dataset.remove;
-        if (!confirm(`Remove your ${provider} key? Future chats will fall back to the site key.`)) return;
+        if (!(await window.siteConfirm(`Remove your ${provider} key? Future chats will fall back to the site key.`, { okLabel: 'Remove', danger: true }))) return;
         await fetch('/.netlify/functions/workspace-byok-delete', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },

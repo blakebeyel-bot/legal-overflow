@@ -165,11 +165,30 @@ export default async (req) => {
   // "Library only" in the Vault page's upload modal).
   const skipVaultIngest = body.skip_vault_ingest === true;
   if (!skipVaultIngest && extraction.status === 'done' && storedText && storedText.trim()) {
+    // Detect format for the optional image pipeline (Phase 2+ of
+    // the multimodal RAG rollout). When the user's image-extraction
+    // setting is on AND the env flag permits, addVaultItem will
+    // walk the original buffer for embedded images, stage them,
+    // generate captions, and inline them into the chunk text.
+    let ingestFormat = null;
+    const ftLower = String(file_type || '').toLowerCase();
+    const fnLower = String(original_filename || '').toLowerCase();
+    if (ftLower.includes('wordprocessingml') || fnLower.endsWith('.docx')) ingestFormat = 'docx';
+    else if (ftLower.includes('pdf') || fnLower.endsWith('.pdf')) ingestFormat = 'pdf';
     fireVaultAutoIngest({
       userId: auth.user.id,
       docId: doc.id,
       title: original_filename || filename || 'Untitled document',
       content: storedText,
+      // We already downloaded the buffer above for extraction;
+      // re-download isn't necessary if we capture it. The
+      // re-download-aware approach below keeps the change minimal:
+      // pass the storage_path so fireVaultAutoIngest can fetch
+      // bytes only when image extraction is actually enabled
+      // (avoiding wasted bandwidth in the common case where the
+      // flag is off).
+      storagePath: storage_path,
+      format: ingestFormat,
     });
   }
 
@@ -219,17 +238,42 @@ function fireOcr({ documentId, versionId, userId, skipVaultIngest = false }) {
  * register endpoint is itself authenticated; we can call vault.js
  * directly using the admin client.
  */
-async function fireVaultAutoIngest({ userId, docId, title, content }) {
+async function fireVaultAutoIngest({ userId, docId, title, content, storagePath, format }) {
   try {
     const { getSupabaseAdmin } = await import('../lib/supabase-admin.js');
     const supabase = getSupabaseAdmin();
     const { data: settings } = await supabase
       .from('workspace_user_settings')
-      .select('vault_auto_ingest_uploads')
+      .select('vault_auto_ingest_uploads, vault_image_extraction_enabled')
       .eq('user_id', userId)
       .maybeSingle();
     const enabled = settings ? !!settings.vault_auto_ingest_uploads : true;
     if (!enabled) return;
+
+    // Decide whether to fetch the original bytes for the image
+    // pipeline. Only do this when:
+    //   - User opted into image extraction
+    //   - Env var permits
+    //   - We have a storagePath + recognized format
+    // In every other case we skip the storage download — saves
+    // bandwidth + latency on the common text-only path.
+    const { imageExtractionEnvEnabled } = await import('../lib/vault-images.js');
+    let originalBytes = null;
+    const userOptIn = !!settings?.vault_image_extraction_enabled;
+    if (userOptIn && imageExtractionEnvEnabled() && storagePath && (format === 'docx' || format === 'pdf')) {
+      try {
+        const { data: file, error: dlErr } = await supabase.storage
+          .from('library')
+          .download(storagePath);
+        if (dlErr) throw new Error(dlErr.message);
+        const ab = await file.arrayBuffer();
+        originalBytes = Buffer.from(ab);
+      } catch (err) {
+        console.warn('[vault auto-ingest] image-pipeline storage fetch failed:', err.message);
+        // Fall through with originalBytes = null — addVaultItem
+        // will simply skip image work and ingest text-only.
+      }
+    }
 
     const { addVaultItem } = await import('../lib/vault.js');
     await addVaultItem({
@@ -239,6 +283,8 @@ async function fireVaultAutoIngest({ userId, docId, title, content }) {
       sourceIds: { docId },
       title,
       content,
+      originalBytes,
+      format: originalBytes ? format : null,
     });
   } catch (err) {
     console.error('vault auto-ingest failed:', err.message);

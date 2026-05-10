@@ -18,7 +18,7 @@
  * Input body (JSON):
  *   { review_id: string }
  */
-import { requireUser, getSupabaseAdmin } from '../lib/supabase-admin.js';
+import { requireUser, getSupabaseAdmin, getUserDisplayName } from '../lib/supabase-admin.js';
 import { getAgent, loadConfig } from '../lib/agents.js';
 import { callSpecialist, callModel, extractJson } from '../lib/anthropic.js';
 import { extractDocumentText } from '../lib/extract.js';
@@ -443,10 +443,11 @@ async function processReview({ userId, reviewId, supabase }) {
   // Document attribution is fixed to a generic platform label — we do
   // NOT put the user's personal name on the marked DOCX/PDF or on the
   // tracked-changes / comment author attributes that Word displays.
-  // The disclaimers on the deliverables make clear the analysis is
-  // AI-drafted; the user remains responsible for review but is not
-  // identified on the artifact itself.
-  const docAuthor = 'Legal Overflow';
+  // Universal-display-name override: profiles.display_name (set in
+  // /account/) becomes the author shown on every redline / comment;
+  // falls back to 'Legal Overflow' for new accounts. See migration
+  // 0031 + getUserDisplayName in supabase-admin.js.
+  const docAuthor = await getUserDisplayName(userId);
   let annotated, unanchored;
   if (format === 'docx') {
     const r = await applyDocxMarkup(contractBuffer, finalFindings, { author: docAuthor });

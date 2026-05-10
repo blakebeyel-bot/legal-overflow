@@ -777,6 +777,7 @@
 </header>
 
 <main class="ws-wrap">
+  <a href="/workspace/" class="ws-back-pill" title="Back to workspace home"><span class="ws-back-arrow">←</span> Workspace home</a>
 
   <header class="ws-head">
     <span class="br-bl"></span><span class="br-br"></span>
@@ -935,7 +936,8 @@
     throw err;
   }
 
-  const accessToken = session.access_token;
+  let accessToken = session.access_token;
+  try { supabase.auth.onAuthStateChange((_e, s) => { if (s?.access_token) accessToken = s.access_token; }); } catch {}
   const userId = session.user.id;
   const els = {
     grid: document.getElementById('lib-grid'),
@@ -1129,8 +1131,14 @@
         e.preventDefault(); e.stopPropagation();
         const id = btn.dataset.del;
         const name = btn.dataset.name;
-        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-        btn.disabled = true;
+        const ok = await window.siteConfirm(`Delete "${name}"? This cannot be undone.`, { okLabel: 'Delete', danger: true });
+        if (!ok) return;
+        // Optimistic remove
+        const row = btn.closest('.ws-row-wrap, [data-doc-id], li, .lib-card') || btn.parentElement;
+        const removedHTML = row?.outerHTML;
+        const removedNext = row?.nextSibling;
+        const removedParent = row?.parentNode;
+        if (row) row.remove();
         const r = await fetch('/.netlify/functions/workspace-library-delete', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1138,11 +1146,19 @@
         });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
-          alert('Delete failed: ' + (j.error || 'unknown'));
-          btn.disabled = false;
+          window.siteToast('Delete failed: ' + (j.error || 'unknown'), { kind: 'error' });
+          if (removedParent && removedHTML) {
+            const tmp = document.createElement('div'); tmp.innerHTML = removedHTML;
+            const restored = tmp.firstElementChild;
+            if (restored) {
+              if (removedNext) removedParent.insertBefore(restored, removedNext);
+              else removedParent.appendChild(restored);
+            }
+          }
           return;
         }
         try { localStorage.removeItem(LIB_CACHE_KEY); } catch {}
+        window.siteToast(`"${name}" deleted`, { kind: 'success', duration: 2400 });
         loadDocs();
       });
     });

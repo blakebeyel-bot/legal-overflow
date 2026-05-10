@@ -35,6 +35,14 @@
     --motion-snap: cubic-bezier(.2,.8,.2,1);
     --privacy: #c98a14;
     --privacy-tint: #f4ead0;
+    /* Teal (blueish-green) signals an ACTIVE workflow / prompt-pack
+       chat. Same usage pattern as --privacy: tints the chat
+       container, accents the border, drives the pulsing top stripe.
+       Distinct hue so privacy and workflow can coexist visually
+       (they apply to different areas) and never look like the
+       same state. */
+    --workflow: #2a8a89;
+    --workflow-tint: #d8eded;
     background-image:
       radial-gradient(1200px 600px at 80% -10%, rgba(208,219,213,.18), transparent 60%),
       radial-gradient(900px 500px at -10% 30%, rgba(220,212,196,.25), transparent 70%);
@@ -273,14 +281,67 @@
      Forced display: block to defeat workspace.css's flex layout. */
   body.ws-chat .chat-head {
     position: relative !important;
-    display: block !important;
+    display: flex !important;
+    flex-direction: column !important;
     padding: 10px 16px 12px !important;
-    margin: 0 0 10px !important;
+    margin: 0 0 0 !important;
     background: transparent !important;
     border-bottom: none !important;
     flex: none !important;
     align-items: initial !important;
     gap: 0 !important;
+    transition: padding .12s ease;
+  }
+  /* Reorder so the action row (model picker + buttons) sits FIRST
+     in flex order. When the user shrinks the header, the LOWER
+     rows (kicker / meta / anchors) collapse first while the
+     button row stays anchored at the top — always clickable. */
+  body.ws-chat .chat-head .chat-head-row { order: 1; }
+  body.ws-chat .chat-head .chat-kicker   { order: 2; margin: 6px 0 0 !important; }
+  body.ws-chat .chat-head .chat-meta     { order: 3; }
+  body.ws-chat .chat-head .chat-anchors  { order: 4; }
+  /* Compact mode — applied by the resize JS once the user drags
+     the handle past the "make-it-tighter" threshold. Hides all
+     ancillary rows but PRESERVES the action button row. The chat
+     stream area below grows accordingly. */
+  body.ws-chat .chat-head[data-compact="1"] {
+    padding: 6px 16px 6px !important;
+  }
+  body.ws-chat .chat-head[data-compact="1"] .chat-kicker,
+  body.ws-chat .chat-head[data-compact="1"] .chat-meta,
+  body.ws-chat .chat-head[data-compact="1"] .chat-anchors {
+    display: none !important;
+  }
+  body.ws-chat .chat-head[data-compact="1"] .chat-title-input {
+    font-size: 15px !important;
+    line-height: 1.2 !important;
+  }
+  /* Hides ONLY the meta strip when the user wants a slightly more
+     compact header but still wants the anchor chips visible. */
+  body.ws-chat .chat-head[data-compact="meta"] .chat-meta {
+    display: none !important;
+  }
+  /* Horizontal resize handle pinned to the bottom edge of the
+     header. Same visual language as the sidebar's vertical
+     #rail-resize handle: a thin centered nub that grows on hover/
+     drag. Drag vertically to grow/shrink the header. */
+  body.ws-chat .chat-head-resize {
+    position: relative;
+    height: 7px;
+    margin: 0 0 8px 0;
+    cursor: ns-resize;
+    background: transparent;
+    z-index: 5;
+  }
+  body.ws-chat .chat-head-resize::before {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px; height: 1px; background: var(--rule-soft);
+    transition: background .15s, width .15s, height .15s;
+  }
+  body.ws-chat .chat-head-resize:hover::before,
+  body.ws-chat .chat-head-resize.is-dragging::before {
+    background: var(--ink); width: 56px; height: 2px;
   }
   body.ws-chat .chat-head::before, body.ws-chat .chat-head::after,
   body.ws-chat .chat-head > .br-bl, body.ws-chat .chat-head > .br-br {
@@ -429,12 +490,173 @@
   body.ws-chat .chat-privacy-toggle:has(input:checked) {
     color: var(--privacy); border-color: var(--privacy); background: var(--privacy-tint);
   }
+
+  /* Deep-think toggle — same pill shape as the privacy toggle, but
+     accent-colored when on (signals reasoning-mode rather than
+     privacy-mode). Hidden via the [hidden] attribute when the
+     selected model doesn't support reasoning. */
+  body.ws-chat .chat-deep-think-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 11px;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+    background: rgba(255,255,255,.4);
+    border: 1px solid var(--rule-soft); border-radius: 4px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-deep-think-toggle:hover { color: var(--ink); border-color: var(--ink); }
+  body.ws-chat .chat-deep-think-toggle input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none;
+    width: 22px; height: 12px; border-radius: 999px;
+    background: var(--rule-soft);
+    position: relative; margin: 0;
+    cursor: pointer;
+    transition: background .15s var(--motion-snap);
+  }
+  body.ws-chat .chat-deep-think-toggle input[type="checkbox"]::after {
+    content: ''; position: absolute; left: 1px; top: 1px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--paper); border: 1px solid var(--ink-4);
+    transition: transform .2s var(--motion-snap), border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-deep-think-toggle input[type="checkbox"]:checked {
+    background: var(--accent-deep, #3862aa);
+  }
+  body.ws-chat .chat-deep-think-toggle input[type="checkbox"]:checked::after {
+    transform: translateX(10px); border-color: var(--accent-deep, #3862aa); background: rgba(56, 98, 170, .15);
+  }
+  body.ws-chat .chat-deep-think-toggle:has(input:checked) {
+    color: var(--accent-deep, #3862aa); border-color: var(--accent-deep, #3862aa); background: rgba(56, 98, 170, .08);
+  }
+
+  /* Anchor chip strip — pinned vault docs + post-turn suggestions.
+     Sits in the chat header right under the meta line. */
+  body.ws-chat .chat-anchors {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    margin-top: 10px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  body.ws-chat .chat-anchors .chat-anchors-label {
+    color: var(--ink-4); margin-right: 4px;
+  }
+  body.ws-chat .chat-anchor-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--accent-deep, #3862aa);
+    border-radius: 3px;
+    background: rgba(56, 98, 170, .06);
+    color: var(--accent-deep, #3862aa);
+  }
+  body.ws-chat .chat-anchor-chip .chat-anchor-x {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; padding: 0;
+    border: none; background: transparent;
+    color: var(--accent-deep, #3862aa); cursor: pointer;
+    font-size: 13px; line-height: 1;
+    opacity: .65;
+  }
+  body.ws-chat .chat-anchor-chip .chat-anchor-x:hover { opacity: 1; }
+  body.ws-chat .chat-anchor-suggest {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px;
+    border: 1px dashed var(--rule-soft);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  body.ws-chat .chat-anchor-suggest:hover {
+    color: var(--accent-deep, #3862aa);
+    border-color: var(--accent-deep, #3862aa);
+    background: rgba(56, 98, 170, .04);
+  }
   body.ws-chat .chat-privacy-toggle-lock { display: none; }     /* design uses pill instead of lock emoji */
+
+  /* Workflow chip — shown in the anchor strip when the chat is
+     bound to a saved prompt pack. Teal to match the active-mode
+     tint applied to the chat container so the "you're in a
+     workflow" signal is visually consistent. */
+  body.ws-chat .chat-workflow-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 9px;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--workflow);
+    background: var(--workflow-tint);
+    border: 1px solid var(--workflow);
+    border-radius: 3px;
+    cursor: help;
+  }
+  body.ws-chat .chat-workflow-chip-icon {
+    font-size: 12px; line-height: 1;
+  }
+
+  /* Intro card shown in the empty messages area when a workflow
+     is loaded but no messages yet. Teal to match the chip and
+     the chat-container tint. */
+  body.ws-chat .chat-workflow-intro {
+    margin: 32px auto;
+    padding: 20px 22px;
+    max-width: 540px;
+    background: rgba(42, 138, 137, .05);
+    border: 1px solid var(--workflow);
+    border-radius: 6px;
+    font-family: var(--sans);
+    color: var(--ink);
+  }
+  body.ws-chat .chat-workflow-intro-kicker {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--workflow);
+    margin-bottom: 6px;
+  }
+  body.ws-chat .chat-workflow-intro-title {
+    font-family: var(--serif, Georgia, serif);
+    font-size: 22px; font-weight: 400;
+    margin: 0 0 8px 0;
+    color: var(--ink);
+  }
+  body.ws-chat .chat-workflow-intro-desc {
+    font-size: 14px; line-height: 1.5;
+    color: var(--ink-2);
+    margin: 0 0 12px 0;
+  }
+  body.ws-chat .chat-workflow-intro-meta {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+    margin-bottom: 10px;
+  }
+  body.ws-chat .chat-workflow-intro-cta {
+    font-size: 13px; line-height: 1.45;
+    color: var(--ink-2);
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule-soft);
+  }
 
   body.ws-chat .chat-key-source {
     font-family: var(--mono); font-size: 9px; color: var(--accent-deep);
     letter-spacing: .12em; text-transform: uppercase;
     align-self: center;
+  }
+
+  /* Vision-capability hint — appears next to the model picker when
+     the selected model can read images attached from the vault.
+     Same monospace caption style as the key-source pill so the
+     header reads as a coherent metadata strip. */
+  body.ws-chat .chat-vision-hint {
+    font-family: var(--mono); font-size: 9px;
+    letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ins, #4a8a64);
+    align-self: center;
+    padding: 2px 7px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    cursor: help;
   }
 
   /* meta line below the title — stats row */
@@ -680,6 +902,35 @@
   }
   @keyframes chatPrivacyPulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 
+  /* ---- Workflow / prompt-pack active state ----
+     When the chat is running a prompt-pack workflow imported from
+     the homepage, the chat container picks up the teal --workflow
+     tint + accented border + a pulsing top stripe. Same visual
+     language as privacy mode but different hue so the two can
+     coexist (a chat can be both privacy-on AND running a workflow). */
+  body.ws-chat.workflow-active .chat-container,
+  body.ws-chat .chat-main.is-workflow-on .chat-container {
+    background: var(--workflow-tint);
+    border-color: var(--workflow);
+  }
+  body.ws-chat.workflow-active .chat-container::before,
+  body.ws-chat .chat-main.is-workflow-on .chat-container::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: var(--workflow);
+    animation: chatWorkflowPulse 2s ease-in-out infinite;
+    z-index: 1;
+  }
+  @keyframes chatWorkflowPulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  /* When BOTH privacy and workflow are on, the workflow stripe sits
+     directly under the privacy stripe (offset 2px). Stack them so
+     both states are visible. */
+  body.ws-chat.privacy.workflow-active .chat-container::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 2px; height: 2px;
+    background: var(--workflow);
+    animation: chatWorkflowPulse 2s ease-in-out infinite;
+    z-index: 1;
+  }
+
   /* messages stream */
   body.ws-chat .chat-messages {
     flex: 1; overflow-y: auto; min-height: 0;
@@ -789,6 +1040,28 @@
   body.ws-chat .chat-main.is-privacy-on .chat-composer {
     background: var(--privacy-tint); border-top-color: var(--privacy);
   }
+  /* Drag-target visual — composer grows a dashed accent border + a
+     subtle tint when the user drags a file over it. Goes away on
+     drop or dragleave. Pure CSS state driven by the JS class
+     toggle below. */
+  body.ws-chat .chat-composer.is-drop-target {
+    background: rgba(56, 98, 170, .05);
+    box-shadow: inset 0 0 0 2px var(--accent-deep, #3862aa);
+    transition: background .12s, box-shadow .12s;
+  }
+  body.ws-chat .chat-composer.is-drop-target #composer-input {
+    pointer-events: none;
+  }
+  body.ws-chat .chat-composer.is-drop-target::before {
+    content: 'Drop file to attach';
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent-deep, #3862aa);
+    pointer-events: none; z-index: 5;
+  }
+  body.ws-chat .chat-composer { position: relative; }   /* anchor for ::before */
 
   /* research toolbar above composer — verbatim port of the prototype's
      .rt-toggle look: small dot-pip + mono uppercase label + hairline
@@ -973,12 +1246,53 @@
     border-bottom: none;
   }
 
-  /* attachments strip */
+  /* attachments strip — sits above the composer input with a clear
+     gap so the chips never look like they're crowding the textarea. */
   body.ws-chat .composer-attachments {
-    padding: 0 18px;
+    padding: 4px 18px 8px;
+    margin-bottom: 4px;
     background: transparent;
     border: none;
+    display: flex; flex-wrap: wrap; gap: 6px;
   }
+  body.ws-chat .composer-attachments:empty {
+    display: none;
+    padding: 0;
+    margin: 0;
+  }
+  body.ws-chat .composer-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px 4px 9px;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .04em;
+    color: var(--ink-2);
+    background: rgba(56, 98, 170, .06);
+    border: 1px solid var(--accent-deep, #3862aa);
+    border-radius: 3px;
+    line-height: 1.2;
+  }
+  body.ws-chat .composer-chip-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 12px; height: 12px;
+    color: var(--accent-deep, #3862aa);
+  }
+  body.ws-chat .composer-chip-icon svg { width: 12px; height: 12px; }
+  body.ws-chat .composer-chip-x {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; padding: 0;
+    border: none; background: transparent;
+    color: var(--ink-3); cursor: pointer;
+    font-size: 14px; line-height: 1;
+    opacity: .7;
+  }
+  body.ws-chat .composer-chip-x:hover { opacity: 1; color: var(--accent-deep, #3862aa); }
+  /* In-bubble attachment chip — small inline pill with SVG paperclip. */
+  body.ws-chat .msg-attach-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 11px; height: 11px;
+    color: var(--ink-3);
+  }
+  body.ws-chat .msg-attach-icon svg { width: 11px; height: 11px; }
 
   /* nav-toggle bar — keep it minimal to match the design */
   body.ws-chat #nav-toggle {
@@ -1075,6 +1389,17 @@
             <span class="chat-privacy-toggle-label">Privacy</span>
           </label>
           <select id="model-select" class="chat-model-select" aria-label="Model"></select>
+          <span id="model-vision-hint" class="chat-vision-hint" hidden title="This model reads images attached from your vault — embedded charts, signatures, diagrams, etc."></span>
+          <!-- Deep-think toggle. When on AND the selected model
+               supports extended reasoning (Claude 3.7+, o1/o3/o4,
+               GPT-5, Gemini 2.5+, Grok 3+/4 reasoning), the chat
+               request includes the provider's reasoning-effort
+               knob set high. Hidden when the model doesn't
+               support reasoning so the toggle never lies. -->
+          <label class="chat-deep-think-toggle" id="chat-deep-think-toggle" hidden title="Deep think — gives the model a longer scratchpad before answering. Slower but better for complex legal reasoning. Only available on reasoning-capable models.">
+            <input type="checkbox" id="toggle-deep-think" />
+            <span class="chat-deep-think-toggle-label">Deep think</span>
+          </label>
           <span id="key-source" class="chat-key-source" aria-live="polite"></span>
         </div>
       </div>
@@ -1083,7 +1408,18 @@
         <span><span class="ml">MESSAGES</span> &nbsp; <b id="chat-meta-msgs">0</b></span>
         <span><span class="ml">MODEL</span> &nbsp; <b id="chat-meta-model">—</b></span>
       </div>
+      <!-- Anchor chip strip — pinned vault items that contribute
+           guaranteed chunks + images to every turn. Hidden when
+           there are no anchors. Suggestion pills (offering to
+           anchor a doc that just contributed) render in the same
+           strip with a dotted outline + "+" affordance. -->
+      <div class="chat-anchors" id="chat-anchors" hidden></div>
     </header>
+    <!-- Horizontal resize handle for the chat header. Drag vertically
+         to expand or collapse. Persists in localStorage so the
+         user's chosen height sticks across sessions. Same visual
+         pattern as the sidebar's #rail-resize handle. -->
+    <div id="chat-head-resize" class="chat-head-resize" role="separator" aria-label="Resize header" aria-orientation="horizontal" tabindex="0"></div>
 
     <div class="sec-div">
       <span class="sec-num">§ A</span>
@@ -1374,9 +1710,43 @@
     throw err;
   }
 
-  const accessToken = session.access_token;
+  // accessToken is `let` (mutable) and refreshed automatically when
+  // Supabase rotates the session token. Without this, a long-lived
+  // chat tab eventually starts seeing "Invalid or expired session"
+  // 401s on every API call once the JWT (default 1h TTL) expires —
+  // because we'd be sending the original token forever.
+  let accessToken = session.access_token;
+  // Subscribe to auth state changes so accessToken always reflects
+  // the current session. supabase-js auto-refreshes ~5 min before
+  // expiry; this listener picks up the new token without requiring
+  // a page reload.
+  try {
+    supabase.auth.onAuthStateChange((event, sess) => {
+      if (sess?.access_token) accessToken = sess.access_token;
+    });
+  } catch (err) {
+    console.warn('[chat] auth listener failed:', err?.message);
+  }
+  // Also expose a getter so any code path that needs the freshest
+  // possible token (e.g. retry-after-401) can fetch from Supabase
+  // directly. Cheap — supabase-js caches in-memory.
+  async function freshAccessToken() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const t = data?.session?.access_token;
+      if (t) accessToken = t;
+      return accessToken;
+    } catch {
+      return accessToken;
+    }
+  }
+  // Pre-warm the token before any background fetches fire.
+  freshAccessToken();
   const _url = new URL(location.href);
-  const chatId = _url.searchParams.get('id');
+  // chatId is `let` (not const) so the rail-delete handler can
+  // soft-swap to the next chat without a page reload when the user
+  // deletes the active conversation.
+  let chatId = _url.searchParams.get('id');
   // Optional seed text from the dashboard command bar — prefilled into
   // the composer so the user doesn't retype. We strip it from the URL
   // immediately so a refresh doesn't re-seed the empty box.
@@ -1416,25 +1786,62 @@
   // each provider's current model catalog. The list updates whenever
   // a provider ships a new model (cache TTL 1h server, 24h browser).
   // Fallback list keeps the dropdown usable if the API fails.
-  const MODEL_CACHE_KEY = 'workspace.models.v4';   // bump on dropdown shape changes
+  const MODEL_CACHE_KEY = 'workspace.models.v7';   // v7: tighter xai *-reasoning toggle exclusion + Gemini 3 previews
   const MODEL_CACHE_TTL = 24 * 60 * 60 * 1000;
   const FALLBACK_MODELS = [
-    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic' },
-    { id: 'gpt-5-mini',        label: 'GPT-5 mini',        provider: 'openai' },
-    { id: 'gemini-2.5-flash',  label: 'Gemini 2.5 Flash',  provider: 'google' },
+    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic', vision: true, reasoning: true },
+    { id: 'gpt-5-mini',        label: 'GPT-5 mini',        provider: 'openai',    vision: true, reasoning: true },
+    { id: 'gemini-2.5-flash',  label: 'Gemini 2.5 Flash',  provider: 'google',    vision: true, reasoning: true },
   ];
+  // Cached per render so the change handler can look up vision flag
+  // for the currently-selected model without another round-trip.
+  let _modelsByIdCache = new Map();
   function renderModelOptions(models, current) {
+    _modelsByIdCache = new Map(models.map((m) => [m.id, m]));
     const byProvider = { anthropic: [], openai: [], google: [], xai: [] };
     for (const m of models) (byProvider[m.provider] || []).push(m);
+    // Vision-capable models get a "  · vision" suffix in the option
+    // label so the user can tell at a glance which models can read
+    // image attachments from their vault. Matches the site's
+    // mono-caption "· EXTRACT · SUMMARIZE · REDLINE" aesthetic.
+    const optHtml = (m) => {
+      const visionBit = m.vision ? '  · vision' : '';
+      return `<option value="${escapeHtml(m.id)}"${m.id === current ? ' selected' : ''}>${escapeHtml(m.label)}${escapeHtml(visionBit)}</option>`;
+    };
     const optGroup = (label, items) =>
       items.length
-        ? `<optgroup label="${label}">${items.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === current ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('')}</optgroup>`
+        ? `<optgroup label="${label}">${items.map(optHtml).join('')}</optgroup>`
         : '';
     els.model.innerHTML =
       optGroup('Anthropic', byProvider.anthropic) +
       optGroup('OpenAI', byProvider.openai) +
       optGroup('Google', byProvider.google) +
       optGroup('xAI', byProvider.xai);
+    updateVisionHint();
+  }
+  function updateVisionHint() {
+    const hintEl = document.getElementById('model-vision-hint');
+    if (!hintEl) return;
+    const sel = els.model?.value;
+    const m = _modelsByIdCache.get(sel);
+    if (m && m.vision) {
+      hintEl.hidden = false;
+      hintEl.textContent = '👁 sees images';
+    } else {
+      hintEl.hidden = true;
+    }
+    updateDeepThinkVisibility();
+  }
+  // Deep-think toggle visibility — only shown when the selected
+  // model supports the reasoning knob. When the user picks a
+  // non-reasoning model, the toggle hides AND its checked state is
+  // ignored downstream (chat-stream omits the param).
+  function updateDeepThinkVisibility() {
+    const wrap = document.getElementById('chat-deep-think-toggle');
+    if (!wrap) return;
+    const sel = els.model?.value;
+    const m = _modelsByIdCache.get(sel);
+    wrap.hidden = !(m && m.reasoning);
   }
   function loadCachedModels() {
     try {
@@ -1447,7 +1854,14 @@
   }
   async function refreshModels(currentSelection) {
     try {
-      const r = await fetch('/.netlify/functions/workspace-models-list', {
+      // Bypass the server-side 1-hour cache when the local cache is
+      // stale or missing — we just bumped MODEL_CACHE_KEY so the
+      // first fetch after a deploy must hit the live provider APIs.
+      const localStale = !loadCachedModels();
+      const url = localStale
+        ? '/.netlify/functions/workspace-models-list?refresh=1'
+        : '/.netlify/functions/workspace-models-list';
+      const r = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const j = await r.json();
@@ -1587,7 +2001,7 @@
     const cls = role === 'user' ? 'msg user' : 'msg asst';
     const meta = opts.meta ? `<div class="msg-meta">${escapeHtml(opts.meta)}</div>` : '';
     const attachments = Array.isArray(opts.attachments) && opts.attachments.length
-      ? `<div class="msg-attach-row">${opts.attachments.map((a) => `<span class="msg-attach">📎 ${escapeHtml(a.filename || a.name || 'attachment')}</span>`).join('')}</div>`
+      ? `<div class="msg-attach-row">${opts.attachments.map((a) => `<span class="msg-attach"><span class="msg-attach-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48"/></svg></span> ${escapeHtml(a.filename || a.name || 'attachment')}</span>`).join('')}</div>`
       : '';
     // Per-message Privacy badge was removed — the chat-wide visual
     // (amber-tinted chat container + animated lock in the header)
@@ -1613,7 +2027,10 @@
           </button>` : ''}
       </div>`;
     const dataSrc = ` data-src="${escapeAttr(content || '')}"`;
-    return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}${privacyAttr}${dataSrc}><div class="msg-body">${renderMarkdownInline(content)}${attachments}</div>${meta}${copyBtn}</div>`;
+    // Empty-content message with attachments — render just the chip
+    // (no empty paragraph above). Happens on attachment-only sends.
+    const bodyMd = (content && content.trim()) ? renderMarkdownInline(content) : '';
+    return `<div class="${cls}" data-role="${role}"${opts.id ? ` data-id="${opts.id}"` : ''}${privacyAttr}${dataSrc}><div class="msg-body">${bodyMd}${attachments}</div>${meta}${copyBtn}</div>`;
   }
   function escapeAttr(s) {
     return String(s ?? '').replace(/[<>&"'\n\r]/g, (c) => ({
@@ -1736,11 +2153,145 @@
     messages = j.messages || [];
     applyChatMeta(chat);
     renderMessages(messages);
+    renderAnchors(j.anchors || [], []);
+    // renderWorkflow handles BOTH the workflow chip AND the
+    // body.workflow-active class. Pass null when no workflow so it
+    // strips the class on chats without a bound workflow (the user
+    // navigated from a workflow chat to a plain one).
+    renderWorkflow(j.workflow || null);
     // Update cache with fresh data.
     try {
-      localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages }));
+      localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages, anchors: j.anchors || [], workflow: j.workflow || null }));
     } catch {}
   }
+
+  // ---- Workflow chip + intro card ----
+  // When the chat is bound to a saved prompt pack (workflow_id !=
+  // null), make that visible to the user so they know what's loaded.
+  // Renders:
+  //   1. A small "WORKFLOW · <title>" chip in the anchor strip area
+  //   2. An intro card in the messages area when no messages yet,
+  //      showing the title + description + sample starter prompt.
+  // Without this, freshly-created workflow chats look identical to
+  // empty plain chats — the user can't tell the prompt pack is
+  // active until they send a message and see the model's behavior.
+  function renderWorkflow(wf) {
+    // Toggle the body-level "workflow-active" class. Triggers the
+    // teal tint / pulsing stripe on .chat-container so the user has
+    // a visible cue that a guided prompt-pack is running. Only fires
+    // for is_prompt_pack workflows (homepage imports) — user-created
+    // workflows stay in normal chat aesthetic.
+    const isPack = !!(wf && wf.is_prompt_pack);
+    document.body.classList.toggle('workflow-active', isPack);
+
+    const wrap = document.getElementById('chat-anchors');
+    if (wrap && wf && wf.id) {
+      // Append a workflow chip alongside any anchor chips. We
+      // build it via direct DOM so the click handler stays bound
+      // (vs. innerHTML which would replace the anchor chips).
+      const existing = wrap.querySelector('[data-workflow-chip]');
+      if (existing) existing.remove();
+      const chip = document.createElement('span');
+      chip.setAttribute('data-workflow-chip', '1');
+      chip.className = 'chat-workflow-chip';
+      chip.title = (wf.description || '').slice(0, 200) || 'Workflow loaded — its prompt pack is active for every message in this chat.';
+      chip.innerHTML = `<span class="chat-workflow-chip-icon">⚡</span> Workflow · ${escapeHtml(wf.title || 'Untitled')}`;
+      wrap.appendChild(chip);
+      wrap.hidden = false;
+    }
+    // Empty-state intro card — only shown when no messages yet AND
+    // a workflow is loaded. Replaces the generic "Type a question"
+    // empty state so the user sees what they're starting from.
+    if (wf && wf.id && (messages?.length || 0) === 0) {
+      const messagesEl = els.messages;
+      if (messagesEl) {
+        const introHtml = `
+          <div class="chat-workflow-intro">
+            <div class="chat-workflow-intro-kicker">⚡ Workflow loaded</div>
+            <h3 class="chat-workflow-intro-title">${escapeHtml(wf.title || 'Workflow')}</h3>
+            ${wf.description ? `<p class="chat-workflow-intro-desc">${escapeHtml(wf.description)}</p>` : ''}
+            ${wf.prompt_chars ? `<div class="chat-workflow-intro-meta">System prompt active · ${(wf.prompt_chars).toLocaleString()} chars</div>` : ''}
+            <div class="chat-workflow-intro-cta">Type your question or task below — the model is already running this prompt pack.</div>
+          </div>
+        `;
+        messagesEl.innerHTML = introHtml;
+      }
+    }
+  }
+
+  // ---- Anchor chip strip ----
+  // Currently-anchored items are shown as solid blue chips with an ×
+  // to remove. Items the LAST turn used (but aren't anchored yet)
+  // appear as dashed "+ Anchor X" suggestion pills. Click → call the
+  // anchor endpoint, re-render. The anchor list is per-chat and
+  // persisted server-side; the current-turn `suggestions` are a
+  // session-only hint that gets refreshed on each new vault_items
+  // SSE event.
+  let _lastTurnVaultItems = [];   // [{item_id, title, source_kind, anchored}]
+  function renderAnchors(anchors, suggestions) {
+    const wrap = document.getElementById('chat-anchors');
+    if (!wrap) return;
+    const anchored = Array.isArray(anchors) ? anchors : [];
+    const sugRaw = Array.isArray(suggestions) ? suggestions : _lastTurnVaultItems;
+    const anchoredIds = new Set(anchored.map((a) => a.id));
+    const sug = sugRaw.filter((s) => !anchoredIds.has(s.item_id));
+    if (anchored.length === 0 && sug.length === 0) {
+      wrap.hidden = true;
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.hidden = false;
+    const parts = [];
+    if (anchored.length) {
+      parts.push('<span class="chat-anchors-label">📌 Anchored ·</span>');
+      for (const a of anchored) {
+        parts.push(
+          `<span class="chat-anchor-chip" title="Pinned to this chat. Every turn includes its chunks + images.">` +
+          `${escapeHtml(a.title || 'Untitled')}` +
+          `<button type="button" class="chat-anchor-x" data-anchor-remove="${escapeAttr(a.id)}" aria-label="Unanchor">×</button>` +
+          `</span>`,
+        );
+      }
+    }
+    for (const s of sug) {
+      parts.push(
+        `<button type="button" class="chat-anchor-suggest" data-anchor-add="${escapeAttr(s.item_id)}" title="Anchor this doc to the chat — every follow-up turn will include its chunks + images.">` +
+        `+ Anchor ${escapeHtml(s.title || 'this doc')}` +
+        `</button>`,
+      );
+    }
+    wrap.innerHTML = parts.join('');
+    // Wire remove buttons
+    wrap.querySelectorAll('[data-anchor-remove]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-anchor-remove');
+        await callAnchor(id, false);
+      });
+    });
+    wrap.querySelectorAll('[data-anchor-add]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-anchor-add');
+        await callAnchor(id, true);
+      });
+    });
+  }
+  async function callAnchor(itemId, on) {
+    if (!chatId || !itemId) return;
+    try {
+      const r = await fetch('/.netlify/functions/workspace-chat-anchor', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, item_id: itemId, anchored: on }),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert(j.error || 'Anchor failed'); return; }
+      renderAnchors(j.anchors || [], _lastTurnVaultItems);
+    } catch (err) {
+      alert('Anchor failed: ' + err.message);
+    }
+  }
+  // (escapeAttr is defined elsewhere in this file — chip strip uses
+  // the existing helper. Avoiding a duplicate declaration.)
 
   // Cache the sidebar list in localStorage. The cache renders
   // instantly on reload so the sidebar isn't blank during the network
@@ -1775,15 +2326,23 @@
   }
   function shortModelName(m) {
     if (!m) return '';
+    // Prefer the live registry's pretty label so the meta strip
+    // tracks whatever the user actually has selected (e.g.
+    // "claude sonnet 4.5" not a hardcoded "sonnet-4"). Falls back
+    // to a smart prefix-strip if the model isn't in the cache yet
+    // (e.g. on first paint before /workspace-models-list resolves).
+    try {
+      const cached = _modelsByIdCache?.get?.(m);
+      if (cached?.label) return cached.label.toLowerCase();
+    } catch {}
     const s = String(m).toLowerCase();
-    if (s.includes('claude')) {
-      if (s.includes('opus')) return 'opus-4';
-      if (s.includes('haiku')) return 'haiku-4-5';
-      return 'sonnet-4';
-    }
-    if (s.includes('gpt')) return s.replace(/.*?(gpt-\S+).*/i, '$1');
-    if (s.includes('gemini')) return 'gemini';
-    if (s.includes('grok')) return 'grok';
+    // Strip provider prefix; keep the version/variant part. Cleaner
+    // than echoing the full ID and stays readable in the mono meta.
+    if (s.startsWith('claude-')) return s.replace(/^claude-/, '').replace(/-/g, ' ');
+    if (s.startsWith('gpt-'))    return s;
+    if (s.startsWith('gemini-')) return s.replace(/^gemini-/, '').replace(/-/g, ' ');
+    if (s.startsWith('grok-'))   return s.replace(/^grok-/, '').replace(/-/g, ' ');
+    if (/^o[1-9]/.test(s))       return s;
     return s;
   }
   function renderRail(chats) {
@@ -1840,8 +2399,27 @@
         e.stopPropagation();
         const id = btn.dataset.del;
         const t = btn.dataset.title;
-        if (!confirm(`Delete "${t}"? This cannot be undone.`)) return;
-        btn.disabled = true;
+        const ok = await window.siteConfirm(`Delete "${t}"? This cannot be undone.`, {
+          okLabel: 'Delete',
+          danger: true,
+        });
+        if (!ok) return;
+        // Optimistic: pluck the row from the rail immediately so the
+        // user sees instant feedback. Roll back on server error.
+        const row = btn.closest('.rail-item, .rail-row, li, [data-chat-id]') || btn.parentElement;
+        const removedHTML = row?.outerHTML;
+        const removedNext = row?.nextSibling;
+        const removedParent = row?.parentNode;
+        if (row) row.remove();
+        // Drop the cached rail snapshot so the next loadRail() can't
+        // re-render the deleted row from stale localStorage.
+        try {
+          const cached = JSON.parse(localStorage.getItem(RAIL_CACHE_KEY) || '[]');
+          if (Array.isArray(cached)) {
+            const next = cached.filter((c) => c.id !== id);
+            localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify(next));
+          }
+        } catch {}
         const r = await fetch('/.netlify/functions/workspace-chats-delete', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1849,15 +2427,60 @@
         });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
-          alert('Delete failed: ' + (j.error || 'unknown'));
-          btn.disabled = false;
+          window.siteToast('Delete failed: ' + (j.error || 'unknown'), { kind: 'error' });
+          // Rollback — re-insert the row at its original position.
+          if (removedParent && removedHTML) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = removedHTML;
+            const restored = tmp.firstElementChild;
+            if (restored) {
+              if (removedNext) removedParent.insertBefore(restored, removedNext);
+              else removedParent.appendChild(restored);
+            }
+          }
           return;
         }
-        try { localStorage.removeItem(RAIL_CACHE_KEY); } catch {}
+        // Success — toast and stay on the chat page. If the user
+        // deleted the chat they were viewing, swap to the next chat
+        // in the rail; otherwise just refresh the rail.
+        window.siteToast(`"${t}" deleted`, { kind: 'success', duration: 2400 });
         if (id === chatId) {
-          location.href = '/workspace/';
-          return;
+          // Find the next chat in the rail (the row immediately
+          // adjacent to the deleted one in the cached chats list).
+          let nextChatId = null;
+          try {
+            const cached = JSON.parse(localStorage.getItem(RAIL_CACHE_KEY) || '[]');
+            if (Array.isArray(cached) && cached.length > 0) {
+              nextChatId = cached[0]?.id || null;
+            }
+          } catch {}
+          if (nextChatId) {
+            // Soft-swap the URL + reload the chat content in place.
+            // history.replaceState updates the URL bar without a
+            // page reload; we then re-run the chat loader against
+            // the new id.
+            chatId = nextChatId;
+            try { history.replaceState(null, '', `/workspace/chat/?id=${encodeURIComponent(nextChatId)}`); } catch {}
+            await loadChat();
+          } else {
+            // No remaining chats — clear the chat view and show an
+            // empty-state message. User stays on the chat page.
+            chat = null;
+            messages = [];
+            chatId = null;
+            els.messages.innerHTML = `<div class="chat-empty" style="padding:40px 20px;text-align:center;color:var(--ink-3);font-family:var(--mono);font-size:13px;letter-spacing:.04em;">No chats. Click <b style="color:var(--ink)">+ New chat</b> to start one.</div>`;
+            try { history.replaceState(null, '', '/workspace/chat/'); } catch {}
+            // Clear meta strip
+            const startedEl = document.getElementById('chat-meta-started');
+            const msgsEl = document.getElementById('chat-meta-msgs');
+            const modelEl = document.getElementById('chat-meta-model');
+            if (startedEl) startedEl.textContent = '—';
+            if (msgsEl) msgsEl.textContent = '0';
+            if (modelEl) modelEl.textContent = '—';
+          }
         }
+        // Background refresh — picks up any server-side reordering
+        // without blocking the user.
         loadRail();
       });
     });
@@ -1888,7 +2511,10 @@
   }
 
   async function sendMessage(text, opts = {}) {
-    if (sending || !text.trim()) return;
+    // Allow empty text when at least one attachment is provided —
+    // user can send a file solo and the model will react to it.
+    const hasAttachments = Array.isArray(opts.attachments) && opts.attachments.length > 0;
+    if (sending || (!text.trim() && !hasAttachments)) return;
     sending = true;
     els.send.disabled = true;
     els.input.disabled = true;
@@ -1899,10 +2525,13 @@
     // optimistic user bubble — include attachment chips if any
     if (els.messages.querySelector('.chat-empty')) els.messages.innerHTML = '';
     const attachLabel = attachmentNames.length
-      ? `<div class="msg-attach-row">${attachmentNames.map((a) => `<span class="msg-attach">📎 ${escapeHtml(a.filename)}</span>`).join('')}</div>`
+      ? `<div class="msg-attach-row">${attachmentNames.map((a) => `<span class="msg-attach"><span class="msg-attach-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48"/></svg></span> ${escapeHtml(a.filename)}</span>`).join('')}</div>`
       : '';
+    // When the user sent only an attachment (no text), the bubble
+    // body just contains the chip — no empty paragraph above it.
+    const bodyMarkdown = text.trim() ? renderMarkdownInline(text) : '';
     els.messages.insertAdjacentHTML('beforeend',
-      `<div class="msg user" data-role="user" data-pending-user="1"><div class="msg-body">${renderMarkdownInline(text)}${attachLabel}</div></div>`);
+      `<div class="msg user" data-role="user" data-pending-user="1"><div class="msg-body">${bodyMarkdown}${attachLabel}</div></div>`);
     scrollToBottom();
 
     // assistant bubble: msg-text gets re-rendered with live markdown
@@ -2038,6 +2667,11 @@
       // Use the Edge Function path — Netlify edge runtime streams Web
       // Response bodies natively without the chunk-batching that
       // regular Netlify Functions can introduce.
+      // Read the deep-think toggle state. Only honored server-side
+      // when the chosen model supports reasoning; otherwise the
+      // chat-stream silently ignores it.
+      const deepThinkEl = document.getElementById('toggle-deep-think');
+      const deepThink = !!(deepThinkEl && deepThinkEl.checked && !document.getElementById('chat-deep-think-toggle')?.hidden);
       const res = await fetch('/api/workspace-chat-stream', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -2047,6 +2681,7 @@
           model: els.model.value,
           attachments: attachmentIds,
           law_settings: lawSettings,
+          deep_think: deepThink,
         }),
       });
       if (!res.ok || !res.body) {
@@ -2112,6 +2747,24 @@
             } else if (evt.message) {
               setPhase(evt.message);
             }
+          } else if (event === 'vault_items' && Array.isArray(evt.items)) {
+            // Server tells us which vault items contributed chunks +
+            // images this turn. Stash them so the anchor chip strip
+            // can render "+ Anchor X" suggestions for any that
+            // aren't already pinned. The current `anchors` set lives
+            // server-side; we read it from the loadChat() refresh
+            // OR fetch on toggle.
+            _lastTurnVaultItems = evt.items;
+            // Re-render with the LATEST persisted anchor list. We
+            // refetch because the server may have changed it
+            // (rare — the user could have anchored mid-turn).
+            try {
+              const r = await fetch(`/.netlify/functions/workspace-chats-get?id=${encodeURIComponent(chatId)}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+              const cj = await r.json();
+              if (r.ok) renderAnchors(cj.anchors || [], _lastTurnVaultItems);
+            } catch {}
           } else if (event === 'text' && evt.delta) {
             // Reveal the cursor on the first text delta so it blinks
             // at the trailing edge of the streaming response.
@@ -2892,7 +3545,8 @@
     }
     els.attachments.innerHTML = attachedDocs.map((a) => `
       <span class="composer-chip" data-attach-id="${a.id}">
-        📎 ${escapeHtml(a.filename)}
+        <span class="composer-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 1 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 1 1-2.83-2.83l8.49-8.48"/></svg></span>
+        ${escapeHtml(a.filename)}
         <button type="button" class="composer-chip-x" data-detach="${a.id}" aria-label="Remove">×</button>
       </span>
     `).join('');
@@ -3020,11 +3674,15 @@
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
 
       row.classList.add('is-done');
-      row.querySelector('.lib-upload-status').textContent = 'Ready · auto-attached';
-      setTimeout(() => row.remove(), 3500);
+      row.querySelector('.lib-upload-status').textContent = 'Attached';
+      setTimeout(() => row.remove(), 2000);
 
-      // Push the new doc to the library list (top), auto-select it,
-      // and re-render so the user can immediately confirm.
+      // Push the new doc to the library list (top) so future picker
+      // opens show it, and auto-attach it to the composer NOW so
+      // the user gets a chip immediately without having to click
+      // "Attach selected." That step was being missed — users
+      // uploaded the file, closed the modal, and wondered why
+      // nothing was attached.
       const newDoc = {
         id: j.document.id,
         filename: j.document.filename,
@@ -3040,6 +3698,25 @@
       libraryDocs = [newDoc, ...libraryDocs.filter((d) => d.id !== newDoc.id)];
       pickedIds.add(newDoc.id);
       renderLibraryList(libraryDocs);
+      // Auto-attach + close modal — single-click upload UX.
+      const alreadyAttached = attachedDocs.some((d) => d.id === newDoc.id);
+      if (!alreadyAttached) {
+        attachedDocs.push({ id: newDoc.id, filename: newDoc.filename });
+        renderAttachmentChips();
+      }
+      // Toast so the user has positive feedback even if they're
+      // looking elsewhere on the page when the modal auto-closes.
+      if (typeof window.siteToast === 'function') {
+        window.siteToast(`"${newDoc.filename}" attached to next message`, { kind: 'success', duration: 2400 });
+      }
+      // Close the modal after a short pause so the user can see the
+      // "Attached" status flash before it disappears. Skip the
+      // close if the user opened additional uploads in this session.
+      setTimeout(() => {
+        if (els.attachUploadProgress.querySelectorAll('.lib-upload:not(.is-done)').length === 0) {
+          closeAttachModal();
+        }
+      }, 600);
     } catch (err) {
       row.classList.add('is-error');
       row.querySelector('.lib-upload-status').textContent = `Failed: ${err.message}`;
@@ -3052,6 +3729,73 @@
     e.target.value = '';
     for (const f of files) await uploadFromModal(f);
   });
+
+  // ---- Drag-and-drop file upload onto the composer ----
+  // Drop a contract / brief / image directly onto the chat input
+  // and it auto-uploads + auto-attaches. No modal needed. The
+  // existing uploadFromModal handles the heavy lifting; the modal's
+  // upload-progress div doesn't have to be visible — its row just
+  // stays hidden in the DOM during drop-uploads.
+  const composerEl = document.querySelector('.chat-composer');
+  let _composerDragDepth = 0;   // counter to handle nested dragenter/leave correctly
+  if (composerEl) {
+    composerEl.addEventListener('dragenter', (e) => {
+      // Only handle drops that carry files
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      _composerDragDepth++;
+      composerEl.classList.add('is-drop-target');
+    });
+    composerEl.addEventListener('dragover', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    composerEl.addEventListener('dragleave', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      _composerDragDepth = Math.max(0, _composerDragDepth - 1);
+      if (_composerDragDepth === 0) composerEl.classList.remove('is-drop-target');
+    });
+    composerEl.addEventListener('drop', async (e) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      _composerDragDepth = 0;
+      composerEl.classList.remove('is-drop-target');
+      const files = Array.from(e.dataTransfer.files);
+      // Make sure the modal exists in the DOM so uploadFromModal's
+      // progress-row insert doesn't crash when no modal is visible.
+      // The modal element is always rendered (just hidden); we just
+      // need it to be queryable.
+      for (const f of files) await uploadFromModal(f);
+    });
+  }
+
+  // ---- Paste-file support ----
+  // Cmd+V / Ctrl+V on the chat input with a file in the clipboard
+  // (e.g. screenshot, copy-pasted PDF from explorer) auto-uploads.
+  // Doesn't intercept regular text pastes.
+  const composerInput = document.getElementById('composer-input');
+  if (composerInput) {
+    composerInput.addEventListener('paste', async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files = [];
+      for (const item of items) {
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length === 0) return;   // text paste — let it through
+      e.preventDefault();
+      for (const f of files) await uploadFromModal(f);
+    });
+  }
 
   // ---- Project picker pill ----
   // Click the pill in the chat header to assign the chat to a project,
@@ -3248,6 +3992,105 @@
     try { localStorage.setItem(RAIL_KEY, next); } catch {}
   });
 
+  // ---- Resizable chat header ----
+  // Three modes the user toggles by dragging the handle vertically:
+  //   'full'    — natural height, all rows visible (default)
+  //   'meta'    — meta strip hidden but anchors + title + buttons stay
+  //   'compact' — ONLY title + action buttons (model picker, Privacy,
+  //               Deep Think, Save, Vision badge) — kicker/meta/anchors
+  //               all hidden, padding tightens, title font shrinks
+  //
+  // Modes change as the user drags up/down. Buttons stay clickable in
+  // every mode — the goal is to give the user more vertical chat-stream
+  // space without ever hiding the action bar. Double-click resets.
+  // Persists in localStorage.
+  const HEAD_KEY = 'workspace.chat.head-mode';
+  const headEl = document.querySelector('.chat-head');
+  const headResizeEl = document.getElementById('chat-head-resize');
+  function applyHeadMode(mode) {
+    if (!headEl) return;
+    if (mode === 'compact' || mode === 'meta') {
+      headEl.setAttribute('data-compact', mode === 'compact' ? '1' : 'meta');
+    } else {
+      headEl.removeAttribute('data-compact');
+    }
+  }
+  // Restore persisted mode on load.
+  try {
+    const saved = localStorage.getItem(HEAD_KEY);
+    if (saved === 'compact' || saved === 'meta') applyHeadMode(saved);
+  } catch {}
+  // The two threshold heights (in px from header top) that gate
+  // mode transitions during drag. Pulled from natural header height
+  // measured at drag-start so they stay proportional even if the
+  // anchor strip / meta line are taller than usual.
+  let headDragging = false;
+  let dragNaturalHeight = 0;
+  if (headResizeEl) {
+    headResizeEl.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      headDragging = true;
+      headResizeEl.classList.add('is-dragging');
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+      // Force full mode while dragging so the user sees the
+      // full natural extent and can choose where to cut.
+      const wasMode = headEl?.getAttribute('data-compact') || '';
+      headEl?.removeAttribute('data-compact');
+      dragNaturalHeight = headEl ? headEl.getBoundingClientRect().height : 0;
+      // Restore prior mode synchronously so visual state is intact
+      // until the drag actually crosses a threshold.
+      if (wasMode === '1') headEl?.setAttribute('data-compact', '1');
+      else if (wasMode === 'meta') headEl?.setAttribute('data-compact', 'meta');
+    });
+    headResizeEl.addEventListener('dblclick', () => {
+      applyHeadMode('full');
+      try { localStorage.setItem(HEAD_KEY, 'full'); } catch {}
+    });
+    headResizeEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const cur = headEl?.getAttribute('data-compact') || 'full';
+      // Cycle: full → meta → compact (ArrowUp shrinks; ArrowDown grows)
+      const order = ['full', 'meta', 'compact'];
+      let idx = cur === '1' ? 2 : (cur === 'meta' ? 1 : 0);
+      idx += e.key === 'ArrowUp' ? 1 : -1;
+      idx = Math.max(0, Math.min(order.length - 1, idx));
+      const next = order[idx];
+      applyHeadMode(next);
+      try { localStorage.setItem(HEAD_KEY, next); } catch {}
+    });
+  }
+  window.addEventListener('mousemove', (e) => {
+    if (!headDragging || !headEl) return;
+    const rect = headEl.getBoundingClientRect();
+    const headerTop = rect.top;
+    const desiredHeight = e.clientY - headerTop;
+    // Two thresholds based on the natural (full-mode) height:
+    //   below 50% of natural → compact mode
+    //   below 75% of natural → meta-hidden mode
+    //   else → full
+    const nat = dragNaturalHeight || rect.height || 100;
+    let mode;
+    if (desiredHeight < nat * 0.5) mode = 'compact';
+    else if (desiredHeight < nat * 0.78) mode = 'meta';
+    else mode = 'full';
+    applyHeadMode(mode);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!headDragging) return;
+    headDragging = false;
+    if (headResizeEl) headResizeEl.classList.remove('is-dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (headEl) {
+      const mode = headEl.getAttribute('data-compact') === '1' ? 'compact'
+        : headEl.getAttribute('data-compact') === 'meta' ? 'meta'
+        : 'full';
+      try { localStorage.setItem(HEAD_KEY, mode); } catch {}
+    }
+  });
+
   // ---- Auto-hiding top nav ----
   // The shared /nav-autohide.js script (loaded in <head>) handles
   // inactivity-based reveal/hide for the top nav across all pages.
@@ -3258,12 +4101,22 @@
   els.composer.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = els.input.value;
-    els.input.value = '';
     const attachmentIds = attachedDocs.map((a) => a.id);
     const wasAttached = attachedDocs.slice();
+    // Guard: require either some text OR at least one attachment.
+    if (!text.trim() && attachmentIds.length === 0) {
+      return;
+    }
+    // Empty message text is allowed when at least one attachment is
+    // present — the user bubble will render with just the chip and
+    // no text body. The model still receives the attachment content
+    // in its system prompt; it sees an empty user turn with the
+    // attached doc and responds to that.
+    const finalText = text.trim();
+    els.input.value = '';
     attachedDocs = [];
     renderAttachmentChips();
-    sendMessage(text, { attachments: attachmentIds, attachmentNames: wasAttached });
+    sendMessage(finalText, { attachments: attachmentIds, attachmentNames: wasAttached });
   });
   els.input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -3281,7 +4134,34 @@
     });
     loadRail();
   });
+  // Deep-think toggle — restore from localStorage on page load,
+  // persist on change. Stored under the universal pref key so the
+  // dashboard chip / new-chat default can read it the same way as
+  // the model preference.
+  (function initDeepThink() {
+    const cb = document.getElementById('toggle-deep-think');
+    if (!cb) return;
+    try {
+      const saved = localStorage.getItem('workspace.dash.deep-think');
+      if (saved === '1' || saved === 'true') cb.checked = true;
+    } catch {}
+    cb.addEventListener('change', () => {
+      try { localStorage.setItem('workspace.dash.deep-think', cb.checked ? '1' : '0'); } catch {}
+    });
+  })();
+
   els.model.addEventListener('change', async () => {
+    // Refresh the vision-capability hint whenever the model changes,
+    // even when there's no chat bound yet (so the user sees it on a
+    // fresh-page selection).
+    updateVisionHint();
+    // Also refresh the chat-meta MODEL chip so it shows the newly-
+    // chosen model immediately (not after a server round-trip / load).
+    try {
+      if (chat) chat.model = els.model.value;
+      const modelEl = document.getElementById('chat-meta-model');
+      if (modelEl) modelEl.textContent = shortModelName(els.model.value);
+    } catch {}
     if (!chat) return;
     // Mirror the in-chat selection to the universal preference key the
     // dashboard writes / reads. Picking a model anywhere now updates it

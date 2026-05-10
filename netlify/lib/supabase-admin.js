@@ -180,6 +180,40 @@ export async function checkCitationQuota(userId) {
 }
 
 /**
+ * The user's preferred author name for any document markup we produce
+ * on their behalf — tracked changes, comments, sticky notes,
+ * insertions in redlines, etc. Single source of truth across the
+ * entire platform. Falls back to 'Legal Overflow' when:
+ *   - the user hasn't set a display_name yet (new account)
+ *   - the lookup fails for any reason (DB blip, missing profile row)
+ *
+ * Use this everywhere a background worker calls applyDocxMarkup,
+ * applyPdfMarkup, the LibreOffice redline service, or otherwise
+ * passes an `author` field that ends up in a deliverable. See
+ * migration 0031 for the column + rationale.
+ *
+ * @param {string} userId
+ * @returns {Promise<string>} the display name, never empty
+ */
+export async function getUserDisplayName(userId) {
+  const FALLBACK = 'Legal Overflow';
+  if (!userId) return FALLBACK;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', userId)
+      .maybeSingle();
+    const name = (data?.display_name || '').trim();
+    return name || FALLBACK;
+  } catch (err) {
+    console.warn('[getUserDisplayName] lookup failed:', err?.message);
+    return FALLBACK;
+  }
+}
+
+/**
  * Record a single Anthropic API call to usage_events.
  * Call this after every specialist completes (success or failure).
  */

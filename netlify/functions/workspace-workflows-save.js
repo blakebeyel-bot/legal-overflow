@@ -45,6 +45,13 @@ export default async (req) => {
     prompt: String(c.prompt || '').slice(0, 2000),
   })) : null;
 
+  // is_prompt_pack flag — only the homepage import path sets this
+  // to true. User-created workflows from /workspace/workflows leave
+  // it false (default), preserving the silent-on-open behavior.
+  // When true, chats bound to this workflow auto-prime an opening
+  // assistant message that walks the user through the pack.
+  const isPromptPack = body.is_prompt_pack === true;
+
   const payload = {
     user_id: auth.user.id,
     title,
@@ -53,6 +60,7 @@ export default async (req) => {
     prompt_md: kind === 'chat' ? promptMd : '',
     columns_config: normColumns,
     practice_area: practice,
+    is_prompt_pack: isPromptPack,
     is_system: false,
     is_published: false,
   };
@@ -71,7 +79,7 @@ export default async (req) => {
     }
     const { data, error } = await supabase
       .from('workspace_workflows')
-      .update({ title, description, kind, prompt_md: payload.prompt_md, columns_config: normColumns, practice_area: practice })
+      .update({ title, description, kind, prompt_md: payload.prompt_md, columns_config: normColumns, practice_area: practice, is_prompt_pack: isPromptPack })
       .eq('id', body.id)
       .select('*')
       .single();

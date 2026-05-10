@@ -11,7 +11,7 @@
  * track-changes preview from ALL proposed edits. This produces a
  * final clean version from only the accepted subset.
  */
-import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
+import { requireUser, getSupabaseAdmin, checkUserApproval, getUserDisplayName } from '../lib/supabase-admin.js';
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -100,7 +100,8 @@ export default async (req) => {
           replace: e.replace_text,
           rationale: e.rationale,
         })),
-        author: 'Legal Overflow',
+        // Universal display-name override (migration 0031, /account/)
+        author: await getUserDisplayName(auth.user.id),
         track_changes: false,
       }),
     });

@@ -1,9 +1,19 @@
 /**
  * POST /api/workspace-chats-create
- *   body: { project_id?: uuid, model?: string }
- * Returns: { id }
+ *   body: { project_id?: uuid, model?: string, workflow_id?: uuid }
+ * Returns: { id, primed?: boolean }
+ *
+ * If the new chat is bound to a workflow flagged as a prompt pack
+ * (is_prompt_pack=true on workspace_workflows), we synchronously
+ * generate an opening assistant message that walks the user through
+ * the pack via guided interview. The user lands on the chat with
+ * the model already engaged — no awkward "type to start" moment.
+ *
+ * Priming adds ~2s to chat creation but only when running a prompt
+ * pack. User-created workflows and plain new chats are unchanged.
  */
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
+import { primeChat } from '../lib/chat-prime.js';
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -25,7 +35,24 @@ export default async (req) => {
     .select('id')
     .single();
   if (error) return json({ error: error.message }, 500);
-  return json({ id: data.id });
+
+  // Auto-prime when the chat is bound to a prompt-pack workflow.
+  // primeChat() is internally guarded — returns null if the workflow
+  // isn't flagged is_prompt_pack, if the chat already has messages,
+  // or if any step fails. So this is safe to call unconditionally
+  // when workflow_id is set; user-created workflows just no-op.
+  let primed = false;
+  if (body.workflow_id) {
+    const msg = await primeChat({
+      supabase,
+      userId: auth.user.id,
+      chatId: data.id,
+      workflowId: body.workflow_id,
+    });
+    primed = !!msg;
+  }
+
+  return json({ id: data.id, primed });
 };
 
 function json(obj, status = 200) {

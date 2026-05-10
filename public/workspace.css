@@ -3054,3 +3054,53 @@ body.cite-modal-open { overflow: hidden; }
   display: inline-flex; align-items: center; gap: 5px;
 }
 .research-toggle-icon { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* ---- Top "back to workspace" pill ----
+   Sits near the top of every workspace sub-page so the user
+   always has a one-click return to the dashboard without scrolling
+   to the page footer. Same monospace caption style as the rest
+   of the workspace metadata. Subtle when idle, accents on hover. */
+.ws-back-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 14px 0 18px 0;
+  padding: 6px 12px;
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--paper, transparent);
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  text-decoration: none;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.ws-back-pill:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.ws-back-pill .ws-back-arrow {
+  font-size: 13px; line-height: 1;
+}
+
+/* ---- Show all / Show fewer toggle for the dashboard chat list ----
+   Sits at the bottom of the chat list when there are more chats
+   than the initial cap. Reads as a quiet caption that becomes a
+   pill on hover, matching the back-pill aesthetic. */
+.chats-toggle-all {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3);
+  background: transparent;
+  border: none;
+  border-top: 1px dashed var(--rule-soft);
+  cursor: pointer;
+  text-align: center;
+  transition: color .15s, background .15s;
+}
+.chats-toggle-all:hover {
+  color: var(--accent-deep, #3862aa);
+  background: rgba(56, 98, 170, .04);
+}

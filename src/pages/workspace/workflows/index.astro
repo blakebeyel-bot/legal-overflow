@@ -689,7 +689,15 @@
     throw err;
   }
 
-  const accessToken = session.access_token;
+  // Mutable + auto-refreshed via auth state listener. Without this,
+  // long-lived tabs hit "Invalid or expired session" 401s once the
+  // JWT (default 1h TTL) lapses.
+  let accessToken = session.access_token;
+  try {
+    supabase.auth.onAuthStateChange((event, sess) => {
+      if (sess?.access_token) accessToken = sess.access_token;
+    });
+  } catch {}
   const userId = session.user.id;
   const main = document.getElementById('page-main');
   const params = new URL(location.href).searchParams;
@@ -716,6 +724,7 @@
   async function renderListView() {
     main.innerHTML = `
       <div class="ws-wrap">
+        <a href="/workspace/" class="ws-back-pill" title="Back to workspace home"><span class="ws-back-arrow">←</span> Workspace home</a>
         <header class="ws-head">
           <span class="br-bl"></span><span class="br-br"></span>
           <div class="kicker">
@@ -931,11 +940,19 @@
           location.href = `/workspace/reviews/?prefill=${id}`;
           return;
         }
-        // Chat workflow → create a new chat tied to it
+        // Chat workflow → create a new chat tied to it. Pass the
+        // user's preferred model from the universal pref key so the
+        // conversation starts on the model they actually want to
+        // use, not the server default.
+        let preferredModel = '';
+        try { preferredModel = localStorage.getItem('workspace.dash.model') || ''; } catch {}
         const r = await fetch('/.netlify/functions/workspace-chats-create', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workflow_id: id }),
+          body: JSON.stringify({
+            workflow_id: id,
+            ...(preferredModel ? { model: preferredModel } : {}),
+          }),
         });
         const j = await r.json();
         if (!r.ok) { alert('Run failed: ' + (j.error || 'unknown')); return; }
@@ -1112,7 +1129,7 @@
       location.href = `/workspace/reviews/?prefill=${w.id}`;
     });
     document.getElementById('wf-delete')?.addEventListener('click', async () => {
-      if (!confirm(`Delete "${w.title}"? This cannot be undone.`)) return;
+      if (!(await window.siteConfirm(`Delete "${w.title}"? This cannot be undone.`, { okLabel: 'Delete', danger: true }))) return;
       await fetch('/.netlify/functions/workspace-workflows-delete', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },

@@ -94,7 +94,8 @@
     throw err;
   }
 
-  const accessToken = session.access_token;
+  let accessToken = session.access_token;
+  try { supabase.auth.onAuthStateChange((_e, s) => { if (s?.access_token) accessToken = s.access_token; }); } catch {}
   const main = document.getElementById('page-main');
   const url = new URL(location.href);
   const reviewId = url.searchParams.get('id');
@@ -252,6 +253,7 @@
   async function renderListView() {
     main.innerHTML = `
       <div class="ws-wrap">
+        <a href="/workspace/" class="ws-back-pill" title="Back to workspace home"><span class="ws-back-arrow">←</span> Workspace home</a>
         <header class="ws-head fm-frame">
           <span class="br-tr"></span><span class="br-br"></span>
           <div>
@@ -366,7 +368,7 @@
       btn.addEventListener('click', async (e) => {
         e.preventDefault(); e.stopPropagation();
         const id = btn.dataset.del; const title = btn.dataset.title;
-        if (!confirm(`Delete review "${title}"? This cannot be undone.`)) return;
+        if (!(await window.siteConfirm(`Delete review "${title}"? This cannot be undone.`, { okLabel: 'Delete', danger: true }))) return;
         btn.disabled = true;
         await fetch('/.netlify/functions/workspace-tr-delete', {
           method: 'POST',
@@ -494,7 +496,10 @@
           <div class="rv-field">
             <span class="rv-field-label" id="rv-cols-label">Columns</span>
             <div id="rv-cols" class="rv-cols"></div>
-            <button type="button" id="rv-add-col" class="rv-add-col">+ Add column</button>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+              <button type="button" id="rv-add-col" class="rv-add-col">+ Add column</button>
+              <button type="button" id="rv-load-presets" class="rv-add-col" style="border-style:dashed;" title="Replace your columns with the suggested defaults for the selected kind">Use suggested presets</button>
+            </div>
           </div>
 
           <label class="rv-field">
@@ -551,7 +556,23 @@
 
     const models = mdlJson.models || [];
     const sel = overlay.querySelector('#rv-model');
-    sel.innerHTML = models.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === 'claude-sonnet-4-5' ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
+    // Pick the default model with a 3-step fallback so BYOK users
+    // who don't have an Anthropic key still get a working default:
+    //   1. The user's universal model preference (set on the dashboard
+    //      / chat header model picker, mirrored to localStorage)
+    //   2. claude-sonnet-4-5 if it's still in the available list
+    //   3. The first available model
+    // workspace-models-list only returns models the user has a key
+    // for (BYOK or server fallback), so step 1 + 2 are guaranteed
+    // viable; step 3 is a safety net.
+    let preferredModel = '';
+    try { preferredModel = localStorage.getItem('workspace.dash.model') || ''; } catch {}
+    const ids = models.map((m) => m.id);
+    const defaultId =
+      (preferredModel && ids.includes(preferredModel)) ? preferredModel
+      : ids.includes('claude-sonnet-4-5') ? 'claude-sonnet-4-5'
+      : ids[0] || '';
+    sel.innerHTML = models.map((m) => `<option value="${escapeHtml(m.id)}"${m.id === defaultId ? ' selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
 
     // Initial column row. Presets vary by kind. For extraction we
     // pre-fill with NDA-review-style questions; for redline we
@@ -572,6 +593,11 @@
       { name: 'Mutual indemnification', prompt: 'Make any one-sided indemnification mutual. If only one party indemnifies the other, mirror the obligation so both parties owe equivalent indemnity for their own breaches/negligence. Cap any unlimited indemnity at the same amount as the liability cap.' },
       { name: 'Termination cure period', prompt: 'Require at least 30 days written notice and a 30-day right to cure before termination for cause is permitted. If the existing notice or cure period is shorter, lengthen it. Do not weaken any termination-for-convenience right the user already has.' },
       { name: 'Limit auto-renewal', prompt: 'Ensure either party can opt out of any auto-renewal with at least 30 days written notice before the renewal date. Reject silent renewal or any one-sided opt-out. If the contract has no auto-renewal, leave it alone.' },
+      { name: 'IP ownership / work for hire', prompt: 'Confirm the user owns all deliverables, work product, and derivative works created under this agreement. If the contract is silent or assigns IP to the other side, add or strengthen a "work made for hire" provision with a backstop assignment of all right, title, and interest. Preserve the other side\'s pre-existing IP and any open-source they incorporate.' },
+      { name: 'Confidentiality term', prompt: 'Set the confidentiality obligation to survive at least 5 years after termination (perpetual for trade secrets). If the existing term is shorter, extend it. Ensure standard carve-outs (already known, independently developed, lawfully received from a third party, required by law) are present and not over-broad.' },
+      { name: 'Assignment restrictions', prompt: 'Prohibit either party from assigning the agreement without the other\'s prior written consent, with a carve-out for assignment to an affiliate or in connection with a merger, sale of substantially all assets, or change of control. Make the restriction mutual if it isn\'t already.' },
+      { name: 'Governing law and venue', prompt: 'Set governing law to the state most favorable to the user (default: the user\'s home state). Set exclusive venue to the same jurisdiction\'s state and federal courts. Waive any objection to venue. Strike any one-sided forum-selection that requires the user to litigate in the counterparty\'s backyard.' },
+      { name: 'Payment terms / late fees', prompt: 'Require payment within 30 days of an undisputed invoice. Permit the user to suspend services or charge a late fee of 1.5% per month (or the maximum permitted by law) on past-due amounts. Add a right to recover collection costs and reasonable attorneys\' fees on any successful collection action.' },
     ];
     const presets = (opts.prefillCols && opts.prefillCols.length) ? opts.prefillCols
       : (initialKind === 'redline' ? redlinePresets : extractionPresets);
@@ -579,17 +605,60 @@
       overlay.querySelector('#rv-title').value = opts.prefillTitle + ' — ' + new Date().toLocaleDateString();
     }
     let colIdx = 0;
+    function placeholderForKind() {
+      // Kind-aware placeholder — the prompt the user writes here is
+      // *very* different between extraction (a question to answer) and
+      // redline (a drafting goal to achieve).
+      return getCurrentKind() === 'redline'
+        ? "Concern: what change should the AI propose? e.g. 'cap the indemnity at $1M', 'add a 30-day cure period', 'strike the auto-renewal'."
+        : 'Prompt: what should the AI extract or answer for this column?';
+    }
+    function namePlaceholderForKind() {
+      return getCurrentKind() === 'redline' ? 'Concern name (e.g. Liability cap)' : 'Column name';
+    }
     function addColumn(preset) {
       const id = colIdx++;
       colsEl.insertAdjacentHTML('beforeend', `
         <div class="rv-col-row" data-col="${id}">
-          <input type="text" class="rv-col-name" placeholder="Column name" value="${escapeHtml(preset?.name || '')}" />
-          <textarea class="rv-col-prompt" rows="2" placeholder="Prompt: what should the AI extract or answer for this column?">${escapeHtml(preset?.prompt || '')}</textarea>
+          <input type="text" class="rv-col-name" placeholder="${escapeHtml(namePlaceholderForKind())}" value="${escapeHtml(preset?.name || '')}" />
+          <textarea class="rv-col-prompt" rows="2" placeholder="${escapeHtml(placeholderForKind())}">${escapeHtml(preset?.prompt || '')}</textarea>
           <button type="button" class="rv-col-del" data-del-col="${id}" aria-label="Remove">×</button>
         </div>`);
     }
+    function refreshPlaceholders() {
+      // Update ALL existing rows' placeholders when kind toggles —
+      // value attribute on input + textContent on textarea are
+      // preserved (only the placeholder string changes).
+      const namePh = namePlaceholderForKind();
+      const promptPh = placeholderForKind();
+      colsEl.querySelectorAll('.rv-col-name').forEach((el) => { el.placeholder = namePh; });
+      colsEl.querySelectorAll('.rv-col-prompt').forEach((el) => { el.placeholder = promptPh; });
+    }
     for (const p of presets) addColumn(p);
     overlay.querySelector('#rv-add-col').addEventListener('click', () => addColumn());
+    // Explicit "Use suggested presets" — replaces all rows with the
+    // current-kind defaults. Confirms first if the user has any
+    // non-default content so they don't accidentally lose work.
+    overlay.querySelector('#rv-load-presets').addEventListener('click', async () => {
+      const k = getCurrentKind();
+      const targetPresets = k === 'redline' ? redlinePresets : extractionPresets;
+      const knownDefaults = new Set([
+        ...extractionPresets.map((p) => `${p.name}\n${p.prompt}`),
+        ...redlinePresets.map((p) => `${p.name}\n${p.prompt}`),
+        '\n', // empty rows count as pristine
+      ]);
+      const rows = Array.from(colsEl.querySelectorAll('.rv-col-row'));
+      const hasCustom = rows.some((row) => {
+        const n = (row.querySelector('.rv-col-name')?.value || '').trim();
+        const p = (row.querySelector('.rv-col-prompt')?.value || '').trim();
+        return !knownDefaults.has(`${n}\n${p}`);
+      });
+      if (hasCustom && !(await window.siteConfirm(`Replace your ${rows.length} column${rows.length === 1 ? '' : 's'} with the ${k} presets? Any custom edits will be lost.`, { okLabel: 'Replace' }))) return;
+      colsEl.innerHTML = '';
+      colIdx = 0;
+      for (const p of targetPresets) addColumn(p);
+      updateCost();
+    });
     colsEl.addEventListener('click', (e) => {
       const t = e.target;
       if (t && t.dataset && t.dataset.delCol != null) {
@@ -614,6 +683,8 @@
       colsLabel.textContent = kind === 'redline' ? 'Concerns (one per column)' : 'Columns';
       docsLabel.textContent = kind === 'redline' ? 'Documents (.docx only)' : 'Documents';
       runBtn.textContent = kind === 'redline' ? 'Run redline review' : 'Run review';
+      const loadBtn = overlay.querySelector('#rv-load-presets');
+      if (loadBtn) loadBtn.textContent = kind === 'redline' ? 'Use redline presets' : 'Use extraction presets';
     }
     // Re-render doc list and presets when kind toggles
     overlay.querySelectorAll('input[name="rv-kind"]').forEach((r) => {
@@ -639,6 +710,11 @@
           colIdx = 0;
           const k = getCurrentKind();
           for (const p of (k === 'redline' ? redlinePresets : extractionPresets)) addColumn(p);
+        } else {
+          // User has customized rows — preserve their content but
+          // freshen the placeholder strings so any empty fields
+          // reflect the new kind's wording.
+          refreshPlaceholders();
         }
         updateCost();
       });
@@ -1013,7 +1089,7 @@
       btn.addEventListener('click', async () => {
         const status = btn.dataset.bulk;
         const label = status === 'accepted' ? 'Accept' : status === 'rejected' ? 'Reject' : 'Reset';
-        if (!confirm(`${label} all findings on this document?`)) return;
+        if (!(await window.siteConfirm(`${label} all findings on this document?`, { okLabel: label }))) return;
         await fetch('/.netlify/functions/workspace-tr-cell-update', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -1262,7 +1338,7 @@
         <div class="rv-live-finding-actions">
           <button type="button" class="rv-cell-acc" data-risk-action="accepted" data-risk-idx="${ri}">✓ Accept</button>
           <button type="button" class="rv-cell-rej" data-risk-action="rejected" data-risk-idx="${ri}">× Reject</button>
-          <button type="button" class="rv-cell-refine-btn" data-risk-action="refine" data-risk-idx="${ri}" title="Ask AI to revise this proposal">✏️ Refine</button>
+          <button type="button" class="rv-cell-refine-btn" data-risk-action="refine" data-risk-idx="${ri}" title="Ask AI to revise this proposal">Refine</button>
         </div>
         <div class="rv-cell-refine-form rv-risk-suggest-form" data-risk-form="${ri}" hidden>
           <textarea class="rv-cell-refine-input rv-risk-suggest-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>
@@ -1353,8 +1429,8 @@
             <div class="rv-live-finding-actions">
               <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
               <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
-              <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">✏️ Refine</button>
-              <button type="button" class="save-to-vault-btn rv-cell-save-vault" data-vault-save-cell="${c.id}" title="Save this finding to your Vault">💾 <span>Save</span></button>
+              <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">Refine</button>
+              <button type="button" class="save-to-vault-btn rv-cell-save-vault" data-vault-save-cell="${c.id}" title="Save this finding to your Vault"><span>Save</span></button>
             </div>
             <div class="rv-cell-refine-form" data-refine-form="${c.id}" hidden>
               <textarea class="rv-cell-refine-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>
@@ -2358,8 +2434,8 @@
             <div class="rv-live-finding-actions">
               <button type="button" class="rv-cell-acc${status === 'accepted' ? ' is-on' : ''}" data-cell-action="accepted" data-cell="${c.id}">✓ Accept</button>
               <button type="button" class="rv-cell-rej${status === 'rejected' ? ' is-on' : ''}" data-cell-action="rejected" data-cell="${c.id}">× Reject</button>
-              <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">✏️ Refine</button>
-              <button type="button" class="save-to-vault-btn rv-cell-save-vault" data-vault-save-cell="${c.id}" title="Save this finding to your Vault">💾 <span>Save</span></button>
+              <button type="button" class="rv-cell-refine-btn" data-refine-cell="${c.id}" title="Ask AI to revise this proposal">Refine</button>
+              <button type="button" class="save-to-vault-btn rv-cell-save-vault" data-vault-save-cell="${c.id}" title="Save this finding to your Vault"><span>Save</span></button>
             </div>
             <div class="rv-cell-refine-form" data-refine-form="${c.id}" hidden>
               <textarea class="rv-cell-refine-input" placeholder="Tell the AI how to revise this. e.g. 'make it stronger', 'use the phrase work made for hire', 'add a 60-day cure period'."></textarea>

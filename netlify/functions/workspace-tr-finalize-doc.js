@@ -9,7 +9,7 @@
  * source='user_accept'. Records the result in the
  * workspace_tabular_doc_finalizations junction table.
  */
-import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
+import { requireUser, getSupabaseAdmin, checkUserApproval, getUserDisplayName } from '../lib/supabase-admin.js';
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
@@ -98,7 +98,8 @@ export default async (req) => {
           replace: c.redline_replace || '',
           rationale: c.redline_rationale,
         })),
-        author: 'Legal Overflow',
+        // Universal display-name override (migration 0031, /account/)
+        author: await getUserDisplayName(auth.user.id),
         // Produce a TRACKED-CHANGES output (not a clean doc). The user
         // is going to send this to opposing counsel, who needs to see
         // the redlines and accept/reject themselves in Word. Only the

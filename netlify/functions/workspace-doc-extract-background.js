@@ -132,6 +132,21 @@ export default async (req) => {
     const autoIngest = settings ? !!settings.vault_auto_ingest_uploads : true;
     if (autoIngest && !skipVault) {
       try {
+        // Pass the original file bytes through to the vault ingest
+        // so the multimodal image pipeline can run when enabled.
+        // Standalone image uploads (PNG/JPG/etc) → format='image';
+        // OCR'd PDFs (DocuSign, scanned) → format='pdf' so the PDF
+        // image extractor walks the embedded XObjects (born-digital
+        // PDFs that just happened to be sparse-text). For pure-scan
+        // PDFs the extractor will find no images and silently skip.
+        let ingestFormat = null;
+        let ingestMime = null;
+        if (isImageFile({ fileType, filename })) {
+          ingestFormat = 'image';
+          ingestMime = fileType.startsWith('image/') ? fileType : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+        } else {
+          ingestFormat = 'pdf';
+        }
         await addVaultItem({
           supabase,
           userId,
@@ -140,6 +155,9 @@ export default async (req) => {
           title: filename || 'Untitled document',
           content: markdown,
           tags: ['ocr'],
+          originalBytes: buf,
+          format: ingestFormat,
+          mimeType: ingestMime,
         });
       } catch (vErr) {
         // Don't fail the OCR job if vault insert fails — the doc is

@@ -774,6 +774,15 @@
     color: var(--ink);
     margin: 0;
   }
+  body.ws-vault .dp-preview-notice {
+    margin: 0 0 8px 0;
+    padding: 7px 10px;
+    background: rgba(56, 98, 170, .06);
+    border-left: 2px solid var(--accent-deep, #3862aa);
+    border-radius: 0 3px 3px 0;
+    font-family: var(--sans); font-size: 11.5px; line-height: 1.4;
+    color: var(--ink-2);
+  }
 
   body.ws-vault .vault-card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
   body.ws-vault .vault-pin-dot { font-size: 11px; }
@@ -1027,6 +1036,7 @@
 </header>
 
 <main class="ws-wrap">
+  <a href="/workspace/" class="ws-back-pill" title="Back to workspace home"><span class="ws-back-arrow">←</span> Workspace home</a>
 
   <header class="ws-head">
     <span class="br-bl"></span><span class="br-br"></span>
@@ -1375,7 +1385,8 @@
     throw new Error('halted: no session');
   }
 
-  const accessToken = session.access_token;
+  let accessToken = session.access_token;
+  try { supabase.auth.onAuthStateChange((_e, s) => { if (s?.access_token) accessToken = s.access_token; }); } catch {}
   const userId = session.user.id;
 
   // ---- State ----
@@ -1574,7 +1585,7 @@
   document.getElementById('vault-bulk-delete').addEventListener('click', async () => {
     if (selected.size === 0) return;
     const n = selected.size;
-    if (!confirm('Permanently delete ' + n + ' vault item' + (n === 1 ? '' : 's') + '? This cannot be undone.')) return;
+    if (!(await window.siteConfirm('Permanently delete ' + n + ' vault item' + (n === 1 ? '' : 's') + '? This cannot be undone.', { okLabel: 'Delete', danger: true }))) return;
     await runBulk(Array.from(selected), async (id) => {
       const r = await fetch('/.netlify/functions/workspace-vault-delete', {
         method: 'POST',
@@ -1681,10 +1692,31 @@
           '</div>'
         ) : '') +
 
-        '<div class="dp-section">' +
-          '<span class="dp-section-l"><span>Content</span><span>RAW</span></span>' +
-          '<pre class="vault-detail-content">' + escapeAttr((item.content || '').slice(0, 8000)) + '</pre>' +
-        '</div>' +
+        (function () {
+          // Preview is intentionally capped at 8K chars so the panel
+          // stays light. The FULL document is in the vault — chat,
+          // semantic search, and keyword search all operate on the
+          // complete chunked content (chunk count above). This block
+          // shows a sample + a notice line so the user knows they're
+          // not looking at the entire file in this preview pane.
+          const PREVIEW_CAP = 8000;
+          const totalChars = (item.content || '').length;
+          const truncated = totalChars > PREVIEW_CAP;
+          const sample = (item.content || '').slice(0, PREVIEW_CAP);
+          const notice = truncated
+            ? '<p class="dp-preview-notice">Preview · first ' + escapeAttr(fmtChars(PREVIEW_CAP)) +
+              ' of ' + escapeAttr(fmtChars(totalChars)) +
+              '. The full document (' + escapeAttr(String(chunkCount || 0)) +
+              ' chunk' + ((chunkCount || 0) === 1 ? '' : 's') +
+              ') is searchable in chat and from the search bar.</p>'
+            : '';
+          return '<div class="dp-section">' +
+            '<span class="dp-section-l"><span>Content</span><span>' +
+              (truncated ? 'SAMPLE' : 'FULL') + '</span></span>' +
+            notice +
+            '<pre class="vault-detail-content">' + escapeAttr(sample) + '</pre>' +
+          '</div>';
+        })() +
 
         '<div class="dp-section">' +
           '<span class="dp-section-l"><span>Actions</span><span>03</span></span>' +
@@ -1708,7 +1740,7 @@
       } else if (action === 'archive') {
         await call('workspace-vault-update', { id: item.id, archived: !item.archived_at });
       } else if (action === 'delete') {
-        if (!confirm('Permanently delete this vault item? This cannot be undone.')) return;
+        if (!(await window.siteConfirm('Permanently delete this vault item? This cannot be undone.', { okLabel: 'Delete', danger: true }))) return;
         await call('workspace-vault-delete', { id: item.id, hard: true });
         document.getElementById('vault-detail').hidden = true;
         document.querySelector('.vault-layout')?.classList.remove('has-detail');
@@ -1740,10 +1772,20 @@
     const list = document.getElementById('vault-list');
     list.innerHTML = '<div class="vault-empty"><span class="rv-spin"></span> Searching your vault…</div>';
     try {
+      // activeSearchMode is wired to the Hybrid/Semantic/Keyword
+      // toggle. Backend uses it to pick the search strategy:
+      //   semantic → embeddings (paraphrase-friendly)
+      //   keyword  → ilike substring on chunk content (exact phrases)
+      //   hybrid   → both, semantic-first with keyword fillers
       const r = await fetch('/.netlify/functions/workspace-vault-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
-        body: JSON.stringify({ query: q, top_k: 30, kinds: activeKindFilter ? [activeKindFilter] : undefined }),
+        body: JSON.stringify({
+          query: q,
+          top_k: 30,
+          kinds: activeKindFilter ? [activeKindFilter] : undefined,
+          mode: activeSearchMode || 'hybrid',
+        }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Search failed');
@@ -1779,12 +1821,26 @@
     });
   });
 
-  // Search mode (visual only — endpoint already does hybrid; this just labels intent)
+  // Search mode — Hybrid (default) / Semantic / Keyword. Selected
+  // value is sent on every search request. Switching mode mid-query
+  // re-fires the search so the user sees results from the new mode
+  // immediately without retyping.
   document.querySelectorAll('.search-mode-btn').forEach((b) => {
     b.addEventListener('click', () => {
       document.querySelectorAll('.search-mode-btn').forEach((x) => x.classList.remove('is-active'));
       b.classList.add('is-active');
       activeSearchMode = b.dataset.searchMode || 'hybrid';
+      const q = document.getElementById('vault-search').value.trim();
+      if (q) runSearch(q);
+      // Update placeholder to hint at the active mode's strength
+      const inp = document.getElementById('vault-search');
+      if (inp) {
+        inp.placeholder = activeSearchMode === 'keyword'
+          ? 'Search for exact phrases inside any document…'
+          : activeSearchMode === 'semantic'
+          ? 'Search across every document by meaning…'
+          : 'Search across every document by meaning or exact phrase…';
+      }
     });
   });
 

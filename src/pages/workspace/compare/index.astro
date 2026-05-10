@@ -19,6 +19,448 @@
 <script src="/site-anim.js" defer></script>
 <link rel="stylesheet" href="/workspace.css" />
 <link rel="stylesheet" href="/futuristic.css" />
+<style is:global>
+  /* ============================================================
+     Compare detail view v2 — side-by-side prototype port.
+     Scoped under body.cmp-detail-v2 so the styles only apply when
+     the JS attaches that class to <body> (which happens only on
+     the post-completion compare detail page). The list view and
+     the in-progress / pending / error states still use the older
+     single-column layout.
+     ============================================================ */
+
+  /* Compare bar — two doc identifiers + center DELTA chip */
+  body.cmp-detail-v2 .cmp-bar {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px;
+    align-items: stretch;
+    border: 1px solid var(--rule-soft); border-radius: 6px;
+    background: var(--paper-2); overflow: hidden;
+    margin-bottom: 16px;
+  }
+  body.cmp-detail-v2 .cmp-bar-side {
+    padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  }
+  body.cmp-detail-v2 .cmp-bar-side.right { text-align: right; align-items: flex-end; }
+  body.cmp-detail-v2 .cmp-bar-side .l {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .14em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  body.cmp-detail-v2 .cmp-bar-side .l .pip {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--lo);
+  }
+  body.cmp-detail-v2 .cmp-bar-side.right .l .pip { background: var(--accent-deep); }
+  body.cmp-detail-v2 .cmp-bar-side .t {
+    font-family: var(--serif); font-size: 22px; line-height: 1.2;
+    letter-spacing: -.005em; color: var(--ink);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  body.cmp-detail-v2 .cmp-bar-side .t em { font-style: italic; color: var(--accent-deep); }
+  body.cmp-detail-v2 .cmp-bar-side .m {
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .06em; text-transform: uppercase;
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  body.cmp-detail-v2 .cmp-bar-side.right .m { justify-content: flex-end; }
+  body.cmp-detail-v2 .cmp-bar-vs {
+    align-self: center; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 8px 16px;
+    border-left: 1px solid var(--rule-soft);
+    border-right: 1px solid var(--rule-soft);
+    background: rgba(0,0,0,.02); min-width: 120px; gap: 4px;
+  }
+  body.cmp-detail-v2 .cmp-bar-vs .vs-l {
+    font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+    letter-spacing: .18em; text-transform: uppercase;
+  }
+  body.cmp-detail-v2 .cmp-bar-vs .vs-v { font-family: var(--serif); font-size: 26px; color: var(--ink); }
+  body.cmp-detail-v2 .cmp-bar-vs .vs-v em { font-style: italic; color: var(--accent-deep); }
+
+  /* Mode row — view tabs + sync-scroll / whitespace toggles */
+  body.cmp-detail-v2 .cmp-mode-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; border: 1px solid var(--rule-soft); border-radius: 4px;
+    padding: 6px 10px; background: rgba(255,255,255,.3);
+    margin-bottom: 16px; flex-wrap: wrap;
+  }
+  body.cmp-detail-v2 .cmp-mode-tabs,
+  body.cmp-detail-v2 .cmp-mode-tools {
+    display: flex; align-items: center; gap: 0;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  body.cmp-detail-v2 .cmp-mode-tabs .l {
+    font-size: 9px; color: var(--ink-4); letter-spacing: .18em; margin-right: 10px;
+  }
+  body.cmp-detail-v2 .cmp-mode-tab,
+  body.cmp-detail-v2 .cmp-mode-toggle {
+    padding: 6px 11px; border: none; background: transparent; cursor: pointer;
+    color: var(--ink-3); transition: color .15s;
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  body.cmp-detail-v2 .cmp-mode-tab:hover,
+  body.cmp-detail-v2 .cmp-mode-toggle:hover { color: var(--ink); }
+  body.cmp-detail-v2 .cmp-mode-tab.is-active,
+  body.cmp-detail-v2 .cmp-mode-toggle.is-on { color: var(--accent-deep); }
+  body.cmp-detail-v2 .cmp-mode-tab .pip,
+  body.cmp-detail-v2 .cmp-mode-toggle .pip {
+    width: 5px; height: 5px; border-radius: 50%; border: 1px solid currentColor;
+  }
+  body.cmp-detail-v2 .cmp-mode-tab.is-active .pip,
+  body.cmp-detail-v2 .cmp-mode-toggle.is-on .pip { background: currentColor; }
+  body.cmp-detail-v2 .cmp-mode-sep {
+    width: 1px; height: 12px; background: var(--rule-soft); margin: 0 1px;
+  }
+  body.cmp-detail-v2 .cmp-mode-tab .cnt { opacity: .7; font-size: 9px; }
+
+  /* Split layout — docs grid + hunks rail */
+  body.cmp-detail-v2 .cmp-split {
+    display: grid; grid-template-columns: 1fr 320px; gap: 14px; align-items: start;
+  }
+  @media (max-width: 1100px) {
+    body.cmp-detail-v2 .cmp-split { grid-template-columns: 1fr; }
+  }
+
+  body.cmp-detail-v2 .cmp-docs {
+    /* Three-column grid: left pane | drag handle | right pane.
+       Default 50/50 split; the JS handler updates the inline
+       grid-template-columns on drag, with a min of 200px per pane. */
+    display: grid; grid-template-columns: 1fr 8px 1fr; gap: 0;
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper-2); overflow: hidden;
+    height: 760px; position: relative;
+  }
+
+  /* Drag handle that lives between the panes. Visually a thin
+     vertical rule with a centered grip dot pattern that gets bolder
+     on hover/drag. Cursor is col-resize so the user knows it's draggable. */
+  body.cmp-detail-v2 .cmp-resize-handle {
+    position: relative; cursor: col-resize;
+    background: var(--rule-soft);
+    user-select: none;
+    transition: background .15s;
+  }
+  body.cmp-detail-v2 .cmp-resize-handle::before {
+    content: ''; position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 2px; height: 36px;
+    background: var(--ink-4);
+    border-radius: 1px;
+    box-shadow: -3px 0 0 var(--ink-4), 3px 0 0 var(--ink-4);
+    transition: background .15s, box-shadow .15s;
+  }
+  body.cmp-detail-v2 .cmp-resize-handle:hover {
+    background: var(--rule-thread);
+  }
+  body.cmp-detail-v2 .cmp-resize-handle:hover::before,
+  body.cmp-detail-v2 .cmp-resize-handle.is-dragging::before {
+    background: var(--accent-deep);
+    box-shadow: -3px 0 0 var(--accent-deep), 3px 0 0 var(--accent-deep);
+  }
+  body.cmp-detail-v2 .cmp-resize-handle.is-dragging {
+    background: var(--accent-deep);
+    opacity: .25;
+  }
+  /* While dragging, the WHOLE document gets col-resize cursor + iframe-
+     pointerEvents-none defenses so a drag across iframes / element
+     boundaries doesn't escape the handler. */
+  body.cmp-detail-v2.cmp-resizing {
+    cursor: col-resize !important;
+  }
+  body.cmp-detail-v2.cmp-resizing * {
+    user-select: none;
+  }
+  body.cmp-detail-v2 .cmp-doc-pane {
+    display: flex; flex-direction: column; min-width: 0;
+    /* min-height: 0 + overflow: hidden defeat flexbox's default
+       "children grow to content" behavior so the doc-body's
+       overflow: auto actually clips and produces a scrollbar. */
+    min-height: 0; overflow: hidden;
+  }
+  body.cmp-detail-v2 .cmp-doc-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid var(--rule-soft);
+    background: rgba(0,0,0,.02);
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.cmp-detail-v2 .cmp-doc-head .lab {
+    display: flex; align-items: center; gap: 8px;
+  }
+  body.cmp-detail-v2 .cmp-doc-head .lab .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  body.cmp-detail-v2 .cmp-doc-pane.left .lab .pip { background: var(--lo); }
+  body.cmp-detail-v2 .cmp-doc-pane.right .lab .pip { background: var(--accent-deep); }
+  body.cmp-detail-v2 .cmp-doc-head .stats { color: var(--ink-4); }
+  body.cmp-detail-v2 .cmp-doc-head .stats .ins { color: var(--ins); }
+  body.cmp-detail-v2 .cmp-doc-head .stats .del { color: var(--hi); }
+
+  body.cmp-detail-v2 .cmp-doc-body {
+    /* flex:1 + min-height:0 — the doc body claims all remaining
+       height inside the pane (after the doc-head row), THEN
+       overflow:auto clips at that height. Without these two
+       properties, the body grows to its natural content height
+       and the scrollbar never appears. */
+    flex: 1 1 0; min-height: 0;
+    position: relative; overflow: auto; padding: 28px 32px 32px;
+    background: var(--doc, #fafaf6);
+    font-family: 'Times New Roman', Times, 'Liberation Serif', serif;
+    font-size: 14.5px; line-height: 1.55; color: var(--ink-2);
+    scroll-behavior: smooth;
+  }
+  body.cmp-detail-v2 .cmp-doc-body strong { font-weight: 700; }
+  body.cmp-detail-v2 .cmp-doc-body em { font-style: italic; }
+  body.cmp-detail-v2 .cmp-doc-body::-webkit-scrollbar { width: 6px; }
+  body.cmp-detail-v2 .cmp-doc-body::-webkit-scrollbar-thumb {
+    background: var(--rule-thread); border-radius: 3px;
+  }
+  body.cmp-detail-v2 .cmp-doc-body h2,
+  body.cmp-detail-v2 .cmp-doc-body h3,
+  body.cmp-detail-v2 .cmp-doc-body h4 {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3);
+    font-weight: 500; margin: 18px 0 8px;
+  }
+  body.cmp-detail-v2 .cmp-doc-body h2:first-child,
+  body.cmp-detail-v2 .cmp-doc-body h3:first-child,
+  body.cmp-detail-v2 .cmp-doc-body h4:first-child { margin-top: 0; }
+  body.cmp-detail-v2 .cmp-doc-body p { margin: 0 0 14px; }
+  body.cmp-detail-v2 .cmp-doc-body ul,
+  body.cmp-detail-v2 .cmp-doc-body ol { margin: 0 0 14px 24px; padding: 0; }
+  body.cmp-detail-v2 .cmp-doc-body li { margin-bottom: 6px; }
+
+  /* Inline ins/del marks (added by Commit 2; styles ready now) */
+  body.cmp-detail-v2 .cmp-doc-body .cmp-ins {
+    background: var(--ins-bg, #d7ede0); color: var(--ins);
+    text-decoration: underline; text-decoration-color: var(--ins);
+    text-underline-offset: 2px; padding: 0 2px;
+  }
+  body.cmp-detail-v2 .cmp-doc-body .cmp-del {
+    background: var(--del-bg, #f5dede); color: var(--hi);
+    text-decoration: line-through; text-decoration-color: var(--hi); padding: 0 2px;
+  }
+  body.cmp-detail-v2 .cmp-doc-body .cmp-anchor.is-active {
+    box-shadow: 0 0 0 2px var(--accent-deep);
+    border-radius: 2px; transition: box-shadow .25s;
+  }
+
+  body.cmp-detail-v2 .cmp-doc-body-empty {
+    padding: 32px; font-family: var(--mono); font-size: 11px;
+    color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase;
+    text-align: center;
+  }
+  body.cmp-detail-v2 .cmp-doc-body-empty .pulse {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent-deep); margin-right: 8px; vertical-align: middle;
+    animation: cmp-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes cmp-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* Hunks rail */
+  body.cmp-detail-v2 .cmp-hunks {
+    border: 1px solid var(--rule-soft); border-radius: 8px;
+    background: var(--paper-2); display: flex; flex-direction: column;
+    height: 760px; overflow: hidden;
+  }
+  body.cmp-detail-v2 .cmp-hunks-head {
+    padding: 14px 16px; border-bottom: 1px solid var(--rule-soft);
+    background: rgba(0,0,0,.02);
+  }
+  body.cmp-detail-v2 .cmp-hunks-kick {
+    font-family: var(--mono); font-size: 9.5px; color: var(--accent-deep);
+    letter-spacing: .14em; text-transform: uppercase; margin-bottom: 6px;
+  }
+  body.cmp-detail-v2 .cmp-hunks-h {
+    font-family: var(--serif); font-size: 22px; letter-spacing: -.01em;
+    line-height: 1.1; color: var(--ink); margin: 0; font-weight: 400;
+  }
+  body.cmp-detail-v2 .cmp-hunks-h em { font-style: italic; color: var(--accent-deep); }
+  body.cmp-detail-v2 .cmp-hunks-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    margin-top: 10px; border-top: 1px dotted var(--rule-soft); padding-top: 10px;
+  }
+  body.cmp-detail-v2 .cmp-hs {
+    display: flex; flex-direction: column; gap: 2px;
+    border-right: 1px dotted var(--rule-soft); padding-right: 8px;
+  }
+  body.cmp-detail-v2 .cmp-hs:last-child { border-right: none; padding-right: 0; }
+  body.cmp-detail-v2 .cmp-hs-l {
+    font-family: var(--mono); font-size: 9px; color: var(--ink-4);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  body.cmp-detail-v2 .cmp-hs-v {
+    font-family: var(--serif); font-size: 20px; line-height: 1; color: var(--ink);
+  }
+  body.cmp-detail-v2 .cmp-hs-v.add { color: var(--ins); }
+  body.cmp-detail-v2 .cmp-hs-v.rem { color: var(--hi); }
+
+  body.cmp-detail-v2 .cmp-hunks-list { overflow-y: auto; flex: 1; }
+  body.cmp-detail-v2 .cmp-hunks-list::-webkit-scrollbar { width: 6px; }
+  body.cmp-detail-v2 .cmp-hunks-list::-webkit-scrollbar-thumb {
+    background: var(--rule-thread); border-radius: 3px;
+  }
+  body.cmp-detail-v2 .cmp-hunk {
+    padding: 12px 16px; border-bottom: 1px solid var(--rule-soft);
+    cursor: pointer;
+    display: flex; flex-direction: column; gap: 8px;
+    transition: background .15s, border-left-color .15s var(--motion-snap);
+    border-left: 2px solid transparent;
+  }
+  body.cmp-detail-v2 .cmp-hunk:hover {
+    background: rgba(255,255,255,.5); border-left-color: var(--ink-3);
+  }
+  body.cmp-detail-v2 .cmp-hunk.is-active {
+    background: rgba(255,255,255,.7); border-left-color: var(--accent-deep);
+  }
+  body.cmp-detail-v2 .cmp-hunk-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  body.cmp-detail-v2 .cmp-hunk-id { color: var(--ink); }
+  body.cmp-detail-v2 .cmp-hunk-sev {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  body.cmp-detail-v2 .cmp-hunk-sev .pip {
+    width: 5px; height: 5px; border-radius: 50%;
+  }
+  body.cmp-detail-v2 .cmp-hunk-sev.high   { color: var(--hi); }
+  body.cmp-detail-v2 .cmp-hunk-sev.high   .pip { background: var(--hi); }
+  body.cmp-detail-v2 .cmp-hunk-sev.medium { color: var(--md); }
+  body.cmp-detail-v2 .cmp-hunk-sev.medium .pip { background: var(--md); }
+  body.cmp-detail-v2 .cmp-hunk-sev.low    { color: var(--lo); }
+  body.cmp-detail-v2 .cmp-hunk-sev.low    .pip { background: var(--lo); }
+  body.cmp-detail-v2 .cmp-hunk-sev.info   { color: var(--ins); }
+  body.cmp-detail-v2 .cmp-hunk-sev.info   .pip { background: var(--ins); }
+  body.cmp-detail-v2 .cmp-hunk-cite {
+    font-family: var(--mono); font-size: 9px; color: var(--ink-4);
+    letter-spacing: .08em;
+  }
+  body.cmp-detail-v2 .cmp-hunk-text {
+    font-family: var(--serif); font-size: 14.5px; line-height: 1.4;
+    color: var(--ink-2);
+  }
+  body.cmp-detail-v2 .cmp-hunk-text em { font-style: italic; color: var(--accent-deep); }
+
+  /* Per-hunk action chrome — only rendered inside the active card.
+     Three small buttons (Keep yours / Accept theirs / Reset) plus a
+     status chip showing current user_choice if not pending. */
+  body.cmp-detail-v2 .cmp-hunk-state {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 8.5px;
+    letter-spacing: .12em; text-transform: uppercase;
+    padding: 2px 6px; border: 1px solid currentColor; border-radius: 2px;
+    margin-left: 6px;
+  }
+  body.cmp-detail-v2 .cmp-hunk-state.accept_proposed { color: var(--ins); }
+  body.cmp-detail-v2 .cmp-hunk-state.keep_base { color: var(--lo); }
+
+  body.cmp-detail-v2 .cmp-hunk-actions {
+    display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;
+  }
+  body.cmp-detail-v2 .cmp-hunk-action {
+    flex: 1 1 0; min-width: 0;
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); background: transparent;
+    border: 1px solid var(--rule-soft); border-radius: 3px;
+    padding: 6px 8px; cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.cmp-detail-v2 .cmp-hunk-action:hover {
+    color: var(--ink); border-color: var(--ink);
+  }
+  body.cmp-detail-v2 .cmp-hunk-action.is-on.accept {
+    color: var(--ins); border-color: var(--ins); background: rgba(74,138,100,.06);
+  }
+  body.cmp-detail-v2 .cmp-hunk-action.is-on.keep {
+    color: var(--lo); border-color: var(--lo); background: rgba(106,124,142,.06);
+  }
+  body.cmp-detail-v2 .cmp-hunk-rec {
+    font-family: var(--mono); font-size: 8.5px;
+    color: var(--accent-deep); letter-spacing: .12em; text-transform: uppercase;
+    padding: 2px 6px; border: 1px dotted var(--accent-deep); border-radius: 2px;
+  }
+
+  body.cmp-detail-v2 .cmp-hunks-foot {
+    padding: 12px 16px; border-top: 1px solid var(--rule-soft);
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(0,0,0,.02);
+    font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  body.cmp-detail-v2 .cmp-hunks-foot .arrows { display: flex; gap: 6px; }
+  body.cmp-detail-v2 .arr-btn {
+    padding: 4px 8px; border: 1px solid var(--rule-soft);
+    background: transparent; cursor: pointer;
+    color: var(--ink); font-family: var(--mono); font-size: 11px;
+    border-radius: 3px;
+    transition: border-color .15s, color .15s;
+  }
+  body.cmp-detail-v2 .arr-btn:hover {
+    border-color: var(--accent-deep); color: var(--accent-deep);
+  }
+
+  @media (max-width: 980px) {
+    body.cmp-detail-v2 .cmp-docs { grid-template-columns: 1fr; height: auto; }
+    body.cmp-detail-v2 .cmp-docs::before { display: none; }
+  }
+
+  /* ---- Finalize-redline progress banner ----
+     Mounts the moment the user clicks Finalize. Stays visible until
+     the run row's status flips back from 'finalizing' to 'complete' /
+     'error'. Sticky-positioned at the top of the viewport so the
+     user always knows the build is in flight even if they scroll. */
+  .cmp-finalize-progress {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    margin: 0 0 16px 0;
+    padding: 12px 18px;
+    background: linear-gradient(180deg, rgba(56, 98, 170, .08), rgba(56, 98, 170, .04));
+    border: 1px solid var(--accent-deep, #3862aa);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px -8px rgba(0, 0, 0, .12);
+    display: flex; align-items: center; gap: 14px;
+    font-family: var(--sans);
+    color: var(--ink);
+    animation: cmp-fp-in .25s ease-out both;
+  }
+  @keyframes cmp-fp-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .cmp-fp-spin {
+    width: 14px; height: 14px; flex: none;
+    border: 2px solid rgba(56, 98, 170, .2);
+    border-top-color: var(--accent-deep, #3862aa);
+    border-radius: 50%;
+    animation: cmp-fp-rot .9s linear infinite;
+  }
+  @keyframes cmp-fp-rot { to { transform: rotate(360deg); } }
+  .cmp-fp-text { flex: 1 1 auto; min-width: 0; line-height: 1.35; }
+  .cmp-fp-title {
+    font-family: var(--sans); font-size: 13.5px; font-weight: 500;
+    color: var(--ink); letter-spacing: -0.005em;
+  }
+  .cmp-fp-stage {
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-3); letter-spacing: .04em;
+    margin-top: 3px;
+  }
+  .cmp-fp-elapsed {
+    flex: none;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+    padding: 4px 9px;
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    min-width: 60px; text-align: center;
+  }
+</style>
 </head>
 <body class="review-page">
 <div id="grain"></div>
@@ -85,7 +527,8 @@
     throw err;
   }
 
-  const accessToken = session.access_token;
+  let accessToken = session.access_token;
+  try { supabase.auth.onAuthStateChange((_e, s) => { if (s?.access_token) accessToken = s.access_token; }); } catch {}
   const main = document.getElementById('page-main');
   const runId = new URL(location.href).searchParams.get('id');
 
@@ -97,8 +540,10 @@
   // LIST VIEW
   // ============================================================
   async function renderListView() {
+    document.body.classList.remove('cmp-detail-v2');
     main.innerHTML = `
       <div class="ws-wrap">
+        <a href="/workspace/" class="ws-back-pill" title="Back to workspace home"><span class="ws-back-arrow">←</span> Workspace home</a>
         <header class="ws-head fm-frame">
           <span class="br-tr"></span><span class="br-br"></span>
           <div>
@@ -195,7 +640,7 @@
     listEl.querySelectorAll('[data-del]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault(); e.stopPropagation();
-        if (!confirm(`Delete comparison "${btn.dataset.title}"?`)) return;
+        if (!(await window.siteConfirm(`Delete comparison "${btn.dataset.title}"?`, { okLabel: 'Delete', danger: true }))) return;
         await fetch('/.netlify/functions/workspace-compare-delete', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -320,12 +765,20 @@
 
       const btn = overlay.querySelector('#cmp-run');
       btn.disabled = true; btn.textContent = 'Running…';
+      // Honor the user's universal model preference (set in the
+      // dashboard / chat header model picker). Falls back to
+      // claude-sonnet-4-5 when no preference is stored yet. Critical
+      // for BYOK users — if they only have a Google or OpenAI key,
+      // forcing claude-sonnet-4-5 would 401 in the background worker.
+      let preferredModel = 'claude-sonnet-4-5';
+      try { preferredModel = localStorage.getItem('workspace.dash.model') || preferredModel; } catch {}
       const r = await fetch('/.netlify/functions/workspace-compare-create', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title, base_document_id: baseId, proposed_document_id: proposedId,
           client_role: clientRole || null, additional_context: additionalContext || null,
+          model: preferredModel,
         }),
       });
       const j = await r.json();
@@ -353,8 +806,19 @@
           </div>
           <div class="ws-head-actions">
             <button id="cmp-bulk-accept-rec" class="ws-btn-secondary" title="Apply the AI's recommendations as a starting point">Apply recommendations</button>
+            <!-- Finalize / Download redline. Tracks whatever decisions
+                 the user has made (Keep/Accept/Custom) and produces a
+                 redline deliverable in the proposed doc's format —
+                 tracked-changes .docx OR inline-redline .pdf — plus a
+                 markdown negotiation memo on summary_md. Hidden until
+                 the run completes; then shows "Finalize" if not yet
+                 finalized, "Download redline" + "Cover memo" if it is. -->
+            <button id="cmp-finalize-btn" class="ws-btn" hidden title="Build a redline deliverable from your decisions">Finalize redline</button>
+            <a id="cmp-download-link" class="ws-btn" hidden download>↓ Download redline</a>
+            <button id="cmp-summary-btn" class="ws-btn-secondary" hidden title="Show the negotiation memo (markdown)">Cover memo</button>
           </div>
         </header>
+        <div id="cmp-finalize-progress-host"></div>
         <div id="cmp-diffs"></div>
       </div>
     `;
@@ -387,60 +851,1141 @@
 
     const wrap = document.getElementById('cmp-diffs');
     if (run.status === 'pending' || run.status === 'running') {
+      document.body.classList.remove('cmp-detail-v2');
       wrap.innerHTML = `<div class="cmp-loading"><span class="rv-spin"></span>Reading both documents end-to-end. This usually takes 60–180s.</div>`;
       return;
     }
+    if (run.status === 'finalizing') {
+      // Stay on the side-by-side view while the redline builds — the
+      // user's decisions are still meaningful — but flip the
+      // Finalize button to a disabled "Building…" state.
+      document.body.classList.add('cmp-detail-v2');
+      drawCompleteView(wrap, run, diffs, base_document, proposed_document);
+      const fb = document.getElementById('cmp-finalize-btn');
+      if (fb) {
+        fb.hidden = false;
+        fb.disabled = true;
+        fb.textContent = 'Building redline…';
+      }
+      // Re-mount the progress banner if it isn't already up — handles
+      // the page-reload-mid-finalize case so the user gets the same
+      // status indicator they'd see if they had stayed on the tab.
+      if (!_finalizeProgressTimer) {
+        const decided = (diffs || []).filter((d) => d.user_choice === 'keep_base' || d.user_choice === 'custom').length;
+        const fmt = (proposed_document?.file_type || '').toLowerCase().includes('pdf')
+          || (proposed_document?.filename || '').toLowerCase().endsWith('.pdf')
+          ? 'PDF' : 'DOCX';
+        showFinalizeProgress(fmt, decided);
+      }
+      return;
+    }
     if (run.status === 'error') {
+      document.body.classList.remove('cmp-detail-v2');
       wrap.innerHTML = `<div class="cmp-error">${escapeHtml(run.status_detail || 'Comparison failed')}</div>`;
       return;
     }
 
-    const sortedDiffs = [...diffs].sort((a, b) => {
-      const sev = { high: 0, medium: 1, low: 2, info: 3 };
-      return (sev[a.severity] ?? 1) - (sev[b.severity] ?? 1);
+    // ---- Run is complete: render the new side-by-side view ----
+    document.body.classList.add('cmp-detail-v2');
+    drawCompleteView(wrap, run, diffs, base_document, proposed_document);
+
+    // CRITICAL: pollLoop re-enters drawDetail every 2.5s while the
+    // run is in 'complete' state (waiting for the user to finalize).
+    // Without this clone-replace, every poll tick stacks a new click
+    // listener onto the same buttons. After 3 polls the user clicks
+    // Finalize once and fires THREE concurrent fetches — the first
+    // wins, the other two come back 409 (server's "already finalizing"
+    // guard) and each one alert()s "Could not start finalize". The
+    // standard "remove all listeners on a node" trick is to clone it.
+    ['cmp-bulk-accept-rec', 'cmp-finalize-btn', 'cmp-summary-btn'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.replaceWith(el.cloneNode(true));
     });
 
-    wrap.innerHTML = `
-      <div class="cmp-meta">
-        <div class="cmp-meta-doc"><span class="cmp-meta-label">Your template</span><div>${escapeHtml(base_document?.filename || '—')}</div></div>
-        <div class="cmp-meta-vs">vs</div>
-        <div class="cmp-meta-doc"><span class="cmp-meta-label">Their proposed</span><div>${escapeHtml(proposed_document?.filename || '—')}</div></div>
+    refreshFinalizeButtons(run, cmpState.finalized_url, cmpState.finalized_filename);
+
+    document.getElementById('cmp-bulk-accept-rec')?.addEventListener('click', async () => {
+      const pending = cmpState.diffs.filter((d) => d.user_choice === 'pending');
+      if (!pending.length) {
+        alert('No pending diffs — every change already has a decision.');
+        return;
+      }
+      const willApply = pending.filter((d) =>
+        d.recommendation === 'accept' || d.recommendation === 'reject'
+      );
+      if (!willApply.length) {
+        alert('The AI did not give a clear accept/reject recommendation on any pending diffs. Decide them individually.');
+        return;
+      }
+      if (!(await window.siteConfirm(`Apply the AI recommendation to ${willApply.length} pending diff${willApply.length === 1 ? '' : 's'}? You can change individual choices afterward.`, { okLabel: 'Apply' }))) return;
+
+      const btn = document.getElementById('cmp-bulk-accept-rec');
+      const orig = btn?.textContent;
+      if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+
+      // Optimistic local state update — flip cmpState.diffs[].user_choice
+      // immediately so the sidebar re-renders into the new state while
+      // the network requests are still in flight. Without this, the
+      // user sees a stale "pending" sidebar for the duration of the
+      // batch (20 sequential awaits = several seconds).
+      const choices = willApply.map((d) => ({
+        d,
+        choice: d.recommendation === 'accept' ? 'accept_proposed' : 'keep_base',
+        prev: d.user_choice,
+      }));
+      for (const c of choices) c.d.user_choice = c.choice;
+      drawDetail();   // re-renders sidebar with new badges; doesn't kill the button reference because drawDetail recreates it
+
+      // Re-grab the button reference after re-render.
+      const btn2 = document.getElementById('cmp-bulk-accept-rec');
+      if (btn2) { btn2.disabled = true; btn2.textContent = 'Applying…'; }
+
+      // Fire all updates in PARALLEL — RLS prevents cross-user writes
+      // so this is safe and ~20× faster than sequential. Failures are
+      // collected and reported; successful rows stay flipped.
+      const results = await Promise.all(choices.map(async (c) => {
+        try {
+          const r = await fetch('/.netlify/functions/workspace-compare-diff-update', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: c.d.id, user_choice: c.choice }),
+          });
+          if (!r.ok) throw new Error('http ' + r.status);
+          return { ok: true };
+        } catch (err) {
+          // Revert this row's local state since the server didn't
+          // accept it.
+          c.d.user_choice = c.prev;
+          return { ok: false, err: err?.message || 'failed' };
+        }
+      }));
+
+      const fails = results.filter((r) => !r.ok).length;
+      drawDetail();   // re-render with any reverted state
+
+      const btn3 = document.getElementById('cmp-bulk-accept-rec');
+      if (btn3) {
+        btn3.disabled = false;
+        btn3.textContent = orig || 'Apply recommendations';
+      }
+      if (fails) {
+        alert(`${results.length - fails} applied, ${fails} failed (network blips). Try those individually.`);
+      }
+    });
+
+    // Finalize redline — kicks off the background, flips status to
+    // 'finalizing', poll picks up the transition and swaps button to
+    // download link when done.
+    document.getElementById('cmp-finalize-btn')?.addEventListener('click', async () => {
+      const decided = cmpState.diffs.filter((d) => d.user_choice === 'keep_base' || d.user_choice === 'custom').length;
+      if (decided === 0) {
+        alert('No pushbacks to mark up. Click "Keep yours" or "Custom" on at least one diff before finalizing.');
+        return;
+      }
+      const proposedFmt = (cmpState.proposed_document?.file_type || '').toLowerCase().includes('pdf')
+        || (cmpState.proposed_document?.filename || '').toLowerCase().endsWith('.pdf')
+        ? 'PDF' : 'DOCX';
+      if (!(await window.siteConfirm(`Build a redlined ${proposedFmt} with ${decided} pushback${decided === 1 ? '' : 's'}? This typically takes 10–60s.`, { okLabel: 'Build' }))) return;
+
+      // Mount the progress banner BEFORE the network round-trip so
+      // the user sees instant feedback. Confirm() blocks the JS thread
+      // long enough that without this banner, there's a 200–600ms gap
+      // between dialog dismiss and the button text changing — that's
+      // what feels frozen.
+      showFinalizeProgress(proposedFmt, decided);
+
+      const btn = document.getElementById('cmp-finalize-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+      try {
+        const r = await fetch('/.netlify/functions/workspace-compare-finalize', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: cmpState.run.id }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.error || 'finalize failed');
+        }
+        // Optimistic — flip status locally so the poll loop keeps
+        // polling until the background completes.
+        cmpState.run.status = 'finalizing';
+        drawDetail();
+        pollLoop(cmpState.run.id);
+      } catch (err) {
+        hideFinalizeProgress();
+        if (btn) { btn.disabled = false; btn.textContent = 'Finalize redline'; }
+        alert('Could not start finalize: ' + err.message);
+      }
+    });
+
+    // Cover memo — opens a modal showing summary_md (markdown
+    // rendered) so the user can copy/paste it into an email.
+    document.getElementById('cmp-summary-btn')?.addEventListener('click', () => {
+      const md = cmpState.run?.summary_md || '';
+      if (!md.trim()) {
+        alert('No summary memo on this run yet. Finalize the redline first.');
+        return;
+      }
+      openSummaryMemoModal(md);
+    });
+  }
+
+  // ---- Finalize-redline progress banner — mounts on click, ticks
+  //      an elapsed counter + cycles reassurance text every few sec
+  //      so the user always sees motion. Auto-unmounts the moment
+  //      refreshFinalizeButtons sees status flip out of 'finalizing'.
+  let _finalizeProgressTimer = null;
+  let _finalizeProgressStart = 0;
+  function showFinalizeProgress(fmt, decided) {
+    const host = document.getElementById('cmp-finalize-progress-host');
+    if (!host) return;
+    // Remount fresh — clears any stale timer / DOM.
+    hideFinalizeProgress();
+    _finalizeProgressStart = Date.now();
+    const stages = [
+      'Translating your decisions into edit instructions…',
+      'Sending the document to the redline engine…',
+      'Applying tracked changes…',
+      'Building the negotiation memo…',
+      'Saving a new version to your library…',
+      'Almost there — finalizing the deliverable…',
+    ];
+    host.innerHTML = `
+      <div class="cmp-finalize-progress" role="status" aria-live="polite">
+        <div class="cmp-fp-spin" aria-hidden="true"></div>
+        <div class="cmp-fp-text">
+          <div class="cmp-fp-title">Building your redlined ${escapeHtml(fmt)} — ${decided} pushback${decided === 1 ? '' : 's'}</div>
+          <div class="cmp-fp-stage" id="cmp-fp-stage">${escapeHtml(stages[0])}</div>
+        </div>
+        <div class="cmp-fp-elapsed" id="cmp-fp-elapsed">0s</div>
+      </div>`;
+    const stageEl = document.getElementById('cmp-fp-stage');
+    const elapsedEl = document.getElementById('cmp-fp-elapsed');
+    let stageIdx = 0;
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - _finalizeProgressStart) / 1000);
+      if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
+      // Advance the stage line every ~6s so the user feels progress.
+      const nextIdx = Math.min(stages.length - 1, Math.floor(elapsed / 6));
+      if (nextIdx !== stageIdx && stageEl) {
+        stageIdx = nextIdx;
+        stageEl.textContent = stages[stageIdx];
+      }
+    };
+    tick();
+    _finalizeProgressTimer = setInterval(tick, 1000);
+  }
+  function hideFinalizeProgress() {
+    if (_finalizeProgressTimer) {
+      clearInterval(_finalizeProgressTimer);
+      _finalizeProgressTimer = null;
+    }
+    const host = document.getElementById('cmp-finalize-progress-host');
+    if (host) host.innerHTML = '';
+  }
+
+  // ---- Show / hide the finalize / download / memo buttons based on
+  //      the run's finalized state. Called from drawDetail after every
+  //      poll tick so the UI stays in sync as status transitions.
+  function refreshFinalizeButtons(run, finalizedUrl, finalizedFilename) {
+    const fb = document.getElementById('cmp-finalize-btn');
+    const dl = document.getElementById('cmp-download-link');
+    const sb = document.getElementById('cmp-summary-btn');
+    if (!fb || !dl || !sb) return;
+
+    const isComplete = run.status === 'complete';
+    const hasFinalized = isComplete && !!run.finalized_version_id && !!finalizedUrl;
+    const isFinalizing = run.status === 'finalizing';
+
+    // Tear down the progress banner the moment the background
+    // completes (or errors). Safe to call repeatedly.
+    if (!isFinalizing) hideFinalizeProgress();
+
+    // Finalize button — show when run is complete but not yet
+    // finalized (or to re-finalize after the user changed decisions).
+    fb.hidden = !isComplete && !isFinalizing;
+    fb.disabled = isFinalizing;
+    fb.textContent = isFinalizing ? 'Building redline…'
+      : hasFinalized ? 'Re-finalize'
+      : 'Finalize redline';
+
+    // Download button — only when there's a fresh finalized version
+    // with a signed URL.
+    dl.hidden = !hasFinalized;
+    if (hasFinalized) {
+      dl.href = finalizedUrl;
+      dl.setAttribute('download', finalizedFilename || 'redline');
+    }
+
+    // Cover memo button — only when we actually have summary_md text.
+    sb.hidden = !(isComplete && (run.summary_md || '').trim());
+  }
+
+  // ---- Cover-memo modal — shows summary_md as rendered markdown +
+  //      Copy and Close buttons. Quick-and-dirty inline overlay; uses
+  //      the existing attach-modal styling for consistency.
+  function openSummaryMemoModal(md) {
+    const overlay = document.createElement('div');
+    overlay.className = 'attach-modal';
+    const renderedHtml = renderMemoMarkdown(md);
+    overlay.innerHTML = `
+      <div class="attach-modal-inner" style="max-width: 720px;">
+        <header class="attach-modal-head">
+          <h2 class="attach-modal-title">Cover memo</h2>
+          <button type="button" class="attach-modal-close" data-close>×</button>
+        </header>
+        <div class="attach-modal-body" style="font-family: var(--serif); font-size: 14.5px; line-height: 1.55;">
+          ${renderedHtml}
+        </div>
+        <footer class="attach-modal-foot">
+          <button type="button" class="ws-btn-secondary" data-copy>Copy markdown</button>
+          <button type="button" class="ws-btn" data-close>Close</button>
+        </footer>
       </div>
-      <div class="cmp-diff-list">
-        ${sortedDiffs.map((d) => renderDiff(d)).join('')}
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => overlay.remove()));
+    overlay.querySelector('[data-copy]')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(md);
+        const btn = overlay.querySelector('[data-copy]');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1400);
+      } catch {
+        alert('Could not copy — your browser may need clipboard permission.');
+      }
+    });
+  }
+
+  // Tiny markdown renderer for the memo modal — same shape as the
+  // doc-pane renderer. Headings, bold, italic, lists, paragraphs.
+  function renderMemoMarkdown(md) {
+    if (!md) return '';
+    const esc = (s) => s.replace(/[<>&]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+    const inline = (s) => esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    const lines = String(md).replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let para = [];
+    let inList = null;
+    function flushPara() { if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para = []; } }
+    function flushList() { if (inList) { out.push(`</${inList}>`); inList = null; } }
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { flushPara(); flushList(); continue; }
+      const h = line.match(/^(#{1,6})\s+(.+)$/);
+      if (h) {
+        flushPara(); flushList();
+        const lvl = Math.min(4, h[1].length + 1);
+        out.push(`<h${lvl}>${inline(h[2])}</h${lvl}>`);
+        continue;
+      }
+      const ul = line.match(/^[-*]\s+(.+)$/);
+      if (ul) {
+        flushPara();
+        if (inList !== 'ul') { flushList(); out.push('<ul>'); inList = 'ul'; }
+        out.push(`<li>${inline(ul[1])}</li>`);
+        continue;
+      }
+      flushList();
+      para.push(line);
+    }
+    flushPara();
+    flushList();
+    return out.join('\n');
+  }
+
+  // ============================================================
+  // SIDE-BY-SIDE COMPLETE-RUN VIEW
+  // ============================================================
+  // Renders the prototype's layout: cmp-bar (two doc IDs + DELTA chip),
+  // mode-row (view tabs + sync-scroll toggles), and a split with two
+  // doc panes + a hunks rail. Text comes from
+  // /api/workspace-library-get?include_text=1 — the extracted_text
+  // column is markdown-formatted for newer uploads (post-OCR work),
+  // plain prose for older ones; both render passably with our minimal
+  // markdown→HTML helper.
+
+  // Track totals for the doc-head chips and stats panel.
+  function diffStats(diffs) {
+    let added = 0, removed = 0, moved = 0;
+    for (const d of diffs) {
+      if (d.change_type === 'addition') added++;
+      else if (d.change_type === 'deletion') removed++;
+      else if (d.change_type === 'modification') { added++; removed++; }
+    }
+    return { added, removed, moved };
+  }
+
+  // Severity → numeric for sorting (high first).
+  const SEV_RANK = { high: 0, medium: 1, low: 2, info: 3 };
+
+  // Tiny markdown→HTML renderer just for doc-body. Handles headings,
+  // paragraphs, bold, italic, lists. Anything fancier (tables, code)
+  // falls through as plain paragraphs — fine for legal-doc text.
+  function renderDocMarkdown(md) {
+    if (!md) return '';
+    const esc = (s) => s.replace(/[<>&]/g, (c) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+    const inline = (s) => esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    const lines = String(md).replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let para = [];
+    let inList = null; // 'ul' | 'ol' | null
+    function flushPara() {
+      if (para.length) {
+        out.push(`<p>${inline(para.join(' '))}</p>`);
+        para = [];
+      }
+    }
+    function flushList() {
+      if (inList) { out.push(`</${inList}>`); inList = null; }
+    }
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) { flushPara(); flushList(); continue; }
+      const h = line.match(/^(#{1,6})\s+(.+)$/);
+      if (h) { flushPara(); flushList(); out.push(`<h${Math.min(4, h[1].length+2)}>${inline(h[2])}</h${Math.min(4, h[1].length+2)}>`); continue; }
+      const ul = line.match(/^[-*]\s+(.+)$/);
+      const ol = line.match(/^\d+\.\s+(.+)$/);
+      if (ul) {
+        flushPara();
+        if (inList !== 'ul') { flushList(); out.push('<ul>'); inList = 'ul'; }
+        out.push(`<li>${inline(ul[1])}</li>`);
+        continue;
+      }
+      if (ol) {
+        flushPara();
+        if (inList !== 'ol') { flushList(); out.push('<ol>'); inList = 'ol'; }
+        out.push(`<li>${inline(ol[1])}</li>`);
+        continue;
+      }
+      flushList();
+      para.push(line);
+    }
+    flushPara();
+    flushList();
+    return out.join('\n');
+  }
+
+  // Truncate long whys for hunk cards. We intentionally use the
+  // existing why_it_matters field rather than introduce a new
+  // summary column on workspace_compare_diffs — keeping schema
+  // stable for v1.
+  function shortWhy(d) {
+    const src = (d.why_it_matters || '').trim();
+    if (!src) {
+      return d.change_type === 'addition' ? 'New language proposed.'
+        : d.change_type === 'deletion' ? 'Language removed.'
+        : 'Modification proposed.';
+    }
+    if (src.length <= 140) return src;
+    return src.slice(0, 137).replace(/[\s,;:]+\S*$/, '') + '…';
+  }
+
+  // Per-hunk card. Active card gets inline Keep / Accept / Reset
+  // buttons + AI-recommendation hint. Inactive cards stay compact.
+  // user_choice flows through workspace-compare-diff-update; the
+  // UI updates optimistically on click and reconciles on the next
+  // poll tick.
+  function renderHunkCard(d, i) {
+    const isActive = (i === 0);     // initial active = first
+    const choice = d.user_choice || 'pending';
+    const stateChip = (choice === 'accept_proposed' || choice === 'keep_base')
+      ? `<span class="cmp-hunk-state ${choice}">${choice === 'accept_proposed' ? 'Accepted' : 'Kept'}</span>`
+      : '';
+    const recHint = d.recommendation && choice === 'pending'
+      ? `<span class="cmp-hunk-rec">AI · ${escapeHtml(d.recommendation)}</span>` : '';
+    const actions = isActive ? `
+      <div class="cmp-hunk-actions">
+        <button type="button" class="cmp-hunk-action keep${choice === 'keep_base' ? ' is-on' : ''}" data-act="keep_base" data-id="${d.id}" title="Keep your template language">Keep yours</button>
+        <button type="button" class="cmp-hunk-action accept${choice === 'accept_proposed' ? ' is-on' : ''}" data-act="accept_proposed" data-id="${d.id}" title="Use the proposed language">Accept theirs</button>
+        <button type="button" class="cmp-hunk-action" data-act="pending" data-id="${d.id}" title="Reset to undecided">Reset</button>
+      </div>` : '';
+    return `
+      <div class="cmp-hunk${isActive ? ' is-active' : ''}" data-hunk="${d.id}" data-sev="${d.severity || 'medium'}">
+        <div class="cmp-hunk-row">
+          <span class="cmp-hunk-id">H · ${String(i+1).padStart(2,'0')}${stateChip}</span>
+          <span class="cmp-hunk-sev ${d.severity || 'medium'}"><span class="pip"></span>${(d.severity || 'medium').toUpperCase()}</span>
+        </div>
+        <span class="cmp-hunk-cite">${escapeHtml(d.section_name || (d.change_type || '').toUpperCase())} ${recHint}</span>
+        <span class="cmp-hunk-text">${escapeHtml(shortWhy(d))}</span>
+        ${actions}
+      </div>
+    `;
+  }
+
+  function drawCompleteView(wrap, run, diffs, baseDoc, propDoc) {
+    const stats = diffStats(diffs);
+    const hi = diffs.filter((d) => d.severity === 'high').length;
+    const sortedHunks = [...diffs].sort((a, b) =>
+      (SEV_RANK[a.severity] ?? 1) - (SEV_RANK[b.severity] ?? 1) ||
+      (a.diff_index ?? 0) - (b.diff_index ?? 0)
+    );
+
+    wrap.innerHTML = `
+      <!-- Compare bar — two doc identities + DELTA -->
+      <div class="cmp-bar">
+        <div class="cmp-bar-side">
+          <span class="l"><span class="pip"></span>SIDE A · YOUR TEMPLATE</span>
+          <span class="t">${escapeHtml(baseDoc?.filename || '—')}</span>
+          <span class="m"><span>${escapeHtml((baseDoc?.file_type || 'doc').toUpperCase())}</span></span>
+        </div>
+        <div class="cmp-bar-vs">
+          <span class="vs-l">DELTA</span>
+          <span class="vs-v"><em>${diffs.length}</em></span>
+          <span class="vs-l">${hi} HIGH-SEV</span>
+        </div>
+        <div class="cmp-bar-side right">
+          <span class="l"><span class="pip"></span>SIDE B · THEIR PROPOSED</span>
+          <span class="t">${escapeHtml(propDoc?.filename || '—')}</span>
+          <span class="m"><span>${escapeHtml((propDoc?.file_type || 'doc').toUpperCase())}</span></span>
+        </div>
+      </div>
+
+      <!-- Mode row — view tabs + severity filters + sync-scroll +
+           bulk Apply Recommendations button -->
+      <div class="cmp-mode-row">
+        <div class="cmp-mode-tabs">
+          <span class="l">VIEW ·</span>
+          <button class="cmp-mode-tab is-active" data-mode="side"><span class="pip"></span>Side-by-side</button>
+          <span class="cmp-mode-sep"></span>
+          <button class="cmp-mode-tab" data-mode="hunks"><span class="pip"></span>Hunks only <span class="cnt">[${diffs.length}]</span></button>
+          <span class="cmp-mode-sep"></span>
+          <span class="l" style="margin-left:14px;">SEVERITY ·</span>
+          <button class="cmp-mode-tab cmp-sev-filter is-active" data-sev="all"><span class="pip"></span>All <span class="cnt">[${diffs.length}]</span></button>
+          <span class="cmp-mode-sep"></span>
+          <button class="cmp-mode-tab cmp-sev-filter" data-sev="high"><span class="pip"></span>High <span class="cnt">[${hi}]</span></button>
+          <span class="cmp-mode-sep"></span>
+          <button class="cmp-mode-tab cmp-sev-filter" data-sev="hi-md"><span class="pip"></span>High + Medium</button>
+        </div>
+        <div class="cmp-mode-tools">
+          <button class="cmp-mode-toggle is-on" data-toggle="sync"><span class="pip"></span>Sync scroll</button>
+        </div>
+      </div>
+
+      <!-- Split: docs + hunks rail -->
+      <div class="cmp-split">
+        <div class="cmp-docs" id="cmp-docs">
+          <div class="cmp-doc-pane left">
+            <div class="cmp-doc-head">
+              <span class="lab"><span class="pip"></span>SIDE A · ${escapeHtml(baseDoc?.filename || '—')}</span>
+              <span class="stats"><span class="del">−</span> ${stats.removed} · <span class="ins">+</span> ${stats.added}</span>
+            </div>
+            <div class="cmp-doc-body" id="cmp-doc-a">
+              <div class="cmp-doc-body-empty"><span class="pulse"></span>Loading template…</div>
+            </div>
+          </div>
+          <!-- Drag handle. Click + drag horizontally to expand either
+               pane; double-click to reset to a 50/50 split. -->
+          <div class="cmp-resize-handle" id="cmp-resize-handle"
+               role="separator" aria-orientation="vertical"
+               aria-label="Resize document panes"
+               title="Drag to resize · double-click to reset"></div>
+          <div class="cmp-doc-pane right">
+            <div class="cmp-doc-head">
+              <span class="lab"><span class="pip"></span>SIDE B · ${escapeHtml(propDoc?.filename || '—')}</span>
+              <span class="stats"><span class="ins">+</span> ${stats.added} · <span class="del">−</span> ${stats.removed}</span>
+            </div>
+            <div class="cmp-doc-body" id="cmp-doc-b">
+              <div class="cmp-doc-body-empty"><span class="pulse"></span>Loading proposed…</div>
+            </div>
+          </div>
+        </div>
+        <aside class="cmp-hunks">
+          <div class="cmp-hunks-head">
+            <div class="cmp-hunks-kick">— HUNKS · PRIORITIZED</div>
+            <h3 class="cmp-hunks-h">${diffs.length} <em>changes</em>. ${hi} high-severity.</h3>
+            <div class="cmp-hunks-stats">
+              <div class="cmp-hs"><span class="cmp-hs-l">ADDED</span><span class="cmp-hs-v add">+${stats.added}</span></div>
+              <div class="cmp-hs"><span class="cmp-hs-l">REMOVED</span><span class="cmp-hs-v rem">−${stats.removed}</span></div>
+              <div class="cmp-hs"><span class="cmp-hs-l">TOTAL</span><span class="cmp-hs-v">${diffs.length}</span></div>
+            </div>
+          </div>
+          <div class="cmp-hunks-list" id="cmp-hunks-list">
+            ${sortedHunks.map((d, i) => renderHunkCard(d, i)).join('')}
+          </div>
+          <div class="cmp-hunks-foot">
+            <span id="cmp-hunks-counter">1 / ${diffs.length}</span>
+            <div class="arrows"><button class="arr-btn" id="cmp-hunk-prev" aria-label="Previous">↑</button><button class="arr-btn" id="cmp-hunk-next" aria-label="Next">↓</button></div>
+          </div>
+        </aside>
       </div>
     `;
 
-    wrap.querySelectorAll('[data-diff-action]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.diffId;
-        const choice = btn.dataset.diffAction;
-        const r = await fetch('/.netlify/functions/workspace-compare-diff-update', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, user_choice: choice }),
+    // Wire interactions
+    wireSyncScroll();
+    wireResizeHandle();
+    wireHunkInteractions(sortedHunks);
+    wireModeTabs();
+
+    // Kick off async doc-text load. Parallel; doesn't block the
+    // hunks list rendering above. Once BOTH panes finish loading,
+    // walk every diff and wrap the matching text spans with
+    // cmp-del / cmp-ins anchors so hunk-click can scroll to them.
+    Promise.all([
+      loadDocText(baseDoc?.id, document.getElementById('cmp-doc-a')),
+      loadDocText(propDoc?.id, document.getElementById('cmp-doc-b')),
+    ]).then(() => {
+      try {
+        wireDiffAnchors(sortedHunks);
+      } catch (err) {
+        console.warn('[compare] anchor wrapping failed:', err);
+      }
+    });
+  }
+
+  // ---- Doc text fetch + render ----
+  // Returns a promise that resolves once the pane has been populated
+  // (success OR failure). Callers `Promise.all` on both panes so the
+  // diff-anchor wirer waits for the DOM to exist.
+  async function loadDocText(docId, mountEl) {
+    if (!docId || !mountEl) return false;
+    try {
+      const r = await fetch(`/.netlify/functions/workspace-library-get?id=${encodeURIComponent(docId)}&include_text=1`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'load failed');
+      const text = j.current_version_text;
+      // Surface OCR-pending status so the user knows DocuSign-style
+      // PDFs are still being processed (Gemini Flash OCR runs as a
+      // background job; takes ~30–60s on a 50-page contract). The
+      // UI auto-refreshes when poll picks up the status flip.
+      const versions = j.versions || [];
+      const cv = versions.find((v) => v.id === j.document?.current_version_id);
+      const extractionStatus = cv?.extraction_status;
+      if (extractionStatus === 'pending_ocr' || extractionStatus === 'running') {
+        mountEl.innerHTML = `<div class="cmp-doc-body-empty">
+          <span class="pulse"></span>
+          OCR in progress — DocuSign-style PDF detected. Document will appear here in 30–60s.
+        </div>`;
+        return false;
+      }
+      if (!text || !text.trim()) {
+        mountEl.innerHTML = `<div class="cmp-doc-body-empty">No extracted text on this version. Try re-uploading the document.</div>`;
+        return false;
+      }
+      mountEl.innerHTML = renderDocMarkdown(text);
+      return true;
+    } catch (err) {
+      mountEl.innerHTML = `<div class="cmp-doc-body-empty">Could not load: ${escapeHtml(err.message || 'unknown')}</div>`;
+      return false;
+    }
+  }
+
+  // ---- Resize handle between the two doc panes ----
+  // The grid template stays `1fr 8px 1fr` by default. On drag we
+  // freeze the handle width and convert the panes to absolute pixel
+  // widths summing to the docs container's content width (minus the
+  // handle). Double-click resets to 50/50.
+  function wireResizeHandle() {
+    const docs = document.getElementById('cmp-docs');
+    const handle = document.getElementById('cmp-resize-handle');
+    if (!docs || !handle) return;
+
+    const HANDLE_PX = 8;
+    const MIN_PANE_PX = 200;
+
+    function setSplit(leftPx, rightPx) {
+      docs.style.gridTemplateColumns = `${leftPx}px ${HANDLE_PX}px ${rightPx}px`;
+    }
+    function reset() {
+      docs.style.gridTemplateColumns = `1fr ${HANDLE_PX}px 1fr`;
+    }
+
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const rect = docs.getBoundingClientRect();
+      const total = rect.width - HANDLE_PX;
+      handle.classList.add('is-dragging');
+      document.body.classList.add('cmp-resizing');
+
+      function onMove(ev) {
+        const x = ev.clientX - rect.left;
+        let leftPx = Math.round(x - HANDLE_PX / 2);
+        leftPx = Math.max(MIN_PANE_PX, Math.min(total - MIN_PANE_PX, leftPx));
+        const rightPx = total - leftPx;
+        setSplit(leftPx, rightPx);
+      }
+      function onUp() {
+        handle.classList.remove('is-dragging');
+        document.body.classList.remove('cmp-resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    handle.addEventListener('dblclick', () => reset());
+
+    // Keyboard support — focused handle accepts arrow keys to nudge.
+    handle.tabIndex = 0;
+    handle.addEventListener('keydown', (e) => {
+      const STEP = 30;
+      const rect = docs.getBoundingClientRect();
+      const total = rect.width - HANDLE_PX;
+      // Read current split from grid-template-columns (parse first %/px).
+      const cur = docs.style.gridTemplateColumns;
+      let leftPx = total / 2;
+      const m = /^(\d+(?:\.\d+)?)px/.exec(cur);
+      if (m) leftPx = parseFloat(m[1]);
+      if (e.key === 'ArrowLeft') {
+        leftPx = Math.max(MIN_PANE_PX, leftPx - STEP);
+        setSplit(leftPx, total - leftPx);
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight') {
+        leftPx = Math.min(total - MIN_PANE_PX, leftPx + STEP);
+        setSplit(leftPx, total - leftPx);
+        e.preventDefault();
+      } else if (e.key === 'Home' || e.key === 'Escape') {
+        reset();
+        e.preventDefault();
+      }
+    });
+  }
+
+  // ---- Sync scroll between the two doc panes ----
+  let _syncOn = true;
+  let _syncLock = false;
+  function wireSyncScroll() {
+    const a = document.getElementById('cmp-doc-a');
+    const b = document.getElementById('cmp-doc-b');
+    if (!a || !b) return;
+    function pair(src, dst) {
+      src.addEventListener('scroll', () => {
+        if (!_syncOn || _syncLock) return;
+        _syncLock = true;
+        // Proportional scroll (handles different doc lengths cleanly).
+        const ratio = src.scrollTop / Math.max(1, src.scrollHeight - src.clientHeight);
+        dst.scrollTop = Math.round(ratio * (dst.scrollHeight - dst.clientHeight));
+        requestAnimationFrame(() => { _syncLock = false; });
+      });
+    }
+    pair(a, b);
+    pair(b, a);
+  }
+
+  // ---- Hunks list interactions: click → activate, prev/next arrows,
+  //      scroll the matching anchors in BOTH doc panes into view.
+  let _activeHunkIdx = 0;
+  // Map of hunk id → { aEl?, bEl? } — populated by wireDiffAnchors()
+  // once both doc panes have rendered. Click handlers read from here
+  // to find the wrapped span(s) to scroll to and flash.
+  let _hunkAnchors = new Map();
+
+  // Center an arbitrary descendant inside its scrollable ancestor
+  // using getBoundingClientRect (independent of offsetParent quirks).
+  function scrollIntoContainer(container, target) {
+    if (!container || !target) return;
+    const cRect = container.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+    const cur = container.scrollTop;
+    const desired = cur + (tRect.top - cRect.top) - (container.clientHeight - tRect.height) / 2;
+    const max = container.scrollHeight - container.clientHeight;
+    container.scrollTo({
+      top: Math.max(0, Math.min(max, desired)),
+      behavior: 'smooth',
+    });
+  }
+
+  function wireHunkInteractions(sortedHunks) {
+    const listEl = document.getElementById('cmp-hunks-list');
+    const counterEl = document.getElementById('cmp-hunks-counter');
+    if (!listEl) return;
+
+    function activate(i) {
+      _activeHunkIdx = Math.max(0, Math.min(sortedHunks.length - 1, i));
+      const target = sortedHunks[_activeHunkIdx];
+      if (!target) return;
+
+      // Re-render the entire hunks list so the previously-active
+      // card collapses back to compact mode and the new one expands
+      // with its action buttons. Cheap (only ~12 cards typical) and
+      // keeps the markup-driven state machine simple.
+      const visibleHunks = filterHunksBySeverity(sortedHunks);
+      listEl.innerHTML = visibleHunks.map((d, idx) => {
+        const isActive = (d.id === target.id);
+        // Set the active flag on the right card during render
+        // (renderHunkCard's is-active is based on idx===0, so we
+        // overwrite it).
+        const html = renderHunkCard(d, idx);
+        if (isActive) return html.replace('cmp-hunk"', 'cmp-hunk is-active"').replace('cmp-hunk is-active is-active"', 'cmp-hunk is-active"');
+        return html.replace(' is-active', '');
+      }).join('');
+
+      // Re-bind clicks on the new DOM.
+      bindHunkRowClicks();
+      bindChoiceButtons();
+
+      // Center the active card in the rail.
+      const activeEl = listEl.querySelector(`.cmp-hunk[data-hunk="${target.id}"]`);
+      if (activeEl) {
+        const cRect = listEl.getBoundingClientRect();
+        const tRect = activeEl.getBoundingClientRect();
+        const desired = listEl.scrollTop + (tRect.top - cRect.top) - (listEl.clientHeight - tRect.height) / 2;
+        listEl.scrollTo({ top: Math.max(0, desired), behavior: 'smooth' });
+      }
+      if (counterEl) counterEl.textContent = `${_activeHunkIdx + 1} / ${sortedHunks.length}`;
+
+      // Drop the active class from any previously-active doc anchors,
+      // re-add it to this hunk's anchors. Then scroll both panes to
+      // their respective anchor (or proportional fallback if the
+      // matcher couldn't find the text).
+      document.querySelectorAll('.cmp-anchor.is-active').forEach((el) => el.classList.remove('is-active'));
+
+      const a = document.getElementById('cmp-doc-a');
+      const b = document.getElementById('cmp-doc-b');
+      const refs = _hunkAnchors.get(target.id) || {};
+
+      // Temporarily disable sync-scroll while we move both panes
+      // independently to their respective anchors. Reenable after.
+      const wasSyncOn = _syncOn;
+      _syncOn = false;
+
+      if (refs.aEl) {
+        refs.aEl.classList.add('is-active');
+        scrollIntoContainer(a, refs.aEl);
+      } else if (a && refs.aRatio != null) {
+        a.scrollTo({ top: Math.max(0, (a.scrollHeight - a.clientHeight) * refs.aRatio - 80), behavior: 'smooth' });
+      }
+      if (refs.bEl) {
+        refs.bEl.classList.add('is-active');
+        scrollIntoContainer(b, refs.bEl);
+      } else if (b && refs.bRatio != null) {
+        b.scrollTo({ top: Math.max(0, (b.scrollHeight - b.clientHeight) * refs.bRatio - 80), behavior: 'smooth' });
+      }
+
+      // After the smooth-scroll animations settle, hand sync-scroll
+      // back to the user.
+      setTimeout(() => { _syncOn = wasSyncOn; }, 700);
+    }
+
+    // Re-bindable click wirers — invoked both initially and after
+    // every activate() re-render of the list.
+    function bindHunkRowClicks() {
+      listEl.querySelectorAll('.cmp-hunk').forEach((el) => {
+        // Bind on the row, but exclude the action-button area so
+        // clicking Keep/Accept/Reset doesn't also toggle activation.
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('.cmp-hunk-action')) return;
+          const id = el.dataset.hunk;
+          const idx = sortedHunks.findIndex((d) => d.id === id);
+          if (idx >= 0) activate(idx);
         });
-        if (!r.ok) { alert('Update failed'); return; }
-        const d = cmpState.diffs.find((x) => x.id === id);
-        if (d) d.user_choice = choice;
-        drawDetail();
+      });
+    }
+
+    function bindChoiceButtons() {
+      listEl.querySelectorAll('.cmp-hunk-action[data-act]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const choice = btn.dataset.act;
+          const d = sortedHunks.find((x) => x.id === id);
+          if (!d) return;
+          // Optimistic update
+          const prev = d.user_choice;
+          d.user_choice = choice;
+          // Also keep cmpState's source-of-truth in sync so re-renders
+          // (e.g. on poll tick) reflect the new state.
+          const stateDiff = cmpState?.diffs?.find((x) => x.id === id);
+          if (stateDiff) stateDiff.user_choice = choice;
+          activate(_activeHunkIdx);  // re-render the active card with new state
+          updateChoiceCounter();
+
+          try {
+            const r = await fetch('/.netlify/functions/workspace-compare-diff-update', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, user_choice: choice }),
+            });
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'update failed');
+          } catch (err) {
+            // Revert on failure.
+            d.user_choice = prev;
+            if (stateDiff) stateDiff.user_choice = prev;
+            activate(_activeHunkIdx);
+            updateChoiceCounter();
+            alert('Could not update: ' + (err.message || 'unknown'));
+          }
+        });
+      });
+    }
+
+    bindHunkRowClicks();
+    bindChoiceButtons();
+    document.getElementById('cmp-hunk-prev')?.addEventListener('click', () => activate(_activeHunkIdx - 1));
+    document.getElementById('cmp-hunk-next')?.addEventListener('click', () => activate(_activeHunkIdx + 1));
+
+    // Severity filter — clicking a chip in the mode-row narrows
+    // the visible hunks.
+    document.querySelectorAll('.cmp-sev-filter').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cmp-sev-filter').forEach((b) => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        _activeSevFilter = btn.dataset.sev || 'all';
+        // Re-render the list with the new filter. activate() handles
+        // the re-render; pick the first visible hunk as the new
+        // active idx so the user lands somewhere sensible.
+        const visible = filterHunksBySeverity(sortedHunks);
+        const firstId = visible[0]?.id;
+        const newIdx = sortedHunks.findIndex((d) => d.id === firstId);
+        activate(Math.max(0, newIdx));
       });
     });
 
-    document.getElementById('cmp-bulk-accept-rec')?.addEventListener('click', async () => {
-      if (!confirm('Apply the AI recommendation to every still-pending diff? You can always change individual choices.')) return;
-      const pendingDiffs = cmpState.diffs.filter((d) => d.user_choice === 'pending');
-      for (const d of pendingDiffs) {
-        const choice = d.recommendation === 'accept' ? 'accept_proposed' : d.recommendation === 'reject' ? 'keep_base' : 'pending';
-        if (choice === 'pending') continue;
-        await fetch('/.netlify/functions/workspace-compare-diff-update', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: d.id, user_choice: choice }),
-        });
-        d.user_choice = choice;
+    // (The bulk Apply Recommendations button lives in the page
+    // header — see the click handler on #cmp-bulk-accept-rec
+    // attached in drawDetail. The duplicate in the mode-row tools
+    // was removed; one button covers the workflow.)
+
+    // Expose the active() function to the diff-anchor wirer so it
+    // can re-trigger the initial activation once anchors land.
+    wireHunkInteractions._activate = activate;
+  }
+
+  // Active severity filter — controls which hunks are visible in
+  // the list (does NOT change the underlying sortedHunks data).
+  let _activeSevFilter = 'all';
+  function filterHunksBySeverity(sortedHunks) {
+    if (_activeSevFilter === 'all') return sortedHunks;
+    if (_activeSevFilter === 'high') return sortedHunks.filter((d) => d.severity === 'high');
+    if (_activeSevFilter === 'hi-md') return sortedHunks.filter((d) => d.severity === 'high' || d.severity === 'medium');
+    return sortedHunks;
+  }
+
+  // Refresh the cmp-counter text in the page header whenever
+  // user_choice flips on any diff, so the user sees their
+  // decision-progress immediately.
+  function updateChoiceCounter() {
+    const diffs = cmpState?.diffs || [];
+    const accepted = diffs.filter((d) => d.user_choice === 'accept_proposed').length;
+    const kept = diffs.filter((d) => d.user_choice === 'keep_base').length;
+    const counterEl = document.getElementById('cmp-counter');
+    if (counterEl) counterEl.textContent = `${diffs.length} diffs · ${accepted} accept proposed · ${kept} keep base`;
+  }
+
+  // ============================================================
+  // DIFF ANCHOR WIRING — Commit 2
+  // ============================================================
+  // After both doc panes have their text rendered, walk every diff
+  // row and try to locate `base_text` in side A and `proposed_text`
+  // in side B. Wrap each match with a colored span (.cmp-del or
+  // .cmp-ins) carrying the same data-hunk, plus a .cmp-anchor class
+  // so the hunk-click handler can scroll to it.
+  //
+  // Matcher is tolerant to whitespace collapsing and smart-quote
+  // substitution (the AI worker's extracted text often differs
+  // subtly from what the markdown→HTML renderer produces). When
+  // matching fails, we fall back to a proportional scroll position
+  // (ratio = diff_index / total) so clicking still moves the pane
+  // to roughly the right area; the hunk row gets a "NOT LOCATED"
+  // chip so the user knows it's approximate.
+
+  function wireDiffAnchors(sortedHunks) {
+    const a = document.getElementById('cmp-doc-a');
+    const b = document.getElementById('cmp-doc-b');
+    if (!a || !b) return;
+
+    _hunkAnchors = new Map();
+    const total = sortedHunks.length || 1;
+    const listEl = document.getElementById('cmp-hunks-list');
+
+    sortedHunks.forEach((d, i) => {
+      const refs = {};
+      const ratio = (d.diff_index ?? i) / Math.max(1, total - 1);
+
+      // Side A: wrap base_text with .cmp-del. Skipped for additions
+      // (base_text is empty/null when the proposed side adds new
+      // language).
+      if (d.base_text && d.base_text.trim() && d.change_type !== 'addition') {
+        const el = wrapTextInPane(a, d.base_text, d.id, 'del');
+        if (el) refs.aEl = el;
+        else refs.aRatio = ratio;
+      } else {
+        refs.aRatio = ratio;
       }
-      drawDetail();
+      // Side B: wrap proposed_text with .cmp-ins. Skipped for
+      // deletions (proposed_text is empty when the proposed side
+      // removed the language).
+      if (d.proposed_text && d.proposed_text.trim() && d.change_type !== 'deletion') {
+        const el = wrapTextInPane(b, d.proposed_text, d.id, 'ins');
+        if (el) refs.bEl = el;
+        else refs.bRatio = ratio;
+      } else {
+        refs.bRatio = ratio;
+      }
+
+      _hunkAnchors.set(d.id, refs);
+
+      // Mark the hunk row in the rail if neither side could be
+      // anchored — gives the user feedback that scroll is approximate.
+      if (!refs.aEl && !refs.bEl) {
+        const row = listEl?.querySelector(`.cmp-hunk[data-hunk="${d.id}"]`);
+        if (row) {
+          const cite = row.querySelector('.cmp-hunk-cite');
+          if (cite && !/NOT LOCATED/.test(cite.textContent)) {
+            cite.textContent = (cite.textContent || '') + ' · NOT LOCATED';
+            cite.style.color = 'var(--ink-4)';
+          }
+        }
+      }
+    });
+
+    // Now that anchors exist, re-trigger the initial activation so the
+    // first hunk's anchors highlight + both panes scroll to it.
+    if (typeof wireHunkInteractions._activate === 'function') {
+      wireHunkInteractions._activate(_activeHunkIdx);
+    }
+  }
+
+  // Try several normalization strategies to locate `needle` inside
+  // `mountEl`'s text and wrap that text with a colored span.
+  // Returns the wrapping span on success, null on failure.
+  function wrapTextInPane(mountEl, needle, hunkId, kind) {
+    if (!mountEl || !needle) return null;
+    const variants = buildCmpNeedleVariants(needle);
+    if (!variants.length) return null;
+
+    // First pass: find a single text node that contains an exact
+    // variant. Cheapest and lossless — preserves any inline
+    // <strong>/<em> formatting around the wrap.
+    const walker = document.createTreeWalker(mountEl, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => n.parentElement?.closest('.cmp-anchor, script, style')
+        ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+
+    for (const variant of variants) {
+      for (const node of nodes) {
+        const idxIn = node.textContent.indexOf(variant);
+        if (idxIn < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, idxIn);
+        range.setEnd(node, idxIn + variant.length);
+        const span = document.createElement('span');
+        span.className = `cmp-${kind} cmp-anchor`;
+        span.dataset.hunk = hunkId;
+        try {
+          range.surroundContents(span);
+          return span;
+        } catch {
+          // Range crosses element boundary — try cross-node fallback below.
+        }
+      }
+    }
+
+    // Second pass: cross-node match. Concatenate every text node's
+    // content, find the variant in the joined string, then wrap each
+    // partial slice with its own span (all sharing the same data-hunk
+    // so click activation finds either of them).
+    for (const variant of variants) {
+      const wrapped = wrapAcrossNodesCmp(nodes, variant, hunkId, kind);
+      if (wrapped) return wrapped;
+    }
+    return null;
+  }
+
+  // Build whitespace + smart-quote-tolerant variants of the AI's
+  // extracted text. Order = priority (most specific first).
+  function buildCmpNeedleVariants(text) {
+    const out = [];
+    const add = (s) => { if (s && s.length >= 8 && !out.includes(s)) out.push(s); };
+    add(text);
+    // Whitespace collapsed.
+    add(text.replace(/\s+/g, ' ').trim());
+    // Smart-quotes / em-dashes normalized.
+    const ascii = text
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/—/g, '—')
+      .replace(/\s+/g, ' ').trim();
+    add(ascii);
+    // Reverse direction — sometimes the source has fancy quotes the
+    // AI dropped to ASCII. Map ASCII back to fancy.
+    add(text.replace(/'/g, '’').replace(/"/g, '”').replace(/\s+/g, ' ').trim());
+    // Last resort: first ~80 chars only. Useful when the AI included
+    // trailing context the source doesn't have verbatim.
+    if (text.length > 80) {
+      add(text.replace(/\s+/g, ' ').trim().slice(0, 80).replace(/[\s,;:]+\S*$/, ''));
+    }
+    return out;
+  }
+
+  // Wrap a needle that crosses adjacent text nodes (e.g. when the
+  // markdown renderer split it across <strong> tags).
+  function wrapAcrossNodesCmp(nodes, variant, hunkId, kind) {
+    if (!nodes.length || variant.length < 12) return null;
+    let concat = '';
+    const offsets = [];
+    for (const node of nodes) {
+      offsets.push({ node, start: concat.length, end: concat.length + node.textContent.length });
+      concat += node.textContent;
+    }
+    const at = concat.indexOf(variant);
+    if (at < 0) return null;
+    const stop = at + variant.length;
+
+    const spans = [];
+    let firstSpan = null;
+    for (const seg of offsets) {
+      const overlapStart = Math.max(at, seg.start);
+      const overlapEnd = Math.min(stop, seg.end);
+      if (overlapEnd <= overlapStart) continue;
+      try {
+        const range = document.createRange();
+        range.setStart(seg.node, overlapStart - seg.start);
+        range.setEnd(seg.node, overlapEnd - seg.start);
+        const span = document.createElement('span');
+        span.className = `cmp-${kind} cmp-anchor`;
+        span.dataset.hunk = hunkId;
+        range.surroundContents(span);
+        spans.push(span);
+        if (!firstSpan) firstSpan = span;
+      } catch {
+        // Sub-range failed — undo any spans we've created and bail.
+        spans.forEach((s) => {
+          const parent = s.parentNode;
+          while (s.firstChild) parent.insertBefore(s.firstChild, s);
+          parent.removeChild(s);
+        });
+        return null;
+      }
+      if (overlapEnd >= stop) break;
+    }
+    return firstSpan;
+  }
+
+  // ---- Mode tabs (side-by-side / hunks-only) + tools (sync) ----
+  function wireModeTabs() {
+    document.querySelectorAll('.cmp-mode-tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cmp-mode-tab').forEach((b) => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        // Hunks-only mode: hide the docs grid, expand the hunks rail.
+        const docs = document.querySelector('.cmp-docs');
+        const hunks = document.querySelector('.cmp-hunks');
+        if (btn.dataset.mode === 'hunks') {
+          if (docs) docs.style.display = 'none';
+          if (hunks) hunks.style.height = '100%';
+        } else {
+          if (docs) docs.style.display = '';
+          if (hunks) hunks.style.height = '760px';
+        }
+      });
+    });
+    document.querySelectorAll('.cmp-mode-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('is-on');
+        if (btn.dataset.toggle === 'sync') _syncOn = btn.classList.contains('is-on');
+      });
     });
   }
 
