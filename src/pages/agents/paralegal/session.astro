@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Paralegal · Session — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --paper: #f3efe6;
+  --paper-2: #ebe6d9;
+  --paper-cool: #efece4;
+  --ink: #0e1512;
+  --ink-2: #2a332d;
+  --ink-3: #5b6760;
+  --ink-4: #8a9690;
+  --rule-soft: #d9d2c0;
+  --rule-thread: #cbc4b1;
+  --accent: #10b981;
+  --accent-deep: #0a7d57;
+  --warn: #b3532f;
+  --voice: #6a47c2;
+  --voice-deep: #4d2fa3;
+  --voice-tint: #e7e0f4;
+  --sev-block: #b22222;
+  --sev-mod: #c98a14;
+  --motion-snap: cubic-bezier(.2,.8,.2,1);
+
+  --serif: 'Instrument Serif','Times New Roman',serif;
+  --sans:  'Geist', ui-sans-serif, system-ui, sans-serif;
+  --mono:  'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(208,219,213,.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(220,212,196,.22), transparent 70%);
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+
+#grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  opacity: .04; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 200px;
+}
+
+/* ---------- top bar ---------- */
+.tbar {
+  position: sticky; top: 0; z-index: 80;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center;
+  padding: 12px 22px;
+  background: rgba(243,239,230,.92);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 22px; height: 22px; color: var(--ink); }
+.brand-text { font-family: var(--serif); font-size: 19px; }
+.brand-text em { font-style: italic; color: var(--accent-deep); }
+
+.tbar-c { display: flex; align-items: center; gap: 18px; justify-self: center; }
+.t-kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+/* matter selector */
+.matter-sel {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 8px 16px; border: 1px solid var(--ink); border-radius: 999px;
+  background: rgba(255,255,255,.5); color: var(--ink);
+  transition: background .15s, box-shadow .2s;
+}
+.matter-sel:hover { background: var(--paper-2); box-shadow: 0 0 0 3px rgba(106,71,194,.12); }
+.matter-sel .ms-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.matter-sel .ms-c { font-family: var(--serif); font-size: 17px; letter-spacing: -.005em; }
+.matter-sel .ms-c em { font-style: italic; color: var(--ink-2); }
+.matter-sel .ms-id { font-family: var(--mono); font-size: 10px; color: var(--ink-4); letter-spacing: .08em; }
+.matter-sel svg { width: 11px; height: 11px; color: var(--ink-3); }
+
+.matter-drop {
+  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  width: 360px;
+  background: var(--paper); border: 1px solid var(--ink); border-radius: 6px;
+  box-shadow: 0 30px 60px -10px rgba(14,21,18,.32);
+  display: none; z-index: 5;
+}
+.matter-sel.is-open .matter-drop { display: block; }
+.matter-drop .md-h {
+  padding: 12px 16px; border-bottom: 1px solid var(--rule-soft);
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+}
+.matter-drop .md-row {
+  padding: 12px 16px; display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center;
+  border-bottom: 1px dotted var(--rule-soft); cursor: pointer;
+  transition: background .15s;
+}
+.matter-drop .md-row:hover { background: var(--paper-2); }
+.matter-drop .md-row:last-child { border-bottom: none; }
+.md-row-l { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.md-row-c { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.md-row-c em { font-style: italic; color: var(--ink-2); }
+.md-row-m { font-family: var(--mono); font-size: 10px; color: var(--ink-4); letter-spacing: .04em; }
+.md-row-r { font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); letter-spacing: .12em; }
+
+.tbar-r { display: flex; align-items: center; gap: 14px; }
+.t-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 10px; border: 1px solid var(--rule-thread); border-radius: 2px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  background: rgba(255,255,255,.4);
+}
+.t-chip.voice { color: var(--voice); border-color: var(--voice); }
+.t-chip.voice::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--voice); animation: pulseDot 1.6s ease-in-out infinite; }
+@keyframes pulseDot { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+.t-chip.timer { font-variant-numeric: tabular-nums; }
+.t-chip a { color: inherit; }
+.t-chip:hover { color: var(--ink); border-color: var(--ink); }
+.t-end {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  padding: 7px 14px; border: 1px solid var(--sev-block); border-radius: 999px;
+  background: transparent; color: var(--sev-block);
+}
+.t-end:hover { background: var(--sev-block); color: var(--paper); }
+
+/* ---------- session strip ---------- */
+.strip {
+  position: relative; z-index: 2;
+  max-width: 1480px; margin: 12px auto 0; padding: 0 22px;
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+}
+.strip-l { display: flex; gap: 22px; align-items: baseline; }
+.strip em { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--ink); letter-spacing: 0; text-transform: none; }
+.strip .s-active { color: var(--voice); }
+.strip .s-active::before { content: '●  '; }
+
+/* ---------- main grid ---------- */
+main {
+  position: relative; z-index: 2;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 360px;
+  gap: 0;
+  max-width: 1480px; width: 100%; margin: 14px auto 0;
+  padding: 0 22px 0;
+  border-top: 1px solid var(--rule-soft);
+}
+
+/* ---------- column shells ---------- */
+.col { display: flex; flex-direction: column; min-height: 0; }
+.col-l { border-right: 1px solid var(--rule-soft); padding: 20px 22px 22px 0; }
+.col-c { padding: 20px 26px 22px; min-width: 0; }
+.col-r { border-left: 1px solid var(--rule-soft); padding: 20px 0 22px 22px; }
+
+.col-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 12px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.ch-title { font-family: var(--serif); font-size: 22px; letter-spacing: -.005em; color: var(--ink); }
+.ch-title em { font-style: italic; color: var(--accent-deep); }
+.ch-meta { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+/* ---------- LEFT — matter context ---------- */
+.mc {
+  display: flex; flex-direction: column; gap: 22px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.mc-card { display: flex; flex-direction: column; gap: 10px; }
+.mc-card-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-4); }
+.mc-meta {
+  display: grid; grid-template-columns: 86px 1fr; gap: 8px;
+  font-size: 13px; line-height: 1.5;
+}
+.mc-meta dt { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-4); padding-top: 2px; }
+.mc-meta dd { font-family: var(--serif); font-size: 15.5px; color: var(--ink); margin: 0; }
+.mc-meta dd em { font-style: italic; color: var(--ink-2); }
+.mc-meta dd .pill {
+  display: inline-block; padding: 1px 8px; margin-left: 2px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  border: 1px solid var(--rule-thread); border-radius: 2px; color: var(--ink-3);
+}
+.mc-meta dd .pill.urgent { color: var(--warn); border-color: var(--warn); }
+.mc-meta dd .pill.ok { color: var(--accent-deep); border-color: var(--accent-deep); }
+
+.mc-list { display: flex; flex-direction: column; gap: 1px; background: var(--rule-soft); margin: 6px 0 0; padding: 0; }
+.mc-item {
+  background: var(--paper); padding: 9px 0;
+  display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: baseline;
+  cursor: pointer; transition: padding-left .15s;
+}
+.mc-item:hover { padding-left: 4px; }
+.mc-item-t { font-family: var(--mono); font-size: 10px; color: var(--ink-4); letter-spacing: .05em; padding-top: 3px; }
+.mc-item-b { font-family: var(--serif); font-size: 14.5px; line-height: 1.35; color: var(--ink); }
+.mc-item-b .from { display: block; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-4); margin-top: 2px; }
+.mc-item-b em { font-style: italic; color: var(--ink-2); }
+
+.mc-doc {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+  padding: 10px 0; border-top: 1px dotted var(--rule-soft);
+  cursor: pointer; transition: padding-left .15s;
+}
+.mc-doc:hover { padding-left: 4px; }
+.mc-doc:first-of-type { border-top: none; }
+.mc-doc-ic {
+  font-family: var(--mono); font-size: 8px; letter-spacing: .12em;
+  border: 1px solid var(--rule-thread); border-radius: 2px; padding: 4px 6px;
+  color: var(--ink-3);
+}
+.mc-doc-n { font-family: var(--serif); font-size: 14.5px; color: var(--ink); }
+.mc-doc-m { font-family: var(--mono); font-size: 9.5px; color: var(--ink-4); letter-spacing: .04em; }
+
+.mc-dl-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline;
+  padding: 9px 0; border-top: 1px dotted var(--rule-soft);
+}
+.mc-dl-row:first-of-type { border-top: none; }
+.mc-dl-l { font-family: var(--serif); font-size: 14.5px; color: var(--ink); }
+.mc-dl-l em { font-style: italic; color: var(--ink-2); }
+.mc-dl-r { font-family: var(--mono); font-size: 10px; color: var(--ink-3); letter-spacing: .04em; }
+.mc-dl-r.due-soon { color: var(--warn); }
+.mc-dl-r.due-now  { color: var(--sev-block); }
+
+/* ---------- CENTER — live transcript ---------- */
+.tr-stage {
+  flex: 1;
+  display: flex; flex-direction: column;
+  min-height: 0;
+}
+.tr-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 6px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.tr-row {
+  display: grid; grid-template-columns: 78px minmax(0, 1fr);
+  gap: 16px;
+  opacity: 0; transform: translateY(4px);
+  transition: opacity .35s var(--motion-snap), transform .35s var(--motion-snap);
+}
+.tr-row.is-in { opacity: 1; transform: translateY(0); }
+.tr-role {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-4); padding-top: 4px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.tr-role .who { color: var(--ink-3); }
+.tr-row.you .tr-role .who { color: var(--ink); }
+.tr-row.agent .tr-role .who { color: var(--voice); }
+.tr-row.tool .tr-role .who { color: var(--accent-deep); }
+.tr-role .ts { color: var(--ink-4); font-size: 9px; }
+.tr-body {
+  font-family: var(--serif); font-size: 18px; line-height: 1.46; color: var(--ink);
+  position: relative;
+}
+.tr-row.you .tr-body { color: var(--ink); }
+.tr-row.agent .tr-body { color: var(--ink-2); }
+.tr-row.agent .tr-body em { font-style: italic; color: var(--ink); }
+.tr-row.tool .tr-body {
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: .02em; color: var(--accent-deep);
+  background: rgba(215,237,224,.3);
+  padding: 7px 12px; border-left: 2px solid var(--accent-deep);
+  display: inline-block;
+}
+.tr-row.tool .tr-body::before { content: '→ '; color: var(--ink-4); }
+
+/* long-running job card */
+.tr-job {
+  background: rgba(255,255,255,.5); border: 1px solid var(--rule-soft); border-radius: 3px;
+  padding: 12px 14px; max-width: 460px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.tr-job-h { display: flex; justify-content: space-between; align-items: baseline; }
+.tr-job-h .lab { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.tr-job-h .eta { font-family: var(--mono); font-size: 10px; color: var(--accent-deep); letter-spacing: .08em; }
+.tr-job-title { font-family: var(--serif); font-size: 16px; color: var(--ink); line-height: 1.3; }
+.tr-job-bar { height: 3px; background: rgba(208,200,180,.4); position: relative; overflow: hidden; border-radius: 2px; }
+.tr-job-bar > span {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: var(--accent-deep); width: var(--w, 38%);
+  transition: width .6s var(--motion-snap);
+}
+.tr-job-foot { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; color: var(--ink-4); letter-spacing: .04em; }
+
+/* finding pop in transcript */
+.tr-finding {
+  background: rgba(255,255,255,.6); border: 1px solid var(--rule-soft); border-radius: 3px;
+  padding: 10px 12px; max-width: 460px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+}
+.tr-finding .sev {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 2px;
+}
+.tr-finding.blocker .sev { background: var(--sev-block); color: var(--paper); }
+.tr-finding.major .sev   { background: var(--sev-mod); color: var(--paper); }
+.tr-finding .loc { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.tr-finding .loc em { font-style: italic; color: var(--ink-2); }
+.tr-finding .spec { font-family: var(--mono); font-size: 9.5px; color: var(--ink-4); letter-spacing: .08em; }
+
+/* live agent caret */
+.tr-caret {
+  display: inline-block; width: 8px; height: 18px; background: var(--voice);
+  vertical-align: -3px; margin-left: 3px; animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0 } }
+
+/* ---------- bottom mic strip (center column) ---------- */
+.mic-strip {
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--rule-soft);
+  display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center;
+}
+.ptt {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--ink); color: var(--paper);
+  border: 1px solid var(--ink);
+  transition: background .15s, transform .12s;
+}
+.ptt:hover { background: var(--voice-deep); border-color: var(--voice-deep); }
+.ptt::after {
+  content: ''; position: absolute; inset: -6px;
+  border-radius: 50%; border: 1px solid var(--voice);
+  animation: pulseRing 1.8s ease-out infinite; opacity: .6;
+}
+@keyframes pulseRing {
+  0%   { transform: scale(.85); opacity: .55; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+.ptt svg { width: 22px; height: 22px; }
+
+.mic-wave {
+  display: flex; align-items: center; gap: 3px;
+  height: 44px;
+}
+.mic-wave .bar { width: 3px; background: var(--voice); border-radius: 1px; animation: micBar 1s ease-in-out infinite; }
+@keyframes micBar { 0%,100% { height: 6px } 50% { height: 100% } }
+
+.mic-l {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  display: flex; flex-direction: column; gap: 2px;
+  text-align: right;
+}
+.mic-l .big { font-family: var(--serif); font-size: 17px; color: var(--voice); letter-spacing: -.005em; text-transform: none; }
+.mic-l .big em { font-style: italic; }
+
+.mic-controls { display: flex; align-items: center; gap: 8px; }
+.mic-controls .ic {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--rule-thread); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-3); transition: color .15s, border-color .15s, background .15s;
+}
+.mic-controls .ic:hover { color: var(--ink); border-color: var(--ink); background: var(--paper-2); }
+.mic-controls .ic svg { width: 15px; height: 15px; }
+.mic-controls .ic.muted { color: var(--sev-block); border-color: var(--sev-block); }
+.save-vault {
+  margin-left: 6px; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+}
+.save-vault:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+/* ---------- RIGHT — approval + jobs ---------- */
+.r-stack { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding-right: 4px; }
+.appr {
+  background: rgba(255,255,255,.55); border: 1px solid var(--ink); border-radius: 4px;
+  padding: 16px 18px;
+  position: relative;
+  box-shadow: 0 6px 18px -10px rgba(106,71,194,.25);
+}
+.appr::before {
+  content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px;
+  background: var(--voice); border-radius: 2px;
+}
+.appr-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 8px; border-bottom: 1px dotted var(--rule-soft); margin-bottom: 10px;
+}
+.appr-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--voice); }
+.appr-l::before { content: '●  '; }
+.appr-t { font-family: var(--serif); font-size: 17px; color: var(--ink); line-height: 1.3; margin: 0 0 6px; }
+.appr-t em { font-style: italic; color: var(--ink-2); }
+.appr-meta {
+  display: flex; gap: 14px; flex-wrap: wrap; padding-bottom: 10px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+  border-bottom: 1px dotted var(--rule-soft); margin-bottom: 10px;
+}
+.appr-body {
+  font-family: 'Times New Roman', Times, 'Liberation Serif', serif;
+  font-size: 13.5px; line-height: 1.55; color: var(--ink);
+  background: rgba(255,255,255,.5); padding: 10px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 2px;
+  max-height: 220px; overflow-y: auto;
+}
+.appr-body p { margin: 0 0 8px; }
+.appr-body p:last-child { margin: 0; }
+.appr-prompt {
+  margin-top: 12px; padding: 10px 12px;
+  background: var(--voice-tint); border: 1px solid var(--voice); border-radius: 3px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--voice-deep);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.appr-prompt .qtext { font-family: var(--serif); font-style: italic; font-size: 14px; letter-spacing: 0; text-transform: none; color: var(--voice-deep); }
+.appr-prompt .wavemini {
+  display: inline-flex; gap: 2px; align-items: center;
+}
+.appr-prompt .wavemini span {
+  width: 2px; background: var(--voice); border-radius: 1px;
+  animation: micBar 1s ease-in-out infinite;
+}
+.appr-actions {
+  display: flex; gap: 6px; margin-top: 10px;
+}
+.appr-btn {
+  flex: 1; padding: 8px 10px; border-radius: 2px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  background: transparent; border: 1px solid var(--rule-thread); color: var(--ink-2);
+}
+.appr-btn:hover { color: var(--ink); border-color: var(--ink); background: var(--paper-2); }
+.appr-btn.is-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.appr-btn.is-primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+/* draft card */
+.draft {
+  background: rgba(255,255,255,.4); border: 1px solid var(--rule-soft); border-radius: 4px;
+  padding: 14px 16px;
+}
+.draft-h {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px dotted var(--rule-soft);
+}
+.draft-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.draft-l::before { content: '○  '; }
+.draft-t { font-family: var(--serif); font-size: 16px; color: var(--ink); line-height: 1.3; }
+.draft-t em { font-style: italic; color: var(--ink-2); }
+.draft-meta { font-family: var(--mono); font-size: 9.5px; color: var(--ink-4); letter-spacing: .04em; margin-top: 6px; }
+.draft-progress { margin-top: 10px; }
+.draft-bar { height: 3px; background: rgba(208,200,180,.4); border-radius: 2px; overflow: hidden; position: relative; }
+.draft-bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); width: var(--w, 50%); }
+.draft-foot {
+  display: flex; justify-content: space-between; margin-top: 6px;
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-3); letter-spacing: .04em;
+}
+
+/* jobs (background) */
+.job-card {
+  background: rgba(255,255,255,.4); border: 1px solid var(--rule-soft); border-radius: 4px;
+  padding: 12px 14px;
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+}
+.jc-name { font-family: var(--serif); font-size: 14.5px; color: var(--ink); line-height: 1.3; }
+.jc-name em { font-style: italic; color: var(--ink-2); }
+.jc-meta { font-family: var(--mono); font-size: 9.5px; color: var(--ink-4); letter-spacing: .04em; display: block; margin-top: 3px; }
+.jc-prog {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--accent-deep);
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+}
+.jc-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid var(--rule-thread); border-top-color: var(--accent-deep);
+  animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- footer ---------- */
+.foot {
+  border-top: 1px solid var(--rule-soft);
+  padding: 14px 22px;
+  max-width: 1480px; margin: 18px auto 0; width: 100%;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--ink-4);
+}
+.foot b { color: var(--ink); }
+
+/* ---------- mobile ---------- */
+.mob-tabs { display: none; }
+@media (max-width: 1100px) {
+  main {
+    grid-template-columns: 1fr; padding-bottom: 100px;
+  }
+  .col-l, .col-r { border: none; padding: 14px 0 20px; }
+  .col-c { padding: 14px 0 20px; }
+  .col { display: none; }
+  .col.is-active { display: flex; }
+  .mob-tabs {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--paper); border-top: 1px solid var(--ink);
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    z-index: 90;
+  }
+  .mob-tab {
+    padding: 12px; border: none; background: transparent;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .mob-tab.is-active { color: var(--ink); background: var(--paper-2); }
+}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<!-- ============================================================
+     TOP BAR
+     ============================================================ -->
+<header class="tbar">
+  <a href="/agents/paralegal/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"></path><circle cx="20" cy="14" r="2.5" fill="currentColor"></circle><circle cx="20" cy="26" r="2.5" fill="var(--accent)"></circle></svg>
+    <span class="brand-text">Legal<em>Overflow</em></span>
+  </a>
+
+  <div class="tbar-c">
+    <span class="t-kicker">AGT · 03 · Live session</span>
+    <button class="matter-sel" id="matter-sel" aria-haspopup="listbox">
+      <span class="ms-l">Matter</span>
+      <span class="ms-c">Magic Inc. <em>· Vendor MSA — Acme Robotics</em></span>
+      <span class="ms-id">MTR-2240</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+
+      <div class="matter-drop" id="matter-drop">
+        <div class="md-h"><span>Active matters · 7</span><span>⌘K to search</span></div>
+        <div class="md-row">
+          <div class="md-row-l">
+            <span class="md-row-c">Magic Inc. <em>· Vendor MSA — Acme</em></span>
+            <span class="md-row-m">In redline · response Fri · 3 open</span>
+          </div>
+          <span class="md-row-r">MTR-2240</span>
+        </div>
+        <div class="md-row">
+          <div class="md-row-l">
+            <span class="md-row-c">Holton Capital <em>· DPA renewal</em></span>
+            <span class="md-row-m">Auto-renew in 11d · 1 open</span>
+          </div>
+          <span class="md-row-r">MTR-2238</span>
+        </div>
+        <div class="md-row">
+          <div class="md-row-l">
+            <span class="md-row-c">Cyrus Industries <em>· Office lease</em></span>
+            <span class="md-row-m">Counter-draft sent · awaiting</span>
+          </div>
+          <span class="md-row-r">MTR-2231</span>
+        </div>
+        <div class="md-row">
+          <div class="md-row-l">
+            <span class="md-row-c">Pickwick Bros. <em>· SOW-012</em></span>
+            <span class="md-row-m">Quick-scan complete · 7 findings</span>
+          </div>
+          <span class="md-row-r">MTR-2229</span>
+        </div>
+      </div>
+    </button>
+  </div>
+
+  <div class="tbar-r">
+    <span class="t-chip voice">Grok · Sal</span>
+    <span class="t-chip timer" id="timer">00:14:32</span>
+    <a href="#" class="t-chip">Audit log</a>
+    <button class="t-end" id="end-btn">End session</button>
+  </div>
+</header>
+
+<!-- ============================================================
+     EDITORIAL STRIP
+     ============================================================ -->
+<div class="strip">
+  <div class="strip-l">
+    <span>Vol. III · Issue 02 · <em>Spring 2026</em></span>
+    <span>/AGT.03.PARA.LIVE</span>
+  </div>
+  <div class="strip-l">
+    <span class="s-active">Listening</span>
+    <span>14 tool calls</span>
+    <span>0 outbound this session</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN GRID
+     ============================================================ -->
+<main>
+
+  <!-- ========== LEFT — MATTER CONTEXT ========== -->
+  <aside class="col col-l is-active" id="col-context">
+    <div class="col-head">
+      <span class="ch-title"><em>Matter</em> context</span>
+      <span class="ch-meta">Persistent · scrollable</span>
+    </div>
+    <div class="mc">
+
+      <section class="mc-card">
+        <span class="mc-card-l">§ 01 · Client + matter</span>
+        <dl class="mc-meta">
+          <dt>Client</dt>
+          <dd>Magic Inc.</dd>
+          <dt>Matter type</dt>
+          <dd><em>Vendor MSA</em></dd>
+          <dt>Counter-party</dt>
+          <dd>Acme Robotics</dd>
+          <dt>Status</dt>
+          <dd>First redline <span class="pill urgent">Due Fri</span></dd>
+          <dt>Conflict</dt>
+          <dd>Cleared <span class="pill ok">08 May</span></dd>
+          <dt>Posture</dt>
+          <dd>Client-side · SaaS</dd>
+        </dl>
+      </section>
+
+      <section class="mc-card">
+        <span class="mc-card-l">§ 02 · Recent communications</span>
+        <div class="mc-list">
+          <div class="mc-item">
+            <span class="mc-item-t">23:14 Mon</span>
+            <span class="mc-item-b">Redline back from Sarah Chen <em>(Section 11 + 12 flagged)</em><span class="from">From · Acme Robotics</span></span>
+          </div>
+          <div class="mc-item">
+            <span class="mc-item-t">17:02 Mon</span>
+            <span class="mc-item-b">Internal: Mark CFO wants cap at 150% max<span class="from">From · Magic Inc. · internal</span></span>
+          </div>
+          <div class="mc-item">
+            <span class="mc-item-t">09:42 Mon</span>
+            <span class="mc-item-b">Acme procurement intro <em>+ draft attached</em><span class="from">From · Acme Robotics</span></span>
+          </div>
+          <div class="mc-item">
+            <span class="mc-item-t">15:58 Fri</span>
+            <span class="mc-item-b">Internal: scope confirmation thread<span class="from">From · Magic Inc. · internal</span></span>
+          </div>
+          <div class="mc-item">
+            <span class="mc-item-t">11:21 Fri</span>
+            <span class="mc-item-b">DocuSign: MNDA executed<span class="from">From · DocuSign · automated</span></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="mc-card">
+        <span class="mc-card-l">§ 03 · Calendar (next 3)</span>
+        <div class="mc-list">
+          <div class="mc-item">
+            <span class="mc-item-t">14:00 Tue</span>
+            <span class="mc-item-b">Magic · lease walkthrough <em>(Cyrus)</em><span class="from">External · 45m</span></span>
+          </div>
+          <div class="mc-item">
+            <span class="mc-item-t">10:30 Thu</span>
+            <span class="mc-item-b">Acme · cap discussion <em>(Sarah)</em><span class="from">External · 30m · proposed</span></span>
+          </div>
+          <div class="mc-item">
+            <span class="mc-item-t">09:00 Fri</span>
+            <span class="mc-item-b">Internal counsel review<span class="from">Internal · 60m</span></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="mc-card">
+        <span class="mc-card-l">§ 04 · Open documents</span>
+        <div>
+          <div class="mc-doc">
+            <span class="mc-doc-ic">DOCX</span>
+            <span class="mc-doc-n">Acme-MSA-v3 <em>· draft</em></span>
+            <span class="mc-doc-m">Pp. 21 · 8 marks</span>
+          </div>
+          <div class="mc-doc">
+            <span class="mc-doc-ic">DOCX</span>
+            <span class="mc-doc-n">Acme-MSA-v3-redline <em>· Sarah</em></span>
+            <span class="mc-doc-m">Last opened 08:39</span>
+          </div>
+          <div class="mc-doc">
+            <span class="mc-doc-ic">PDF</span>
+            <span class="mc-doc-n">Magic playbook 2026</span>
+            <span class="mc-doc-m">v1.4 · 14 pp.</span>
+          </div>
+          <div class="mc-doc">
+            <span class="mc-doc-ic">MD</span>
+            <span class="mc-doc-n">Negotiation notes <em>· running</em></span>
+            <span class="mc-doc-m">12 entries</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="mc-card">
+        <span class="mc-card-l">§ 05 · Outstanding deadlines</span>
+        <div>
+          <div class="mc-dl-row">
+            <span class="mc-dl-l">Acme MSA <em>· response</em></span>
+            <span class="mc-dl-r due-soon">Fri · 3 days</span>
+          </div>
+          <div class="mc-dl-row">
+            <span class="mc-dl-l">Holton DPA <em>· renewal opt-out</em></span>
+            <span class="mc-dl-r due-soon">22 May · 11 days</span>
+          </div>
+          <div class="mc-dl-row">
+            <span class="mc-dl-l">Q2 board pack <em>· legal sign-off</em></span>
+            <span class="mc-dl-r">14 Jun · 34 days</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </aside>
+
+  <!-- ========== CENTER — TRANSCRIPT ========== -->
+  <section class="col col-c" id="col-transcript">
+    <div class="col-head">
+      <span class="ch-title"><em>Live</em> transcript</span>
+      <span class="ch-meta">Streaming · bidirectional</span>
+    </div>
+
+    <div class="tr-stage">
+      <div class="tr-scroll" id="tr-scroll"></div>
+
+      <!-- mic strip -->
+      <div class="mic-strip">
+        <button class="ptt" id="ptt" title="Push to talk (hold)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+        </button>
+        <div style="display: flex; align-items: center; gap: 18px;">
+          <div class="mic-wave" id="mic-wave"></div>
+          <div class="mic-l">
+            <span class="big" id="mic-state">Listening<em>…</em></span>
+            <span>Hold ⌥ space to talk</span>
+          </div>
+        </div>
+        <div class="mic-controls">
+          <button class="ic" id="mute-btn" title="Mute mic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path></svg>
+          </button>
+          <button class="ic" title="Switch voice provider">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg>
+          </button>
+          <button class="save-vault">Save to vault</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== RIGHT — APPROVALS + JOBS ========== -->
+  <aside class="col col-r" id="col-approvals">
+    <div class="col-head">
+      <span class="ch-title"><em>Pending</em> actions</span>
+      <span class="ch-meta">Voice-approved · 1 awaiting</span>
+    </div>
+
+    <div class="r-stack">
+
+      <!-- approval card -->
+      <article class="appr">
+        <header class="appr-h">
+          <span class="appr-l">Awaiting voice approval · 1 of 1</span>
+          <span class="t-chip" style="padding: 2px 7px; font-size: 9px">Email · outbound</span>
+        </header>
+        <h3 class="appr-t">Reply to Sarah Chen <em>· Acme MSA cap discussion</em></h3>
+        <div class="appr-meta">
+          <span>To · counsel@firm.example</span>
+          <span>Cc · counsel@firm.example</span>
+          <span>Re · MSA v3 redline</span>
+        </div>
+        <div class="appr-body">
+          <p>Sarah,</p>
+          <p>Thanks for the redline. On Section 12.4, we will need to land at 200% of trailing-12 fees with the standard super-cap exclusions for IP indemnity, confidentiality, and the gross-negligence carve-out. That is the playbook floor for SaaS deals at this ARR.</p>
+          <p>On Section 11.2, we can live with broader IP indemnity in exchange for a customer-supplied-materials carve-out (mirrored language from the v3 draft is workable here).</p>
+          <p>Happy to walk through both on Thursday at 10:30 (slot is already on hold). If easier, we can also send a markup back tonight.</p>
+          <p>Best,<br>Counsel · Magic Inc.</p>
+        </div>
+        <div class="appr-prompt">
+          <span class="qtext">Speak "approve" or "edit" to continue.</span>
+          <span class="wavemini">
+            <span style="height: 6px; animation-delay: 0s"></span>
+            <span style="height: 12px; animation-delay: .12s"></span>
+            <span style="height: 16px; animation-delay: .24s"></span>
+            <span style="height: 10px; animation-delay: .36s"></span>
+            <span style="height: 14px; animation-delay: .48s"></span>
+          </span>
+        </div>
+        <div class="appr-actions">
+          <button class="appr-btn is-primary">Approve</button>
+          <button class="appr-btn">Edit · dictate</button>
+          <button class="appr-btn">Discard</button>
+        </div>
+      </article>
+
+      <!-- draft in progress -->
+      <article class="draft">
+        <header class="draft-h">
+          <span class="draft-l">Draft in progress · 1 of 1</span>
+          <span class="t-chip" style="padding: 2px 7px; font-size: 9px">Markup · docx</span>
+        </header>
+        <h3 class="draft-t">Acme-MSA-v3 <em>· playbook redline</em></h3>
+        <div class="draft-meta">14 of 23 sections complete · Sec. 11 - 14 remaining</div>
+        <div class="draft-progress">
+          <div class="draft-bar"><span style="--w: 61%"></span></div>
+          <div class="draft-foot"><span>61% · streaming</span><span>ETA 1m 12s</span></div>
+        </div>
+      </article>
+
+      <!-- bg jobs -->
+      <section style="display: flex; flex-direction: column; gap: 1px; background: var(--rule-soft); border-radius: 4px; overflow: hidden;">
+        <div class="job-card" style="border: none; border-radius: 0;">
+          <div>
+            <div class="jc-name">Tabular review <em>· 8 NDAs</em></div>
+            <span class="jc-meta">3 of 8 cells · ETA 45s</span>
+          </div>
+          <div class="jc-prog"><div class="jc-spinner"></div><span>38%</span></div>
+        </div>
+        <div class="job-card" style="border: none; border-radius: 0;">
+          <div>
+            <div class="jc-name">CourtListener pull <em>· FL prompt-payment</em></div>
+            <span class="jc-meta">12 cases · ranking</span>
+          </div>
+          <div class="jc-prog"><div class="jc-spinner"></div><span>72%</span></div>
+        </div>
+        <div class="job-card" style="border: none; border-radius: 0;">
+          <div>
+            <div class="jc-name">Calendar hold <em>· Thu 10:30</em></div>
+            <span class="jc-meta">Proposed · queued for approval</span>
+          </div>
+          <div class="jc-prog" style="color: var(--warn)"><span>HOLD</span></div>
+        </div>
+      </section>
+
+      <!-- compliance footer (per-page disclaimer carry) -->
+      <div style="font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--ink-4); line-height: 1.55; padding-top: 6px; border-top: 1px dotted var(--rule-soft);">
+        Every outbound action requires verbal approval. Audit log captures voice turn, transcript, tool call, and approval phrase (with confidence score). Florida Bar Op 24-1 · ABA Op 512.
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<footer class="foot">
+  <span>LEGAL OVERFLOW · BEYEL BROTHERS · COCOA, FL · <b>Florida Bar No. 1042871</b></span>
+  <span>This site is attorney advertising. Not legal advice. · <b>v0.4.2</b></span>
+</footer>
+
+<!-- mobile tabs -->
+<nav class="mob-tabs" role="tablist">
+  <button class="mob-tab" data-col="col-context">Context</button>
+  <button class="mob-tab is-active" data-col="col-transcript">Transcript</button>
+  <button class="mob-tab" data-col="col-approvals">Approvals</button>
+</nav>
+
+<script>
+/* ---------- matter dropdown ---------- */
+const sel = document.getElementById('matter-sel');
+sel.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sel.classList.toggle('is-open');
+});
+document.addEventListener('click', () => sel.classList.remove('is-open'));
+
+/* ---------- mic wave ---------- */
+(function micWave(){
+  const w = document.getElementById('mic-wave');
+  for (let i = 0; i < 28; i++) {
+    const b = document.createElement('span');
+    b.className = 'bar';
+    b.style.animationDelay = (i * 70) + 'ms';
+    b.style.animationDuration = (700 + (i % 5) * 120) + 'ms';
+    b.style.height = (8 + Math.abs(Math.sin(i * .4)) * 28) + 'px';
+    b.style.opacity = (0.55 + Math.abs(Math.cos(i * .3)) * 0.4).toFixed(2);
+    w.appendChild(b);
+  }
+})();
+
+/* ---------- timer ---------- */
+(function timer(){
+  const el = document.getElementById('timer');
+  let s = 14 * 60 + 32;
+  setInterval(() => {
+    s++;
+    const h = String(Math.floor(s/3600)).padStart(2,'0');
+    const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+    const sec = String(s%60).padStart(2,'0');
+    el.textContent = `${h}:${m}:${sec}`;
+  }, 1000);
+})();
+
+/* ---------- transcript streaming ---------- */
+const ROOT = document.getElementById('tr-scroll');
+const STATE = document.getElementById('mic-state');
+
+const STREAM = [
+  { kind:'you',   who:'You',        ts:'08:42:11', text:'Good morning. What needs my attention today?', hold: 1200 },
+  { kind:'tool',  who:'Tool',       ts:'08:42:13', text:'Reading inbox · last 16 hours · 24 messages', hold: 900 },
+  { kind:'tool',  who:'Tool',       ts:'08:42:14', text:'Cross-checking calendar · next 5 business days', hold: 1000 },
+  { kind:'agent', who:'Paralegal',  ts:'08:42:15', text:'Three items this morning. <em>One</em>, Sarah Chen at Acme sent her redline on the MSA last night, response due Friday. She flagged Section 11 indemnity and the cap. <em>Two</em>, the Holton DPA auto-renews in 11 days. <em>Three</em>, you have a 2pm with Magic on the lease walkthrough.', hold: 2400 },
+  { kind:'you',   who:'You',        ts:'08:42:22', text:'Pull Acme up. Run a quick-scan against my playbook and read me the cap issue first.', hold: 1300 },
+  { kind:'tool',  who:'Tool',       ts:'08:42:24', text:'Loading vault · Magic / Vendor MSA — Acme Robotics (v3)', hold: 900 },
+  { kind:'tool',  who:'Tool',       ts:'08:42:25', text:'Running quick-scan · playbook: client-side, SaaS, 2026', hold: 1200 },
+  { kind:'job',   who:'Tool',       ts:'08:42:25', job:{title:'Tabular review · 8 NDAs in queue', sub:'Forked · runs in background', eta:'ETA 45s', w:38}, hold: 1100 },
+  { kind:'find',  who:'Tool',       ts:'08:42:27', f:{sev:'blocker', loc:'§ 12.4 · Liability cap', spec:'LOL'}, hold: 800 },
+  { kind:'find',  who:'Tool',       ts:'08:42:28', f:{sev:'major',   loc:'§ 11.2 · IP indemnity', spec:'IND'}, hold: 900 },
+  { kind:'agent', who:'Paralegal',  ts:'08:42:30', text:'Cap is 100% of fees with no super-cap on IP, confidentiality, or indemnity. Your playbook floor is 200% with super-caps on all three. I have drafted a reply to Sarah on Section 12.4 in the approvals pane. Want me to read it, or send the markup back as a separate action?', hold: 2600 },
+  { kind:'you',   who:'You',        ts:'08:42:38', text:'Both. Hold a Thursday slot too.', hold: 1100 },
+  { kind:'tool',  who:'Tool',       ts:'08:42:39', text:'Drafting markup · Sections 11 and 12 (streaming)', hold: 900 },
+  { kind:'tool',  who:'Tool',       ts:'08:42:40', text:'Calendar · proposing Thu 10:30 AM (45m) · Sarah Chen', hold: 1000 },
+  { kind:'agent', who:'Paralegal',  ts:'08:42:42', text:'Markup is 61% done, will surface in approvals when complete. Calendar hold is staged for your approval. Reading the email now: <em>"Sarah, thanks for the redline. On Section 12.4, we will need to land at 200% of trailing-12 fees with the standard super-cap exclusions for IP indemnity, confidentiality, and the gross-negligence carve-out…"</em>', hold: 0 },
+];
+
+let idx = 0;
+function pushRow(item) {
+  const row = document.createElement('div');
+  row.className = 'tr-row ' + item.kind;
+
+  let bodyHtml = '';
+  if (item.kind === 'job') {
+    bodyHtml = `
+      <div class="tr-job">
+        <div class="tr-job-h"><span class="lab">Background job · forked</span><span class="eta">${item.job.eta}</span></div>
+        <div class="tr-job-title">${item.job.title}</div>
+        <div class="tr-job-bar"><span style="--w: ${item.job.w}%"></span></div>
+        <div class="tr-job-foot"><span>${item.job.sub}</span><span>${item.job.w}%</span></div>
+      </div>`;
+  } else if (item.kind === 'find') {
+    bodyHtml = `
+      <div class="tr-finding ${item.f.sev}">
+        <span class="sev">${item.f.sev}</span>
+        <span class="loc">${item.f.loc}</span>
+        <span class="spec">${item.f.spec}</span>
+      </div>`;
+  } else {
+    bodyHtml = item.text;
+  }
+
+  row.innerHTML = `
+    <div class="tr-role">
+      <span class="who">${item.who}</span>
+      <span class="ts">${item.ts}</span>
+    </div>
+    <div class="tr-body">${bodyHtml}</div>`;
+  ROOT.appendChild(row);
+  requestAnimationFrame(() => row.classList.add('is-in'));
+  ROOT.scrollTop = ROOT.scrollHeight;
+
+  // update state
+  if (item.kind === 'you') STATE.innerHTML = 'Listening<em>… you</em>';
+  else if (item.kind === 'agent') STATE.innerHTML = 'Speaking<em>… Paralegal</em>';
+  else STATE.innerHTML = 'Tool call';
+}
+
+function runStream() {
+  if (idx >= STREAM.length) {
+    // loop after pause
+    setTimeout(() => {
+      ROOT.innerHTML = '';
+      idx = 0;
+      runStream();
+    }, 4500);
+    return;
+  }
+  const item = STREAM[idx++];
+  pushRow(item);
+  setTimeout(runStream, item.hold || 700);
+}
+setTimeout(runStream, 600);
+
+/* ---------- mobile tabs ---------- */
+document.querySelectorAll('.mob-tab').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.mob-tab').forEach(x => x.classList.remove('is-active'));
+    b.classList.add('is-active');
+    document.querySelectorAll('.col').forEach(c => c.classList.remove('is-active'));
+    document.getElementById(b.dataset.col).classList.add('is-active');
+  });
+});
+
+/* ---------- mute ---------- */
+const mute = document.getElementById('mute-btn');
+mute.addEventListener('click', () => mute.classList.toggle('muted'));
+
+/* ---------- ptt visual feedback ---------- */
+const ptt = document.getElementById('ptt');
+['mousedown','touchstart','keydown'].forEach(e => window.addEventListener(e, () => ptt.style.transform = 'scale(.94)'));
+['mouseup','touchend','keyup'].forEach(e => window.addEventListener(e, () => ptt.style.transform = ''));
+</script>
+</body>
+</html>

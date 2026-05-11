@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Paralegal · Matters — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --paper: #f3efe6;
+  --paper-2: #ebe6d9;
+  --ink: #0e1512;
+  --ink-2: #2a332d;
+  --ink-3: #5b6760;
+  --ink-4: #8a9690;
+  --rule-soft: #d9d2c0;
+  --rule-thread: #cbc4b1;
+  --accent: #10b981;
+  --accent-deep: #0a7d57;
+  --warn: #b3532f;
+  --voice: #6a47c2;
+  --voice-deep: #4d2fa3;
+  --sev-block: #b22222;
+  --sev-mod: #c98a14;
+  --motion-snap: cubic-bezier(.2,.8,.2,1);
+  --serif: 'Instrument Serif','Times New Roman',serif;
+  --sans:  'Geist', ui-sans-serif, system-ui, sans-serif;
+  --mono:  'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(208,219,213,.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(220,212,196,.22), transparent 70%);
+  min-height:100vh; display:flex; flex-direction:column;
+}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer}
+
+#grain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.04;mix-blend-mode:multiply;background-image:url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");background-size:200px}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:14px 24px;background:rgba(243,239,230,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--rule-soft)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{width:22px;height:22px;color:var(--ink)}
+.brand-text{font-family:var(--serif);font-size:19px}
+.brand-text em{font-style:italic;color:var(--accent-deep)}
+.nav-c{display:flex;gap:6px;align-items:center}
+.nav-c a{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);padding:6px 10px;border-radius:2px}
+.nav-c a:hover{color:var(--ink);background:var(--paper-2)}
+.nav-c a.active{color:var(--ink);border-bottom:1px solid var(--ink)}
+.nav-r{display:flex;align-items:center;gap:12px}
+.nav-sub{font-size:13px;padding:8px 16px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper)}
+.nav-sub:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+
+/* page head */
+.wrap{position:relative;z-index:2;max-width:1480px;width:100%;margin:0 auto;padding:28px 24px 60px;flex:1}
+.crumbs{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.crumbs a{border-bottom:1px solid var(--rule-thread)}
+.crumbs a:hover{color:var(--ink);border-color:var(--ink)}
+.crumbs .sep{color:var(--ink-4);margin:0 8px}
+
+.phead{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding-bottom:18px;border-bottom:1px solid var(--rule-soft);margin-bottom:24px}
+.phead h1{font-family:var(--serif);font-weight:400;font-size:64px;line-height:.95;margin:0 0 8px;letter-spacing:-.015em}
+.phead h1 em{font-style:italic;color:var(--accent-deep)}
+.phead .sub{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--ink-3);max-width:560px;line-height:1.4}
+.phead-actions{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:2px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--ink);background:transparent;color:var(--ink)}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn.is-primary{background:var(--ink);color:var(--paper)}
+.btn.is-primary:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+.btn svg{width:11px;height:11px}
+
+/* counters strip */
+.counts{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-bottom:24px;border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
+.count-cell{padding:14px 18px;border-right:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:4px}
+.count-cell:last-child{border-right:none}
+.count-cell .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.count-cell .n{font-family:var(--serif);font-size:36px;line-height:1;color:var(--ink);letter-spacing:-.005em}
+.count-cell .n em{font-style:italic;color:var(--accent-deep)}
+.count-cell .d{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);letter-spacing:.06em}
+.count-cell .d b{color:var(--ink-3);font-weight:500}
+.count-cell.urgent .n{color:var(--warn)}
+.count-cell.urgent .d{color:var(--warn)}
+
+/* controls */
+.ctrls{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:18px;flex-wrap:wrap}
+.search{position:relative;flex:1;max-width:420px}
+.search input{width:100%;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:2px;padding:9px 14px 9px 36px;font-family:var(--serif);font-size:15.5px;color:var(--ink);outline:none;transition:border-color .15s}
+.search input::placeholder{color:var(--ink-4);font-style:italic}
+.search input:focus{border-color:var(--ink)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--ink-3)}
+.search .kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--ink-4);border:1px solid var(--rule-thread);border-radius:2px;padding:1px 5px}
+
+.filters{display:flex;align-items:center;gap:0;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.filters .f-l{color:var(--ink-3);margin-right:14px}
+.filters .f-grp{display:flex;gap:0;border:1px solid var(--rule-thread);border-radius:2px;overflow:hidden}
+.filters .f-grp button{padding:8px 12px;background:transparent;border:none;border-right:1px solid var(--rule-thread);color:var(--ink-3);font:inherit;letter-spacing:.12em;text-transform:uppercase}
+.filters .f-grp button:last-child{border-right:none}
+.filters .f-grp button:hover{color:var(--ink);background:var(--paper-2)}
+.filters .f-grp button.is-active{color:var(--ink);background:var(--paper-2);box-shadow:inset 0 -2px 0 var(--ink)}
+.filters .vsep{width:1px;height:20px;background:var(--rule-thread);margin:0 12px}
+.filters select{font:inherit;letter-spacing:.12em;text-transform:uppercase;background:transparent;border:1px solid var(--rule-thread);border-radius:2px;padding:8px 28px 8px 12px;color:var(--ink-3);appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235b6760' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 10px center}
+
+/* table */
+.tbl{border-top:1px solid var(--ink);border-bottom:1px solid var(--rule-soft)}
+.tbl-head{display:grid;grid-template-columns:42px 56px minmax(280px,2fr) 110px 110px 1fr 130px 90px;gap:0;padding:10px 0;border-bottom:1px solid var(--rule-soft);font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);align-items:center}
+.tbl-head .cell{padding:0 14px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.tbl-head .cell:hover{color:var(--ink)}
+.tbl-head .cell .sort{opacity:.5}
+.tbl-head .cell.is-sorted{color:var(--ink)}
+.tbl-head .cell.is-sorted .sort{opacity:1;color:var(--accent-deep)}
+
+.row{display:grid;grid-template-columns:42px 56px minmax(280px,2fr) 110px 110px 1fr 130px 90px;gap:0;align-items:center;padding:14px 0;border-bottom:1px dotted var(--rule-soft);cursor:pointer;transition:background .12s,padding-left .15s;position:relative}
+.row:hover{background:rgba(255,255,255,.4);padding-left:4px}
+.row .cell{padding:0 14px;min-width:0;font-size:14px}
+
+.r-check{display:flex;justify-content:center}
+.r-check input{appearance:none;-webkit-appearance:none;width:13px;height:13px;border:1px solid var(--ink-3);border-radius:2px;background:transparent;cursor:pointer;position:relative}
+.r-check input:checked{background:var(--ink);border-color:var(--ink)}
+.r-check input:checked::after{content:'';position:absolute;top:1px;left:4px;width:3px;height:7px;border:solid var(--paper);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+
+.r-id{font-family:var(--mono);font-size:10px;color:var(--ink-4);letter-spacing:.04em}
+.r-id b{color:var(--ink-3);font-weight:500}
+
+.r-matter{display:flex;flex-direction:column;gap:3px;min-width:0}
+.r-matter .mt{font-family:var(--serif);font-size:18px;line-height:1.2;color:var(--ink);letter-spacing:-.005em;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.r-matter .mt em{font-style:italic;color:var(--ink-2);font-size:15.5px}
+.r-matter .sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);display:flex;align-items:center;gap:8px}
+.r-matter .sub .dot{color:var(--rule-thread)}
+.r-matter .sub .priv{color:var(--voice);border:1px solid var(--voice);padding:0 5px;border-radius:2px;font-size:9px}
+.r-matter .sub .new{color:var(--accent-deep);border:1px solid var(--accent-deep);padding:0 5px;border-radius:2px;font-size:9px}
+
+.r-type{font-family:var(--serif);font-style:italic;font-size:14.5px;color:var(--ink-2)}
+
+.r-stage{display:flex;flex-direction:column;gap:3px}
+.r-stage .s-label{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)}
+.r-stage .s-val{font-family:var(--serif);font-size:15px;color:var(--ink)}
+.r-stage .s-val em{font-style:italic;color:var(--ink-2);font-size:14px}
+
+/* stage micro-timeline */
+.stages{display:flex;gap:3px;height:5px;width:100%;align-items:center}
+.stages .seg{flex:1;height:3px;background:var(--rule-thread);border-radius:1px;position:relative}
+.stages .seg.done{background:var(--accent-deep);height:3px}
+.stages .seg.current{background:var(--ink);height:5px}
+.stages .seg.blocked{background:var(--sev-block)}
+.stages-l{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.05em;margin-top:5px}
+.stages-l span.current{color:var(--ink)}
+.stages-wrap{padding:2px 0 0}
+
+.r-due{display:flex;flex-direction:column;gap:2px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2)}
+.r-due .when{font-family:var(--serif);font-size:15px;font-style:italic;color:var(--ink)}
+.r-due .when.warn{color:var(--warn)}
+.r-due .when.now{color:var(--sev-block)}
+.r-due .why{color:var(--ink-4);font-size:10px}
+
+.r-actions{display:flex;justify-content:flex-end;gap:6px}
+.r-act{width:28px;height:28px;border-radius:50%;border:1px solid var(--rule-thread);background:transparent;color:var(--ink-3);display:inline-flex;align-items:center;justify-content:center;transition:color .15s,border-color .15s,background .15s}
+.r-act:hover{color:var(--ink);border-color:var(--ink);background:var(--paper-2)}
+.r-act svg{width:13px;height:13px}
+.r-act.voice{color:var(--voice);border-color:var(--voice)}
+.r-act.voice:hover{background:var(--voice);color:var(--paper)}
+
+/* group header rows */
+.grp-row{padding:18px 0 8px;display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:14px;border-bottom:1px solid var(--rule-soft)}
+.grp-row.first{padding-top:6px}
+.grp-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:baseline;gap:10px}
+.grp-l .n{color:var(--ink-4)}
+.grp-r{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--ink-4)}
+.grp-r em{font-style:italic}
+
+/* selection bar */
+.sel-bar{position:sticky;bottom:18px;margin:18px auto 0;max-width:760px;background:var(--ink);color:var(--paper);border-radius:6px;padding:10px 14px;display:none;align-items:center;gap:14px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 24px 60px -10px rgba(14,21,18,.4);z-index:30}
+.sel-bar.is-open{display:flex}
+.sel-bar .n{color:var(--accent);margin-right:auto}
+.sel-bar button{background:transparent;border:1px solid rgba(255,255,255,.2);color:var(--paper);padding:7px 12px;border-radius:2px;font:inherit;letter-spacing:.12em;text-transform:uppercase}
+.sel-bar button:hover{background:rgba(255,255,255,.08);border-color:var(--paper)}
+.sel-bar .x{background:transparent;border:none;color:var(--ink-4);padding:0 4px;font-size:14px;letter-spacing:0}
+
+/* footer */
+.foot{border-top:1px solid var(--rule-soft);padding:14px 24px;max-width:1480px;margin:18px auto 0;width:100%;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-4)}
+.foot b{color:var(--ink)}
+
+@media(max-width:1200px){
+  .tbl-head,.row{grid-template-columns:36px 64px minmax(220px,2fr) 100px 1fr 110px 80px}
+  .tbl-head .h-type,.row .c-type{display:none}
+}
+@media(max-width:880px){
+  .phead{grid-template-columns:1fr}
+  .phead h1{font-size:44px}
+  .counts{grid-template-columns:repeat(2,1fr)}
+  .count-cell{border-right:none;border-bottom:1px solid var(--rule-soft)}
+  .tbl-head{display:none}
+  .row{display:flex;flex-direction:column;align-items:flex-start;padding:14px;border:1px solid var(--rule-soft);border-radius:4px;margin-bottom:10px;gap:8px}
+  .row .cell{padding:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/agents/paralegal/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"></path><circle cx="20" cy="14" r="2.5" fill="currentColor"></circle><circle cx="20" cy="26" r="2.5" fill="var(--accent)"></circle></svg>
+    <span class="brand-text">Legal<em>Overflow</em></span>
+  </a>
+  <div class="nav-c">
+    <a href="/workspace/">Workspace</a>
+    <a href="/agents/" class="active">Agents</a>
+    <a href="/workspace/library/">Library</a>
+    <a href="/workspace/vault/">Vault</a>
+  </div>
+  <div class="nav-r">
+    <a href="#" class="nav-sub">Account</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- breadcrumbs -->
+  <div class="crumbs">
+    <a href="/agents/">Agents</a>
+    <span class="sep">/</span>
+    <a href="/agents/paralegal/">03 · Paralegal</a>
+    <span class="sep">/</span>
+    <span>Matters</span>
+  </div>
+
+  <!-- page head -->
+  <header class="phead">
+    <div>
+      <h1>The <em>matter</em> log</h1>
+      <p class="sub">Every active engagement under the Paralegal — open inboxes, open clocks, open questions. The agent is grounded against whichever you pick.</p>
+    </div>
+    <div class="phead-actions">
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+        New matter
+      </button>
+      <button class="btn is-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+        Start voice session
+      </button>
+    </div>
+  </header>
+
+  <!-- counter strip -->
+  <section class="counts">
+    <div class="count-cell">
+      <span class="l">Open · all</span>
+      <span class="n">12</span>
+      <span class="d">Across <b>4 clients</b> · 7 voice-enabled</span>
+    </div>
+    <div class="count-cell urgent">
+      <span class="l">Due this week</span>
+      <span class="n">3</span>
+      <span class="d">Acme MSA · Holton DPA · Cyrus lease</span>
+    </div>
+    <div class="count-cell">
+      <span class="l">Awaiting approval</span>
+      <span class="n">2</span>
+      <span class="d">1 outbound email · 1 calendar hold</span>
+    </div>
+    <div class="count-cell">
+      <span class="l">In flight · jobs</span>
+      <span class="n">5</span>
+      <span class="d">Tabular · CourtListener · Markup · 2 more</span>
+    </div>
+    <div class="count-cell">
+      <span class="l">Hours · this month</span>
+      <span class="n">47<em>.5</em></span>
+      <span class="d">Captured · Clio sync at <b>16:00 daily</b></span>
+    </div>
+  </section>
+
+  <!-- search + filters -->
+  <div class="ctrls">
+    <label class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+      <input type="text" placeholder="Search matters, parties, statutes…" />
+      <span class="kbd">⌘K</span>
+    </label>
+
+    <div class="filters">
+      <span class="f-l">Status ·</span>
+      <div class="f-grp">
+        <button class="is-active">Active</button>
+        <button>Watching</button>
+        <button>Closed</button>
+        <button>All</button>
+      </div>
+      <span class="vsep"></span>
+      <select>
+        <option>All clients</option>
+        <option>Magic Inc.</option>
+        <option>Holton Capital</option>
+        <option>Cyrus Industries</option>
+        <option>Pickwick Bros.</option>
+      </select>
+      <select>
+        <option>All types</option>
+        <option>Vendor MSA</option>
+        <option>DPA</option>
+        <option>NDA</option>
+        <option>Lease</option>
+        <option>SOW</option>
+      </select>
+      <select>
+        <option>Sort · Updated</option>
+        <option>Sort · Due date</option>
+        <option>Sort · Client</option>
+        <option>Sort · Stage</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MATTER LOG TABLE
+       ============================================================ -->
+  <section class="tbl">
+
+    <!-- header -->
+    <div class="tbl-head">
+      <span class="cell"></span>
+      <span class="cell">ID</span>
+      <span class="cell h-matter is-sorted">Matter <span class="sort">↓</span></span>
+      <span class="cell h-type">Type</span>
+      <span class="cell">Stage</span>
+      <span class="cell">Progress</span>
+      <span class="cell">Due</span>
+      <span class="cell" style="justify-content:flex-end">Actions</span>
+    </div>
+
+    <!-- group: Due this week -->
+    <div class="grp-row first">
+      <span class="grp-l"><span>§ 01 · Due this week</span><span class="n">3 matters</span></span>
+      <span class="grp-r">Time-sensitive · auto-promoted</span>
+    </div>
+
+    <!-- row -->
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2240</div>
+      <div class="cell r-matter">
+        <div class="mt">Vendor MSA — Acme Robotics <em>· first redline</em></div>
+        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Counter · Sarah Chen</span><span class="dot">·</span><span class="new">VOICE</span></div>
+      </div>
+      <div class="cell c-type r-type">Vendor MSA</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Redline <em>· 04 of 06</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+          <div class="seg current"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when warn">Fri · 16 May</span>
+        <span class="why">3 days · response to opposing</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice" title="Start voice session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act" title="Open matter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2238</div>
+      <div class="cell r-matter">
+        <div class="mt">DPA renewal <em>· auto-renew opt-out</em></div>
+        <div class="sub"><span>Holton Capital</span><span class="dot">·</span><span>Vendor · Stripe</span><span class="dot">·</span><span class="priv">PRIV</span></div>
+      </div>
+      <div class="cell c-type r-type">DPA</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Decision <em>· renew or exit</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span class="current">Decision</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when warn">22 May</span>
+        <span class="why">11 days · notice window</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2231</div>
+      <div class="cell r-matter">
+        <div class="mt">Office lease <em>· suite 402, 5y</em></div>
+        <div class="sub"><span>Cyrus Industries</span><span class="dot">·</span><span>Landlord · Magnolia Prop.</span></div>
+      </div>
+      <div class="cell c-type r-type">Lease</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Awaiting <em>· counter-draft</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div>
+          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when warn">18 May</span>
+        <span class="why">7 days · soft target</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <!-- group: Open -->
+    <div class="grp-row">
+      <span class="grp-l"><span>§ 02 · Open · no immediate deadline</span><span class="n">6 matters</span></span>
+      <span class="grp-r">Background work continues</span>
+    </div>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2229</div>
+      <div class="cell r-matter">
+        <div class="mt">SOW-012 <em>· data residency add-on</em></div>
+        <div class="sub"><span>Pickwick Bros.</span><span class="dot">·</span><span>Vendor · Snowflake</span></div>
+      </div>
+      <div class="cell c-type r-type">SOW</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Scan complete <em>· 7 findings</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span class="current">Scan</span><span>Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">28 May</span>
+        <span class="why">17 days · client-set</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2225</div>
+      <div class="cell r-matter">
+        <div class="mt">Reseller agreement <em>· revenue share</em></div>
+        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Reseller · Iberia Tech</span><span class="dot">·</span><span class="new">VOICE</span></div>
+      </div>
+      <div class="cell c-type r-type">Reseller</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Intake <em>· paper not received</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span class="current">Intake</span><span>Scan</span><span>Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">04 Jun</span>
+        <span class="why">24 days · soft</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2218</div>
+      <div class="cell r-matter">
+        <div class="mt">Employment offer · senior counsel <em>· stock + non-compete</em></div>
+        <div class="sub"><span>Holton Capital</span><span class="dot">·</span><span>Candidate · J. Pierce</span></div>
+      </div>
+      <div class="cell c-type r-type">Employment</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Redline <em>· 02 of 06</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">11 Jun</span>
+        <span class="why">31 days · candidate</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2214</div>
+      <div class="cell r-matter">
+        <div class="mt">Reciprocal NDA <em>· investor diligence</em></div>
+        <div class="sub"><span>Cyrus Industries</span><span class="dot">·</span><span>Counter · Bridgewell</span></div>
+      </div>
+      <div class="cell c-type r-type">NDA</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Closing <em>· DocuSign sent</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg current"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span class="current">Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">Awaiting</span>
+        <span class="why">Signature · counter-party</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2209</div>
+      <div class="cell r-matter">
+        <div class="mt">Customer paper · NewLeaf Co. <em>· enterprise SaaS</em></div>
+        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Customer · A. Voss</span></div>
+      </div>
+      <div class="cell c-type r-type">Customer paper</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Negotiation <em>· round 3</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">06 Jun</span>
+        <span class="why">26 days · target close</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2204</div>
+      <div class="cell r-matter">
+        <div class="mt">Sub-processor amendment <em>· EU residency</em></div>
+        <div class="sub"><span>Pickwick Bros.</span><span class="dot">·</span><span>Vendor · Datadog</span></div>
+      </div>
+      <div class="cell c-type r-type">DPA</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Scan <em>· running tabular</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span class="current">Scan</span><span>Redline</span><span>Close</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">12 Jun</span>
+        <span class="why">32 days · firm</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <!-- group: Watching -->
+    <div class="grp-row">
+      <span class="grp-l"><span>§ 03 · Watching · agent-monitored</span><span class="n">3 matters</span></span>
+      <span class="grp-r">Pings you if anything changes</span>
+    </div>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2197</div>
+      <div class="cell r-matter">
+        <div class="mt">Acme MSA <em>· post-execution monitoring</em></div>
+        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Executed 12 Mar 2025</span></div>
+      </div>
+      <div class="cell c-type r-type">Vendor MSA</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Watching <em>· auto-renew Q3</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span>Closed</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">12 Sep</span>
+        <span class="why">124 days · renewal window</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2188</div>
+      <div class="cell r-matter">
+        <div class="mt">Holton fund · LPA monitoring <em>· side letters</em></div>
+        <div class="sub"><span>Holton Capital</span><span class="dot">·</span><span>17 LPs</span></div>
+      </div>
+      <div class="cell c-type r-type">LPA</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Watching <em>· quarterly</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span>Closed</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">30 Jun</span>
+        <span class="why">Q2 report · pull data</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+    <a class="row" href="/agents/paralegal/matter/">
+      <div class="cell r-check"><input type="checkbox"></div>
+      <div class="cell r-id"><b>MTR</b>-2179</div>
+      <div class="cell r-matter">
+        <div class="mt">FL § 713 portfolio <em>· mechanics lien deadlines</em></div>
+        <div class="sub"><span>Cyrus Industries</span><span class="dot">·</span><span>14 active projects</span></div>
+      </div>
+      <div class="cell c-type r-type">Portfolio</div>
+      <div class="cell r-stage">
+        <span class="s-label">Stage</span>
+        <span class="s-val">Watching <em>· statute clock</em></span>
+      </div>
+      <div class="cell stages-wrap">
+        <div class="stages">
+          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
+        </div>
+        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span>Closed</span></div>
+      </div>
+      <div class="cell r-due">
+        <span class="when">Rolling</span>
+        <span class="why">3 projects · 90-day clock</span>
+      </div>
+      <div class="cell r-actions">
+        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+      </div>
+    </a>
+
+  </section>
+
+  <!-- selection bar -->
+  <div class="sel-bar" id="sel-bar">
+    <span class="n" id="sel-count">0 selected</span>
+    <button>Assign specialist</button>
+    <button>Run quick-scan</button>
+    <button>Export to Clio</button>
+    <button>Archive</button>
+    <button class="x" id="sel-clear">✕</button>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <span>LEGAL OVERFLOW · BEYEL BROTHERS · COCOA, FL · <b>Florida Bar No. 1042871</b></span>
+  <span>This site is attorney advertising. Not legal advice. · <b>v0.4.2</b></span>
+</footer>
+
+<script>
+/* checkboxes -> selection bar */
+const bar = document.getElementById('sel-bar');
+const cnt = document.getElementById('sel-count');
+function refresh() {
+  const checked = document.querySelectorAll('.r-check input:checked');
+  if (checked.length > 0) {
+    bar.classList.add('is-open');
+    cnt.textContent = checked.length + ' selected';
+  } else {
+    bar.classList.remove('is-open');
+  }
+}
+document.querySelectorAll('.r-check input').forEach(cb => {
+  cb.addEventListener('click', e => e.stopPropagation());
+  cb.addEventListener('change', refresh);
+});
+document.getElementById('sel-clear').addEventListener('click', () => {
+  document.querySelectorAll('.r-check input:checked').forEach(cb => cb.checked = false);
+  refresh();
+});
+
+/* filter button group */
+document.querySelectorAll('.f-grp button').forEach(b => {
+  b.addEventListener('click', () => {
+    b.parentElement.querySelectorAll('button').forEach(x => x.classList.remove('is-active'));
+    b.classList.add('is-active');
+  });
+});
+
+/* prevent row nav when clicking inline action buttons */
+document.querySelectorAll('.r-act').forEach(btn => {
+  btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+});
+</script>
+</body>
+</html>

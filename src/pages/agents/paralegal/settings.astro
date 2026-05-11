@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Paralegal · Settings — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --paper: #f3efe6;
+  --paper-2: #ebe6d9;
+  --ink: #0e1512;
+  --ink-2: #2a332d;
+  --ink-3: #5b6760;
+  --ink-4: #8a9690;
+  --rule-soft: #d9d2c0;
+  --rule-thread: #cbc4b1;
+  --accent: #10b981;
+  --accent-deep: #0a7d57;
+  --warn: #b3532f;
+  --voice: #6a47c2;
+  --voice-deep: #4d2fa3;
+  --sev-block: #b22222;
+  --motion-snap: cubic-bezier(.2,.8,.2,1);
+  --serif: 'Instrument Serif','Times New Roman',serif;
+  --sans:  'Geist', ui-sans-serif, system-ui, sans-serif;
+  --mono:  'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(208,219,213,.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(220,212,196,.22), transparent 70%);
+  min-height:100vh; display:flex; flex-direction:column;
+}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer}
+#grain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.04;mix-blend-mode:multiply;background-image:url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");background-size:200px}
+
+.nav{position:sticky;top:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:14px 24px;background:rgba(243,239,230,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--rule-soft)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-mark{width:22px;height:22px}
+.brand-text{font-family:var(--serif);font-size:19px}
+.brand-text em{font-style:italic;color:var(--accent-deep)}
+.nav-c{display:flex;gap:6px}
+.nav-c a{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);padding:6px 10px;border-radius:2px}
+.nav-c a:hover,.nav-c a.active{color:var(--ink)}
+.nav-sub{font-size:13px;padding:8px 16px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper)}
+
+.wrap{position:relative;z-index:2;max-width:1280px;margin:0 auto;padding:28px 24px 60px;flex:1;width:100%}
+.crumbs{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.crumbs .sep{color:var(--ink-4);margin:0 8px}
+
+.phead{padding-bottom:20px;border-bottom:1px solid var(--rule-soft);margin-bottom:28px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end}
+.phead h1{font-family:var(--serif);font-weight:400;font-size:64px;line-height:.95;margin:0 0 8px;letter-spacing:-.015em}
+.phead h1 em{font-style:italic;color:var(--accent-deep)}
+.phead .sub{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--ink-3);max-width:600px;line-height:1.4}
+.phead-r{display:flex;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:2px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--ink);background:transparent;color:var(--ink)}
+.btn:hover{background:var(--ink);color:var(--paper)}
+.btn.is-primary{background:var(--ink);color:var(--paper)}
+.btn.is-primary:hover{background:var(--voice-deep);border-color:var(--voice-deep)}
+.btn.ghost{border-color:var(--rule-thread);color:var(--ink-3)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--ink);background:transparent}
+
+/* shell */
+.shell{display:grid;grid-template-columns:240px 1fr;gap:40px;align-items:start}
+.snav{position:sticky;top:78px;display:flex;flex-direction:column;gap:1px}
+.snav .sn-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);padding:10px 12px 6px}
+.snav a{padding:10px 12px;font-family:var(--serif);font-size:16px;color:var(--ink-3);border-left:2px solid transparent;display:flex;justify-content:space-between;align-items:baseline;transition:color .12s,border-color .12s,background .12s}
+.snav a em{font-style:italic;color:var(--ink-4);font-size:13px}
+.snav a:hover{color:var(--ink);background:rgba(255,255,255,.4)}
+.snav a.is-active{color:var(--ink);border-left-color:var(--ink);background:rgba(255,255,255,.5)}
+.snav .ct{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);letter-spacing:.05em}
+
+.panes{display:flex;flex-direction:column;gap:36px;min-width:0}
+.pane{display:flex;flex-direction:column;gap:18px}
+.pane-h{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:end;padding-bottom:12px;border-bottom:1px solid var(--rule-soft)}
+.pane-h h2{font-family:var(--serif);font-weight:400;font-size:34px;line-height:1;margin:0 0 4px;letter-spacing:-.01em}
+.pane-h h2 em{font-style:italic;color:var(--accent-deep)}
+.pane-h .sub{font-family:var(--serif);font-style:italic;font-size:15.5px;color:var(--ink-3);line-height:1.4;max-width:540px}
+.pane-h .meta{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+
+/* setting row */
+.set-row{display:grid;grid-template-columns:280px 1fr;gap:32px;padding:20px 0;border-bottom:1px dotted var(--rule-soft);align-items:start}
+.set-l{display:flex;flex-direction:column;gap:6px}
+.set-l-t{font-family:var(--serif);font-size:19px;letter-spacing:-.005em;color:var(--ink);line-height:1.2}
+.set-l-t em{font-style:italic;color:var(--ink-2)}
+.set-l-d{font-family:var(--serif);font-size:14.5px;font-style:italic;color:var(--ink-3);line-height:1.4}
+.set-r{display:flex;flex-direction:column;gap:12px}
+
+/* form controls */
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)}
+.inp,.sel{font-family:var(--serif);font-size:15.5px;color:var(--ink);background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:2px;padding:9px 12px;width:100%;outline:none;transition:border-color .15s}
+.inp:focus,.sel:focus{border-color:var(--ink)}
+.inp::placeholder{font-style:italic;color:var(--ink-4)}
+.sel{appearance:none;-webkit-appearance:none;padding-right:32px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235b6760' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
+
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* segmented */
+.seg{display:inline-flex;border:1px solid var(--rule-thread);border-radius:2px;overflow:hidden}
+.seg button{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:8px 14px;background:transparent;border:none;border-right:1px solid var(--rule-thread);color:var(--ink-3)}
+.seg button:last-child{border-right:none}
+.seg button:hover{color:var(--ink);background:var(--paper-2)}
+.seg button.is-on{color:var(--ink);background:var(--paper-2);box-shadow:inset 0 -2px 0 var(--ink)}
+
+/* toggle */
+.tog{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.tog input{appearance:none;-webkit-appearance:none;width:36px;height:20px;background:var(--rule-thread);border-radius:999px;position:relative;cursor:pointer;outline:none;transition:background .15s}
+.tog input::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:var(--paper);border-radius:50%;transition:transform .2s var(--motion-snap),background .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tog input:checked{background:var(--ink)}
+.tog input:checked::after{transform:translateX(16px)}
+.tog input.is-voice:checked{background:var(--voice)}
+.tog .h{color:var(--ink);font-family:var(--serif);font-style:italic;font-size:14.5px;letter-spacing:0;text-transform:none}
+
+/* approval permission table */
+.perm-grid{display:grid;grid-template-columns:1fr 110px 110px 110px;gap:0;border:1px solid var(--rule-soft);border-radius:3px;overflow:hidden;background:var(--rule-soft)}
+.perm-grid > div{background:var(--paper);padding:11px 14px;font-size:13.5px;display:flex;align-items:center;justify-content:flex-start;gap:8px}
+.perm-grid .ph{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);background:var(--paper-2);justify-content:center}
+.perm-grid .pl{font-family:var(--serif);font-size:15px;color:var(--ink)}
+.perm-grid .pl em{font-style:italic;color:var(--ink-2);font-size:13.5px;margin-left:4px}
+.perm-grid .pc{justify-content:center}
+.pc input[type=radio]{appearance:none;-webkit-appearance:none;width:14px;height:14px;border:1px solid var(--ink-3);border-radius:50%;background:transparent;position:relative;cursor:pointer;outline:none}
+.pc input[type=radio]:checked{border-color:var(--ink)}
+.pc input[type=radio]:checked::after{content:'';position:absolute;top:3px;left:3px;width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.pc input.voice:checked::after{background:var(--voice)}
+
+/* voice card */
+.voice-card{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:16px 18px;border:1px solid var(--rule-soft);border-radius:4px;background:rgba(255,255,255,.5)}
+.voice-card.is-on{border-color:var(--voice);background:rgba(236,229,250,.4)}
+.voice-card .av{width:48px;height:48px;border-radius:50%;background:var(--ink);color:var(--paper);font-family:var(--serif);font-size:22px;display:inline-flex;align-items:center;justify-content:center;letter-spacing:-.01em}
+.voice-card.is-on .av{background:var(--voice)}
+.voice-card .nm{font-family:var(--serif);font-size:18px;color:var(--ink);letter-spacing:-.005em}
+.voice-card .nm em{font-style:italic;color:var(--ink-2);font-size:15px}
+.voice-card .meta{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.voice-card .r{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.voice-card .play{width:36px;height:36px;border-radius:50%;border:1px solid var(--rule-thread);background:transparent;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-3)}
+.voice-card .play:hover{color:var(--ink);border-color:var(--ink)}
+.voice-card .play svg{width:13px;height:13px}
+
+/* integration row */
+.int-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--rule-soft);border-radius:3px;background:rgba(255,255,255,.4)}
+.int-ic{width:38px;height:38px;border:1px solid var(--rule-thread);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-2);background:var(--paper-2)}
+.int-name{font-family:var(--serif);font-size:17px;color:var(--ink);letter-spacing:-.005em}
+.int-name em{font-style:italic;color:var(--ink-2);font-size:14.5px}
+.int-status{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-deep);padding:3px 8px;border:1px solid var(--accent-deep);border-radius:2px}
+.int-status.off{color:var(--ink-4);border-color:var(--rule-thread)}
+.int-status.warn{color:var(--warn);border-color:var(--warn)}
+
+/* danger */
+.danger{border:1px solid var(--sev-block);border-radius:3px;padding:18px;background:rgba(178,34,34,.04)}
+.danger h3{font-family:var(--serif);font-size:22px;margin:0 0 6px;color:var(--sev-block);font-weight:400;letter-spacing:-.005em}
+.danger p{font-family:var(--serif);font-style:italic;font-size:14.5px;color:var(--ink-2);margin:0 0 14px;line-height:1.5;max-width:480px}
+.danger .row-act{display:flex;gap:8px}
+.danger .btn{border-color:var(--sev-block);color:var(--sev-block)}
+.danger .btn:hover{background:var(--sev-block);color:var(--paper)}
+
+/* sticky save bar */
+.save{position:sticky;bottom:0;margin:30px -24px -60px;padding:14px 24px;background:rgba(243,239,230,.95);backdrop-filter:blur(14px);border-top:1px solid var(--ink);display:flex;justify-content:space-between;align-items:center;z-index:10}
+.save-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.save-l b{color:var(--ink)}
+.save-r{display:flex;gap:8px}
+
+/* foot */
+.foot{border-top:1px solid var(--rule-soft);padding:14px 24px;max-width:1280px;margin:18px auto 0;width:100%;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-4)}
+.foot b{color:var(--ink)}
+
+@media(max-width:980px){
+  .shell{grid-template-columns:1fr}
+  .snav{position:static;flex-direction:row;overflow-x:auto;padding-bottom:8px;border-bottom:1px solid var(--rule-soft)}
+  .snav a{border-left:none;border-bottom:2px solid transparent;white-space:nowrap}
+  .snav a.is-active{border-left:none;border-bottom-color:var(--ink)}
+  .snav .sn-l{display:none}
+  .set-row{grid-template-columns:1fr;gap:14px}
+  .phead{grid-template-columns:1fr}
+  .phead h1{font-size:44px}
+  .perm-grid{grid-template-columns:1fr 80px 80px 80px}
+}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/agents/paralegal/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"></path><circle cx="20" cy="14" r="2.5" fill="currentColor"></circle><circle cx="20" cy="26" r="2.5" fill="var(--accent)"></circle></svg>
+    <span class="brand-text">Legal<em>Overflow</em></span>
+  </a>
+  <div class="nav-c">
+    <a href="/workspace/">Workspace</a>
+    <a href="/agents/" class="active">Agents</a>
+    <a href="/workspace/library/">Library</a>
+    <a href="/workspace/vault/">Vault</a>
+  </div>
+  <a href="#" class="nav-sub">Account</a>
+</header>
+
+<div class="wrap">
+
+  <div class="crumbs">
+    <a href="/agents/">Agents</a>
+    <span class="sep">/</span>
+    <a href="/agents/paralegal/">03 · Paralegal</a>
+    <span class="sep">/</span>
+    <span>Settings</span>
+  </div>
+
+  <header class="phead">
+    <div>
+      <h1>The <em>Paralegal</em>'s rules</h1>
+      <p class="sub">How the agent speaks, when it speaks, what it is allowed to do without you, and where it ends each day. All changes are voice-confirmable; nothing in here moves a deal without you.</p>
+    </div>
+    <div class="phead-r">
+      <button class="btn ghost">View changelog</button>
+      <button class="btn">Export config</button>
+    </div>
+  </header>
+
+  <!-- shell -->
+  <div class="shell">
+
+    <!-- side nav -->
+    <nav class="snav">
+      <span class="sn-l">§ Settings</span>
+      <a href="#general" class="is-active"><span>General</span><span class="ct">7</span></a>
+      <a href="#voice"><span>Voice <em>· dictation</em></span><span class="ct">6</span></a>
+      <a href="#approvals"><span>Approval policy</span><span class="ct">9</span></a>
+      <a href="#playbook"><span>Playbook <em>· defaults</em></span><span class="ct">4</span></a>
+      <a href="#integrations"><span>Integrations</span><span class="ct">8</span></a>
+      <a href="#notifications"><span>Notifications</span><span class="ct">5</span></a>
+      <a href="#audit"><span>Audit + retention</span><span class="ct">3</span></a>
+      <span class="sn-l" style="margin-top:14px">§ Account</span>
+      <a href="#billing"><span>Plan + billing</span></a>
+      <a href="#danger"><span style="color:var(--sev-block)">Danger zone</span></a>
+    </nav>
+
+    <!-- panes -->
+    <div class="panes">
+
+      <!-- ====== GENERAL ====== -->
+      <section class="pane" id="general">
+        <header class="pane-h">
+          <div>
+            <h2><em>General</em></h2>
+            <p class="sub">Who you are, how the agent addresses you, and the practice area scope it should assume by default.</p>
+          </div>
+          <span class="meta">7 settings</span>
+        </header>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Display name <em>· how the agent refers to you</em></span>
+            <span class="set-l-d">Used in transcripts, drafted comms, and the morning briefing.</span>
+          </div>
+          <div class="set-r row-2">
+            <div class="fld">
+              <span class="fld-l">First name</span>
+              <input class="inp" value="Marcus" />
+            </div>
+            <div class="fld">
+              <span class="fld-l">Form of address · voice</span>
+              <input class="inp" placeholder="Marcus, Counselor, Mr. Halloran…" value="Marcus" />
+            </div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Firm + bar</span>
+            <span class="set-l-d">Disclosure footers, ethics-rule routing, and conflict-clearing run against this.</span>
+          </div>
+          <div class="set-r row-2">
+            <div class="fld">
+              <span class="fld-l">Firm</span>
+              <input class="inp" value="Beyel Brothers, P.A." />
+            </div>
+            <div class="fld">
+              <span class="fld-l">Jurisdiction · primary</span>
+              <select class="sel"><option>Florida</option><option>New York</option><option>Delaware</option><option>California</option><option>Texas</option></select>
+            </div>
+            <div class="fld">
+              <span class="fld-l">Bar number</span>
+              <input class="inp" value="1042871" />
+            </div>
+            <div class="fld">
+              <span class="fld-l">Additional jurisdictions</span>
+              <input class="inp" value="Georgia · New York" />
+            </div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Default practice scope</span>
+            <span class="set-l-d">Agent will refuse or escalate out-of-scope work unless overridden per matter.</span>
+          </div>
+          <div class="set-r">
+            <div class="seg" role="tablist">
+              <button class="is-on">Transactional</button>
+              <button>Litigation</button>
+              <button>Mixed</button>
+              <button>Custom</button>
+            </div>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);margin-top:4px">Active subspecialties · MSA, DPA, NDA, Lease, Employment, Customer paper · <a href="#" style="border-bottom:1px solid var(--rule-thread)">edit list</a></div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Day-end behavior <em>· 18:00 daily</em></span>
+            <span class="set-l-d">What the agent does when the working day closes — wrap up, summarize, or stay live.</span>
+          </div>
+          <div class="set-r">
+            <select class="sel" style="max-width:380px">
+              <option>Auto-summarize day · stop voice · keep watch jobs</option>
+              <option>Summarize · pause all background work</option>
+              <option>Stay live until manually ended</option>
+            </select>
+            <label class="tog"><input type="checkbox" checked /><span class="h">Email me the day's summary at 18:00</span></label>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== VOICE ====== -->
+      <section class="pane" id="voice">
+        <header class="pane-h">
+          <div>
+            <h2><em>Voice</em> + dictation</h2>
+            <p class="sub">Provider, voice character, language, and how aggressive turn-taking should be. Choose a voice you can spend two hours a day with.</p>
+          </div>
+          <span class="meta">6 settings</span>
+        </header>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Voice provider</span>
+            <span class="set-l-d">Sets latency profile + transcription pricing. Grok is fastest; Anthropic + ElevenLabs gives the highest fidelity.</span>
+          </div>
+          <div class="set-r">
+            <div class="seg">
+              <button class="is-on">Grok · 4.1</button>
+              <button>Anthropic · Sonnet</button>
+              <button>OpenAI · 4o-realtime</button>
+            </div>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);margin-top:4px">Median round-trip · <b style="color:var(--ink)">420 ms</b> · billing at usage cost + 12% margin</div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Voice character</span>
+            <span class="set-l-d">Currently active is bolded. Preview ▷ plays a 4-second sample reading a §12 cap clause.</span>
+          </div>
+          <div class="set-r" style="gap:10px">
+            <div class="voice-card is-on">
+              <div class="av">Sa</div>
+              <div>
+                <div class="nm">Sal <em>· warm, mid-Atlantic, deliberate</em></div>
+                <div class="meta">Grok · v4.1 · 24kHz · current</div>
+              </div>
+              <div class="r">
+                <button class="play" title="Preview"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+              </div>
+            </div>
+            <div class="voice-card">
+              <div class="av">Ev</div>
+              <div>
+                <div class="nm">Evie <em>· crisp, English RP, fast turn-taking</em></div>
+                <div class="meta">ElevenLabs · v3 · 48kHz</div>
+              </div>
+              <div class="r"><button class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button></div>
+            </div>
+            <div class="voice-card">
+              <div class="av">Ru</div>
+              <div>
+                <div class="nm">Russ <em>· low, gravelly, paced</em></div>
+                <div class="meta">OpenAI · realtime · 24kHz</div>
+              </div>
+              <div class="r"><button class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Turn-taking <em>· interruption tolerance</em></span>
+            <span class="set-l-d">How quickly the agent yields when you start speaking. Lower = more polite, higher = faster, more talkover.</span>
+          </div>
+          <div class="set-r">
+            <div class="seg">
+              <button>Patient · 800ms</button>
+              <button class="is-on">Balanced · 400ms</button>
+              <button>Snappy · 180ms</button>
+            </div>
+            <label class="tog"><input type="checkbox" class="is-voice" checked /><span class="h">Use voice-activation (auto-listen) instead of push-to-talk by default</span></label>
+            <label class="tog"><input type="checkbox" /><span class="h">Insert "thinking" filler when tool calls exceed 1.5s</span></label>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Wake phrase</span>
+            <span class="set-l-d">Spoken anywhere in the app to start a session. Disable to require button activation only.</span>
+          </div>
+          <div class="set-r row-2">
+            <div class="fld">
+              <span class="fld-l">Phrase</span>
+              <input class="inp" value="Hey Sal" />
+            </div>
+            <div class="fld">
+              <span class="fld-l">Sensitivity</span>
+              <select class="sel"><option>Standard</option><option>Strict (fewer false wakes)</option><option>Loose (will wake on similar words)</option></select>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== APPROVAL POLICY ====== -->
+      <section class="pane" id="approvals">
+        <header class="pane-h">
+          <div>
+            <h2><em>Approval</em> policy</h2>
+            <p class="sub">The bright line between what the agent does autonomously, what it pauses to ask about, and what is hard-blocked.</p>
+          </div>
+          <span class="meta">9 actions</span>
+        </header>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Per-action policy</span>
+            <span class="set-l-d">A typical setup: agent <em>autonomously</em> reads and drafts, <em>asks</em> before sending, <em>refuses</em> to bind without explicit phrase.</span>
+          </div>
+          <div class="set-r">
+
+            <div class="perm-grid">
+              <div class="ph">Action</div>
+              <div class="ph">Auto</div>
+              <div class="ph">Ask</div>
+              <div class="ph">Block</div>
+
+              <div class="pl">Read inbox, calendar, vault <em>· grounding</em></div>
+              <div class="pc"><input type="radio" name="p1" checked></div>
+              <div class="pc"><input type="radio" name="p1"></div>
+              <div class="pc"><input type="radio" name="p1"></div>
+
+              <div class="pl">Draft email <em>· not sent</em></div>
+              <div class="pl pc"><input type="radio" name="p2" checked></div>
+              <div class="pc"><input type="radio" name="p2"></div>
+              <div class="pc"><input type="radio" name="p2"></div>
+
+              <div class="pl">Send email <em>· outbound</em></div>
+              <div class="pc"><input type="radio" name="p3"></div>
+              <div class="pc"><input type="radio" name="p3" class="voice" checked></div>
+              <div class="pc"><input type="radio" name="p3"></div>
+
+              <div class="pl">Hold calendar slot <em>· internal</em></div>
+              <div class="pc"><input type="radio" name="p4" checked></div>
+              <div class="pc"><input type="radio" name="p4"></div>
+              <div class="pc"><input type="radio" name="p4"></div>
+
+              <div class="pl">Send calendar invite <em>· external</em></div>
+              <div class="pc"><input type="radio" name="p5"></div>
+              <div class="pc"><input type="radio" name="p5" class="voice" checked></div>
+              <div class="pc"><input type="radio" name="p5"></div>
+
+              <div class="pl">Draft document redline</div>
+              <div class="pc"><input type="radio" name="p6" checked></div>
+              <div class="pc"><input type="radio" name="p6"></div>
+              <div class="pc"><input type="radio" name="p6"></div>
+
+              <div class="pl">Share document externally <em>· DocuSign / link</em></div>
+              <div class="pc"><input type="radio" name="p7"></div>
+              <div class="pc"><input type="radio" name="p7" class="voice" checked></div>
+              <div class="pc"><input type="radio" name="p7"></div>
+
+              <div class="pl">Open new matter</div>
+              <div class="pc"><input type="radio" name="p8"></div>
+              <div class="pc"><input type="radio" name="p8" class="voice" checked></div>
+              <div class="pc"><input type="radio" name="p8"></div>
+
+              <div class="pl">Anything binding · signature <em>· execution</em></div>
+              <div class="pc"><input type="radio" name="p9"></div>
+              <div class="pc"><input type="radio" name="p9"></div>
+              <div class="pc"><input type="radio" name="p9" checked></div>
+            </div>
+
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);margin-top:6px">"Ask" routes through the right-pane approval queue. Blocked actions return a refusal and log the attempt to <a href="#" style="border-bottom:1px solid var(--rule-thread)">audit</a>.</div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Approval phrase</span>
+            <span class="set-l-d">What you must say to release an "Ask" action. Confidence under 0.92 escalates to written.</span>
+          </div>
+          <div class="set-r row-2">
+            <div class="fld">
+              <span class="fld-l">Single-action</span>
+              <input class="inp" value="approve" />
+            </div>
+            <div class="fld">
+              <span class="fld-l">Batch · "approve all in this matter"</span>
+              <input class="inp" value="approve all in matter" />
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== PLAYBOOK ====== -->
+      <section class="pane" id="playbook">
+        <header class="pane-h">
+          <div>
+            <h2><em>Playbook</em> defaults</h2>
+            <p class="sub">Which playbook the agent grounds against when a matter doesn't specify one.</p>
+          </div>
+          <span class="meta">4 settings</span>
+        </header>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Default playbook</span>
+            <span class="set-l-d">Used for new matters and quick-scans before a client-specific playbook attaches.</span>
+          </div>
+          <div class="set-r">
+            <select class="sel" style="max-width:480px">
+              <option>Magic playbook · 2026 v1.4 · client-side SaaS</option>
+              <option>Holton playbook · 2025 v2.1 · investor-side</option>
+              <option>Cyrus playbook · 2025 v1.0 · real estate</option>
+              <option>Firm-wide default · v3</option>
+            </select>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);margin-top:4px">Currently overrides for · <b style="color:var(--ink)">3 active matters</b></div>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Severity ladder</span>
+            <span class="set-l-d">How aggressively the agent escalates findings during scans. Conservative will flag more, faster.</span>
+          </div>
+          <div class="set-r">
+            <div class="seg">
+              <button>Conservative</button>
+              <button class="is-on">Balanced</button>
+              <button>Permissive</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== INTEGRATIONS ====== -->
+      <section class="pane" id="integrations">
+        <header class="pane-h">
+          <div>
+            <h2><em>Integrations</em></h2>
+            <p class="sub">The systems of record the agent grounds against. Read scope vs write scope is enforced per-row.</p>
+          </div>
+          <span class="meta">8 connected</span>
+        </header>
+
+        <div class="set-r" style="display:flex;flex-direction:column;gap:10px">
+          <div class="int-row">
+            <span class="int-ic">CL</span>
+            <div>
+              <div class="int-name">Clio · matter + billing <em>· OAuth · synced 16:00</em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read + write · 12 matters synced · last 02h ago</div>
+            </div>
+            <span class="int-status">Connected</span>
+            <button class="btn ghost">Configure</button>
+          </div>
+          <div class="int-row">
+            <span class="int-ic">GM</span>
+            <div>
+              <div class="int-name">Gmail · counsel@firm.example <em>· OAuth</em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);">Read-only · agent drafts go to your <b style="color:var(--ink)">[ Drafts ]</b> folder</div>
+            </div>
+            <span class="int-status">Connected</span>
+            <button class="btn ghost">Configure</button>
+          </div>
+          <div class="int-row">
+            <span class="int-ic">GC</span>
+            <div>
+              <div class="int-name">Google Calendar <em>· primary + matter-holds</em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read + write · holds tagged <b style="color:var(--ink)">LO:MTR-####</b></div>
+            </div>
+            <span class="int-status">Connected</span>
+            <button class="btn ghost">Configure</button>
+          </div>
+          <div class="int-row">
+            <span class="int-ic">DS</span>
+            <div>
+              <div class="int-name">DocuSign · envelopes</div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read · execution always blocked unless you click + sign</div>
+            </div>
+            <span class="int-status">Connected</span>
+            <button class="btn ghost">Configure</button>
+          </div>
+          <div class="int-row">
+            <span class="int-ic">CL</span>
+            <div>
+              <div class="int-name">CourtListener <em>· case-law research</em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Public API · no auth</div>
+            </div>
+            <span class="int-status">Connected</span>
+            <button class="btn ghost">Configure</button>
+          </div>
+          <div class="int-row">
+            <span class="int-ic">SL</span>
+            <div>
+              <div class="int-name">Slack · #legal-overflow <em>· briefing channel</em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Write · day-end summary at 18:00</div>
+            </div>
+            <span class="int-status warn">Token expiring · 14 days</span>
+            <button class="btn ghost">Re-auth</button>
+          </div>
+          <div class="int-row">
+            <span class="int-ic">NS</span>
+            <div>
+              <div class="int-name">NetSuite · invoice export <em>· not connected</em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Would let agent draft + send invoices on close</div>
+            </div>
+            <span class="int-status off">Not connected</span>
+            <button class="btn ghost">Connect</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ====== NOTIFICATIONS ====== -->
+      <section class="pane" id="notifications">
+        <header class="pane-h">
+          <div>
+            <h2><em>Notifications</em></h2>
+            <p class="sub">When the agent reaches out without being asked.</p>
+          </div>
+          <span class="meta">5 settings</span>
+        </header>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Channels</span>
+            <span class="set-l-d">The agent picks the most appropriate channel; you can disable any.</span>
+          </div>
+          <div class="set-r" style="gap:8px">
+            <label class="tog"><input type="checkbox" checked /><span class="h">Push · Mac + iOS app</span></label>
+            <label class="tog"><input type="checkbox" checked /><span class="h">Email · counsel@firm.example</span></label>
+            <label class="tog"><input type="checkbox" /><span class="h">SMS · +1 (321) ••• 4421</span></label>
+            <label class="tog"><input type="checkbox" checked /><span class="h">Slack · #legal-overflow</span></label>
+            <label class="tog"><input type="checkbox" class="is-voice" /><span class="h">Voice · call me on missed-deadline only</span></label>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Quiet hours <em>· no proactive comms</em></span>
+            <span class="set-l-d">Agent will still respond to your voice / chat; only outbound nudges are suppressed.</span>
+          </div>
+          <div class="set-r row-2">
+            <div class="fld"><span class="fld-l">From</span><input class="inp" value="20:00" /></div>
+            <div class="fld"><span class="fld-l">Until</span><input class="inp" value="07:30" /></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== AUDIT ====== -->
+      <section class="pane" id="audit">
+        <header class="pane-h">
+          <div>
+            <h2><em>Audit</em> + retention</h2>
+            <p class="sub">Every voice turn, tool call, and approval is logged. Choose how long, and where it lives.</p>
+          </div>
+          <span class="meta">3 settings</span>
+        </header>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Transcript retention</span>
+            <span class="set-l-d">How long voice transcripts + tool-call logs are retained. Privileged matters override individual session settings.</span>
+          </div>
+          <div class="set-r">
+            <div class="seg">
+              <button>30 days</button>
+              <button>90 days</button>
+              <button class="is-on">1 year</button>
+              <button>Indefinite</button>
+            </div>
+            <label class="tog"><input type="checkbox" checked /><span class="h">Encrypt at rest with client-managed key</span></label>
+          </div>
+        </div>
+
+        <div class="set-row">
+          <div class="set-l">
+            <span class="set-l-t">Recording attribution</span>
+            <span class="set-l-d">Audit log captures the voice turn, transcript, tool call, and approval phrase — with confidence score.</span>
+          </div>
+          <div class="set-r">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.05em;line-height:1.6;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;padding:12px">
+              <div>14:32:11 · YOU · "approve"</div>
+              <div>14:32:11 · STT confidence · <b style="color:var(--accent-deep)">0.97</b></div>
+              <div>14:32:11 · ACTION · email.send → counsel@firm.example</div>
+              <div>14:32:11 · MATTER · MTR-2240</div>
+            </div>
+            <a href="#" style="font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-3);border-bottom:1px solid var(--rule-thread);align-self:flex-start">View full audit log →</a>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ====== DANGER ====== -->
+      <section class="pane" id="danger">
+        <header class="pane-h">
+          <div>
+            <h2 style="color:var(--sev-block)"><em>Danger</em> zone</h2>
+            <p class="sub">Irreversible actions. The agent can't perform any of these — only you, via this page.</p>
+          </div>
+          <span class="meta" style="color:var(--sev-block)">3 actions</span>
+        </header>
+
+        <div class="danger">
+          <h3>Reset the Paralegal</h3>
+          <p>Clears all matters, transcripts, drafts, and learned preferences. Vault documents are preserved. There is no undo.</p>
+          <div class="row-act">
+            <button class="btn">Reset matters only</button>
+            <button class="btn">Reset everything · keep vault</button>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+  </div>
+
+  <!-- sticky save bar -->
+  <div class="save">
+    <span class="save-l">3 unsaved changes · <b>Voice character</b>, <b>Send email</b> permission, <b>Slack re-auth</b></span>
+    <div class="save-r">
+      <button class="btn ghost">Discard</button>
+      <button class="btn is-primary">Save · voice-confirm</button>
+    </div>
+  </div>
+
+</div>
+
+<footer class="foot">
+  <span>LEGAL OVERFLOW · BEYEL BROTHERS · COCOA, FL · <b>Florida Bar No. 1042871</b></span>
+  <span>This site is attorney advertising. Not legal advice. · <b>v0.4.2</b></span>
+</footer>
+
+<script>
+/* side nav active state */
+document.querySelectorAll('.snav a').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('.snav a').forEach(x => x.classList.remove('is-active'));
+    a.classList.add('is-active');
+  });
+});
+/* segmented */
+document.querySelectorAll('.seg').forEach(s => {
+  s.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      s.querySelectorAll('button').forEach(x => x.classList.remove('is-on'));
+      b.classList.add('is-on');
+    });
+  });
+});
+</script>
+</body>
+</html>

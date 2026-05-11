@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Paralegal — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ---------- carry-over tokens ---------- */
+:root {
+  --paper: #f3efe6;
+  --paper-2: #ebe6d9;
+  --paper-cool: #efece4;
+  --ink: #0e1512;
+  --ink-2: #2a332d;
+  --ink-3: #5b6760;
+  --ink-4: #8a9690;
+  --rule: #1d2622;
+  --rule-soft: #d9d2c0;
+  --rule-thread: #cbc4b1;
+  --accent: #10b981;
+  --accent-deep: #0a7d57;
+  --accent-tint: #d7ede0;
+  --warn: #b3532f;
+  --voice: #6a47c2;
+  --voice-tint: #e7e0f4;
+  --motion-snap: cubic-bezier(.2,.8,.2,1);
+
+  --serif: 'Instrument Serif','Times New Roman',serif;
+  --sans:  'Geist', ui-sans-serif, system-ui, sans-serif;
+  --mono:  'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 16px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(208,219,213,.18), transparent 60%),
+    radial-gradient(900px 500px at -10% 30%, rgba(220,212,196,.25), transparent 70%);
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+
+#grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  opacity: .045; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 200px;
+}
+
+/* ---------- nav ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 32px;
+  padding: 16px 40px;
+  background: rgba(243,239,230,.85);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); }
+.brand-mark { width: 26px; height: 26px; color: var(--ink); transition: transform .6s ease; }
+.brand:hover .brand-mark { transform: rotate(180deg); }
+.brand-text { font-family: var(--serif); font-size: 22px; letter-spacing: -.01em; }
+.brand-text .brand-over { font-style: italic; color: var(--accent-deep); margin-left: 2px; }
+.nav-links { display: flex; gap: 28px; justify-self: center; }
+.nav-links a { font-size: 13.5px; color: var(--ink-2); position: relative; padding: 4px 0; }
+.nav-links a.is-active { color: var(--ink); }
+.nav-links a::after { content: ''; position: absolute; left: 0; bottom: 0; width: 0; height: 1px; background: var(--accent); transition: width .35s var(--motion-snap); }
+.nav-links a:hover::after, .nav-links a.is-active::after { width: 100%; }
+.nav-sub { font-size: 13px; padding: 8px 16px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); transition: background .2s, border-color .2s; }
+.nav-sub:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+/* ---------- shell ---------- */
+main { position: relative; z-index: 2; max-width: 1280px; margin: 0 auto; padding: 24px 40px 80px; }
+
+/* ---------- agent sub-nav (sibling agents) ---------- */
+.agent-sub-nav {
+  position: relative; z-index: 2;
+  max-width: 1280px; margin: 12px auto 0; padding: 0 40px;
+  display: flex; gap: 0; align-items: center;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.ag-tab {
+  display: inline-flex; gap: 10px; align-items: baseline;
+  padding: 14px 18px;
+  background: transparent; border: none; color: var(--ink-3);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  position: relative;
+  transition: color .2s;
+}
+.ag-tab .tn { font-family: var(--mono); font-size: 10px; color: var(--ink-4); }
+.ag-tab .tnm { font-family: var(--serif); font-style: italic; font-size: 18px; letter-spacing: -.005em; text-transform: none; color: var(--ink-2); }
+.ag-tab:hover { color: var(--ink); }
+.ag-tab:hover .tnm { color: var(--ink); }
+.ag-tab.is-active { color: var(--ink); }
+.ag-tab.is-active .tnm { color: var(--ink); }
+.ag-tab.is-active::after {
+  content: ''; position: absolute; left: 18px; right: 18px; bottom: -1px; height: 1px;
+  background: var(--ink);
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative;
+  padding: 56px 0 36px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.kicker {
+  display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 22px;
+}
+.k-tag { padding: 4px 10px; border: 1px solid var(--ink); border-radius: 2px; color: var(--ink); }
+.k-coord { color: var(--ink-3); }
+.k-status {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 10px; border: 1px solid var(--rule-soft); border-radius: 2px;
+}
+.k-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.k-issue { color: var(--ink-4); }
+
+.hero-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: end;
+}
+.hero-title {
+  font-family: var(--serif); font-size: clamp(58px, 9vw, 124px); line-height: .92;
+  letter-spacing: -.012em; color: var(--ink);
+  display: flex; flex-direction: column; gap: 4px;
+  margin: 0;
+}
+.hero-title .l { display: block; }
+.hero-title em { font-style: italic; color: var(--accent-deep); }
+.deco-letter {
+  font-family: var(--serif); font-style: italic;
+  font-size: clamp(180px, 22vw, 320px);
+  line-height: .8; color: var(--ink);
+  letter-spacing: -.04em;
+  position: relative;
+  padding-right: 8px;
+  user-select: none;
+}
+.deco-letter::after {
+  content: '¶'; position: absolute; top: 8px; right: -6px;
+  font-family: var(--serif); font-size: 22px; color: var(--accent-deep);
+  font-style: normal;
+}
+.hero-sub {
+  margin: 26px 0 0; max-width: 720px;
+  font-family: var(--serif); font-size: 22px; line-height: 1.42; color: var(--ink-2);
+  font-style: italic;
+}
+.hero-sub b { font-style: normal; color: var(--ink); }
+.hero-meta {
+  margin-top: 28px;
+  display: flex; gap: 24px; flex-wrap: wrap;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+}
+.hero-meta b { color: var(--ink); font-weight: 500; }
+
+/* ---------- section dividers ---------- */
+.sec-div {
+  display: grid; grid-template-columns: auto 1fr auto;
+  gap: 18px; align-items: center;
+  padding: 56px 0 18px;
+}
+.sec-num { font-family: var(--serif); font-style: italic; font-size: 22px; color: var(--ink); letter-spacing: -.01em; }
+.sec-rule { height: 1px; background: var(--rule-soft); }
+.sec-meta { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+
+.sec-h {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 60px;
+  margin-bottom: 28px; align-items: end;
+}
+.sec-h .h-title { font-family: var(--serif); font-size: clamp(34px, 4.4vw, 52px); line-height: 1.04; letter-spacing: -.012em; margin: 0; }
+.sec-h .h-title em { font-style: italic; color: var(--accent-deep); }
+.sec-h .h-lede { font-family: var(--serif); font-size: 18px; line-height: 1.55; color: var(--ink-2); margin: 0; }
+
+/* ---------- steps ---------- */
+.steps {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+  border-top: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.step {
+  padding: 24px 22px 26px;
+  border-right: 1px solid var(--rule-soft);
+  display: flex; flex-direction: column; gap: 14px;
+  position: relative;
+}
+.step:last-child { border-right: none; }
+.step-num {
+  font-family: var(--serif); font-style: italic;
+  font-size: 56px; line-height: .9; color: var(--ink); letter-spacing: -.02em;
+}
+.step-num .ord { font-style: normal; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; color: var(--ink-3); display: block; margin-bottom: 6px; }
+.step-title { font-family: var(--serif); font-size: 21px; line-height: 1.18; color: var(--ink); }
+.step-body { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); }
+.step-tool {
+  margin-top: auto;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  padding-top: 14px; border-top: 1px dotted var(--rule-soft);
+}
+@media (max-width: 980px) {
+  .steps { grid-template-columns: 1fr 1fr; }
+  .step:nth-child(2) { border-right: none; }
+  .step:nth-child(1), .step:nth-child(2) { border-bottom: 1px solid var(--rule-soft); }
+  .sec-h { grid-template-columns: 1fr; gap: 18px; }
+}
+@media (max-width: 640px) {
+  .steps { grid-template-columns: 1fr; }
+  .step { border-right: none; border-bottom: 1px solid var(--rule-soft); }
+  .step:last-child { border-bottom: none; }
+}
+
+/* ---------- spec strip ---------- */
+.spec {
+  display: grid; grid-template-columns: 200px 1fr;
+  border-top: 1px solid var(--rule-soft);
+}
+.spec-row {
+  display: contents;
+}
+.spec-row > * {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.spec-l {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  background: rgba(235,230,217,.4);
+}
+.spec-v {
+  font-family: var(--serif); font-size: 17px; line-height: 1.45; color: var(--ink);
+}
+.spec-v .pill {
+  display: inline-block; padding: 2px 10px; margin-right: 6px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink); border: 1px solid var(--rule-thread); border-radius: 2px;
+  background: rgba(255,255,255,.4);
+}
+.spec-v .pill.is-sel { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.spec-v .pill.tool { font-size: 10px; padding: 2px 8px; margin: 2px 4px 2px 0; }
+.spec-v .mute { color: var(--ink-3); font-family: var(--mono); font-size: 12px; letter-spacing: .04em; }
+
+/* ---------- demo block (live transcript + waveform) ---------- */
+.demo {
+  display: grid; grid-template-columns: 1.2fr 1fr; gap: 0;
+  border: 1px solid var(--rule-soft); border-radius: 4px;
+  background: rgba(255,255,255,.4);
+  overflow: hidden;
+}
+.demo-l { padding: 22px 26px; border-right: 1px solid var(--rule-soft); position: relative; min-height: 460px; display: flex; flex-direction: column; }
+.demo-r { padding: 22px 26px; background: rgba(235,230,217,.28); position: relative; display: flex; flex-direction: column; }
+
+.demo-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 14px; border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: 18px;
+}
+.demo-head-l { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.demo-head-r {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--voice);
+  display: flex; align-items: center; gap: 8px;
+}
+.demo-head-r::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--voice); animation: pulseDot 1.4s ease-in-out infinite; }
+@keyframes pulseDot { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+.transcript {
+  flex: 1; display: flex; flex-direction: column; gap: 14px;
+  font-family: var(--serif); font-size: 17px; line-height: 1.5; color: var(--ink-2);
+  overflow: hidden;
+  position: relative;
+}
+.t-row {
+  display: grid; grid-template-columns: 60px 1fr; gap: 12px; align-items: baseline;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .35s var(--motion-snap), transform .35s var(--motion-snap);
+}
+.t-row.is-in { opacity: 1; transform: translateY(0); }
+.t-role {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-4); padding-top: 4px;
+}
+.t-row.you .t-role { color: var(--ink); }
+.t-row.agent .t-role { color: var(--voice); }
+.t-row.tool .t-role { color: var(--accent-deep); }
+.t-body { color: var(--ink); }
+.t-row.tool .t-body {
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: .02em; color: var(--accent-deep);
+}
+.t-row.tool .t-body::before { content: '→ '; color: var(--ink-4); }
+.t-row.agent .t-body em { font-style: italic; color: var(--ink-2); }
+.t-caret {
+  display: inline-block; width: 7px; height: 17px; background: var(--ink);
+  vertical-align: -3px; margin-left: 2px;
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0 } }
+
+.demo-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 14px; margin-top: 14px;
+  border-top: 1px dotted var(--rule-soft);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-4);
+}
+.demo-replay {
+  background: transparent; border: 1px solid var(--rule-thread); border-radius: 999px;
+  padding: 4px 12px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-2);
+}
+.demo-replay:hover { color: var(--ink); border-color: var(--ink); }
+
+/* waveform side */
+.demo-r-h {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  display: flex; justify-content: space-between;
+  padding-bottom: 14px; border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: 22px;
+}
+.wave-wrap { position: relative; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+.wave {
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+  height: 110px;
+}
+.wave .bar {
+  width: 3px; background: var(--voice);
+  border-radius: 1px;
+  transform-origin: center;
+  animation: wbar 1.2s ease-in-out infinite;
+}
+@keyframes wbar { 0%,100% { height: 8px } 50% { height: 100% } }
+.wave .bar:nth-child(n) { animation-delay: var(--d); }
+
+.wave-meta {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+}
+.wave-meta b { display: block; font-family: var(--serif); font-size: 22px; letter-spacing: -.005em; color: var(--ink); font-weight: 400; margin-bottom: 2px; }
+.wave-meta b em { font-style: italic; color: var(--accent-deep); }
+.wave-meta .mw-cell { padding: 12px 14px; border: 1px solid var(--rule-soft); background: rgba(255,255,255,.4); border-radius: 3px; }
+
+.context-card {
+  margin-top: 18px;
+  padding: 14px 16px; border: 1px solid var(--rule-soft); border-radius: 3px;
+  background: rgba(255,255,255,.6);
+}
+.cc-title {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-4);
+  margin-bottom: 8px;
+}
+.cc-row {
+  display: grid; grid-template-columns: 80px 1fr; gap: 10px;
+  font-size: 13px; line-height: 1.45; color: var(--ink-2);
+  padding: 4px 0; border-top: 1px dotted var(--rule-soft);
+}
+.cc-row:first-of-type { border-top: none; }
+.cc-l { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-4); }
+.cc-v { font-family: var(--serif); font-size: 14.5px; color: var(--ink); }
+.cc-v em { font-style: italic; color: var(--ink-2); }
+
+@media (max-width: 980px) {
+  .demo { grid-template-columns: 1fr; }
+  .demo-l { border-right: none; border-bottom: 1px solid var(--rule-soft); min-height: 0; }
+}
+
+/* ---------- under the hood ---------- */
+.uth {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+  border-top: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.uth-cell {
+  padding: 26px 24px;
+  border-right: 1px solid var(--rule-soft);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.uth-cell:last-child { border-right: none; }
+.uth-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-4); }
+.uth-title { font-family: var(--serif); font-size: 24px; line-height: 1.15; color: var(--ink); }
+.uth-title em { font-style: italic; color: var(--accent-deep); }
+.uth-body { font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+.uth-spec {
+  margin-top: auto; padding-top: 16px; border-top: 1px dotted var(--rule-soft);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--ink-3);
+  display: flex; justify-content: space-between;
+}
+@media (max-width: 980px) {
+  .uth { grid-template-columns: 1fr; }
+  .uth-cell { border-right: none; border-bottom: 1px solid var(--rule-soft); }
+  .uth-cell:last-child { border-bottom: none; }
+}
+
+/* ---------- CTA ---------- */
+.cta {
+  margin-top: 56px;
+  padding: 44px 36px;
+  border: 1px solid var(--ink); border-radius: 4px;
+  background: var(--ink); color: var(--paper);
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: 1.4fr auto; gap: 36px; align-items: end;
+}
+.cta::before {
+  content: ''; position: absolute; right: -80px; top: -80px;
+  width: 320px; height: 320px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(106,71,194,.42), transparent 65%);
+  pointer-events: none;
+}
+.cta-l-tag { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: rgba(243,239,230,.55); margin-bottom: 14px; display: block; }
+.cta-l-h { font-family: var(--serif); font-size: clamp(36px, 4.6vw, 60px); line-height: 1.02; letter-spacing: -.012em; margin: 0; }
+.cta-l-h em { font-style: italic; color: #c9b8f0; }
+.cta-l-sub { margin: 18px 0 0; max-width: 540px; font-family: var(--serif); font-size: 18px; line-height: 1.45; color: rgba(243,239,230,.74); }
+.cta-btn {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 16px 22px; border-radius: 999px;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--paper);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  transition: background .2s, transform .15s;
+}
+.cta-btn:hover { background: var(--voice-tint); transform: translateY(-1px); }
+.cta-btn svg { width: 12px; height: 12px; }
+@media (max-width: 860px) {
+  .cta { grid-template-columns: 1fr; }
+}
+
+/* ---------- EOF strip ---------- */
+.eof {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 56px 0 0;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-4);
+}
+
+/* ---------- modal ---------- */
+.modal-veil {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(14,21,18,.4); backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center;
+  padding: 40px 16px;
+}
+.modal-veil.is-open { display: flex; }
+.modal {
+  background: var(--paper); border: 1px solid var(--ink); border-radius: 6px;
+  max-width: 520px; width: 100%; padding: 32px 32px 26px;
+  box-shadow: 0 30px 80px rgba(14,21,18,.32);
+  position: relative;
+}
+.modal-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border: 1px solid var(--rule-thread); border-radius: 50%;
+  background: transparent; color: var(--ink-3);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.modal-close:hover { color: var(--ink); border-color: var(--ink); }
+.modal h2 { font-family: var(--serif); font-size: 34px; line-height: 1.04; margin: 0 0 6px; }
+.modal h2 em { font-style: italic; color: var(--accent-deep); }
+.modal .m-tag { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 14px; display: block; }
+.modal p { font-family: var(--serif); font-size: 16px; line-height: 1.5; color: var(--ink-2); margin: 0 0 14px; }
+.m-form { display: grid; gap: 12px; margin-top: 16px; }
+.m-field { display: grid; gap: 4px; }
+.m-field label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+.m-field input, .m-field textarea {
+  font-family: var(--serif); font-size: 16px; padding: 9px 11px;
+  background: rgba(255,255,255,.5); border: 1px solid var(--rule-thread); border-radius: 3px;
+  color: var(--ink); outline: none;
+  transition: border-color .15s, box-shadow .2s;
+}
+.m-field input:focus, .m-field textarea:focus { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.m-submit {
+  margin-top: 6px;
+  padding: 11px 16px; border-radius: 999px;
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+}
+.m-submit:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+/* ---------- footer ---------- */
+.foot {
+  border-top: 1px solid var(--rule-soft);
+  padding: 32px 40px;
+  max-width: 1280px; margin: 0 auto;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--ink-3);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+.foot p { margin: 0 0 6px; line-height: 1.55; }
+.foot .f-r { text-align: right; }
+@media (max-width: 720px) { .foot { grid-template-columns: 1fr; } .foot .f-r { text-align: left; } }
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="#" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"></path><circle cx="20" cy="14" r="2.5" fill="currentColor"></circle><circle cx="20" cy="26" r="2.5" fill="var(--accent)"></circle></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="#">Skills</a>
+    <a href="#">Resources</a>
+    <a href="/agents/" class="is-active">Agents</a>
+    <a href="/workspace/">Workspace</a>
+    <a href="#">Tracker</a>
+    <a href="#">Services</a>
+    <a href="#">About</a>
+  </nav>
+  <div class="nav-right"><a href="#" class="nav-sub">Account</a></div>
+</header>
+
+<!-- agent sub-nav -->
+<div class="agent-sub-nav" role="tablist" aria-label="Agents">
+  <a class="ag-tab" href="/agents/contract-review/">
+    <span class="tn">AGT&nbsp;·&nbsp;01</span><span class="tnm">Contract Review</span>
+  </a>
+  <a class="ag-tab" href="/agents/citation-verifier/">
+    <span class="tn">AGT&nbsp;·&nbsp;02</span><span class="tnm">Citation Verifier</span>
+  </a>
+  <a class="ag-tab is-active" href="/agents/paralegal/">
+    <span class="tn">AGT&nbsp;·&nbsp;03</span><span class="tnm">Paralegal</span>
+  </a>
+</div>
+
+<main>
+
+  <!-- ============================================================
+       HERO
+       ============================================================ -->
+  <section class="hero">
+    <div class="kicker">
+      <span class="k-tag">AGT · 03</span>
+      <span class="k-coord">/AGT.03.PARA · VOICE</span>
+      <span class="k-status">In Development · Private Beta</span>
+      <span class="k-issue">Vol. III · Issue 02 · Spring 2026</span>
+    </div>
+
+    <div class="hero-row">
+      <h1 class="hero-title">
+        <span class="l">Paralegal,</span>
+        <span class="l">a voice <em>that knows</em></span>
+        <span class="l">the file.</span>
+      </h1>
+      <span class="deco-letter" aria-hidden="true">P</span>
+    </div>
+
+    <p class="hero-sub">
+      <b>Not a chatbox.</b> A voice agent that listens, reads the matter, drafts on the fly, and reads every outbound action back to you for verbal approval before anything leaves the firm.
+    </p>
+
+    <div class="hero-meta">
+      <span><b>Modality</b> &nbsp;·&nbsp; Real-time voice</span>
+      <span><b>Context</b> &nbsp;·&nbsp; Per-matter, persistent</span>
+      <span><b>Integrations</b> &nbsp;·&nbsp; Outlook · Calendar · Vault</span>
+      <span><b>Latency</b> &nbsp;·&nbsp; 600ms first-word (target)</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       § A — HOW IT WORKS
+       ============================================================ -->
+  <div class="sec-div">
+    <span class="sec-num">§ A</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">How it works · four turns</span>
+  </div>
+
+  <div class="sec-h">
+    <h2 class="h-title">Four turns from <em>silence</em> to a working session.</h2>
+    <p class="h-lede">The agent is keyed to a matter, not a thread. Once Outlook and Calendar are linked and a matter is selected, the workspace is loaded and the floor is yours.</p>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num"><span class="ord">Step 01</span>i</div>
+      <div class="step-title">Link Outlook and Calendar.</div>
+      <div class="step-body">Microsoft Graph OAuth, read-only by default. The agent triages incoming mail and surfaces what is on fire before you say a word.</div>
+      <div class="step-tool">Microsoft Graph · Read · No outbound</div>
+    </div>
+    <div class="step">
+      <div class="step-num"><span class="ord">Step 02</span>ii</div>
+      <div class="step-title">Pick the active matter.</div>
+      <div class="step-body">From your matter library. The agent loads vault context, prior communications, and any open documents (drafts, redlines, prior reviews).</div>
+      <div class="step-tool">Vault · Matters · Prior reviews</div>
+    </div>
+    <div class="step">
+      <div class="step-num"><span class="ord">Step 03</span>iii</div>
+      <div class="step-title">Speak.</div>
+      <div class="step-body">Ask questions, dictate edits, run a quick-scan review, fetch CourtListener authority, or queue a tabular review on a stack of NDAs. Findings surface as you go.</div>
+      <div class="step-tool">Live transcript · Inline tool runs</div>
+    </div>
+    <div class="step">
+      <div class="step-num"><span class="ord">Step 04</span>iv</div>
+      <div class="step-title">Approve outbound by voice.</div>
+      <div class="step-body">Every email, calendar invite, or document save is read back in full. Speak "approve" or "edit" before anything leaves the firm. Nothing fires without that turn.</div>
+      <div class="step-tool">Outbound · Voice-confirmed · Logged</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       § B — SPEC
+       ============================================================ -->
+  <div class="sec-div">
+    <span class="sec-num">§ B</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">Specification</span>
+  </div>
+
+  <div class="sec-h">
+    <h2 class="h-title">The <em>plumbing</em>, on the record.</h2>
+    <p class="h-lede">Voice routing, tool surface, and compliance posture. Switch providers per session (BYOK supported). Defaults shown below.</p>
+  </div>
+
+  <div class="spec">
+    <div class="spec-row">
+      <div class="spec-l">Voice provider</div>
+      <div class="spec-v">
+        <span class="pill is-sel">Grok</span>
+        <span class="pill">OpenAI Realtime</span>
+        <span class="pill">Gemini Live</span>
+        <span class="mute">&nbsp;BYOK per provider</span>
+      </div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-l">First-word latency</div>
+      <div class="spec-v">600ms target <span class="mute">· measured client-side, p50</span></div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-l">Tool surface</div>
+      <div class="spec-v">
+        <span class="pill tool">Outlook</span><span class="pill tool">Calendar</span><span class="pill tool">Vault</span><span class="pill tool">Tabular Review</span><span class="pill tool">Redline</span><span class="pill tool">Templates</span><span class="pill tool">CourtListener</span><span class="pill tool">LegiScan</span>
+      </div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-l">Approval discipline</div>
+      <div class="spec-v">Every outbound action read back, attorney-approved by voice (no silent dispatch).</div>
+    </div>
+    <div class="spec-row">
+      <div class="spec-l">Compliance</div>
+      <div class="spec-v">Florida Bar Op 24-1 · ABA Op 512 · Zero data retention (ZDR) with provider</div>
+    </div>
+    <div class="spec-row" style="border-bottom: none">
+      <div class="spec-l" style="border-bottom: none">Audit log</div>
+      <div class="spec-v" style="border-bottom: none">Every voice turn and every tool call is recorded, exportable as PDF (one click) for the matter file.</div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       § C — LIVE DEMO
+       ============================================================ -->
+  <div class="sec-div">
+    <span class="sec-num">§ C</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">Live demonstration · loop</span>
+  </div>
+
+  <div class="sec-h">
+    <h2 class="h-title">"What needs my attention <em>this morning?</em>"</h2>
+    <p class="h-lede">A loop of a real session. In-house counsel, Tuesday 8:42am, opening the day with the Paralegal. Triaged inbox in roughly nine seconds.</p>
+  </div>
+
+  <div class="demo">
+    <div class="demo-l">
+      <div class="demo-head">
+        <span class="demo-head-l">Session · TUE 08:42 · MTR-2240</span>
+        <span class="demo-head-r">Live · Grok · Sal</span>
+      </div>
+      <div class="transcript" id="transcript"></div>
+      <div class="demo-foot">
+        <span id="demo-status">Listening</span>
+        <button class="demo-replay" id="demo-replay">↻ Replay</button>
+      </div>
+    </div>
+    <div class="demo-r">
+      <div class="demo-r-h">
+        <span>Audio · waveform</span>
+        <span>16kHz · mono</span>
+      </div>
+      <div class="wave-wrap">
+        <div class="wave" id="wave"></div>
+        <div class="wave-meta">
+          <div class="mw-cell"><b>608<em>ms</em></b>First-word latency</div>
+          <div class="mw-cell"><b>9.4<em>s</em></b>Triaged inbox</div>
+          <div class="mw-cell"><b>14</b>Tool calls</div>
+          <div class="mw-cell"><b>0</b>Outbound (this loop)</div>
+        </div>
+        <div class="context-card">
+          <div class="cc-title">Active matter</div>
+          <div class="cc-row"><span class="cc-l">Client</span><span class="cc-v">Magic Inc.</span></div>
+          <div class="cc-row"><span class="cc-l">Matter</span><span class="cc-v"><em>Vendor MSA — Acme Robotics</em></span></div>
+          <div class="cc-row"><span class="cc-l">Stage</span><span class="cc-v">First redline · response due Fri</span></div>
+          <div class="cc-row"><span class="cc-l">Counterpart</span><span class="cc-v">Sarah Chen (Acme)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       § D — UNDER THE HOOD
+       ============================================================ -->
+  <div class="sec-div">
+    <span class="sec-num">§ D</span>
+    <span class="sec-rule"></span>
+    <span class="sec-meta">Under the hood</span>
+  </div>
+
+  <div class="sec-h">
+    <h2 class="h-title">Grounded, <em>asynchronous</em>, and on the record.</h2>
+    <p class="h-lede">Three pieces sit behind the voice. Retrieval is matter-bound, long-running tools are async, and every turn is logged.</p>
+  </div>
+
+  <div class="uth">
+    <div class="uth-cell">
+      <span class="uth-l">¶ 01 · Retrieval</span>
+      <h3 class="uth-title">Bound to the <em>matter</em>, not the model.</h3>
+      <p class="uth-body">Vector + lexical retrieval runs only against the active matter's vault. Cross-matter access is gated behind explicit voice command and logged. The agent never reads files that do not belong to this client.</p>
+      <div class="uth-spec"><span>Hybrid retrieval</span><span>Per-matter index</span></div>
+    </div>
+    <div class="uth-cell">
+      <span class="uth-l">¶ 02 · Async tools</span>
+      <h3 class="uth-title">Long jobs <em>fork</em>, the conversation continues.</h3>
+      <p class="uth-body">A tabular review on eight NDAs or a citation sweep across a brief does not block the floor. The agent acknowledges, forks the job, and pings back inline when each cell or check lands. You keep talking.</p>
+      <div class="uth-spec"><span>Job queue</span><span>Inline pings · status cards</span></div>
+    </div>
+    <div class="uth-cell">
+      <span class="uth-l">¶ 03 · Audit</span>
+      <h3 class="uth-title">Every turn is a <em>record</em>.</h3>
+      <p class="uth-body">Voice turns (text + audio waveform), tool calls (inputs, outputs, timing), and approvals (verbal phrase, timestamp, confidence score) are written to an immutable log scoped to the matter. Export as PDF in one click.</p>
+      <div class="uth-spec"><span>Immutable log</span><span>PDF export · per matter</span></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CTA
+       ============================================================ -->
+  <section class="cta">
+    <div>
+      <span class="cta-l-tag">Limited beta · Florida-licensed firms first</span>
+      <h2 class="cta-l-h">Pick a matter. <em>Speak to it.</em></h2>
+      <p class="cta-l-sub">Request access to the private beta. We will reach out within two business days to schedule a Microsoft Graph connection and a guided first session.</p>
+    </div>
+    <button class="cta-btn" id="cta-btn">
+      Request access
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+    </button>
+  </section>
+
+  <div class="eof">
+    <span>EOF · END OF AGT.03.PARA</span>
+    <span>Pp. 18-22 · Spring 2026</span>
+  </div>
+
+</main>
+
+<!-- ============================================================
+     REQUEST-ACCESS MODAL
+     ============================================================ -->
+<div class="modal-veil" id="modal-veil" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+    <span class="m-tag">AGT · 03 · ACCESS REQUEST</span>
+    <h2 id="modal-title">Request <em>beta</em> access.</h2>
+    <p>The Paralegal is in private beta with Florida-licensed firms. Tell us a little about your practice and we will set up a Microsoft Graph connection.</p>
+    <form class="m-form" id="access-form" onsubmit="event.preventDefault(); this.querySelector('.m-submit').textContent='✓ Sent · we will be in touch';">
+      <div class="m-field"><label>Firm name</label><input type="text" placeholder="Beyel Brothers" /></div>
+      <div class="m-field"><label>Florida Bar number</label><input type="text" placeholder="123456" /></div>
+      <div class="m-field"><label>Work email</label><input type="email" placeholder="counsel@firm.com" /></div>
+      <div class="m-field"><label>Practice focus (one line)</label><input type="text" placeholder="In-house corporate, FL only" /></div>
+      <button class="m-submit" type="submit">Submit request</button>
+    </form>
+  </div>
+</div>
+
+<footer class="foot">
+  <div>
+    <p>LEGAL OVERFLOW · BEYEL BROTHERS · COCOA, FL</p>
+    <p>Florida Bar No. 1042871 · This site is attorney advertising under R. Regulating Fla. Bar 4-7.</p>
+    <p>The information on this site is not legal advice and does not create an attorney-client relationship.</p>
+  </div>
+  <div class="f-r">
+    <p>Vol. III · Issue 02 · Spring 2026</p>
+    <p>© 2026 · v0.4.2</p>
+  </div>
+</footer>
+
+<script>
+/* ---------- waveform bars ---------- */
+(function buildWave(){
+  const wave = document.getElementById('wave');
+  const N = 56;
+  for (let i = 0; i < N; i++) {
+    const b = document.createElement('span');
+    b.className = 'bar';
+    // varied amplitude per bar
+    const amp = (0.35 + 0.65 * Math.abs(Math.sin(i * 0.42 + 1.3)));
+    b.style.setProperty('--d', (i * 60) + 'ms');
+    b.style.animationDelay = (i * 60) + 'ms';
+    b.style.animationDuration = (900 + (i % 5) * 150) + 'ms';
+    b.style.height = (10 + amp * 70) + 'px';
+    b.style.opacity = (0.55 + amp * 0.45).toFixed(2);
+    wave.appendChild(b);
+  }
+})();
+
+/* ---------- demo transcript loop ---------- */
+const SCRIPT = [
+  { role: 'you',   label: 'You',        text: 'Good morning. What needs my attention today?', hold: 1200 },
+  { role: 'tool',  label: 'Tool',       text: 'Reading inbox · last 16 hours · 24 messages', hold: 1100 },
+  { role: 'tool',  label: 'Tool',       text: 'Cross-checking calendar · next 5 business days', hold: 1100 },
+  { role: 'agent', label: 'Paralegal',  text: 'Three items. <em>One</em>, Sarah Chen at Acme sent her redline on the MSA last night. Response due Friday, she flagged Section 11 indemnity and the cap. <em>Two</em>, the Holton DPA is auto-renewing in 11 days. <em>Three</em>, you have a 2pm with Magic on the lease.', hold: 2400 },
+  { role: 'you',   label: 'You',        text: 'Pull Acme up. Run a quick-scan against my playbook and read me the cap issue.', hold: 1300 },
+  { role: 'tool',  label: 'Tool',       text: 'Loading vault: Magic / Vendor MSA — Acme Robotics (v3)', hold: 900 },
+  { role: 'tool',  label: 'Tool',       text: 'Running quick-scan · playbook: client-side, SaaS, 2026', hold: 1100 },
+  { role: 'agent', label: 'Paralegal',  text: 'Cap is 100% of fees with no super-cap on IP, confidentiality, or indemnity. Your playbook floor is 200% with super-caps on all three. I have drafted a reply to Sarah pushing back on Section 12.4 and proposing the standard ladder. Want me to read it before anything goes out?', hold: 2400 },
+  { role: 'you',   label: 'You',        text: 'Read it.', hold: 900 },
+  { role: 'agent', label: 'Paralegal',  text: '"Sarah, thanks for the redline. On the cap, we will need to land at 200% of trailing-12 fees with the standard super-cap exclusions for IP indemnity, confidentiality, and the gross-negligence carve-out. Happy to walk through it Thursday." <em>Speak "approve" or "edit" to continue.</em>', hold: 2600 },
+];
+
+const root = document.getElementById('transcript');
+const statusEl = document.getElementById('demo-status');
+let timers = [];
+
+function clearTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
+
+function runLoop() {
+  clearTimers();
+  root.innerHTML = '';
+  let acc = 0;
+  SCRIPT.forEach((line, i) => {
+    timers.push(setTimeout(() => {
+      const row = document.createElement('div');
+      row.className = 't-row ' + line.role;
+      row.innerHTML = `<span class="t-role">${line.label}</span><span class="t-body">${line.text}</span>`;
+      root.appendChild(row);
+      requestAnimationFrame(() => row.classList.add('is-in'));
+      // keep last 7 rows
+      while (root.children.length > 7) root.removeChild(root.firstChild);
+      // status
+      if (line.role === 'you') statusEl.textContent = 'Listening · you';
+      else if (line.role === 'agent') statusEl.textContent = 'Speaking · Paralegal';
+      else statusEl.textContent = 'Tool call';
+    }, acc));
+    acc += line.hold;
+  });
+  // restart
+  timers.push(setTimeout(() => {
+    statusEl.textContent = 'Loop · restarting';
+    timers.push(setTimeout(runLoop, 1400));
+  }, acc));
+}
+runLoop();
+
+document.getElementById('demo-replay').addEventListener('click', () => {
+  clearTimers();
+  runLoop();
+});
+
+/* ---------- modal ---------- */
+const veil = document.getElementById('modal-veil');
+document.getElementById('cta-btn').addEventListener('click', () => veil.classList.add('is-open'));
+document.getElementById('modal-close').addEventListener('click', () => veil.classList.remove('is-open'));
+veil.addEventListener('click', (e) => { if (e.target === veil) veil.classList.remove('is-open'); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') veil.classList.remove('is-open'); });
+</script>
+</body>
+</html>
