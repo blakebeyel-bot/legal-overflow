@@ -32,6 +32,43 @@
     .acct-displayname-intro + div { flex-direction: column; align-items: stretch !important; }
     .acct-displayname-intro + div button.ws-btn { width: 100%; min-height: 40px; }
   }
+
+  /* Per-provider source badge + feature description. Same visual
+     language as the workspace cmd-meta-row KEYS popover so the user
+     sees consistent wording in both places. */
+  .byok-source-badge {
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .byok-source-badge.is-user {
+    background: rgba(10,125,87,.08); color: var(--accent-deep);
+    border-color: rgba(10,125,87,.25);
+  }
+  .byok-source-badge.is-server {
+    background: rgba(180,130,40,.08); color: #8a5a18;
+    border-color: rgba(180,130,40,.25);
+  }
+  .byok-source-badge.is-none {
+    background: var(--paper-2); color: var(--ink-4);
+    border-color: var(--rule-soft);
+  }
+  .byok-feat {
+    font-family: var(--sans); font-size: 12.5px;
+    color: var(--ink-3); line-height: 1.5;
+    margin: 6px 0 0;
+  }
+  .byok-footnote {
+    margin-top: 18px;
+    padding: 12px 14px;
+    background: var(--paper-2);
+    border-left: 2px solid var(--rule-soft);
+    border-radius: 0 4px 4px 0;
+    font-family: var(--sans); font-size: 12.5px;
+    color: var(--ink-3); line-height: 1.5;
+  }
 </style>
 </head>
 <body data-auth-gate>
@@ -194,32 +231,72 @@
   loadDisplayName();
 
   const PROVIDERS = [
-    { id: 'anthropic', label: 'Anthropic (Claude)', placeholder: 'sk-ant-…', help: 'From console.anthropic.com → Settings → API keys' },
-    { id: 'openai', label: 'OpenAI (GPT)', placeholder: 'sk-proj-…', help: 'From platform.openai.com/api-keys' },
-    { id: 'google', label: 'Google AI (Gemini)', placeholder: 'AIza…', help: 'From aistudio.google.com/app/apikey' },
-    { id: 'xai', label: 'xAI (Grok)', placeholder: 'xai-…', help: 'From console.x.ai → API Keys' },
-    { id: 'voyage', label: 'Voyage AI (Embeddings)', placeholder: 'pa-…', help: 'From dash.voyageai.com → API Keys. Used for Vault retrieval if you pick Voyage as your embedding provider.' },
+    {
+      id: 'anthropic',
+      label: 'Anthropic (Claude)',
+      placeholder: 'sk-ant-…',
+      help: 'From console.anthropic.com → Settings → API keys',
+      features: 'Workspace chat (Claude) · Template detect/extract · Compare · Redline · Tabular · Chat priming',
+    },
+    {
+      id: 'openai',
+      label: 'OpenAI (GPT)',
+      placeholder: 'sk-proj-…',
+      help: 'From platform.openai.com/api-keys',
+      features: 'Workspace chat (GPT) · Vault embeddings (OpenAI) · Compare/Redline/Tabular alt-provider',
+    },
+    {
+      id: 'google',
+      label: 'Google AI (Gemini)',
+      placeholder: 'AIza…',
+      help: 'From aistudio.google.com/app/apikey',
+      features: 'Workspace chat (Gemini) · OCR · Image captions · Vault embeddings (Gemini) · Template fallback',
+    },
+    {
+      id: 'xai',
+      label: 'xAI (Grok)',
+      placeholder: 'xai-…',
+      help: 'From console.x.ai → API Keys',
+      features: 'Workspace chat (Grok)',
+    },
+    {
+      id: 'voyage',
+      label: 'Voyage AI (Embeddings)',
+      placeholder: 'pa-…',
+      help: 'From dash.voyageai.com → API Keys. Used for Vault retrieval if you pick Voyage as your embedding provider.',
+      features: 'Vault embeddings + image embeddings (when Voyage is selected on Vault settings)',
+    },
   ];
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[<>&"]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch]));
   }
 
-  function renderRows(stored) {
-    const byProvider = Object.fromEntries((stored || []).map((k) => [k.provider, k]));
+  function badgeFor(entry) {
+    // entry comes from /api/workspace-byok-status — { source, fingerprint? }
+    if (!entry) return `<span class="byok-source-badge is-none">Not set</span>`;
+    if (entry.source === 'user') {
+      const fp = entry.fingerprint ? ` · …${escapeHtml(entry.fingerprint)}` : '';
+      return `<span class="byok-source-badge is-user">Yours${fp}</span>`;
+    }
+    if (entry.source === 'server') return `<span class="byok-source-badge is-server">Server</span>`;
+    return `<span class="byok-source-badge is-none">Not set</span>`;
+  }
+
+  function renderRows(statusEntries) {
+    const byProvider = Object.fromEntries((statusEntries || []).map((k) => [k.id, k]));
     const html = PROVIDERS.map((p) => {
-      const existing = byProvider[p.id];
-      const status = existing
-        ? `<span class="byok-status">Saved · ending in <code>${escapeHtml(existing.fingerprint)}</code></span>`
-        : `<span class="byok-status muted">No key saved · using site default</span>`;
-      const remove = existing
+      const entry = byProvider[p.id];
+      const hasUserKey = entry?.source === 'user';
+      const remove = hasUserKey
         ? `<button type="button" class="byok-remove" data-remove="${p.id}">Remove</button>`
         : '';
       return `<div class="byok-row" data-provider="${p.id}">
         <div class="byok-row-head">
           <div class="byok-row-title">${p.label}</div>
-          ${status}
+          ${badgeFor(entry)}
         </div>
+        <p class="byok-feat">${p.features}</p>
         <p class="byok-row-help">${p.help}</p>
         <form class="byok-form" data-provider="${p.id}">
           <input type="password" name="key" autocomplete="off" placeholder="${p.placeholder}" />
@@ -228,7 +305,15 @@
         </form>
       </div>`;
     }).join('');
-    document.getElementById('byok-rows').innerHTML = html;
+    // Append the same footnote shown in the workspace KEYS popover so the
+    // user gets the same story in both places.
+    const footnote = `
+      <div class="byok-footnote">
+        Contract Review and Citation Verifier agents always use site keys —
+        they're the managed-product layer. CourtListener and LegiScan
+        research lookups are site-only too.
+      </div>`;
+    document.getElementById('byok-rows').innerHTML = html + footnote;
 
     document.querySelectorAll('.byok-form').forEach((f) => {
       f.addEventListener('submit', async (e) => {
@@ -266,7 +351,10 @@
   }
 
   async function loadKeys() {
-    const r = await fetch('/.netlify/functions/workspace-byok-list', {
+    // Use the consolidated status endpoint (same one the workspace
+    // KEYS pill uses) so we get per-provider source + fingerprint in a
+    // single round-trip and the UI matches across pages.
+    const r = await fetch('/.netlify/functions/workspace-byok-status', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const j = await r.json();
@@ -274,7 +362,7 @@
       document.getElementById('byok-rows').innerHTML = `<div class="ws-empty">Failed to load: ${escapeHtml(j.error || 'unknown')}</div>`;
       return;
     }
-    renderRows(j.keys || []);
+    renderRows(j.providers || []);
   }
 
   loadKeys();
