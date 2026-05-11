@@ -155,11 +155,14 @@ export default async (req) => {
       bodyText = sourceText;
     } else {
       // Fields mode: extract structured values from the source text.
+      // Pass userId so the extractor uses the user's BYOK key
+      // (Anthropic or Google) first, falling back to server env.
       const { values: extracted, model_used } = await extractValues({
         vars: schema.vars,
         content: sourceText,
         existingValues: values,
         focusKey,
+        userId: auth.user.id,
       });
       values = extracted;
       modelUsed = model_used;

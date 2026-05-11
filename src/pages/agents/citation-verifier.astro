@@ -276,7 +276,7 @@ import Consent from '../../partials/consent.astro';
     </div>
     <div class="head-row">
       <div>
-        <h1 class="head-title">Every cite, <em>verified</em>.</h1>
+        <h1 class="head-title">Each citation, <em>verified or flagged</em>.</h1>
         <p class="head-sub">Upload a brief, motion, or memorandum. The agent extracts every citation, classifies each one against the Bluebook 22nd Edition, runs the table validators, checks each case against CourtListener, and emits a tracked-changes redline plus a sign-off-ready form-check report.</p>
       </div>
       <div class="head-actions">
@@ -304,7 +304,7 @@ import Consent from '../../partials/consent.astro';
     <h2 class="cv-paywall-title">Your account is <em>under review</em>.</h2>
     <p class="cv-paywall-sub">We review every signup before granting access to the citation verifier. Most requests are reviewed within one business day. You'll receive an email once your account is approved.</p>
     <div class="cv-paywall-actions">
-      <a class="ws-btn" href="mailto:blake@beyelbrothers.com?subject=Account%20approval%20%E2%80%94%20citation%20verifier">Email about my request</a>
+      <a class="ws-btn" href="mailto:blake.beyel@beyel.com?subject=Account%20approval%20%E2%80%94%20citation%20verifier">Email about my request</a>
     </div>
   </section>
 
@@ -314,7 +314,7 @@ import Consent from '../../partials/consent.astro';
     <h2 class="cv-paywall-title">You've used all <em>3</em> trial verifications.</h2>
     <p class="cv-paywall-sub">Your trial allows three citation checks per 30-day window. The window resets automatically. To unlock more capacity now, get in touch and we'll set up a paid tier sized to your usage.</p>
     <div class="cv-paywall-actions">
-      <a class="ws-btn" href="mailto:contact@beyelbrothers.com?subject=Citation%20Verifier%20%E2%80%94%20upgrade">Contact us to upgrade</a>
+      <a class="ws-btn" href="mailto:blake.beyel@beyel.com?subject=Citation%20Verifier%20%E2%80%94%20upgrade">Contact us to upgrade</a>
     </div>
   </section>
 
@@ -324,12 +324,12 @@ import Consent from '../../partials/consent.astro';
   <section id="cv-upload" class="cv-upload">
     <div class="sec-div" style="margin-top:0;"><span class="sec-num">§ 02.A</span><span class="sec-rule"></span><span class="sec-meta">UPLOAD A DRAFT</span></div>
     <h2>Pick a draft to <em>verify</em></h2>
-    <p>.docx or .pdf, up to 50 MB. Format in = format out — your draft is returned as the same file type with tracked changes (DOCX) or sticky-note annotations (PDF).</p>
+    <p>.docx only, up to 50 MB. Your draft is returned as a .docx with tracked changes. <span style="color:var(--ink-3); font-size:11px;">PDF support is not currently available.</span></p>
 
     <div class="cv-row">
       <div class="cv-field">
         <label for="cv-file">Document</label>
-        <input type="file" id="cv-file" accept=".docx,.pdf" />
+        <input type="file" id="cv-file" accept=".docx" />
       </div>
       <div class="cv-field" style="max-width:220px;">
         <label for="cv-style">Style</label>

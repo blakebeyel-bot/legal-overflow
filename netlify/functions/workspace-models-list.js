@@ -12,28 +12,28 @@
  * to avoid hammering provider APIs and to keep response time fast.
  */
 import { requireUser, checkUserApproval } from '../lib/supabase-admin.js';
+import { resolveProviderKey } from '../lib/byok-keys.js';
 
 const CACHE_TTL_MS = 60 * 60 * 1000;   // 1 hour
-let cache = null;                       // { models, ts }
+// Per-user cache so users with their own BYOK keys see their own
+// reachable model list. Keyed by `${userId}:${provider}` so each
+// (user, provider) pair caches independently. Bounded — old keys
+// fall off naturally on cold-start. Memory cost is trivial since
+// the value is a small array of model objects.
+const cache = new Map();              // key → { models, ts }
 
-const SERVER_KEY_ENV = {
-  anthropic: ['LO_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'],
-  openai:    ['LO_OPENAI_API_KEY',    'OPENAI_API_KEY'],
-  google:    ['GOOGLE_AI_API_KEY'],
-  xai:       ['XAI_API_KEY'],
-};
-
-function pickKey(provider) {
-  for (const name of SERVER_KEY_ENV[provider] || []) {
-    const v = process.env[name];
-    if (!v) continue;
-    if (provider === 'anthropic' && !v.startsWith('sk-ant-')) continue;
-    if (provider === 'openai'    && !v.startsWith('sk-'))     continue;
-    if (provider === 'google'    && !v.startsWith('AIza'))    continue;
-    if (provider === 'xai'       && !v.startsWith('xai-'))    continue;
-    return v;
+function cacheGet(key) {
+  const e = cache.get(key);
+  if (!e) return null;
+  if (Date.now() - e.ts > CACHE_TTL_MS) {
+    cache.delete(key);
+    return null;
   }
-  return null;
+  return e;
+}
+
+function cacheSet(key, models) {
+  cache.set(key, { models, ts: Date.now() });
 }
 
 // ---------- Provider model fetchers ----------
@@ -141,8 +141,7 @@ function modelSupportsReasoning(id, provider) {
   return false;
 }
 
-async function fetchAnthropicModels() {
-  const key = pickKey('anthropic');
+async function fetchAnthropicModels(key) {
   if (!key) return [];
   try {
     const r = await fetch('https://api.anthropic.com/v1/models?limit=100', {
@@ -166,8 +165,7 @@ async function fetchAnthropicModels() {
   }
 }
 
-async function fetchOpenAIModels() {
-  const key = pickKey('openai');
+async function fetchOpenAIModels(key) {
   if (!key) return [];
   try {
     const r = await fetch('https://api.openai.com/v1/models', {
@@ -198,8 +196,7 @@ async function fetchOpenAIModels() {
   }
 }
 
-async function fetchXAIModels() {
-  const key = pickKey('xai');
+async function fetchXAIModels(key) {
   if (!key) return [];
   try {
     // xAI is OpenAI-compatible; same /v1/models endpoint shape.
@@ -231,8 +228,7 @@ async function fetchXAIModels() {
   }
 }
 
-async function fetchGoogleModels() {
-  const key = pickKey('google');
+async function fetchGoogleModels(key) {
   if (!key) return [];
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=100`);
@@ -468,24 +464,44 @@ export default async (req) => {
   const approval = await checkUserApproval(auth.user.id);
   if (!approval.approved) return json({ error: 'Account pending approval', pending_approval: true }, 403);
 
-  // Cache the merged list for one hour so we don't hammer provider
-  // APIs on every page load. URL ?refresh=1 forces a refetch.
+  const userId = auth.user.id;
   const force = new URL(req.url).searchParams.get('refresh') === '1';
-  const now = Date.now();
-  if (!force && cache && now - cache.ts < CACHE_TTL_MS) {
-    return json({ models: cache.models, cached_at: cache.ts, cache_age_ms: now - cache.ts });
+
+  // Resolve per-user BYOK keys (with server-env fallback). One
+  // resolveProviderKey call per provider. If the user has stored their
+  // own key, that wins; otherwise the server env key is used. If a
+  // particular provider has neither, that provider contributes zero
+  // models to the merged list — same behavior as before BYOK landed.
+  const [aRes, oRes, gRes, xRes] = await Promise.all([
+    resolveProviderKey({ userId, provider: 'anthropic' }),
+    resolveProviderKey({ userId, provider: 'openai' }),
+    resolveProviderKey({ userId, provider: 'google' }),
+    resolveProviderKey({ userId, provider: 'xai' }),
+  ]);
+  const aKey = aRes.key, oKey = oRes.key, gKey = gRes.key, xKey = xRes.key;
+
+  // Per-user cache key: list of (provider, source) fingerprints so a
+  // user adding/removing their BYOK key automatically busts the cache
+  // for that provider only. The fingerprint doesn't include the raw
+  // key value — just whether it came from user storage vs server env.
+  const cacheKey = `${userId}|${aRes.source}|${oRes.source}|${gRes.source}|${xRes.source}`;
+  if (!force) {
+    const hit = cacheGet(cacheKey);
+    if (hit) {
+      return json({ models: hit.models, cached_at: hit.ts, cache_age_ms: Date.now() - hit.ts });
+    }
   }
 
   const [a, o, g, x] = await Promise.all([
-    fetchAnthropicModels(),
-    fetchOpenAIModels(),
-    fetchGoogleModels(),
-    fetchXAIModels(),
+    fetchAnthropicModels(aKey),
+    fetchOpenAIModels(oKey),
+    fetchGoogleModels(gKey),
+    fetchXAIModels(xKey),
   ]);
   const sorted = sortModels([...a, ...o, ...g, ...x]);
   const models = topNPerProvider(sorted);
-  cache = { models, ts: now };
-  return json({ models, cached_at: now, cache_age_ms: 0 });
+  cacheSet(cacheKey, models);
+  return json({ models, cached_at: Date.now(), cache_age_ms: 0 });
 };
 
 function json(obj, status = 200) {

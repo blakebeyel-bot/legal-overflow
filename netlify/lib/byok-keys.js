@@ -27,6 +27,10 @@ const SERVER_KEY_ENV = {
   openai: ['LO_OPENAI_API_KEY', 'OPENAI_API_KEY'],
   google: ['GOOGLE_AI_API_KEY'],
   xai: ['XAI_API_KEY'],
+  // Voyage embeddings — user-selectable embedding provider on the
+  // Vault page. Not behind Netlify AI Gateway, so no JWT-proxy
+  // problem; no prefix check applied (Voyage keys are opaque base64).
+  voyage: ['VOYAGE_API_KEY'],
 };
 
 function pickServerKey(provider) {
@@ -36,6 +40,7 @@ function pickServerKey(provider) {
     if (!v) continue;
     // Skip Netlify AI-Gateway JWT proxies. Real provider keys start
     // with recognizable prefixes; anything else is a Gateway token.
+    // Voyage isn't AI-Gateway-proxied so it accepts any non-empty value.
     if (provider === 'anthropic' && !v.startsWith('sk-ant-')) continue;
     if (provider === 'openai'    && !v.startsWith('sk-'))     continue;
     if (provider === 'google'    && !v.startsWith('AIza'))    continue;

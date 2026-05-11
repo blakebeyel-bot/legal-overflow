@@ -87,17 +87,14 @@ export async function resolveProviderForUser({ userId, supabase }) {
   let key = null;
   let source = 'none';
 
-  if (byokSlot && byokSlot !== 'voyage') {
+  if (byokSlot) {
+    // Voyage is now a BYOK provider in byok-keys.js (added 0038).
+    // resolveProviderKey returns the user's stored Voyage key first,
+    // then falls back to VOYAGE_API_KEY env. Same shape as the other
+    // providers — no special-cased Voyage branch anymore.
     const r = await resolveProviderKey({ userId, provider: byokSlot });
     key = r.key;
     source = r.source;
-  }
-
-  // Voyage-specific server fallback. byok-keys.js currently doesn't
-  // know 'voyage'; read straight from env until/unless we add it.
-  if (!key && provider === 'voyage') {
-    key = process.env.VOYAGE_API_KEY || null;
-    source = key ? 'server' : 'none';
   }
 
   if (!key) {

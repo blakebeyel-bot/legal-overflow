@@ -1,12 +1,12 @@
 /**
  * POST /api/workspace-byok-save
- *   body: { provider: 'anthropic'|'openai'|'google', api_key: string }
+ *   body: { provider: 'anthropic'|'openai'|'google'|'xai'|'voyage', api_key: string }
  * Encrypts and stores. Upserts on (user_id, provider).
  */
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
 import { encryptForStorage, fingerprintForDisplay } from '../lib/encryption.js';
 
-const VALID = new Set(['anthropic', 'openai', 'google', 'xai']);
+const VALID = new Set(['anthropic', 'openai', 'google', 'xai', 'voyage']);
 
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);

@@ -64,7 +64,7 @@
 
   <p>
     The Citation Verifier is a multi-pass pipeline that reads a brief, motion, or memorandum and produces two
-    deliverables: a marked-up source file (.docx with tracked changes, or .pdf with sticky-note annotations) and a
+    deliverables: a marked-up source file (.docx with tracked changes) and a
     sign-off-ready form-check report. Every finding is anchored to a specific Bluebook 22e rule or table number so a
     drafting attorney can audit the call against the Bluebook itself.
   </p>
@@ -82,13 +82,13 @@
     <span class="pillar code">deterministic code</span>
     <h3>Citation extraction</h3>
     <p>
-      Pulls plain text from the upload — body and footnotes for .docx via mammoth + word/footnotes.xml; native
-      page text for .pdf via pdfjs-dist. A small set of regex patterns flag anything that <em>looks</em> like a
-      citation: case cites by reporter abbreviation, statutes (U.S.C. + state codes), regulations (C.F.R.),
-      constitutional cites, and the short forms (<code>Id.</code>, <code>supra</code>, short-form case). High recall
-      is the goal — Pass 2 is the actual classifier.
+      Pulls plain text from the upload — body and footnotes from .docx via mammoth + word/footnotes.xml. A small
+      set of regex patterns flag anything that <em>looks</em> like a citation: case cites by reporter abbreviation,
+      statutes (U.S.C. + state codes), regulations (C.F.R.), constitutional cites, and the short forms
+      (<code>Id.</code>, <code>supra</code>, short-form case). High recall is the goal — Pass 2 is the actual
+      classifier.
     </p>
-    <p>Each candidate carries character offsets, footnote number (DOCX), and page number (PDF) so downstream markup lands at the right spot.</p>
+    <p>Each candidate carries character offsets and footnote number so downstream markup lands at the right spot.</p>
   </div>
 
   <div class="pass-card">
@@ -164,7 +164,7 @@
     </p>
     <ul>
       <li><strong>Form-check report (.docx)</strong> — header, summary tier counts, per-citation findings, aggregate findings by category, corrective-action checklist, drafting sign-off block, full per-citation Appendix A, and a rule-map log Appendix B. Mirrors the protocol's report template structure exactly.</li>
-      <li><strong>Marked source</strong> — your original file with tracked changes and Word comments (DOCX) or strikethroughs and sticky-note annotations (PDF). Each comment carries the rule pin-cite plus a plain-language explanation, plus the suggested fix when one is available.</li>
+      <li><strong>Marked source</strong> — your original .docx file with tracked changes and Word comments. Each comment carries the rule pin-cite plus a plain-language explanation, plus the suggested fix when one is available.</li>
     </ul>
   </div>
 

@@ -271,18 +271,21 @@ export async function primeChat({ supabase, userId, chatId, workflowId }) {
       return null;
     }
 
-    // 3. Resolve API keys for primer providers. Prefer Anthropic
-    //    (Claude Haiku follows format constraints reliably);
-    //    fall back to Gemini Flash if no Anthropic key.
-    const anthropicKey = process.env.LO_ANTHROPIC_API_KEY
-      || process.env.ANTHROPIC_API_KEY
-      || '';
-    let geminiKey = null;
+    // 3. Resolve API keys for primer providers via BYOK first
+    //    (user's stored key) then server env fallback. Prefer
+    //    Anthropic (Claude Haiku follows format constraints
+    //    reliably); fall back to Gemini Flash if Anthropic
+    //    resolution returned nothing.
+    let anthropicKey = '';
+    try {
+      const r = await resolveProviderKey({ userId, provider: 'anthropic' });
+      anthropicKey = r.key || '';
+    } catch {}
+    let geminiKey = '';
     try {
       const r = await resolveProviderKey({ userId, provider: 'google' });
-      geminiKey = r.key;
+      geminiKey = r.key || '';
     } catch {}
-    if (!geminiKey) geminiKey = process.env.GOOGLE_AI_API_KEY || '';
 
     if (!anthropicKey && !geminiKey) {
       console.warn('[chat-prime] no Anthropic or Google key — skipping primer');

@@ -724,18 +724,23 @@ export async function embedVaultImages({ supabase, userId, images, textProvider 
     return new Map();
   }
 
-  // Resolve API key for the multimodal provider. Voyage uses the
-  // env var directly; Gemini uses the user's Google BYOK then env
-  // fallback (same path as captioning).
+  // Resolve API key for the multimodal provider. Both Voyage and
+  // Gemini now go through the BYOK resolver — user's stored key
+  // first, then server env fallback. Voyage was added to the BYOK
+  // system in migration 0038.
   let apiKey;
-  if (provider === 'voyage') {
-    apiKey = process.env.VOYAGE_API_KEY || '';
-  } else if (provider === 'gemini') {
+  const byokSlot = provider === 'voyage' ? 'voyage'
+                 : provider === 'gemini' ? 'google'
+                 : null;
+  if (byokSlot) {
     try {
-      const r = await resolveProviderKey({ userId, provider: 'google' });
+      const r = await resolveProviderKey({ userId, provider: byokSlot });
       apiKey = r.key;
     } catch {
-      apiKey = process.env.GOOGLE_AI_API_KEY || '';
+      // Last-ditch server fallback if resolveProviderKey itself errors.
+      apiKey = (provider === 'voyage')
+        ? (process.env.VOYAGE_API_KEY || '')
+        : (process.env.GOOGLE_AI_API_KEY || '');
     }
   }
   if (!apiKey) {

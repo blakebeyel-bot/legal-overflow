@@ -233,13 +233,22 @@ const gridArticles = all.filter((a) => a.slug !== featured?.slug);
     </div>
   </div>
 
-  <!-- TIME-SAVED TICKER -->
-  <section class="tsticker" aria-label="Time saved by Skills">
+  <!-- TIME-SAVED TICKER — illustrative demo of how much time the four
+       Skills below save when run repeatedly across a typical
+       quarter's worth of documents. The big number animates from
+       0 → 2,234 hours (per-doc deltas shown in the rows below,
+       multiplied across ~32 runs of each Skill). Framed explicitly
+       as illustrative / sample data because real outcomes will vary
+       with document complexity. Compliance: avoids FL Bar Rule
+       4-7.13(a) misleading-results risk by labeling the data as
+       illustrative + aggregate framing in the label + a typicality
+       disclaimer paragraph below the rows. -->
+  <section class="tsticker" aria-label="Illustrative cumulative time saved across reader runs of the four Skills below">
     <div class="tst-inner">
       <div class="tst-lead">
-        <span class="tst-label">Time saved this month</span>
-        <span class="tst-big"><span id="tst-hours" data-count="37420">0</span><span class="tst-unit">hrs</span></span>
-        <span class="tst-fine">by readers running Skills published here · <a href="#skills">view Skills</a></span>
+        <span class="tst-label">Illustrative · cumulative across reader runs, all four Skills</span>
+        <span class="tst-big"><span id="tst-hours" data-count="2234">0</span><span class="tst-unit">hrs</span></span>
+        <span class="tst-fine">per-document deltas shown below, multiplied across ~32 runs of each Skill · <a href="#skills">view Skills</a></span>
       </div>
       <ol class="tst-rows">
         <li>
@@ -271,6 +280,12 @@ const gridArticles = all.filter((a) => a.slug !== featured?.slug);
           <span class="tst-delta">−88%</span>
         </li>
       </ol>
+      <p class="tst-disclaimer">
+        Illustrative figures based on a single sample document per Skill.
+        Real-world savings depend on document complexity, your workflow,
+        and the discipline you bring to verification. Not a representation
+        about results in any specific matter.
+      </p>
     </div>
   </section>
 
@@ -371,73 +386,14 @@ const gridArticles = all.filter((a) => a.slug !== featured?.slug);
       <article class="skill-card" data-track="legal">
         <div class="sk-face sk-front">
           <div class="skill-head">
-            <span class="skill-type">Prompt pack</span>
-            <span class="skill-format">.md · 14 KB</span>
-          <span class="track-pill track-legal">Legal</span>
-          </div>
-          <h3 class="skill-title">Contract redline review — Tier 1</h3>
-          <p class="skill-desc">Nine chained prompts that walk a frontier model through a first-pass review of an NDA, MSA, or SaaS agreement. Includes confidence gates and an escalation prompt.</p>
-          <ul class="skill-meta-list">
-            <li><span class="sk-dot"></span> Tested on GPT-5, Claude 4.5, Gemini 2.5</li>
-            <li><span class="sk-dot"></span> Works inside any chat surface</li>
-            <li><span class="sk-dot"></span> MIT-licensed, remix as you like</li>
-          </ul>
-          <div class="skill-foot">
-            <button class="sk-peek" type="button">Peek inside →</button>
-            <div class="skill-dl-group">
-              <a href="/assets/skills/contract-redline-tier1-claude-skill.zip" class="skill-dl primary" download>
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Install as Claude Skill</span>
-              </a>
-              <a href="/assets/skills/contract-redline-tier1-prompts.md" class="skill-dl" download>
-                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <span>Download prompt pack</span>
-              </a>
-            </div>
-          </div>
-        </div>
-        <div class="sk-face sk-back">
-          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
-          <div class="sk-io">
-            <div class="sk-io-col">
-              <span class="sk-io-label">Input · clause from draft MSA</span>
-              <pre class="sk-io-block">§7.2 LIMITATION OF LIABILITY. In no event shall Vendor's aggregate liability exceed the fees paid by Customer in the twelve (12) months preceding the claim.</pre>
-            </div>
-            <div class="sk-io-col">
-              <span class="sk-io-label sk-io-out">Output · redline memo</span>
-              <pre class="sk-io-block"><span class="tok-a">▲ §7.2</span>  one-sided cap
-<span class="tok-m">→</span> request mutual cap
-<span class="tok-m">→</span> carve-outs: IP indemnity,
-    confidentiality breach,
-    gross negligence
-<span class="tok-k">suggested:</span> "…except
-for obligations under §11
-(Indemnification) and §13
-(Confidentiality)…"</pre>
-            </div>
-          </div>
-          <div class="sk-back-foot">
-            <a href="/assets/skills/contract-redline-tier1-sample-output.docx" class="skill-dl sk-back-dl" download>
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>Download sample output</span>
-            </a>
-          </div>
-        </div>
-      </article>
-
-      <article class="skill-card featured-skill" data-track="both">
-        <div class="sk-face sk-front">
-          <div class="skill-ribbon">Most downloaded</div>
-          <div class="skill-head">
             <span class="skill-type">Workflow</span>
             <span class="skill-format">.zip · 218 KB</span>
-          <span class="track-pill track-both">Legal + Business</span>
+          <span class="track-pill track-legal">Legal</span>
           </div>
           <h3 class="skill-title">Deposition prep in one afternoon</h3>
           <p class="skill-desc">A complete four-step workflow — transcript ingestion prompt, witness timeline generator, impeachment-material finder, and a single-page cross-exam outline generator.</p>
           <ul class="skill-meta-list">
             <li><span class="sk-dot"></span> 4 prompts + 2 JSON schemas + sample runs</li>
-            <li><span class="sk-dot"></span> Privilege-safe: runs fully local if you want</li>
           </ul>
           <div class="skill-foot">
             <button class="sk-peek" type="button">Peek inside →</button>
@@ -600,6 +556,64 @@ this office.
           </div>
           <div class="sk-back-foot">
             <a href="/assets/skills/ai-disclosure-rider-sample-output.docx" class="skill-dl sk-back-dl" download>
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Download sample output</span>
+            </a>
+          </div>
+        </div>
+      </article>
+
+      <article class="skill-card featured-skill" data-track="legal">
+        <div class="sk-face sk-front">
+          <div class="skill-ribbon">Most downloaded</div>
+          <div class="skill-head">
+            <span class="skill-type">Prompt pack</span>
+            <span class="skill-format">.md · 14 KB</span>
+          <span class="track-pill track-legal">Legal</span>
+          </div>
+          <h3 class="skill-title">Contract redline review — Tier 1</h3>
+          <p class="skill-desc">Nine chained prompts that walk a frontier model through a first-pass review of an NDA, MSA, or SaaS agreement. Includes confidence gates and an escalation prompt.</p>
+          <ul class="skill-meta-list">
+            <li><span class="sk-dot"></span> Tested on GPT-5, Claude 4.5, Gemini 2.5</li>
+            <li><span class="sk-dot"></span> Works inside any chat surface</li>
+            <li><span class="sk-dot"></span> MIT-licensed, remix as you like</li>
+          </ul>
+          <div class="skill-foot">
+            <button class="sk-peek" type="button">Peek inside →</button>
+            <div class="skill-dl-group">
+              <a href="/assets/skills/contract-redline-tier1-claude-skill.zip" class="skill-dl primary" download>
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Install as Claude Skill</span>
+              </a>
+              <a href="/assets/skills/contract-redline-tier1-prompts.md" class="skill-dl" download>
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Download prompt pack</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="sk-face sk-back">
+          <div class="sk-back-head"><span class="sk-back-label">Sample run</span><button class="sk-flip-back" type="button">× close</button></div>
+          <div class="sk-io">
+            <div class="sk-io-col">
+              <span class="sk-io-label">Input · clause from draft MSA</span>
+              <pre class="sk-io-block">§7.2 LIMITATION OF LIABILITY. In no event shall Vendor's aggregate liability exceed the fees paid by Customer in the twelve (12) months preceding the claim.</pre>
+            </div>
+            <div class="sk-io-col">
+              <span class="sk-io-label sk-io-out">Output · redline memo</span>
+              <pre class="sk-io-block"><span class="tok-a">▲ §7.2</span>  one-sided cap
+<span class="tok-m">→</span> request mutual cap
+<span class="tok-m">→</span> carve-outs: IP indemnity,
+    confidentiality breach,
+    gross negligence
+<span class="tok-k">suggested:</span> "…except
+for obligations under §11
+(Indemnification) and §13
+(Confidentiality)…"</pre>
+            </div>
+          </div>
+          <div class="sk-back-foot">
+            <a href="/assets/skills/contract-redline-tier1-sample-output.docx" class="skill-dl sk-back-dl" download>
               <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>Download sample output</span>
             </a>
@@ -802,9 +816,9 @@ State X (UPC-based)
 
     <div class="services-wrap">
       <div class="services-lede">
-        <p>Need more than a prompt pack? I take on a small number of hands-on engagements each quarter — usually boutique and mid-sized firms who want someone who has lived in both the legal side and the tooling side to help them actually ship.</p>
-        <p>Every engagement starts with a free 30-minute discovery call. If we're a fit, you'll get a fixed-scope proposal within a week; if we're not, I'll tell you and point you somewhere better.</p>
-        <a href="mailto:services@legaloverflow.com" class="services-cta">
+        <p>Need more than a prompt pack? I take on hands-on engagements with anyone — in-house teams, solo practitioners, and firms of any size — who wants someone who has lived in both the legal side and the tooling side to help them actually ship.</p>
+        <p>Every engagement starts with a free 30-minute discovery call. If we're a fit, you'll get a fixed-scope proposal; if we're not, I'll tell you and point you somewhere better.</p>
+        <a href="mailto:blake.beyel@beyel.com?subject=Discovery%20call%20request%20%E2%80%94%20Legal%20Overflow" class="services-cta">
           <span>Book a free discovery call</span>
           <svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
         </a>
@@ -815,8 +829,8 @@ State X (UPC-based)
           <div class="svc-num">01</div>
           <div class="svc-body">
             <h3>AI stack audit</h3>
-            <p>Two-week engagement. I interview your attorneys and ops team, map your matter lifecycle, and deliver a written report with specific tool recommendations, a workflow map, and an 18-month roadmap.</p>
-            <span class="svc-tag">From $6,500 · 2 weeks</span>
+            <p>I interview your attorneys and ops team, map your matter lifecycle, and deliver a written report with specific tool recommendations, a workflow map, and a forward-looking roadmap.</p>
+            <span class="svc-tag">Scope and price quoted after the discovery call.</span>
           </div>
         </li>
         <li class="service-item">
@@ -824,35 +838,44 @@ State X (UPC-based)
           <div class="svc-body">
             <h3>Workflow design &amp; build</h3>
             <p>Pick one practice area — contracts, e-discovery, litigation support — and I'll design and ship the prompts, schemas, and internal documentation your team needs to run it with AI. Includes hand-off training.</p>
-            <span class="svc-tag">From $12,000 · 4&ndash;6 weeks</span>
+            <span class="svc-tag">Scope and price quoted after the discovery call.</span>
           </div>
         </li>
         <li class="service-item">
           <div class="svc-num">03</div>
           <div class="svc-body">
             <h3>Attorney training &amp; onboarding</h3>
-            <p>Two-day in-person or virtual workshop for up to 20 attorneys. Hands-on sessions, practice-area-specific exercises, an internal "competence memo" template for each participant, and a 60-day follow-up.</p>
-            <span class="svc-tag">From $8,500 · 2 days + follow-up</span>
+            <p>Remote workshops for your team. Hands-on sessions, practice-area-specific exercises, an internal "competence memo" template for each participant, and a follow-up window after the session.</p>
+            <span class="svc-tag">Scope and price quoted after the discovery call.</span>
           </div>
         </li>
         <li class="service-item">
           <div class="svc-num">04</div>
           <div class="svc-body">
             <h3>Ethics &amp; compliance review</h3>
-            <p>Independent review of your firm's AI policy, engagement-letter language, model-use disclosures, and privilege protocols. Delivered as a redlined memo suitable for your ethics committee.</p>
-            <span class="svc-tag">From $4,500 · 10 business days</span>
+            <p>Independent review of your AI policy, engagement-letter language, model-use disclosures, and privilege protocols. Delivered as a redlined memo suitable for your ethics committee or operating leadership.</p>
+            <span class="svc-tag">Scope and price quoted after the discovery call.</span>
           </div>
         </li>
         <li class="service-item">
           <div class="svc-num">05</div>
           <div class="svc-body">
             <h3>Fractional AI counsel</h3>
-            <p>Monthly retainer — I'm available for strategy calls, new-tool evaluations, vendor reviews, and escalations. For firms that want a running conversation rather than one-off projects.</p>
-            <span class="svc-tag">From $3,500 / mo · 3-mo minimum</span>
+            <p>A monthly retainer for teams that want a running conversation — strategy calls, new-tool evaluations, vendor reviews, escalations — instead of one-off projects.</p>
+            <span class="svc-tag">Scope and price quoted after the discovery call.</span>
           </div>
         </li>
       </ol>
     </div>
+
+    <!-- FL Bar compliance disclosure (Rule 4-7.16). Sits OUTSIDE the
+         services-wrap grid so it doesn't collide with the sticky
+         lede column on scroll. Full-width block below the grid. -->
+    <p class="svc-bar-disclosure">
+      Blake Beyel · Florida Bar No. 1065044 · Cocoa, Florida.
+      Engagement begins only upon a signed engagement letter. Nothing on this site
+      creates an attorney-client relationship.
+    </p>
   </section>
 
   <!-- SUBSCRIBE -->
@@ -862,7 +885,7 @@ State X (UPC-based)
       <h2 class="section-title">The Weekly Overflow</h2>
       <p class="sub-lede">
         One long piece, three short case notes, and a single recommendation — delivered Wednesday morning,
-        before opening bell. Read by associates at 42 AmLaw firms and GCs at 140 companies.
+        before opening bell.
       </p>
       <ul class="sub-list">
         <li><span>—</span> No sponsored content, ever.</li>

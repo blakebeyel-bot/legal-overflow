@@ -1,6 +1,31 @@
 ---
+import { createClient } from '@supabase/supabase-js';
 import Consent from '../partials/consent.astro';
 import DownloadGate from '../partials/download-gate.astro';
+
+// Count of published articles, read live from Supabase at build time.
+// Avoids a stale hard-coded number that would constitute a
+// misrepresentation under FL Bar Rule 4-7.13(a). If the supabase
+// fetch fails for any reason (build-time env issue), fall back to
+// hiding the count rather than showing a guess.
+const SUPABASE_URL = import.meta.env.SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let publishedArticleCount = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { count, error } = await sb
+      .from('articles')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'published');
+    if (!error && typeof count === 'number') {
+      publishedArticleCount = count;
+    }
+  } catch (err) {
+    console.error('[about.astro] supabase count failed:', err?.message || err);
+  }
+}
 ---
 <!doctype html>
 <html lang="en">
@@ -78,14 +103,16 @@ import DownloadGate from '../partials/download-gate.astro';
   </section>
 
   <section class="about-facts about-facts-2">
-    <div class="about-fact"><div class="f-n">63</div><div class="f-l">Articles published</div></div>
+    {publishedArticleCount !== null && (
+      <div class="about-fact"><div class="f-n">{publishedArticleCount}</div><div class="f-l">Articles published</div></div>
+    )}
     <div class="about-fact"><div class="f-n">2024</div><div class="f-l">Florida Bar admitted</div></div>
   </section>
 
   <section class="about-bio">
     <h2 style="font-family: var(--serif); font-weight: 400; font-size: 42px; letter-spacing: -.01em; margin: 0 0 20px;">Editorial standards</h2>
-    <p>I interview on background where needed and on the record where possible. Names of specific firms, matters, and counsel are changed or omitted when a source requests it. I do not accept gifts, equity, or affiliate revenue from any company whose products I write about.</p>
-    <p>If you believe something I've published is wrong, write to <a href="mailto:corrections@legaloverflow.com" style="color: var(--accent-deep); border-bottom: 1px solid var(--accent);">blake@beyelbrothers.com</a>. I take these seriously and publish in-line updates with a visible diff.</p>
+    <p>I interview real people. Names are changed when a source asks me to change them. I don't accept gifts, equity, or affiliate revenue from any company whose products I write about. I do take on paid engagements through the <a href="/#services" style="color: var(--accent-deep); border-bottom: 1px solid var(--accent);">Services</a> section — those are clearly labeled and run separately from editorial coverage.</p>
+    <p>If you think something I've published is wrong, write to <a href="mailto:blake.beyel@beyel.com" style="color: var(--accent-deep); border-bottom: 1px solid var(--accent);">blake.beyel@beyel.com</a>. I take corrections seriously and publish in-line updates with a visible diff.</p>
   </section>
 </div>
 

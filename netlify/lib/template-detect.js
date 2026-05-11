@@ -21,6 +21,8 @@
  * a blocker.
  */
 
+import { resolveProviderKey } from './byok-keys.js';
+
 const DETECT_MODEL_ANTHROPIC = 'claude-haiku-4-5';
 const DETECT_MODEL_GEMINI = 'gemini-2.5-flash';
 const DETECT_TIMEOUT_MS = 30_000;
@@ -302,7 +304,7 @@ function parseSchema(rawText) {
  * Always returns an object even on failure — the caller can decide
  * whether to act on it based on confidence.
  */
-export async function detectTemplate({ text }) {
+export async function detectTemplate({ text, userId = null }) {
   const scan = heuristicScan(text);
   const gate = shouldDetect(scan);
 
@@ -319,10 +321,14 @@ export async function detectTemplate({ text }) {
   }
 
   const prompt = buildDetectPrompt({ text, heuristicPlaceholders: scan.placeholders });
-  const anthropicKey = process.env.LO_ANTHROPIC_API_KEY
-    || process.env.ANTHROPIC_API_KEY
-    || '';
-  const geminiKey = process.env.GOOGLE_AI_API_KEY || '';
+  // BYOK-first: try the user's stored Anthropic / Google keys, then
+  // fall back to server env via resolveProviderKey. If userId is null
+  // (legacy callers), resolveProviderKey transparently skips the user
+  // lookup and returns the server key.
+  const anthropicResolved = await resolveProviderKey({ userId, provider: 'anthropic' });
+  const geminiResolved = await resolveProviderKey({ userId, provider: 'google' });
+  const anthropicKey = anthropicResolved.key || '';
+  const geminiKey = geminiResolved.key || '';
 
   let rawText = null;
   let modelUsed = null;

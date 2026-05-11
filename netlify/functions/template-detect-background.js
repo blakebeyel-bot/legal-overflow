@@ -59,7 +59,7 @@ export default async (req) => {
     .eq('id', itemId);
 
   try {
-    const result = await detectTemplate({ text: item.content || '' });
+    const result = await detectTemplate({ text: item.content || '', userId });
     const schemaJson = {
       vars: result.vars || [],
       auto_detected: true,

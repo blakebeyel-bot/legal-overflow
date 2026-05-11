@@ -10,6 +10,8 @@
  * Returns: { values: { key: value, ... }, model_used: string|null }
  */
 
+import { resolveProviderKey } from './byok-keys.js';
+
 const EXTRACT_MODEL_ANTHROPIC = 'claude-haiku-4-5';
 const EXTRACT_MODEL_GEMINI = 'gemini-2.5-flash';
 const EXTRACT_TIMEOUT_MS = 30_000;
@@ -183,9 +185,10 @@ function parseValues(rawText, vars) {
  * @param {string} opts.content          — source text to read from
  * @param {object} [opts.existingValues] — values already filled (won't overwrite)
  * @param {string} [opts.focusKey]       — only fill this one key (refinement)
+ * @param {string} [opts.userId]         — user id for BYOK lookup (user key first, server fallback)
  * @returns {Promise<{ values: object, model_used: string|null }>}
  */
-export async function extractValues({ vars, content, existingValues = null, focusKey = null }) {
+export async function extractValues({ vars, content, existingValues = null, focusKey = null, userId = null }) {
   if (!Array.isArray(vars) || vars.length === 0) {
     return { values: {}, model_used: null };
   }
@@ -194,10 +197,12 @@ export async function extractValues({ vars, content, existingValues = null, focu
   }
 
   const prompt = buildExtractPrompt({ vars, content, existingValues, focusKey });
-  const anthropicKey = process.env.LO_ANTHROPIC_API_KEY
-    || process.env.ANTHROPIC_API_KEY
-    || '';
-  const geminiKey = process.env.GOOGLE_AI_API_KEY || '';
+  // BYOK-first: try user's stored Anthropic / Google keys, then fall
+  // back to server env. resolveProviderKey handles both.
+  const anthropicResolved = await resolveProviderKey({ userId, provider: 'anthropic' });
+  const geminiResolved = await resolveProviderKey({ userId, provider: 'google' });
+  const anthropicKey = anthropicResolved.key || '';
+  const geminiKey = geminiResolved.key || '';
 
   let rawText = null;
   let modelUsed = null;
