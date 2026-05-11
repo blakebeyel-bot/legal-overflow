@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>
+<style is:global>
 :root {
   --paper: #f3efe6;
   --paper-2: #ebe6d9;
@@ -46,18 +46,6 @@ button{font:inherit;cursor:pointer}
 #grain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.04;mix-blend-mode:multiply;background-image:url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");background-size:200px}
 
 /* nav */
-.nav{position:sticky;top:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:14px 24px;background:rgba(243,239,230,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--rule-soft)}
-.brand{display:flex;align-items:center;gap:10px}
-.brand-mark{width:22px;height:22px;color:var(--ink)}
-.brand-text{font-family:var(--serif);font-size:19px}
-.brand-text em{font-style:italic;color:var(--accent-deep)}
-.nav-c{display:flex;gap:6px;align-items:center}
-.nav-c a{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);padding:6px 10px;border-radius:2px}
-.nav-c a:hover{color:var(--ink);background:var(--paper-2)}
-.nav-c a.active{color:var(--ink);border-bottom:1px solid var(--ink)}
-.nav-r{display:flex;align-items:center;gap:12px}
-.nav-sub{font-size:13px;padding:8px 16px;border:1px solid var(--ink);border-radius:999px;background:var(--ink);color:var(--paper)}
-.nav-sub:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
 
 /* page head */
 .wrap{position:relative;z-index:2;max-width:1480px;width:100%;margin:0 auto;padding:28px 24px 60px;flex:1}
@@ -200,26 +188,84 @@ button{font:inherit;cursor:pointer}
   .row{display:flex;flex-direction:column;align-items:flex-start;padding:14px;border:1px solid var(--rule-soft);border-radius:4px;margin-bottom:10px;gap:8px}
   .row .cell{padding:0;width:100%}
 }
+
+/* ---------- paralegal walkthrough tabs (top strip) ---------- */
+.para-tabs {
+  position: relative; z-index: 2;
+  max-width: 1280px; margin: 12px auto 0; padding: 0 40px;
+  display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.pt-tab {
+  display: inline-flex; gap: 10px; align-items: baseline;
+  padding: 14px 18px;
+  background: transparent; border: none; color: var(--ink-3);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  position: relative;
+  transition: color .2s;
+  text-decoration: none;
+}
+.pt-tab .pt-tn { font-family: var(--mono); font-size: 10px; color: var(--ink-4); }
+.pt-tab .pt-tnm { font-family: var(--serif); font-style: italic; font-size: 18px; letter-spacing: -.005em; text-transform: none; color: var(--ink-2); }
+.pt-tab:hover { color: var(--ink); }
+.pt-tab:hover .pt-tnm { color: var(--ink); }
+.pt-tab.is-active { color: var(--ink); }
+.pt-tab.is-active .pt-tnm { color: var(--ink); }
+.pt-tab.is-active::after {
+  content: ''; position: absolute; left: 18px; right: 18px; bottom: -1px; height: 1px;
+  background: var(--voice);
+}
+@media (max-width: 720px) {
+  .para-tabs { padding: 0 18px; }
+  .pt-tab { padding: 10px 12px; }
+  .pt-tab .pt-tnm { font-size: 16px; }
+}
+
+/* ---------- universal site nav ---------- */
+.nav { position: sticky; top: 0; z-index: 100; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 32px; padding: 16px 40px; background: rgba(243,239,230,.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--rule-soft); }
+.brand { display: flex; align-items: center; gap: 12px; color: var(--ink); }
+.brand-mark { width: 26px; height: 26px; color: var(--ink); transition: transform .6s ease; }
+.brand:hover .brand-mark { transform: rotate(180deg); }
+.brand-text { font-family: var(--serif); font-size: 22px; letter-spacing: -.01em; }
+.brand-text .brand-over { font-style: italic; color: var(--accent-deep); margin-left: 2px; }
+.nav-links { display: flex; gap: 28px; justify-self: center; flex-wrap: wrap; }
+.nav-links a { font-size: 13.5px; color: var(--ink-2); position: relative; padding: 4px 0; }
+.nav-links a.is-active { color: var(--ink); }
+.nav-links a::after { content: ''; position: absolute; left: 0; bottom: 0; width: 0; height: 1px; background: var(--accent); transition: width .35s var(--motion-snap); }
+.nav-links a:hover::after, .nav-links a.is-active::after { width: 100%; }
+.nav-right { display: flex; align-items: center; gap: 12px; }
+.nav-sub { font-size: 13px; padding: 8px 16px; border: 1px solid var(--ink); border-radius: 999px; background: var(--ink); color: var(--paper); transition: background .2s, border-color .2s; }
+.nav-sub:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
 </style>
 </head>
 <body>
 <div id="grain"></div>
 
 <header class="nav">
-  <a href="/agents/paralegal/" class="brand">
+  <a href="/" class="brand">
     <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"></circle><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"></path><circle cx="20" cy="14" r="2.5" fill="currentColor"></circle><circle cx="20" cy="26" r="2.5" fill="var(--accent)"></circle></svg>
-    <span class="brand-text">Legal<em>Overflow</em></span>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
   </a>
-  <div class="nav-c">
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/" class="is-active">Agents</a>
     <a href="/workspace/">Workspace</a>
-    <a href="/agents/" class="active">Agents</a>
-    <a href="/workspace/library/">Library</a>
-    <a href="/workspace/vault/">Vault</a>
-  </div>
-  <div class="nav-r">
-    <a href="#" class="nav-sub">Account</a>
-  </div>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right"><a href="/account/" class="nav-sub">Account</a></div>
 </header>
+
+<nav class="para-tabs" role="tablist" aria-label="Paralegal walkthrough">
+  <a class="pt-tab" href="/agents/paralegal/"><span class="pt-tn">§ E.00</span><span class="pt-tnm">Overview</span></a>
+  <a class="pt-tab" href="/agents/paralegal/session/"><span class="pt-tn">§ E.01</span><span class="pt-tnm">Live session</span></a>
+  <a class="pt-tab is-active" href="/agents/paralegal/matters/"><span class="pt-tn">§ E.02</span><span class="pt-tnm">Matter log</span></a>
+  <a class="pt-tab" href="/agents/paralegal/matter/"><span class="pt-tn">§ E.03</span><span class="pt-tnm">Matter detail</span></a>
+  <a class="pt-tab" href="/agents/paralegal/settings/"><span class="pt-tn">§ E.04</span><span class="pt-tnm">Settings</span></a>
+</nav>
+
 
 <div class="wrap">
 
@@ -239,43 +285,43 @@ button{font:inherit;cursor:pointer}
       <p class="sub">Every active engagement under the Paralegal — open inboxes, open clocks, open questions. The agent is grounded against whichever you pick.</p>
     </div>
     <div class="phead-actions">
-      <button class="btn">
+      <button class="btn" id="btn-new-matter">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
         New matter
       </button>
-      <button class="btn is-primary">
+      <a class="btn is-primary" id="btn-voice-session" href="/agents/paralegal/session/">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
         Start voice session
-      </button>
+      </a>
     </div>
   </header>
 
-  <!-- counter strip -->
-  <section class="counts">
+  <!-- counter strip — populated from /api/paralegal-matters-list -->
+  <section class="counts" id="matters-counts">
     <div class="count-cell">
       <span class="l">Open · all</span>
-      <span class="n">12</span>
-      <span class="d">Across <b>4 clients</b> · 7 voice-enabled</span>
+      <span class="n" id="cnt-open">—</span>
+      <span class="d" id="cnt-open-d">Across <b id="cnt-clients">—</b> clients</span>
     </div>
     <div class="count-cell urgent">
       <span class="l">Due this week</span>
-      <span class="n">3</span>
-      <span class="d">Acme MSA · Holton DPA · Cyrus lease</span>
+      <span class="n" id="cnt-due">—</span>
+      <span class="d" id="cnt-due-d">No deadlines this week</span>
     </div>
     <div class="count-cell">
       <span class="l">Awaiting approval</span>
-      <span class="n">2</span>
-      <span class="d">1 outbound email · 1 calendar hold</span>
+      <span class="n" id="cnt-pending">—</span>
+      <span class="d">Outbound + holds queued for voice approval</span>
     </div>
     <div class="count-cell">
       <span class="l">In flight · jobs</span>
-      <span class="n">5</span>
-      <span class="d">Tabular · CourtListener · Markup · 2 more</span>
+      <span class="n" id="cnt-jobs">—</span>
+      <span class="d">Redline · Tabular · Citation</span>
     </div>
     <div class="count-cell">
       <span class="l">Hours · this month</span>
-      <span class="n">47<em>.5</em></span>
-      <span class="d">Captured · Clio sync at <b>16:00 daily</b></span>
+      <span class="n" id="cnt-hours">—</span>
+      <span class="d">Captured per matter (manual entry)</span>
     </div>
   </section>
 
@@ -283,45 +329,32 @@ button{font:inherit;cursor:pointer}
   <div class="ctrls">
     <label class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
-      <input type="text" placeholder="Search matters, parties, statutes…" />
+      <input type="text" id="matters-search" placeholder="Search matters, parties…" />
       <span class="kbd">⌘K</span>
     </label>
 
     <div class="filters">
       <span class="f-l">Status ·</span>
-      <div class="f-grp">
-        <button class="is-active">Active</button>
-        <button>Watching</button>
-        <button>Closed</button>
-        <button>All</button>
+      <div class="f-grp" id="status-filter">
+        <button class="is-active" data-status="active">Active</button>
+        <button data-status="watching">Watching</button>
+        <button data-status="closed">Closed</button>
+        <button data-status="all">All</button>
       </div>
       <span class="vsep"></span>
-      <select>
-        <option>All clients</option>
-        <option>Magic Inc.</option>
-        <option>Holton Capital</option>
-        <option>Cyrus Industries</option>
-        <option>Pickwick Bros.</option>
-      </select>
-      <select>
-        <option>All types</option>
-        <option>Vendor MSA</option>
-        <option>DPA</option>
-        <option>NDA</option>
-        <option>Lease</option>
-        <option>SOW</option>
-      </select>
-      <select>
-        <option>Sort · Updated</option>
-        <option>Sort · Due date</option>
-        <option>Sort · Client</option>
-        <option>Sort · Stage</option>
+      <select id="client-filter"><option value="">All clients</option></select>
+      <select id="type-filter"><option value="">All types</option></select>
+      <select id="sort-by">
+        <option value="updated">Sort · Updated</option>
+        <option value="due">Sort · Due date</option>
+        <option value="client">Sort · Client</option>
+        <option value="stage">Sort · Stage</option>
       </select>
     </div>
   </div>
 
   <!-- ============================================================
-       MATTER LOG TABLE
+       MATTER LOG TABLE — populated by /api/paralegal-matters-list
        ============================================================ -->
   <section class="tbl">
 
@@ -337,363 +370,15 @@ button{font:inherit;cursor:pointer}
       <span class="cell" style="justify-content:flex-end">Actions</span>
     </div>
 
-    <!-- group: Due this week -->
-    <div class="grp-row first">
-      <span class="grp-l"><span>§ 01 · Due this week</span><span class="n">3 matters</span></span>
-      <span class="grp-r">Time-sensitive · auto-promoted</span>
+    <div id="matters-rows"></div>
+
+    <div id="matters-empty" style="display:none;padding:48px 24px;text-align:center;font-family:var(--serif);font-style:italic;font-size:18px;color:var(--ink-3)">
+      No matters yet. Click <b>New matter</b> above to open your first one.
     </div>
 
-    <!-- row -->
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2240</div>
-      <div class="cell r-matter">
-        <div class="mt">Vendor MSA — Acme Robotics <em>· first redline</em></div>
-        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Counter · Sarah Chen</span><span class="dot">·</span><span class="new">VOICE</span></div>
-      </div>
-      <div class="cell c-type r-type">Vendor MSA</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Redline <em>· 04 of 06</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
-          <div class="seg current"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when warn">Fri · 16 May</span>
-        <span class="why">3 days · response to opposing</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice" title="Start voice session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act" title="Open matter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2238</div>
-      <div class="cell r-matter">
-        <div class="mt">DPA renewal <em>· auto-renew opt-out</em></div>
-        <div class="sub"><span>Holton Capital</span><span class="dot">·</span><span>Vendor · Stripe</span><span class="dot">·</span><span class="priv">PRIV</span></div>
-      </div>
-      <div class="cell c-type r-type">DPA</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Decision <em>· renew or exit</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
-          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span class="current">Decision</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when warn">22 May</span>
-        <span class="why">11 days · notice window</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2231</div>
-      <div class="cell r-matter">
-        <div class="mt">Office lease <em>· suite 402, 5y</em></div>
-        <div class="sub"><span>Cyrus Industries</span><span class="dot">·</span><span>Landlord · Magnolia Prop.</span></div>
-      </div>
-      <div class="cell c-type r-type">Lease</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Awaiting <em>· counter-draft</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div>
-          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when warn">18 May</span>
-        <span class="why">7 days · soft target</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <!-- group: Open -->
-    <div class="grp-row">
-      <span class="grp-l"><span>§ 02 · Open · no immediate deadline</span><span class="n">6 matters</span></span>
-      <span class="grp-r">Background work continues</span>
+    <div id="matters-loading" style="padding:48px 24px;text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)">
+      Loading matters…
     </div>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2229</div>
-      <div class="cell r-matter">
-        <div class="mt">SOW-012 <em>· data residency add-on</em></div>
-        <div class="sub"><span>Pickwick Bros.</span><span class="dot">·</span><span>Vendor · Snowflake</span></div>
-      </div>
-      <div class="cell c-type r-type">SOW</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Scan complete <em>· 7 findings</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span class="current">Scan</span><span>Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">28 May</span>
-        <span class="why">17 days · client-set</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2225</div>
-      <div class="cell r-matter">
-        <div class="mt">Reseller agreement <em>· revenue share</em></div>
-        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Reseller · Iberia Tech</span><span class="dot">·</span><span class="new">VOICE</span></div>
-      </div>
-      <div class="cell c-type r-type">Reseller</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Intake <em>· paper not received</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span class="current">Intake</span><span>Scan</span><span>Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">04 Jun</span>
-        <span class="why">24 days · soft</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2218</div>
-      <div class="cell r-matter">
-        <div class="mt">Employment offer · senior counsel <em>· stock + non-compete</em></div>
-        <div class="sub"><span>Holton Capital</span><span class="dot">·</span><span>Candidate · J. Pierce</span></div>
-      </div>
-      <div class="cell c-type r-type">Employment</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Redline <em>· 02 of 06</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">11 Jun</span>
-        <span class="why">31 days · candidate</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2214</div>
-      <div class="cell r-matter">
-        <div class="mt">Reciprocal NDA <em>· investor diligence</em></div>
-        <div class="sub"><span>Cyrus Industries</span><span class="dot">·</span><span>Counter · Bridgewell</span></div>
-      </div>
-      <div class="cell c-type r-type">NDA</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Closing <em>· DocuSign sent</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg current"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span class="current">Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">Awaiting</span>
-        <span class="why">Signature · counter-party</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2209</div>
-      <div class="cell r-matter">
-        <div class="mt">Customer paper · NewLeaf Co. <em>· enterprise SaaS</em></div>
-        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Customer · A. Voss</span></div>
-      </div>
-      <div class="cell c-type r-type">Customer paper</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Negotiation <em>· round 3</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span class="current">Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">06 Jun</span>
-        <span class="why">26 days · target close</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2204</div>
-      <div class="cell r-matter">
-        <div class="mt">Sub-processor amendment <em>· EU residency</em></div>
-        <div class="sub"><span>Pickwick Bros.</span><span class="dot">·</span><span>Vendor · Datadog</span></div>
-      </div>
-      <div class="cell c-type r-type">DPA</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Scan <em>· running tabular</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg current"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span class="current">Scan</span><span>Redline</span><span>Close</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">12 Jun</span>
-        <span class="why">32 days · firm</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <!-- group: Watching -->
-    <div class="grp-row">
-      <span class="grp-l"><span>§ 03 · Watching · agent-monitored</span><span class="n">3 matters</span></span>
-      <span class="grp-r">Pings you if anything changes</span>
-    </div>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2197</div>
-      <div class="cell r-matter">
-        <div class="mt">Acme MSA <em>· post-execution monitoring</em></div>
-        <div class="sub"><span>Magic Inc.</span><span class="dot">·</span><span>Executed 12 Mar 2025</span></div>
-      </div>
-      <div class="cell c-type r-type">Vendor MSA</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Watching <em>· auto-renew Q3</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span>Closed</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">12 Sep</span>
-        <span class="why">124 days · renewal window</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2188</div>
-      <div class="cell r-matter">
-        <div class="mt">Holton fund · LPA monitoring <em>· side letters</em></div>
-        <div class="sub"><span>Holton Capital</span><span class="dot">·</span><span>17 LPs</span></div>
-      </div>
-      <div class="cell c-type r-type">LPA</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Watching <em>· quarterly</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span>Closed</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">30 Jun</span>
-        <span class="why">Q2 report · pull data</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
-
-    <a class="row" href="/agents/paralegal/matter/">
-      <div class="cell r-check"><input type="checkbox"></div>
-      <div class="cell r-id"><b>MTR</b>-2179</div>
-      <div class="cell r-matter">
-        <div class="mt">FL § 713 portfolio <em>· mechanics lien deadlines</em></div>
-        <div class="sub"><span>Cyrus Industries</span><span class="dot">·</span><span>14 active projects</span></div>
-      </div>
-      <div class="cell c-type r-type">Portfolio</div>
-      <div class="cell r-stage">
-        <span class="s-label">Stage</span>
-        <span class="s-val">Watching <em>· statute clock</em></span>
-      </div>
-      <div class="cell stages-wrap">
-        <div class="stages">
-          <div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div>
-        </div>
-        <div class="stages-l"><span>Intake</span><span>Scan</span><span>Redline</span><span>Closed</span></div>
-      </div>
-      <div class="cell r-due">
-        <span class="when">Rolling</span>
-        <span class="why">3 projects · 90-day clock</span>
-      </div>
-      <div class="cell r-actions">
-        <button class="r-act voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
-        <button class="r-act"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
-      </div>
-    </a>
 
   </section>
 
@@ -709,16 +394,342 @@ button{font:inherit;cursor:pointer}
 
 </div>
 
+<!-- ============================================================
+     NEW MATTER MODAL
+     ============================================================ -->
+<div id="new-matter-veil" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(14,21,18,.45);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:40px 16px">
+  <div style="background:var(--paper);border:1px solid var(--ink);border-radius:6px;max-width:520px;width:100%;padding:32px 32px 26px;box-shadow:0 30px 80px rgba(14,21,18,.32);position:relative">
+    <button id="nm-close" style="position:absolute;top:14px;right:14px;width:28px;height:28px;border:1px solid var(--rule-thread);border-radius:50%;background:transparent;color:var(--ink-3);display:inline-flex;align-items:center;justify-content:center">×</button>
+    <span style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px;display:block">AGT · 03 · NEW MATTER</span>
+    <h2 style="font-family:var(--serif);font-size:34px;line-height:1.04;margin:0 0 6px;font-weight:400">Open a <em style="font-style:italic;color:var(--accent-deep)">matter</em>.</h2>
+    <p style="font-family:var(--serif);font-size:16px;line-height:1.5;color:var(--ink-2);margin:8px 0 18px">The Paralegal grounds against whichever matter is active. Required fields only — flesh out details on the matter page.</p>
+    <form id="nm-form" style="display:grid;gap:12px">
+      <div style="display:grid;gap:4px">
+        <label style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Client *</label>
+        <input id="nm-client" type="text" required placeholder="Magic Inc." style="font-family:var(--serif);font-size:16px;padding:9px 11px;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;color:var(--ink);outline:none" />
+      </div>
+      <div style="display:grid;gap:4px">
+        <label style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Counter-party</label>
+        <input id="nm-cp" type="text" placeholder="Acme Robotics" style="font-family:var(--serif);font-size:16px;padding:9px 11px;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;color:var(--ink);outline:none" />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="display:grid;gap:4px">
+          <label style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Matter type</label>
+          <input id="nm-type" type="text" placeholder="Vendor MSA, DPA, Lease…" style="font-family:var(--serif);font-size:16px;padding:9px 11px;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;color:var(--ink);outline:none" />
+        </div>
+        <div style="display:grid;gap:4px">
+          <label style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Posture</label>
+          <input id="nm-posture" type="text" placeholder="client-side · SaaS" style="font-family:var(--serif);font-size:16px;padding:9px 11px;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;color:var(--ink);outline:none" />
+        </div>
+      </div>
+      <div style="display:grid;gap:4px">
+        <label style="font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Response due (optional)</label>
+        <input id="nm-due" type="date" style="font-family:var(--serif);font-size:16px;padding:9px 11px;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;color:var(--ink);outline:none" />
+      </div>
+      <button id="nm-submit" type="submit" style="margin-top:6px;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);border:1px solid var(--ink);font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase">Open matter</button>
+    </form>
+    <div id="nm-error" style="margin-top:12px;font-family:var(--mono);font-size:10px;color:var(--sev-block);display:none"></div>
+  </div>
+</div>
+
 <footer class="foot">
   <span>LEGAL OVERFLOW · BEYEL BROTHERS · COCOA, FL · <b>Florida Bar No. 1042871</b></span>
   <span>This site is attorney advertising. Not legal advice. · <b>v0.4.2</b></span>
 </footer>
 
 <script>
-/* checkboxes -> selection bar */
+import { getSupabase } from '../../../lib/supabase';
+
+const supabase = getSupabase();
+
+// Auth gate: visitors must be signed in. Approval-gate is enforced server-side.
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) {
+  location.href = '/login/?redirect=/agents/paralegal/matters/';
+  throw new Error('not signed in');
+}
+const accessToken = session.access_token;
+
+const rowsEl = document.getElementById('matters-rows');
+const emptyEl = document.getElementById('matters-empty');
+const loadingEl = document.getElementById('matters-loading');
+
+const STAGE_ORDER = ['intake', 'conflict', 'quick_scan', 'redline', 'sign', 'watch'];
+const STAGE_LABELS = { intake:'Intake', conflict:'Conflict', quick_scan:'Scan', redline:'Redline', sign:'Sign', watch:'Watch' };
+
+let state = { status: 'active', client: '', type: '', sort: 'updated', q: '' };
+let allMatters = [];
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+}
+
+function fmtDue(iso) {
+  if (!iso) return { when: '—', why: '' };
+  const d = new Date(iso);
+  const now = new Date();
+  const days = Math.round((d - now) / 86400000);
+  const opts = { month: 'short', day: '2-digit' };
+  const when = d.toLocaleDateString(undefined, opts);
+  let cls = '';
+  let why = '';
+  if (days < 0) { cls = 'now'; why = `${Math.abs(days)} days overdue`; }
+  else if (days <= 3) { cls = 'warn'; why = `${days} day${days === 1 ? '' : 's'} · soon`; }
+  else if (days <= 14) { cls = 'warn'; why = `${days} days`; }
+  else { why = `${days} days`; }
+  return { when, why, cls };
+}
+
+function stageProgress(stage) {
+  const idx = STAGE_ORDER.indexOf(stage);
+  const segs = STAGE_ORDER.map((s, i) => {
+    if (i < idx) return '<div class="seg done"></div>';
+    if (i === idx) return '<div class="seg current"></div>';
+    return '<div class="seg"></div>';
+  }).join('');
+  const labels = ['Intake', 'Scan', 'Redline', 'Close'].map((l, i) => {
+    const stageIdx = i === 0 ? 0 : i === 1 ? 2 : i === 2 ? 3 : 5;
+    const cls = stageIdx === idx ? ' class="current"' : '';
+    return `<span${cls}>${l}</span>`;
+  }).join('');
+  return `<div class="stages">${segs}</div><div class="stages-l">${labels}</div>`;
+}
+
+function renderRows(matters) {
+  if (matters.length === 0) {
+    rowsEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  // Group by due-this-week vs rest
+  const oneWeek = Date.now() + 7 * 86400000;
+  const dueSoon = matters.filter(m => m.response_due && new Date(m.response_due).getTime() <= oneWeek);
+  const rest = matters.filter(m => !dueSoon.includes(m));
+
+  let html = '';
+  if (dueSoon.length) {
+    html += `<div class="grp-row first">
+      <span class="grp-l"><span>§ 01 · Due this week</span><span class="n">${dueSoon.length} matter${dueSoon.length === 1 ? '' : 's'}</span></span>
+      <span class="grp-r">Time-sensitive · auto-promoted</span>
+    </div>`;
+    html += dueSoon.map(rowHtml).join('');
+  }
+  if (rest.length) {
+    html += `<div class="grp-row${dueSoon.length === 0 ? ' first' : ''}">
+      <span class="grp-l"><span>§ ${dueSoon.length ? '02' : '01'} · Open · no immediate deadline</span><span class="n">${rest.length} matter${rest.length === 1 ? '' : 's'}</span></span>
+      <span class="grp-r">Background work continues</span>
+    </div>`;
+    html += rest.map(rowHtml).join('');
+  }
+  rowsEl.innerHTML = html;
+
+  // Wire row action buttons (prevent navigation)
+  rowsEl.querySelectorAll('.r-act').forEach(b => {
+    b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+  });
+  rowsEl.querySelectorAll('.r-act.voice').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = b.closest('.row').dataset.id;
+      location.href = `/agents/paralegal/session/?matter=${id}`;
+      // (Phase 3 wires this for real)
+    });
+  });
+  rowsEl.querySelectorAll('.r-check input').forEach(cb => {
+    cb.addEventListener('click', e => e.stopPropagation());
+  });
+}
+
+function rowHtml(m) {
+  const idShort = (m.id || '').slice(0, 8).toUpperCase();
+  const stage = m.stage || 'intake';
+  const stageLabel = STAGE_LABELS[stage] || stage;
+  const stageStep = STAGE_ORDER.indexOf(stage) + 1;
+  const due = fmtDue(m.response_due);
+  const title = `${escapeHtml(m.matter_type || m.client)}${m.counter_party ? ' — <em>' + escapeHtml(m.counter_party) + '</em>' : ''}`;
+  const voice = m.voice_enabled ? '<span class="dot">·</span><span class="new">VOICE</span>' : '';
+  return `<a class="row" href="/agents/paralegal/matter/?id=${m.id}" data-id="${m.id}">
+    <div class="cell r-check"><input type="checkbox"></div>
+    <div class="cell r-id"><b>MTR</b>-${idShort}</div>
+    <div class="cell r-matter">
+      <div class="mt">${title}</div>
+      <div class="sub"><span>${escapeHtml(m.client)}</span>${m.counter_party ? '<span class="dot">·</span><span>Counter · ' + escapeHtml(m.counter_party) + '</span>' : ''}${voice}</div>
+    </div>
+    <div class="cell c-type r-type">${escapeHtml(m.matter_type || '—')}</div>
+    <div class="cell r-stage">
+      <span class="s-label">Stage</span>
+      <span class="s-val">${stageLabel} <em>· ${String(stageStep).padStart(2,'0')} of 06</em></span>
+    </div>
+    <div class="cell stages-wrap">
+      ${stageProgress(stage)}
+    </div>
+    <div class="cell r-due">
+      <span class="when${due.cls ? ' ' + due.cls : ''}">${due.when}</span>
+      <span class="why">${due.why}</span>
+    </div>
+    <div class="cell r-actions">
+      <button class="r-act voice" title="Start voice session"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg></button>
+      <button class="r-act" title="Open matter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>
+    </div>
+  </a>`;
+}
+
+function applyFilters() {
+  let m = allMatters.slice();
+  if (state.client) m = m.filter(x => x.client === state.client);
+  if (state.type) m = m.filter(x => x.matter_type === state.type);
+  if (state.q) {
+    const q = state.q.toLowerCase();
+    m = m.filter(x =>
+      (x.client && x.client.toLowerCase().includes(q)) ||
+      (x.counter_party && x.counter_party.toLowerCase().includes(q)) ||
+      (x.matter_type && x.matter_type.toLowerCase().includes(q))
+    );
+  }
+  if (state.sort === 'due') {
+    m.sort((a, b) => (a.response_due || '9999').localeCompare(b.response_due || '9999'));
+  } else if (state.sort === 'client') {
+    m.sort((a, b) => (a.client || '').localeCompare(b.client || ''));
+  } else if (state.sort === 'stage') {
+    m.sort((a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
+  }
+  // updated is default order from API
+  renderRows(m);
+}
+
+function renderCounts() {
+  const open = allMatters.filter(m => m.status === 'active' || m.status === 'watching').length;
+  const clients = new Set(allMatters.map(m => m.client)).size;
+  const oneWeek = Date.now() + 7 * 86400000;
+  const due = allMatters.filter(m => m.response_due && new Date(m.response_due).getTime() <= oneWeek).length;
+  const pending = allMatters.reduce((sum, m) => sum + (m.counts?.pending || 0), 0);
+  const jobs = 0; // wired in Phase 4 when run_* jobs exist
+  const hours = allMatters.reduce((sum, m) => sum + (Number(m.hours_billed) || 0), 0);
+
+  document.getElementById('cnt-open').textContent = open;
+  document.getElementById('cnt-clients').textContent = clients;
+  document.getElementById('cnt-due').textContent = due;
+  document.getElementById('cnt-due-d').textContent = due === 0 ? 'No deadlines this week' : `${due} matter${due===1?'':'s'} need attention`;
+  document.getElementById('cnt-pending').textContent = pending;
+  document.getElementById('cnt-jobs').textContent = jobs;
+  document.getElementById('cnt-hours').textContent = hours.toFixed(1);
+}
+
+function populateFilters() {
+  const clients = [...new Set(allMatters.map(m => m.client).filter(Boolean))].sort();
+  const types = [...new Set(allMatters.map(m => m.matter_type).filter(Boolean))].sort();
+  const clientSel = document.getElementById('client-filter');
+  const typeSel = document.getElementById('type-filter');
+  clientSel.innerHTML = '<option value="">All clients</option>' + clients.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  typeSel.innerHTML = '<option value="">All types</option>' + types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+}
+
+async function loadMatters() {
+  loadingEl.style.display = 'block';
+  rowsEl.innerHTML = '';
+  emptyEl.style.display = 'none';
+  try {
+    const url = new URL('/.netlify/functions/paralegal-matters-list', location.origin);
+    if (state.status !== 'all') url.searchParams.set('status', state.status);
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to load matters');
+    allMatters = j.matters || [];
+  } catch (err) {
+    console.error('[matters] load failed', err);
+    loadingEl.textContent = 'Failed to load: ' + (err.message || 'unknown');
+    return;
+  }
+  loadingEl.style.display = 'none';
+  populateFilters();
+  renderCounts();
+  applyFilters();
+}
+
+// Status filter
+document.getElementById('status-filter').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('#status-filter button').forEach(b => b.classList.remove('is-active'));
+  btn.classList.add('is-active');
+  state.status = btn.dataset.status;
+  loadMatters();
+});
+
+// Client / type / sort filters (local-only after initial load)
+document.getElementById('client-filter').addEventListener('change', e => {
+  state.client = e.target.value;
+  applyFilters();
+});
+document.getElementById('type-filter').addEventListener('change', e => {
+  state.type = e.target.value;
+  applyFilters();
+});
+document.getElementById('sort-by').addEventListener('change', e => {
+  state.sort = e.target.value;
+  applyFilters();
+});
+document.getElementById('matters-search').addEventListener('input', e => {
+  state.q = e.target.value.trim();
+  applyFilters();
+});
+
+// New matter modal
+const nmVeil = document.getElementById('new-matter-veil');
+const nmForm = document.getElementById('nm-form');
+const nmErr = document.getElementById('nm-error');
+
+function openNewMatter() {
+  nmVeil.style.display = 'flex';
+  document.getElementById('nm-client').focus();
+}
+function closeNewMatter() {
+  nmVeil.style.display = 'none';
+  nmForm.reset();
+  nmErr.style.display = 'none';
+}
+document.getElementById('btn-new-matter').addEventListener('click', openNewMatter);
+document.getElementById('nm-close').addEventListener('click', closeNewMatter);
+nmVeil.addEventListener('click', e => { if (e.target === nmVeil) closeNewMatter(); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeNewMatter(); });
+
+nmForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  nmErr.style.display = 'none';
+  const body = {
+    client: document.getElementById('nm-client').value.trim(),
+    counter_party: document.getElementById('nm-cp').value.trim() || null,
+    matter_type: document.getElementById('nm-type').value.trim() || null,
+    posture: document.getElementById('nm-posture').value.trim() || null,
+    response_due: document.getElementById('nm-due').value || null,
+  };
+  if (!body.client) return;
+  const submit = document.getElementById('nm-submit');
+  submit.disabled = true;
+  submit.textContent = 'Opening…';
+  try {
+    const r = await fetch('/.netlify/functions/paralegal-matters-create', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Failed to create matter');
+    // Land directly on the new matter detail page
+    location.href = `/agents/paralegal/matter/?id=${j.matter.id}`;
+  } catch (err) {
+    nmErr.textContent = err.message || 'Failed to create matter';
+    nmErr.style.display = 'block';
+    submit.disabled = false;
+    submit.textContent = 'Open matter';
+  }
+});
+
+// Selection bar (checkbox bulk actions — visual only this phase)
 const bar = document.getElementById('sel-bar');
 const cnt = document.getElementById('sel-count');
-function refresh() {
+function refreshSelBar() {
   const checked = document.querySelectorAll('.r-check input:checked');
   if (checked.length > 0) {
     bar.classList.add('is-open');
@@ -727,27 +738,15 @@ function refresh() {
     bar.classList.remove('is-open');
   }
 }
-document.querySelectorAll('.r-check input').forEach(cb => {
-  cb.addEventListener('click', e => e.stopPropagation());
-  cb.addEventListener('change', refresh);
+document.addEventListener('change', e => {
+  if (e.target.matches('.r-check input')) refreshSelBar();
 });
 document.getElementById('sel-clear').addEventListener('click', () => {
-  document.querySelectorAll('.r-check input:checked').forEach(cb => cb.checked = false);
-  refresh();
+  document.querySelectorAll('.r-check input:checked').forEach(cb => { cb.checked = false; });
+  refreshSelBar();
 });
 
-/* filter button group */
-document.querySelectorAll('.f-grp button').forEach(b => {
-  b.addEventListener('click', () => {
-    b.parentElement.querySelectorAll('button').forEach(x => x.classList.remove('is-active'));
-    b.classList.add('is-active');
-  });
-});
-
-/* prevent row nav when clicking inline action buttons */
-document.querySelectorAll('.r-act').forEach(btn => {
-  btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
-});
+loadMatters();
 </script>
 </body>
 </html>

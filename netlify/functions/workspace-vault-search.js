@@ -45,24 +45,51 @@ export default async (req) => {
     ? body.kinds.filter((k) => VALID_KINDS.has(k))
     : null;
   const mode = VALID_MODES.has(String(body.mode)) ? String(body.mode) : 'hybrid';
+  // Optional matter scoping: when supplied, results pinned to that matter
+  // get a 1.3× score boost so the paralegal agent surfaces in-file
+  // documents ahead of generic vault hits.
+  const matterId = typeof body.matter_id === 'string' && body.matter_id ? body.matter_id : null;
 
   const supabase = getSupabaseAdmin();
   try {
     const filterKinds = kinds && kinds.length ? kinds : null;
 
+    // Pre-fetch the set of vault item IDs attached to the given matter
+    // (if any). The actual boost is applied below after retrieval.
+    let matterItemIds = null;
+    if (matterId) {
+      const { data: mItems } = await supabase
+        .from('paralegal_matter_items')
+        .select('item_ref_id')
+        .eq('user_id', auth.user.id)
+        .eq('matter_id', matterId)
+        .eq('item_kind', 'vault_item');
+      matterItemIds = new Set((mItems || []).map((r) => r.item_ref_id).filter(Boolean));
+    }
+
+    function applyMatterBoost(results) {
+      if (!matterItemIds || matterItemIds.size === 0) return results;
+      return results.map((r) => {
+        if (r.item && matterItemIds.has(r.item.id)) {
+          return { ...r, score: (r.score ?? 0) * 1.3, in_matter: true };
+        }
+        return r;
+      }).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    }
+
     if (mode === 'keyword') {
       const results = await keywordSearchVault({
         supabase, userId: auth.user.id, query, topK, kinds: filterKinds,
       });
-      return json({ results, mode });
+      return json({ results: applyMatterBoost(results), mode });
     }
 
     if (mode === 'semantic') {
       const results = await searchVault({
         supabase, userId: auth.user.id, query, topK, kinds: filterKinds,
       });
-      // Tag match_type for UI consistency.
-      return json({ results: results.map((r) => ({ ...r, match_type: 'semantic' })), mode });
+      const tagged = results.map((r) => ({ ...r, match_type: 'semantic' }));
+      return json({ results: applyMatterBoost(tagged), mode });
     }
 
     // mode === 'hybrid' — run both in parallel and merge.
@@ -87,7 +114,7 @@ export default async (req) => {
       seen.add(r.item.id);
       merged.push({ ...r, match_type: 'keyword' });
     }
-    return json({ results: merged.slice(0, topK), mode });
+    return json({ results: applyMatterBoost(merged).slice(0, topK), mode });
   } catch (err) {
     console.error('[vault-search] failed:', err);
     return json({ error: 'Search failed — please try again' }, 500);

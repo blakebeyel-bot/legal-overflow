@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>
+<style is:global>
 :root {
   --paper: #f3efe6;
   --paper-2: #ebe6d9;
@@ -509,6 +509,38 @@ main {
   }
   .mob-tab.is-active { color: var(--ink); background: var(--paper-2); }
 }
+
+/* ---------- paralegal walkthrough tabs (top strip) ---------- */
+.para-tabs {
+  position: relative; z-index: 2;
+  max-width: 1280px; margin: 12px auto 0; padding: 0 40px;
+  display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.pt-tab {
+  display: inline-flex; gap: 10px; align-items: baseline;
+  padding: 14px 18px;
+  background: transparent; border: none; color: var(--ink-3);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  position: relative;
+  transition: color .2s;
+  text-decoration: none;
+}
+.pt-tab .pt-tn { font-family: var(--mono); font-size: 10px; color: var(--ink-4); }
+.pt-tab .pt-tnm { font-family: var(--serif); font-style: italic; font-size: 18px; letter-spacing: -.005em; text-transform: none; color: var(--ink-2); }
+.pt-tab:hover { color: var(--ink); }
+.pt-tab:hover .pt-tnm { color: var(--ink); }
+.pt-tab.is-active { color: var(--ink); }
+.pt-tab.is-active .pt-tnm { color: var(--ink); }
+.pt-tab.is-active::after {
+  content: ''; position: absolute; left: 18px; right: 18px; bottom: -1px; height: 1px;
+  background: var(--voice);
+}
+@media (max-width: 720px) {
+  .para-tabs { padding: 0 18px; }
+  .pt-tab { padding: 10px 12px; }
+  .pt-tab .pt-tnm { font-size: 16px; }
+}
 </style>
 </head>
 <body>
@@ -572,6 +604,15 @@ main {
     <button class="t-end" id="end-btn">End session</button>
   </div>
 </header>
+
+<nav class="para-tabs" role="tablist" aria-label="Paralegal walkthrough">
+  <a class="pt-tab" href="/agents/paralegal/"><span class="pt-tn">§ E.00</span><span class="pt-tnm">Overview</span></a>
+  <a class="pt-tab is-active" href="/agents/paralegal/session/"><span class="pt-tn">§ E.01</span><span class="pt-tnm">Live session</span></a>
+  <a class="pt-tab" href="/agents/paralegal/matters/"><span class="pt-tn">§ E.02</span><span class="pt-tnm">Matter log</span></a>
+  <a class="pt-tab" href="/agents/paralegal/matter/"><span class="pt-tn">§ E.03</span><span class="pt-tnm">Matter detail</span></a>
+  <a class="pt-tab" href="/agents/paralegal/settings/"><span class="pt-tn">§ E.04</span><span class="pt-tnm">Settings</span></a>
+</nav>
+
 
 <!-- ============================================================
      EDITORIAL STRIP
@@ -850,7 +891,7 @@ main {
   <button class="mob-tab" data-col="col-approvals">Approvals</button>
 </nav>
 
-<script>
+<script is:inline>
 /* ---------- matter dropdown ---------- */
 const sel = document.getElementById('matter-sel');
 sel.addEventListener('click', (e) => {

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>
+<style is:global>
 /* ---------- carry-over tokens ---------- */
 :root {
   --paper: #f3efe6;
@@ -489,6 +489,38 @@ main { position: relative; z-index: 2; max-width: 1280px; margin: 0 auto; paddin
 .foot p { margin: 0 0 6px; line-height: 1.55; }
 .foot .f-r { text-align: right; }
 @media (max-width: 720px) { .foot { grid-template-columns: 1fr; } .foot .f-r { text-align: left; } }
+
+/* ---------- paralegal walkthrough tabs (top strip) ---------- */
+.para-tabs {
+  position: relative; z-index: 2;
+  max-width: 1280px; margin: 12px auto 0; padding: 0 40px;
+  display: flex; gap: 0; align-items: center; flex-wrap: wrap;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.pt-tab {
+  display: inline-flex; gap: 10px; align-items: baseline;
+  padding: 14px 18px;
+  background: transparent; border: none; color: var(--ink-3);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  position: relative;
+  transition: color .2s;
+  text-decoration: none;
+}
+.pt-tab .pt-tn { font-family: var(--mono); font-size: 10px; color: var(--ink-4); }
+.pt-tab .pt-tnm { font-family: var(--serif); font-style: italic; font-size: 18px; letter-spacing: -.005em; text-transform: none; color: var(--ink-2); }
+.pt-tab:hover { color: var(--ink); }
+.pt-tab:hover .pt-tnm { color: var(--ink); }
+.pt-tab.is-active { color: var(--ink); }
+.pt-tab.is-active .pt-tnm { color: var(--ink); }
+.pt-tab.is-active::after {
+  content: ''; position: absolute; left: 18px; right: 18px; bottom: -1px; height: 1px;
+  background: var(--voice);
+}
+@media (max-width: 720px) {
+  .para-tabs { padding: 0 18px; }
+  .pt-tab { padding: 10px 12px; }
+  .pt-tab .pt-tnm { font-size: 16px; }
+}
 </style>
 </head>
 <body>
@@ -511,18 +543,14 @@ main { position: relative; z-index: 2; max-width: 1280px; margin: 0 auto; paddin
   <div class="nav-right"><a href="#" class="nav-sub">Account</a></div>
 </header>
 
-<!-- agent sub-nav -->
-<div class="agent-sub-nav" role="tablist" aria-label="Agents">
-  <a class="ag-tab" href="/agents/contract-review/">
-    <span class="tn">AGT&nbsp;·&nbsp;01</span><span class="tnm">Contract Review</span>
-  </a>
-  <a class="ag-tab" href="/agents/citation-verifier/">
-    <span class="tn">AGT&nbsp;·&nbsp;02</span><span class="tnm">Citation Verifier</span>
-  </a>
-  <a class="ag-tab is-active" href="/agents/paralegal/">
-    <span class="tn">AGT&nbsp;·&nbsp;03</span><span class="tnm">Paralegal</span>
-  </a>
-</div>
+<nav class="para-tabs" role="tablist" aria-label="Paralegal walkthrough">
+  <a class="pt-tab is-active" href="/agents/paralegal/"><span class="pt-tn">§ E.00</span><span class="pt-tnm">Overview</span></a>
+  <a class="pt-tab" href="/agents/paralegal/session/"><span class="pt-tn">§ E.01</span><span class="pt-tnm">Live session</span></a>
+  <a class="pt-tab" href="/agents/paralegal/matters/"><span class="pt-tn">§ E.02</span><span class="pt-tnm">Matter log</span></a>
+  <a class="pt-tab" href="/agents/paralegal/matter/"><span class="pt-tn">§ E.03</span><span class="pt-tnm">Matter detail</span></a>
+  <a class="pt-tab" href="/agents/paralegal/settings/"><span class="pt-tn">§ E.04</span><span class="pt-tnm">Settings</span></a>
+</nav>
+
 
 <main>
 
@@ -785,7 +813,7 @@ main { position: relative; z-index: 2; max-width: 1280px; margin: 0 auto; paddin
   </div>
 </footer>
 
-<script>
+<script is:inline>
 /* ---------- waveform bars ---------- */
 (function buildWave(){
   const wave = document.getElementById('wave');
