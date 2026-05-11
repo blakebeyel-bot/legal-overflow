@@ -64,9 +64,44 @@ export default async (req) => {
     .from('profiles')
     .update(update)
     .eq('id', user_id)
-    .select('id, email, tier, approved_at, approval_note, review_cap_override, citation_cap_override')
+    .select('id, email, tier, approved_at, approval_note, review_cap_override, citation_cap_override, full_name, organization')
     .single();
   if (error) return json({ error: error.message }, 500);
+
+  // Side effect: when a user is APPROVED (approve === true), trigger a
+  // Supabase magic-link email so they hear about it without having to
+  // poll. Uses Supabase Auth's built-in mailer — no new email vendor.
+  // Failure is non-fatal: the DB row is the source of truth; the email
+  // is a courtesy.
+  if (approve === true) {
+    try {
+      const siteUrl = process.env.URL
+        || process.env.DEPLOY_PRIME_URL
+        || 'https://legaloverflow.com';
+      const linkOpts = {
+        redirectTo: `${siteUrl.replace(/\/$/, '')}/workspace/`,
+      };
+      // Pass approval_note + full_name through to the email template so
+      // the dashboard-side template can render `{{ .Data.approval_note }}`.
+      const tplData = {};
+      if (data?.approval_note) tplData.approval_note = data.approval_note;
+      if (data?.full_name) tplData.full_name = data.full_name;
+      if (Object.keys(tplData).length) linkOpts.data = tplData;
+
+      const { error: linkErr } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email: data?.email,
+        options: linkOpts,
+      });
+      if (linkErr) {
+        console.warn(`[admin-update-user] magiclink send failed for ${user_id}: ${linkErr.message}`);
+      } else {
+        console.log(`[admin-update-user] approval magiclink dispatched to ${data?.email}`);
+      }
+    } catch (mailErr) {
+      console.warn(`[admin-update-user] magiclink threw for ${user_id}: ${mailErr?.message || mailErr}`);
+    }
+  }
 
   return json({ ok: true, user: data });
 };

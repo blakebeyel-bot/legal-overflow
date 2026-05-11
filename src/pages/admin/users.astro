@@ -112,7 +112,7 @@
       <button data-filter="pending">Pending</button>
       <button data-filter="approved">Approved</button>
     </div>
-    <input type="search" id="adm-search" class="adm-search" placeholder="Search email…" />
+    <input type="search" id="adm-search" class="adm-search" placeholder="Search email, name, or organization…" />
     <div class="adm-stats" id="adm-stats">—</div>
   </div>
 
@@ -204,7 +204,11 @@
   function render() {
     const q = (search.value || '').toLowerCase().trim();
     const list = users.filter(u => {
-      if (q && !(u.email || '').toLowerCase().includes(q)) return false;
+      if (q) {
+        const haystack = [u.email, u.full_name, u.organization]
+          .filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
       if (filter === 'pending') return !u.approved_at;
       if (filter === 'approved') return !!u.approved_at;
       return true;
@@ -228,6 +232,7 @@
         <tr class="adm-row ${isPending ? 'pending' : ''}" data-id="${escapeHtml(u.id)}">
           <td>
             <div class="adm-email">${escapeHtml(u.email || '—')}</div>
+            ${u.full_name ? `<div style="font-size:12.5px;color:var(--ink-2);">${escapeHtml(u.full_name)}${u.organization ? ` <span style="color:var(--ink-3);">· ${escapeHtml(u.organization)}</span>` : ''}</div>` : ''}
             <div class="adm-meta">${escapeHtml(u.id.slice(0, 8))}…</div>
           </td>
           <td><span class="adm-status-pill ${isPending ? 'pending' : 'approved'}">${isPending ? 'Pending' : 'Approved'}</span></td>

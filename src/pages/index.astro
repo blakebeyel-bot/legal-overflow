@@ -95,6 +95,7 @@ const gridArticles = all.filter((a) => a.slug !== featured?.slug);
     </nav>
     <div class="nav-right">
       <a href="/account/" class="nav-sub">Account</a>
+      <button type="button" id="nav-signout" class="nav-sub" hidden style="background:transparent;border:none;font:inherit;color:inherit;cursor:pointer;padding:0;margin-left:14px;">Sign out</button>
     </div>
   </header>
 
@@ -1716,6 +1717,32 @@ State X (UPC-based)
   }
 })();
 
+</script>
+
+<!-- One-click sign-out from the marketing nav. Only revealed when a
+     Supabase session is detected client-side. Uses the same browser
+     client every other page uses so it shares the cached session. -->
+<script>
+  import { getSupabase } from '../lib/supabase';
+  (async function bindNavSignout() {
+    try {
+      const supabase = getSupabase();
+      const { data: { session } } = await supabase.auth.getSession();
+      const btn = document.getElementById('nav-signout');
+      if (!btn) return;
+      if (session) {
+        btn.hidden = false;
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          await supabase.auth.signOut();
+          location.href = '/';
+        });
+      }
+    } catch (err) {
+      // Non-fatal: marketing nav stays as-is if the auth check fails.
+      console.warn('[nav-signout] init failed:', err?.message || err);
+    }
+  })();
 </script>
 
 <DownloadGate />

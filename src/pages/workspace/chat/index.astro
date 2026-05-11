@@ -175,6 +175,23 @@
     /* Hide informational-only key-source label; the chat still works,
        it's just metadata about which API key was used. */
     body.ws-chat #key-source { display: none; }
+    /* The SESSION /WS · CHT-XX kicker line is already visible in the
+       breadcrumb above the chat-head — hide on mobile to reclaim a row. */
+    body.ws-chat .chat-head .chat-kicker { display: none; }
+    /* The .chat-meta strip duplicates info shown elsewhere on mobile:
+       MODEL is in the dropdown above; MESSAGES count is on the sidebar
+       chat row; STARTED rarely matters mid-conversation. Hide entirely
+       on mobile so the chat starts higher on the screen. */
+    body.ws-chat .chat-head .chat-meta { display: none; }
+    /* "Save conversation" → icon-only on mobile. The bookmark icon is
+       self-explanatory; the label costs a whole row otherwise. */
+    body.ws-chat .chat-save-convo-btn span { display: none; }
+    body.ws-chat .chat-save-convo-btn {
+      width: 36px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    /* Tighten the gap between the title row and the controls below. */
+    body.ws-chat .chat-head { padding-bottom: 14px; }
     /* Chat title needs to wrap onto its own line so the buttons have
        room. Cap clamp() floor smaller for narrow screens. */
     body.ws-chat .chat-title-input {

@@ -6,7 +6,7 @@ import Consent from '../partials/consent.astro';
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sign in — Legal Overflow</title>
+<title>Sign up — Legal Overflow</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -21,20 +21,81 @@ import Consent from '../partials/consent.astro';
   .auth-sub { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 0 28px; }
   .auth-form { display: flex; flex-direction: column; gap: 14px; }
   .auth-form label { font-family: var(--mono); font-size: 11px; color: var(--ink); letter-spacing: .04em; text-transform: uppercase; }
-  .auth-form input { font-family: var(--sans); font-size: 15px; padding: 12px 14px; background: #fff; border: 1px solid var(--rule-soft); border-radius: 6px; color: var(--ink); }
+  /* font-size 16px on inputs prevents iOS Safari auto-zoom on focus. */
+  .auth-form input[type="text"],
+  .auth-form input[type="email"],
+  .auth-form input[type="password"] {
+    font-family: var(--sans); font-size: 16px; padding: 12px 14px;
+    background: #fff; border: 1px solid var(--rule-soft);
+    border-radius: 6px; color: var(--ink);
+    width: 100%; box-sizing: border-box;
+  }
   .auth-form input:focus { outline: none; border-color: var(--accent-deep); }
+  /* Password field wraps a show/hide eye button. */
+  .auth-pw-wrap { position: relative; }
+  .auth-pw-toggle {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: transparent; border: none; color: var(--ink-3);
+    padding: 6px; cursor: pointer; display: flex; align-items: center;
+    border-radius: 4px;
+  }
+  .auth-pw-toggle:hover { color: var(--ink); }
+  .auth-pw-toggle svg { width: 18px; height: 18px; }
+  /* Honeypot — visually hidden but available to dumb bots. */
+  .auth-honeypot {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  /* ToS checkbox row. */
+  .auth-tos {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-family: var(--sans); font-size: 13px; color: var(--ink-2);
+    line-height: 1.45;
+    margin-top: 4px;
+    text-transform: none; letter-spacing: 0;
+  }
+  .auth-tos input[type="checkbox"] {
+    margin-top: 3px;
+    width: 16px; height: 16px;
+    flex-shrink: 0;
+    accent-color: var(--accent-deep);
+  }
+  .auth-tos a { color: var(--accent-deep); border-bottom: 1px solid var(--accent); }
   .auth-submit {
     font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
     padding: 14px 24px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
     border-radius: 999px; cursor: pointer; transition: background .2s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   }
   .auth-submit:hover:not(:disabled) { background: var(--accent-deep); border-color: var(--accent-deep); }
   .auth-submit:disabled { opacity: .6; cursor: wait; }
+  .auth-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--paper); border-top-color: transparent;
+    border-radius: 50%;
+    animation: auth-spin 0.7s linear infinite;
+    display: none;
+  }
+  .auth-submit.is-loading .auth-spinner { display: inline-block; }
+  @keyframes auth-spin { to { transform: rotate(360deg); } }
   .auth-msg { margin-top: 16px; padding: 14px; border-radius: 6px; font-size: 14px; display: none; }
   .auth-msg.success { background: rgba(10, 125, 87, .08); border: 1px solid var(--accent-deep); color: var(--ink); display: block; }
   .auth-msg.error { background: rgba(179, 83, 47, .08); border: 1px solid #b3532f; color: var(--ink); display: block; }
   .auth-alt { font-size: 13px; color: var(--ink-3); margin-top: 24px; text-align: center; }
   .auth-alt a { color: var(--accent-deep); border-bottom: 1px solid var(--accent); }
+  .auth-disclaimer {
+    font-family: var(--sans); font-size: 12px; color: var(--ink-3);
+    line-height: 1.5; margin: 0 0 24px;
+    padding: 12px 14px;
+    background: rgba(10, 125, 87, .04);
+    border-left: 2px solid var(--accent-deep);
+    border-radius: 0 4px 4px 0;
+  }
+  .auth-disclaimer a { color: var(--accent-deep); border-bottom: 1px solid var(--accent); }
   /* Mobile pass — auth pages on small phones (matches login.astro). */
   @media (max-width: 480px) {
     .auth-wrap { margin: 48px auto; padding: 0 18px; }
@@ -73,17 +134,54 @@ import Consent from '../partials/consent.astro';
   <h1 class="auth-title">Sign <em>up</em>.</h1>
   <p class="auth-sub">Three contract reviews and three citation checks free. Already have an account? <a href="/login/">Sign in here.</a></p>
 
-  <form id="auth-form" class="auth-form">
+  <p class="auth-disclaimer">
+    Legal Overflow provides software tools only. Creating an account does
+    <strong>not</strong> form an attorney-client relationship.
+    See our <a href="/legal/disclaimer/">disclaimer</a> for details.
+  </p>
+
+  <form id="auth-form" class="auth-form" novalidate>
+    <label for="full_name">Full name</label>
+    <input type="text" id="full_name" name="full_name" required autocomplete="name" placeholder="Jane Doe" />
+
+    <label for="organization">Organization / firm</label>
+    <input type="text" id="organization" name="organization" required autocomplete="organization" placeholder="Smith &amp; Associates" />
+
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@company.com" autocomplete="email" />
+
     <label for="password">Password (8+ characters)</label>
-    <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password" />
-    <button type="submit" class="auth-submit" id="submit-btn">Create account</button>
+    <div class="auth-pw-wrap">
+      <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password" />
+      <button type="button" class="auth-pw-toggle" id="pw-toggle" aria-label="Show password" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Honeypot: bots fill this in, humans never see it. Submission with
+         a non-empty value silently 200s without calling Supabase. -->
+    <div class="auth-honeypot" aria-hidden="true">
+      <label for="company_url">Company URL (leave blank)</label>
+      <input type="text" id="company_url" name="company_url" tabindex="-1" autocomplete="off" />
+    </div>
+
+    <label class="auth-tos">
+      <input type="checkbox" id="agree-tos" required />
+      <span>I agree to the <a href="/legal/terms/">Terms</a> and <a href="/legal/privacy/">Privacy Policy</a>, and I understand that creating an account does not form an attorney-client relationship.</span>
+    </label>
+
+    <button type="submit" class="auth-submit" id="submit-btn">
+      <span class="auth-spinner" aria-hidden="true"></span>
+      <span id="submit-btn-text">Create account</span>
+    </button>
   </form>
 
   <div id="auth-msg" class="auth-msg"></div>
 
-  <p class="auth-alt">By creating an account you agree to our terms and privacy policy.</p>
+  <p class="auth-alt">By creating an account you agree to our <a href="/legal/terms/">terms</a> and <a href="/legal/privacy/">privacy policy</a>.</p>
 </div>
 
 <script>
@@ -91,45 +189,93 @@ import Consent from '../partials/consent.astro';
 
   const supabase = getSupabase();
 
-  // If already signed in, redirect to the agents page.
+  // If already signed in, send them onward. Pending users land on
+  // /pending-approval/, approved users follow the ?redirect= param or
+  // default to /workspace/.
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
-    const redirect = new URLSearchParams(location.search).get('redirect') || '/agents/contract-review/';
-    location.href = redirect;
+    const redirect = new URLSearchParams(location.search).get('redirect') || '/workspace/';
+    // Quick approval check (RLS lets a user read their own profile row).
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('approved_at')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    location.href = profile?.approved_at ? redirect : '/pending-approval/';
   }
 
   const form = document.getElementById('auth-form');
   const msg = document.getElementById('auth-msg');
   const btn = document.getElementById('submit-btn');
+  const btnText = document.getElementById('submit-btn-text');
+
+  // Password show/hide eye button.
+  const pwInput = document.getElementById('password');
+  const pwToggle = document.getElementById('pw-toggle');
+  pwToggle.addEventListener('click', () => {
+    const showing = pwInput.type === 'text';
+    pwInput.type = showing ? 'password' : 'text';
+    pwToggle.setAttribute('aria-pressed', showing ? 'false' : 'true');
+    pwToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  });
+
+  function maskEmail(addr) {
+    return String(addr || '').replace(/^(.{2}).*(@.*)$/, '$1***$2');
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const fullName = document.getElementById('full_name').value.trim();
+    const organization = document.getElementById('organization').value.trim();
     const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    if (!email || !password) return;
+    const password = pwInput.value;
+    const honeypot = document.getElementById('company_url').value;
+    const tosOk = document.getElementById('agree-tos').checked;
+
+    if (!fullName || !organization || !email || !password) {
+      msg.className = 'auth-msg error';
+      msg.textContent = 'Please complete every field.';
+      return;
+    }
+    if (!tosOk) {
+      msg.className = 'auth-msg error';
+      msg.textContent = 'You must agree to the Terms and Privacy Policy before creating an account.';
+      return;
+    }
     if (password.length < 8) {
       msg.className = 'auth-msg error';
       msg.textContent = 'Password must be at least 8 characters.';
       return;
     }
+
+    // Honeypot trip — pretend success but never call Supabase.
+    if (honeypot.trim().length > 0) {
+      msg.className = 'auth-msg success';
+      msg.textContent = `Account created. We sent a confirmation link to ${maskEmail(email)}.`;
+      return;
+    }
+
     btn.disabled = true;
-    btn.textContent = 'Creating account…';
+    btn.classList.add('is-loading');
+    btnText.textContent = 'Creating account…';
     msg.className = 'auth-msg';
     msg.textContent = '';
 
-    const redirect = new URLSearchParams(location.search).get('redirect') || '/agents/contract-review/';
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      // emailRedirectTo lets Supabase send a confirmation email that links
-      // back to the app once the user confirms. If your Supabase project
-      // has "confirm email" disabled, signUp returns a session immediately
-      // and the redirect never fires — both flows work below.
-      options: { emailRedirectTo: `${location.origin}${redirect}` },
+      options: {
+        emailRedirectTo: `${location.origin}/pending-approval/`,
+        data: {
+          full_name: fullName,
+          organization,
+        },
+      },
     });
 
     btn.disabled = false;
-    btn.textContent = 'Create account';
+    btn.classList.remove('is-loading');
+    btnText.textContent = 'Create account';
 
     if (error) {
       msg.className = 'auth-msg error';
@@ -145,12 +291,13 @@ import Consent from '../partials/consent.astro';
     }
 
     if (data?.session) {
-      // Supabase project has email confirmation OFF — user is signed in immediately.
-      location.href = redirect;
+      // Email confirmation OFF — user is already signed in. Route to
+      // the pending-approval holding page until an admin approves them.
+      location.href = '/pending-approval/';
     } else {
-      // Email confirmation is ON — show a check-your-inbox message.
+      // Email confirmation ON — show the check-your-inbox state.
       msg.className = 'auth-msg success';
-      msg.textContent = `Account created. We sent a confirmation link to ${email}. Click it to finish signing up.`;
+      msg.textContent = `Account created. We sent a confirmation link to ${maskEmail(email)}. Click it to finish signing up.`;
     }
   });
 </script>

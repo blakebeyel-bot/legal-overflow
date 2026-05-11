@@ -1,0 +1,212 @@
+---
+import Consent from '../partials/consent.astro';
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Account pending approval — Legal Overflow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/styles.css" />
+<script src="/nav-autohide.js" defer></script>
+<script src="/site-dialog.js" defer></script>
+<style>
+  /* Anti-flash: hide body until JS confirms session + status. */
+  body[data-auth-gate] { visibility: hidden; }
+
+  .auth-wrap { max-width: 560px; margin: 80px auto; padding: 0 24px; }
+  .auth-kicker { font-family: var(--mono); font-size: 11px; color: var(--accent-deep); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
+  .auth-title { font-family: var(--serif); font-weight: 400; font-size: clamp(36px, 5.5vw, 56px); line-height: 1.05; letter-spacing: -.02em; margin: 0 0 20px; }
+  .auth-title em { color: var(--accent-deep); }
+  .auth-sub { font-size: 15px; line-height: 1.55; color: var(--ink-2); margin: 0 0 24px; }
+
+  .pending-status {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    background: rgba(180, 130, 40, .06);
+    border-left: 3px solid #b48228;
+    border-radius: 0 6px 6px 0;
+    margin: 0 0 28px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .pending-status .pulse {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #b48228;
+    animation: pending-pulse 2s ease-in-out infinite;
+  }
+  @keyframes pending-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .5; transform: scale(1.2); }
+  }
+  .pending-status b { color: var(--ink); font-weight: 500; }
+
+  .pending-explore {
+    margin: 28px 0 24px;
+    padding: 18px 20px;
+    background: var(--paper-2);
+    border-radius: 6px;
+    border: 1px solid var(--rule-soft);
+  }
+  .pending-explore h2 {
+    font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+    letter-spacing: .12em; text-transform: uppercase;
+    margin: 0 0 12px;
+  }
+  .pending-explore ul {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .pending-explore li {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 14.5px; color: var(--ink-2);
+    line-height: 1.5;
+  }
+  .pending-explore li::before {
+    content: '→'; color: var(--accent-deep);
+    font-family: var(--mono); font-size: 13px;
+    flex-shrink: 0;
+  }
+  .pending-explore a { color: var(--accent-deep); border-bottom: 1px solid var(--accent); }
+
+  .pending-foot {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px dotted var(--rule-soft);
+    font-size: 13px; color: var(--ink-3);
+    line-height: 1.55;
+  }
+  .pending-foot a { color: var(--accent-deep); border-bottom: 1px solid var(--accent); }
+
+  .pending-actions {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-top: 24px;
+  }
+  .pending-actions button, .pending-actions a {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: .08em; text-transform: uppercase;
+    padding: 10px 18px; border-radius: 999px;
+    cursor: pointer;
+    text-decoration: none;
+    border: 1px solid var(--ink);
+    transition: background .2s ease, color .2s ease;
+  }
+  .pending-actions .btn-primary {
+    background: var(--ink); color: var(--paper);
+  }
+  .pending-actions .btn-primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  .pending-actions .btn-secondary {
+    background: transparent; color: var(--ink);
+  }
+  .pending-actions .btn-secondary:hover { background: var(--ink); color: var(--paper); }
+
+  @media (max-width: 480px) {
+    .auth-wrap { margin: 48px auto; padding: 0 18px; }
+    .auth-title { font-size: clamp(28px, 8vw, 40px); margin-bottom: 16px; }
+    .pending-actions button, .pending-actions a { min-height: 44px; width: 100%; text-align: center; }
+  }
+</style>
+  <link rel="stylesheet" href="/site-anim.css" />
+  <script src="/site-anim.js" defer></script>
+</head>
+<body data-auth-gate>
+<div id="grain"></div>
+
+<header class="nav">
+  <a href="/" class="brand">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="1"/><path d="M20 6 L20 34 M8 14 L32 14 M8 26 L32 26" stroke="currentColor" stroke-width="1" fill="none"/><circle cx="20" cy="14" r="2.5" fill="currentColor"/><circle cx="20" cy="26" r="2.5" fill="var(--accent)"/></svg>
+    <span class="brand-text"><span>Legal</span><span class="brand-over">Overflow</span></span>
+  </a>
+  <nav class="nav-links">
+    <a href="/#skills">Skills</a>
+    <a href="/#articles">Resources</a>
+    <a href="/agents/">Agents</a>
+    <a href="/workspace/">Workspace</a>
+    <a href="/tracker/">Tracker</a>
+    <a href="/#services">Services</a>
+    <a href="/about/">About</a>
+  </nav>
+  <div class="nav-right">
+    <a href="/#subscribe" class="nav-sub">Subscribe</a>
+  </div>
+</header>
+
+<div class="auth-wrap">
+  <div class="auth-kicker">Application received</div>
+  <h1 class="auth-title">We have your <em>application</em>.</h1>
+  <p class="auth-sub">
+    Most signups are approved within one business day. You'll receive an
+    email when your account is ready. In the meantime, here's what you can do.
+  </p>
+
+  <div class="pending-status">
+    <span class="pulse" aria-hidden="true"></span>
+    <span>Status: <b>Pending review</b> since <b id="pending-since">—</b></span>
+  </div>
+
+  <div class="pending-explore">
+    <h2>While you wait</h2>
+    <ul>
+      <li>Browse the <a href="/articles/">articles</a> — practical notes on running AI tooling inside a law practice.</li>
+      <li>Read the <a href="/#skills">Skills</a> overview — what each agent does, and when to use it.</li>
+      <li>Look at the <a href="/agents/">Agents</a> catalog — Contract Review and Citation Verifier with sample reports.</li>
+      <li>Configure your <a href="/account/">account</a> — set your API keys (BYOK) so the moment you're approved, everything just works.</li>
+    </ul>
+  </div>
+
+  <div class="pending-actions">
+    <a href="/account/" class="btn-primary">Visit account</a>
+    <button type="button" class="btn-secondary" id="signout-btn">Sign out</button>
+  </div>
+
+  <p class="pending-foot">
+    Need to check in? Email <a href="mailto:blake.beyel@beyel.com?subject=Account%20approval%20status">blake.beyel@beyel.com</a>.
+    Each signup is reviewed by a human (me — Blake) before access is granted; this keeps the
+    tools accountable to a real bar-licensed attorney's standards.
+  </p>
+</div>
+
+<script>
+  import { getSupabase } from '../lib/supabase';
+
+  const supabase = getSupabase();
+
+  // Gate: must be signed in. If approved already, send to /workspace/.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    location.href = '/login/?redirect=/pending-approval/';
+  } else {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('approved_at, created_at, full_name')
+      .eq('id', session.user.id)
+      .maybeSingle();
+    if (profile?.approved_at) {
+      // Already approved (race condition: user refreshed after admin
+      // flipped the flag). Send them onward.
+      location.href = '/workspace/';
+    } else {
+      // Render the "pending since" timestamp from profiles.created_at.
+      const createdAt = profile?.created_at ? new Date(profile.created_at) : new Date();
+      const fmt = createdAt.toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+      document.getElementById('pending-since').textContent = fmt;
+      document.body.removeAttribute('data-auth-gate');
+    }
+  }
+
+  // Sign-out button.
+  document.getElementById('signout-btn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    location.href = '/';
+  });
+</script>
+
+<Consent />
+</body>
+</html>

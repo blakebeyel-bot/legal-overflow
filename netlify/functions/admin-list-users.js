@@ -21,7 +21,7 @@ export default async (req) => {
 
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, email, tier, approved_at, approval_note, review_cap_override, citation_cap_override, created_at')
+    .select('id, email, full_name, organization, tier, approved_at, approval_note, review_cap_override, citation_cap_override, created_at')
     .order('created_at', { ascending: false });
   if (error) return json({ error: error.message }, 500);
 
@@ -45,6 +45,8 @@ export default async (req) => {
   const users = (profiles || []).map((p) => ({
     id: p.id,
     email: p.email,
+    full_name: p.full_name,
+    organization: p.organization,
     tier: p.tier,
     approved_at: p.approved_at,
     approval_note: p.approval_note,
