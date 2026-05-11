@@ -173,6 +173,10 @@
     body.ws-projects .meta-strip { grid-template-columns: repeat(2, 1fr); }
     body.ws-projects .ms-cell:nth-child(2n) { border-right: none; }
   }
+  @media (max-width: 480px) {
+    body.ws-projects .meta-strip { grid-template-columns: 1fr; }
+    body.ws-projects .ms-cell { border-right: none !important; }
+  }
 
   /* ---------- sec-div ---------- */
   body.ws-projects .sec-div {

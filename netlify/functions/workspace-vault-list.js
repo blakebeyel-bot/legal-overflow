@@ -15,7 +15,7 @@
  */
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
 
-const VALID_KINDS = new Set(['document', 'chat', 'review_finding', 'manual_note']);
+const VALID_KINDS = new Set(['document', 'chat', 'review_finding', 'manual_note', 'template', 'draft']);
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
@@ -37,8 +37,17 @@ export default async (req) => {
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from('workspace_vault_items')
-    .select('id, source_kind, source_doc_id, source_chat_id, source_message_id, source_review_id, title, summary, tags, content_chars, embedding_provider, pinned, archived_at, created_at, updated_at', { count: 'exact' })
-    .eq('user_id', auth.user.id);
+    .select('id, user_id, source_kind, source_doc_id, source_chat_id, source_message_id, source_review_id, title, summary, tags, content_chars, embedding_provider, pinned, archived_at, created_at, updated_at, template_schema, template_status, template_storage_path, rendered_from_template_id, rendered_values, rendered_storage_path, is_default_letterhead', { count: 'exact' });
+
+  // For 'template' kind, include both user-owned AND system-published
+  // (user_id IS NULL) so the pre-built template library shows up in
+  // the picker for every user. All other kinds stay scoped to the
+  // logged-in user.
+  if (kind === 'template') {
+    query = query.or(`user_id.eq.${auth.user.id},user_id.is.null`);
+  } else {
+    query = query.eq('user_id', auth.user.id);
+  }
 
   if (kind && VALID_KINDS.has(kind)) query = query.eq('source_kind', kind);
   if (pinnedOnly) query = query.eq('pinned', true);

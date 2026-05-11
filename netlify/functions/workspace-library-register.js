@@ -276,7 +276,7 @@ async function fireVaultAutoIngest({ userId, docId, title, content, storagePath,
     }
 
     const { addVaultItem } = await import('../lib/vault.js');
-    await addVaultItem({
+    const { item } = await addVaultItem({
       supabase,
       userId,
       sourceKind: 'document',
@@ -286,6 +286,20 @@ async function fireVaultAutoIngest({ userId, docId, title, content, storagePath,
       originalBytes,
       format: originalBytes ? format : null,
     });
+    // Kick off auto-detect — fire-and-forget. The background fn flips
+    // source_kind to 'template' if it's confident this is one.
+    if (item?.id) {
+      try {
+        const { kickTemplateDetect } = await import('../lib/template-detect.js');
+        kickTemplateDetect({
+          itemId: item.id,
+          userId,
+          contentLen: typeof content === 'string' ? content.length : 0,
+        });
+      } catch (kickErr) {
+        console.warn('[vault auto-ingest] template-detect kick failed:', kickErr?.message || kickErr);
+      }
+    }
   } catch (err) {
     console.error('vault auto-ingest failed:', err.message);
   }

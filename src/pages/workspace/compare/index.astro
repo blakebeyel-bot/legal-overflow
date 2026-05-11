@@ -121,6 +121,57 @@
     body.cmp-detail-v2 .cmp-split { grid-template-columns: 1fr; }
   }
 
+  /* Mobile lockout — the side-by-side diff needs at least 768px to
+     render legibly. Below that we show a clear "open on desktop"
+     message instead of letting the user scroll horizontally through
+     a squished diff. Card lives in the DOM at all sizes; CSS hides
+     one or the other based on viewport width. */
+  body.cmp-detail-v2 .cmp-mobile-block { display: none; }
+  @media (max-width: 768px) {
+    body.cmp-detail-v2 .cmp-split,
+    body.cmp-detail-v2 .cmp-mode-row,
+    body.cmp-detail-v2 .cmp-bar { display: none !important; }
+    body.cmp-detail-v2 .cmp-mobile-block {
+      display: flex;
+      align-items: center; justify-content: center;
+      min-height: 360px;
+      padding: 32px 20px;
+      margin: 24px auto;
+      max-width: 480px;
+      border: 1px solid var(--rule-soft);
+      border-radius: 10px;
+      background: var(--paper-2, var(--paper));
+    }
+    body.cmp-detail-v2 .cmp-mobile-block-inner {
+      text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
+    }
+    body.cmp-detail-v2 .cmp-mobile-block-inner svg {
+      color: var(--accent-deep);
+    }
+    body.cmp-detail-v2 .cmp-mobile-block-inner h3 {
+      font-family: var(--serif); font-size: 22px;
+      color: var(--ink); margin: 0;
+    }
+    body.cmp-detail-v2 .cmp-mobile-block-inner p {
+      font-family: var(--mono); font-size: 12px;
+      color: var(--ink-2); line-height: 1.6;
+      margin: 0; max-width: 38ch;
+    }
+    body.cmp-detail-v2 .cmp-mobile-block-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--ink);
+      border: 1px solid var(--ink); border-radius: 6px;
+      padding: 9px 16px; text-decoration: none;
+      transition: background .12s, color .12s;
+      min-height: 36px;
+    }
+    body.cmp-detail-v2 .cmp-mobile-block-back:hover {
+      background: var(--ink); color: var(--paper);
+    }
+  }
+
   body.cmp-detail-v2 .cmp-docs {
     /* Three-column grid: left pane | drag handle | right pane.
        Default 50/50 split; the JS handler updates the inline
@@ -1364,6 +1415,23 @@
         </div>
         <div class="cmp-mode-tools">
           <button class="cmp-mode-toggle is-on" data-toggle="sync"><span class="pip"></span>Sync scroll</button>
+        </div>
+      </div>
+
+      <!-- Mobile lockout — the side-by-side diff isn't usable below
+           ~768px. CSS hides this card on desktop and hides .cmp-split
+           on mobile. Pure CSS swap, no JS state to manage. -->
+      <div class="cmp-mobile-block" role="status" aria-live="polite">
+        <div class="cmp-mobile-block-inner">
+          <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="4" width="20" height="14" rx="2"/>
+            <line x1="2" y1="18" x2="22" y2="18"/>
+            <line x1="8" y1="22" x2="16" y2="22"/>
+            <line x1="12" y1="18" x2="12" y2="22"/>
+          </svg>
+          <h3>Open Compare on a wider screen</h3>
+          <p>The side-by-side diff view needs at least 768&nbsp;pixels of width to render properly. Open this comparison on a desktop or rotate your tablet to landscape.</p>
+          <a href="/workspace/" class="cmp-mobile-block-back">← Back to workspace</a>
         </div>
       </div>
 

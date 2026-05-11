@@ -729,17 +729,97 @@ async function extractDocx(buffer) {
     const summary = paraMarkup.length ? buildDocxMarkupSummary(paraMarkup) : '';
 
     const rawText = summary ? `${combinedBody}\n\n${summary}` : combinedBody;
-    const text = sanitizeForPg(rawText);
+    let text = sanitizeForPg(rawText);
+
+    // EMPTY-BODY FALLBACK — common in letterhead-only templates: the
+    // body is blank because the user hasn't filled the doc out yet;
+    // all the firm content lives in headers + footers. Mammoth only
+    // walks word/document.xml so we'd otherwise mark these "failed"
+    // and refuse to ingest them. Walk the header*.xml / footer*.xml
+    // / footnotes / endnotes inside the zip directly, pull <w:t>
+    // content, and use that as the extracted text instead.
+    if (!text || text.trim().length === 0) {
+      try {
+        const fallbackText = await extractHeadersFootersText(buffer);
+        if (fallbackText && fallbackText.trim().length > 0) {
+          text = sanitizeForPg(fallbackText);
+          return {
+            text,
+            chars: text.length,
+            status: 'done',
+            method: 'mammoth+header-footer-fallback',
+            format: 'plain',
+            detail: 'Body was empty; extracted from headers / footers.',
+          };
+        }
+      } catch (err) {
+        console.warn('[docx-empty-body-fallback] failed:', err?.message || err);
+      }
+    }
+
     return {
       text,
       chars: text.length,
-      status: text.length > 0 ? 'done' : 'failed',
+      // Even an empty extraction returns 'done' if we got here without
+      // a thrown error — the file was parseable, it just had no
+      // recoverable text. Mark with explanatory detail so the UI is
+      // honest about what happened. Previous behavior was status:
+      // 'failed' with no detail, which surfaced as a useless
+      // "Failed: unknown" toast and blocked the user from saving
+      // empty-letterhead templates.
+      status: text.length > 0 ? 'done' : 'done',
       method: 'mammoth',
       format: 'markdown',
+      detail: text.length === 0 ? 'Empty document (no extractable text).' : undefined,
     };
   } catch (err) {
     return { text: '', chars: 0, status: 'failed', method: 'mammoth', format: 'plain', detail: `DOCX parse failed: ${err.message}` };
   }
+}
+
+/**
+ * Walk the .docx archive directly and pull text content from every
+ * header*.xml / footer*.xml / footnotes.xml / endnotes.xml file.
+ * Used as a fallback for letterhead templates whose body is empty.
+ *
+ * Returns a flat string with newlines between paragraphs.
+ */
+async function extractHeadersFootersText(buffer) {
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(buffer);
+  const lines = [];
+  const paths = [];
+  zip.forEach((relativePath) => {
+    if (
+      /^word\/(header|footer)\d+\.xml$/.test(relativePath) ||
+      relativePath === 'word/footnotes.xml' ||
+      relativePath === 'word/endnotes.xml'
+    ) {
+      paths.push(relativePath);
+    }
+  });
+  for (const path of paths) {
+    const file = zip.file(path);
+    if (!file) continue;
+    const xml = await file.async('string');
+    // Pull every <w:t>...</w:t> text run. Preserve order (no sorting).
+    const matches = xml.match(/<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>/g) || [];
+    for (const m of matches) {
+      const inner = m.replace(/<w:t(?:\s+[^>]*)?>/, '').replace(/<\/w:t>$/, '');
+      // Decode the few entities mammoth-equivalent text would also
+      // decode. <w:t> elements don't contain CDATA, just entities.
+      const decoded = inner
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+      if (decoded.trim()) lines.push(decoded);
+    }
+    // Paragraph break between files for readability.
+    if (matches.length) lines.push('');
+  }
+  return lines.join('\n').trim();
 }
 
 /**

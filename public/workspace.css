@@ -3104,3 +3104,65 @@ body.cite-modal-open { overflow: hidden; }
   color: var(--accent-deep, #3862aa);
   background: rgba(56, 98, 170, .04);
 }
+
+/* ============================================================
+   MOBILE — site-wide workspace mobile pass
+   ============================================================
+   All rules below are additive — they extend behavior at narrow
+   viewports without modifying any of the default desktop rules
+   above. Breakpoint conventions: 768px tablet, 600px phone, 480px
+   small phone. Touch-specific tweaks use (pointer: coarse). */
+
+/* Review-table cells — drop min-widths and add a soft right-edge
+   scroll shadow so users notice there's more content to swipe to.
+   Without this, on a 375px phone the cells force horizontal scroll
+   immediately and there's no visual hint. */
+@media (max-width: 600px) {
+  .rv-shell {
+    padding: 18px 14px 50px;
+    position: relative;
+  }
+  .rv-th,
+  .rv-grid-redline .rv-cell { min-width: 130px !important; max-width: 200px !important; }
+  .rv-grid th, .rv-grid td { padding: 8px 10px; }
+  .rv-grid { font-size: 12.5px; }
+  /* Scroll-hint gradient — fades from transparent to paper on the
+     right edge of horizontally-scrollable tables so users have a
+     visual cue. position:sticky on the gradient layer keeps it
+     pinned to the viewport. */
+  .rv-grid-wrap {
+    position: relative;
+    background-image:
+      linear-gradient(to right, transparent calc(100% - 18px), rgba(0,0,0,.05) 100%);
+    background-attachment: local, scroll;
+  }
+}
+
+/* Modal footers — stack buttons full-width below 480px so the
+   primary CTA is thumb-reachable instead of crammed next to a
+   Cancel button. column-reverse puts primary on top. */
+@media (max-width: 480px) {
+  .attach-modal-foot,
+  .cite-modal-foot {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .attach-modal-foot button,
+  .attach-modal-foot a,
+  .cite-modal-foot button,
+  .cite-modal-foot a {
+    width: 100% !important;
+    min-height: 40px;
+  }
+}
+
+/* Touch-target sizing for buttons that have padding too small for
+   fingers. Applies regardless of viewport — anywhere a touch
+   device is being used. */
+@media (pointer: coarse) {
+  /* Workspace primary buttons — ensure they meet 36px minimum. */
+  .ws-btn, .ws-btn-secondary, .ws-btn-ghost {
+    min-height: 36px;
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * POST /api/workspace-chats-create
- *   body: { project_id?: uuid, model?: string, workflow_id?: uuid }
+ *   body: { project_id?: uuid, model?: string, workflow_id?: uuid, template_id?: uuid }
  * Returns: { id, primed?: boolean }
  *
  * If the new chat is bound to a workflow flagged as a prompt pack
@@ -24,14 +24,33 @@ export default async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const supabase = getSupabaseAdmin();
+
+  // Resolve template_id if provided — must be a template vault item
+  // the user owns or a published system template (user_id IS NULL).
+  let templateId = null;
+  if (body.template_id) {
+    const { data: tmpl } = await supabase
+      .from('workspace_vault_items')
+      .select('id, user_id, source_kind')
+      .eq('id', body.template_id)
+      .or(`user_id.eq.${auth.user.id},user_id.is.null`)
+      .maybeSingle();
+    if (tmpl && tmpl.source_kind === 'template') {
+      templateId = tmpl.id;
+    }
+  }
+
+  const insertRow = {
+    user_id: auth.user.id,
+    project_id: body.project_id || null,
+    workflow_id: body.workflow_id || null,
+    model: body.model || 'claude-sonnet-4-5',
+  };
+  if (templateId) insertRow.bound_template_id = templateId;
+
   const { data, error } = await supabase
     .from('workspace_chats')
-    .insert({
-      user_id: auth.user.id,
-      project_id: body.project_id || null,
-      workflow_id: body.workflow_id || null,
-      model: body.model || 'claude-sonnet-4-5',
-    })
+    .insert(insertRow)
     .select('id')
     .single();
   if (error) return json({ error: error.message }, 500);

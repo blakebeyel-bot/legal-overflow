@@ -785,7 +785,7 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
 
   // Verify chat ownership; also pull anchored_item_ids so the vault
   // retrieval below can guarantee chunks + images from pinned docs.
-  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id,law_settings,anchored_item_ids`);
+  const chats = await sbSelect(`workspace_chats?id=eq.${chatId}&user_id=eq.${user.id}&select=id,title,model,workflow_id,law_settings,anchored_item_ids,bound_template_id`);
   const chat = chats[0];
   if (!chat) return json({ error: 'Chat not found' }, 404);
 
@@ -895,6 +895,43 @@ ${wf.prompt_md}
       }
     } catch (err) {
       console.error('[chat-stream] workflow lookup failed:', err);
+    }
+  }
+
+  // If the chat is bound to a template (Phase 3 — "Use in chat" from
+  // the vault), add a template-aware section to the system prompt.
+  // This tells the model: gather these fields conversationally, then
+  // offer to render the document. The actual render happens via a
+  // separate /api/template-render call kicked from the chat UI when
+  // the user confirms they have enough values.
+  let templateSystemAddon: string | null = null;
+  if (chat.bound_template_id) {
+    try {
+      const tmplRows = await sbSelect(`workspace_vault_items?id=eq.${chat.bound_template_id}&or=(user_id.eq.${user.id},user_id.is.null)&select=id,title,template_schema`);
+      const tmpl = tmplRows[0];
+      if (tmpl && tmpl.template_schema && Array.isArray(tmpl.template_schema.vars) && tmpl.template_schema.vars.length > 0) {
+        const fieldList = tmpl.template_schema.vars.map((v: any) =>
+          `  - ${v.label || v.key} (${v.type || 'text'}): ${v.hint || 'no description'}`
+        ).join('\n');
+        templateSystemAddon = `TEMPLATE DRAFTING MODE — the user wants help drafting from this template:
+
+TEMPLATE: ${tmpl.title}
+
+FIELDS THE TEMPLATE NEEDS (gather these conversationally, one or two at a time):
+${fieldList}
+
+DRAFTING STYLE:
+- Open by briefly explaining what you're drafting and ask for the most important missing input (the client / matter name or the deal context, whichever is more relevant).
+- Take one or two fields per turn, not all at once.
+- Ask follow-ups only when the user's answer is ambiguous — otherwise just acknowledge and move to the next field.
+- When you have enough fields to produce a useful draft (typically 60-80% of the fields), say so and offer to render: "I have enough to produce a first draft — want me to render it?" The chat UI will surface a button the user can click to trigger the merge.
+- Do NOT produce the final document as a chat reply. The template engine renders the .docx separately and delivers a download chip.
+- Treat any field you cannot infer as "to be filled" and surface it explicitly at render time.
+
+When the user says "render it" or "let's see the draft" or similar, your response should be a brief confirmation — the merge runs server-side after your response and produces the .docx automatically.`;
+      }
+    } catch (err) {
+      console.error('[chat-stream] template lookup failed:', err);
     }
   }
 
@@ -1806,6 +1843,11 @@ ${wf.prompt_md}
         //      LegiScan) when the corresponding toggles are on.
         const baseSystem = workflowSystemPrompt || SYSTEM_PROMPT;
         const promptParts: string[] = [baseSystem];
+        // Template-drafting addon — appended right after the base
+        // system prompt so the model sees it as primary guidance.
+        if (templateSystemAddon) {
+          promptParts.push(templateSystemAddon);
+        }
         if (attachmentContext) {
           promptParts.push(`The user has attached the following documents to this conversation. Read them carefully before answering. When citing them, use the document filename:\n${attachmentContext}`);
         }
@@ -1935,13 +1977,17 @@ ${wf.prompt_md}
         const msg = (err as any)?.message || String(err);
         console.error(`[chat-stream] streaming error model=${modelId}:`, msg);
         send('error', { error: msg });
-        sbUpdate('workspace_chat_messages', `id=eq.${asstRow.id}`, { status: 'error', status_detail: msg.slice(0, 1000) }).catch(() => {});
+        sbUpdate('workspace_chat_messages', `id=eq.${asstRow.id}&status=neq.cancelled`, { status: 'error', status_detail: msg.slice(0, 1000) }).catch(() => {});
         controller.close();
         return;
       }
 
-      // Persist final + maybe title
-      sbUpdate('workspace_chat_messages', `id=eq.${asstRow.id}`, { content: acc, status: 'complete' }).catch(() => {});
+      // Persist final + maybe title.
+      // Skip rows that have already been marked 'cancelled' by the
+      // client's stop-button cancel endpoint — otherwise the
+      // post-completion write here would race against the cancel
+      // and overwrite the user's stop action with a finished state.
+      sbUpdate('workspace_chat_messages', `id=eq.${asstRow.id}&status=neq.cancelled`, { content: acc, status: 'complete' }).catch(() => {});
 
       // Fire-and-forget the post-hoc verification when any toggle
       // is on. The chat page polls workspace-chat-message-get for

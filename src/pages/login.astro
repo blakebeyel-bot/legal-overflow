@@ -35,6 +35,16 @@ import Consent from '../partials/consent.astro';
   .auth-msg.error { background: rgba(179, 83, 47, .08); border: 1px solid #b3532f; color: var(--ink); display: block; }
   .auth-alt { font-size: 13px; color: var(--ink-3); margin-top: 24px; text-align: center; }
   .auth-alt a { color: var(--accent-deep); border-bottom: 1px solid var(--accent); }
+  /* Mobile pass — auth pages on small phones. The default
+     clamp(40px, 6vw, 64px) hits its 40px floor at narrow widths,
+     which is still huge on a 320px phone. Drop to a smaller range
+     so the form below has breathing room. */
+  @media (max-width: 480px) {
+    .auth-wrap { margin: 48px auto; padding: 0 18px; }
+    .auth-title { font-size: clamp(28px, 8vw, 40px); margin-bottom: 16px; }
+    .auth-sub { font-size: 14px; margin-bottom: 22px; }
+    .auth-submit { padding: 14px 18px; min-height: 44px; }
+  }
 </style>
   <link rel="stylesheet" href="/site-anim.css" />
   <script src="/site-anim.js" defer></script>

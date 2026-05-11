@@ -147,7 +147,7 @@ export default async (req) => {
         } else {
           ingestFormat = 'pdf';
         }
-        await addVaultItem({
+        const { item: vItem } = await addVaultItem({
           supabase,
           userId,
           sourceKind: 'document',
@@ -159,6 +159,20 @@ export default async (req) => {
           format: ingestFormat,
           mimeType: ingestMime,
         });
+        // Kick off auto-detect — fire-and-forget. Same pattern as the
+        // sync ingest path in workspace-library-register.js.
+        if (vItem?.id) {
+          try {
+            const { kickTemplateDetect } = await import('../lib/template-detect.js');
+            kickTemplateDetect({
+              itemId: vItem.id,
+              userId,
+              contentLen: typeof markdown === 'string' ? markdown.length : 0,
+            });
+          } catch (kickErr) {
+            console.warn('[doc-extract-background] template-detect kick failed:', kickErr?.message || kickErr);
+          }
+        }
       } catch (vErr) {
         // Don't fail the OCR job if vault insert fails — the doc is
         // saved either way.

@@ -236,6 +236,18 @@
   @media (max-width: 980px) {
     body.ws-workflows .wf-grid { grid-template-columns: 1fr; }
   }
+  /* Tablet + phone: stack the workflow editor column rows so the
+     prompt-name field doesn't get crushed against the textarea. */
+  @media (max-width: 768px) {
+    body.ws-workflows .rv-col-row {
+      grid-template-columns: 1fr;
+      row-gap: 6px;
+    }
+  }
+  /* Phone-tier: full-width form inputs and tighter modal padding. */
+  @media (max-width: 600px) {
+    body.ws-workflows .meta-strip { grid-template-columns: 1fr; }
+  }
 
   /* ---------- workflow card ---------- */
   body.ws-workflows .wf-card {

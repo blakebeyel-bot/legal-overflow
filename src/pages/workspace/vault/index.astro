@@ -433,6 +433,61 @@
     body.ws-vault .vault-detail { position: relative !important; top: auto !important; }
   }
 
+  /* ============================================================
+     MOBILE — phone-tier polish for vault (site-wide mobile pass)
+     ============================================================ */
+  @media (max-width: 768px) {
+    /* The list-head grid (checkbox / kind / title / tags / chars /
+       updated) shrinks fluidly. On a 375px phone the 200px tag
+       column eats most of the row — collapse it. */
+    body.ws-vault .vault-list-head,
+    body.ws-vault .vault-head {
+      grid-template-columns: 28px 70px 1fr 80px;
+      gap: 8px;
+      padding: 9px 12px;
+    }
+    /* Hide tag + chars columns in the head; rows hide them too. */
+    body.ws-vault .vault-col-tags-h,
+    body.ws-vault .vault-col-size { display: none; }
+    body.ws-vault .vault-row {
+      grid-template-columns: 28px 70px 1fr 80px !important;
+      gap: 8px !important;
+      padding: 9px 12px !important;
+    }
+    body.ws-vault .vault-row .vr-tags,
+    body.ws-vault .vault-row .vr-size { display: none !important; }
+    /* Filter row wraps explicitly with proper row-gap so chips
+       don't crash into each other at narrow widths. */
+    body.ws-vault .filter-row {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+    /* Detail-panel close button — bigger touch target. */
+    body.ws-vault .vault-detail-close {
+      width: 36px; height: 36px;
+      font-size: 18px;
+    }
+  }
+  /* Bulk action bar: wrap buttons + smaller padding on phones so
+     the strip doesn't run off screen. */
+  @media (max-width: 600px) {
+    body.ws-vault .vault-bulk-bar {
+      flex-wrap: wrap;
+      row-gap: 6px;
+      padding: 9px 12px;
+    }
+    body.ws-vault .vault-bulk-bar .ws-btn,
+    body.ws-vault .vault-bulk-bar .ws-btn-ghost {
+      font-size: 10px;
+      padding: 7px 10px;
+    }
+    /* Vault candidate banner — wrap the buttons under the text. */
+    body.ws-vault .vault-candidate-banner {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+  }
+
   body.ws-vault .vault-list-wrap,
   body.ws-vault .vault-card {
     border: 1px solid var(--rule-soft); border-radius: 8px;
@@ -514,6 +569,102 @@
   body.ws-vault .vr-kind.is-txt,
   body.ws-vault .vault-kind-badge.is-txt,
   body.ws-vault .vault-kind-manual_note { color: var(--ink-3); border-color: var(--ink-3); }
+  /* Template + draft badges — teal-ish accent, separate from documents */
+  body.ws-vault .vr-kind.is-tmpl,
+  body.ws-vault .vault-kind-badge.is-tmpl { color: #1f7a72; border-color: #1f7a72; }
+  body.ws-vault .vr-kind.is-drft,
+  body.ws-vault .vault-kind-badge.is-drft { color: #4a4380; border-color: #4a4380; }
+
+  /* Candidate-template banner — shows above the vault list when one
+     or more docs were detected as likely templates by auto-detect.
+     Soft teal, dismissible per-session, click expands the list. */
+  body.ws-vault .vault-candidate-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px;
+    padding: 10px 16px;
+    margin: 0 0 12px;
+    border: 1px solid #1f7a72;
+    border-radius: 6px;
+    background: rgba(31, 122, 114, 0.06);
+    color: var(--ink);
+    font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: .06em;
+  }
+  /* The `hidden` HTML attribute normally hides the element via the
+     UA stylesheet's `display: none`, but our `display: flex` above
+     overrode it. This explicit `[hidden]` rule restores the
+     expected behavior so the banner stays invisible until JS
+     decides it should show. */
+  body.ws-vault .vault-candidate-banner[hidden] {
+    display: none;
+  }
+  body.ws-vault .vault-candidate-banner strong {
+    color: #1f7a72; text-transform: uppercase; letter-spacing: .14em;
+    font-size: 10px; margin-right: 6px;
+  }
+  body.ws-vault .vault-candidate-banner .vcb-actions {
+    display: flex; gap: 8px; align-items: center;
+  }
+  body.ws-vault .vault-candidate-banner button {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase;
+    border: 1px solid var(--ink); background: transparent; color: var(--ink);
+    padding: 5px 11px; border-radius: 4px; cursor: pointer;
+  }
+  body.ws-vault .vault-candidate-banner button.is-primary {
+    background: #1f7a72; border-color: #1f7a72; color: #fff;
+  }
+  body.ws-vault .vault-candidate-banner button:hover { opacity: .85; }
+
+  /* Template field editor — opens inside the detail panel when the
+     user clicks "Edit fields" on a template item. */
+  body.ws-vault .tmpl-fields {
+    display: grid; gap: 10px; margin-top: 10px;
+  }
+  body.ws-vault .tmpl-field-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1.4fr 110px 28px;
+    gap: 8px; align-items: center;
+  }
+  body.ws-vault .tmpl-field-row input,
+  body.ws-vault .tmpl-field-row select {
+    font-family: var(--mono); font-size: 10.5px;
+    border: 1px solid var(--rule-thread); border-radius: 4px;
+    padding: 6px 8px; background: var(--paper); color: var(--ink);
+  }
+  body.ws-vault .tmpl-field-row .tmpl-field-del {
+    border: 1px solid var(--rule-thread); background: transparent;
+    color: var(--ink-3); cursor: pointer; border-radius: 4px;
+    font-size: 14px; line-height: 1; padding: 4px 6px;
+  }
+  body.ws-vault .tmpl-field-row .tmpl-field-del:hover { color: var(--hi); border-color: var(--hi); }
+  body.ws-vault .tmpl-add-field-btn {
+    align-self: start;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase;
+    border: 1px dashed var(--rule-thread); background: transparent;
+    color: var(--ink-3); padding: 6px 10px; border-radius: 4px;
+    cursor: pointer; margin-top: 6px;
+  }
+  body.ws-vault .tmpl-add-field-btn:hover { color: var(--accent-deep); border-color: var(--accent-deep); }
+  body.ws-vault .tmpl-fields-save {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 12px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase;
+    border: 1px solid var(--ink); background: var(--ink); color: var(--paper);
+    padding: 7px 14px; border-radius: 4px; cursor: pointer;
+  }
+  body.ws-vault .tmpl-fields-save:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+  body.ws-vault .tmpl-fields-save:disabled { opacity: .5; cursor: not-allowed; }
+  body.ws-vault .tmpl-fields-status {
+    margin-left: 10px;
+    font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+  }
+  body.ws-vault .tmpl-promote-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+    padding-top: 10px; border-top: 1px solid var(--rule-thread);
+  }
 
   /* title + sub line */
   body.ws-vault .vr-title-wrap,
@@ -1128,6 +1279,10 @@
     <button type="button" class="fl-toggle" data-kind="review_finding"><span class="fl-pip"></span>Findings <span class="fl-cnt" id="fl-cnt-review_finding">[—]</span></button>
     <span class="fl-sep"></span>
     <button type="button" class="fl-toggle" data-kind="manual_note"><span class="fl-pip"></span>Notes <span class="fl-cnt" id="fl-cnt-manual_note">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-kind="template"><span class="fl-pip"></span>Templates <span class="fl-cnt" id="fl-cnt-template">[—]</span></button>
+    <span class="fl-sep"></span>
+    <button type="button" class="fl-toggle" data-kind="draft"><span class="fl-pip"></span>Drafts <span class="fl-cnt" id="fl-cnt-draft">[—]</span></button>
     <span class="fl-spacer"></span>
     <button type="button" class="fl-sort" id="vault-sort"><span>Sort</span><span class="v" id="sort-v">Updated · newest</span></button>
     <!-- Hidden legacy select so existing JS that reads/writes #vault-kind-filter keeps working -->
@@ -1137,6 +1292,8 @@
       <option value="chat">Saved chats</option>
       <option value="review_finding">Review findings</option>
       <option value="manual_note">Notes</option>
+      <option value="template">Templates</option>
+      <option value="draft">Drafts</option>
     </select>
   </div>
 
@@ -1149,6 +1306,7 @@
     <span style="opacity:.5">·</span>
     <span>Bulk action</span>
     <span style="flex: 1"></span>
+    <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-make-template" style="border-color:#1f7a72;color:#1f7a72">Convert to templates</button>
     <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-archive">Archive selected</button>
     <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-delete">Delete selected</button>
     <button class="ws-btn ws-btn-ghost" type="button" id="vault-bulk-cancel">Clear</button>
@@ -1174,6 +1332,19 @@
         <span class="vault-col-tags vault-col-tags-h">Tags</span>
         <span class="vault-col-meta vault-col-size">Chars</span>
         <span class="vault-col-meta">Updated</span>
+      </div>
+      <!-- Candidate-template banner (hidden by default). Shown when the
+           list contains items where auto-detect flagged them as likely
+           templates but they haven't been promoted yet. -->
+      <div id="vault-candidate-banner" class="vault-candidate-banner" hidden>
+        <div>
+          <strong>Templates detected</strong>
+          <span id="vault-candidate-text">0 documents look like templates — review the detected fields?</span>
+        </div>
+        <div class="vcb-actions">
+          <button type="button" id="vault-candidate-dismiss">Dismiss</button>
+          <button type="button" id="vault-candidate-view" class="is-primary">Review →</button>
+        </div>
       </div>
       <div id="vault-list" class="vault-list">
         <div class="vault-row sk-list-item"><div class="sk-block-title" style="width:55%"></div></div>
@@ -1421,13 +1592,15 @@
     return String(n);
   }
   function humanizeKind(kind) {
-    return ({ document: 'Document', chat: 'Chat', review_finding: 'Finding', manual_note: 'Note' }[kind] || kind || '').replace(/_/g, ' ');
+    return ({ document: 'Document', chat: 'Chat', review_finding: 'Finding', manual_note: 'Note', template: 'Template', draft: 'Draft' }[kind] || kind || '').replace(/_/g, ' ');
   }
   function shortKindBadge(kind) {
     if (kind === 'document') return 'DOC';
     if (kind === 'chat') return 'CHAT';
     if (kind === 'review_finding') return 'FIND';
     if (kind === 'manual_note') return 'NOTE';
+    if (kind === 'template') return 'TMPL';
+    if (kind === 'draft') return 'DRFT';
     return (kind || '?').toUpperCase().slice(0, 4);
   }
   function kindBadgeClass(kind) {
@@ -1435,6 +1608,8 @@
     if (kind === 'chat') return 'is-mail';
     if (kind === 'review_finding') return 'is-img';
     if (kind === 'manual_note') return 'is-txt';
+    if (kind === 'template') return 'is-tmpl';
+    if (kind === 'draft') return 'is-drft';
     return 'is-doc';
   }
 
@@ -1487,6 +1662,9 @@
       const tags = (it.tags || []).slice(0, 3).map((t) => '<span class="tag-chip">' + escapeAttr(t) + '</span>').join('');
       const kindBadge = '<span class="vr-kind ' + kindBadgeClass(it.source_kind) + '">' + escapeAttr(shortKindBadge(it.source_kind)) + '</span>';
       const pinned = it.pinned ? '<span class="vault-pin-dot" title="Pinned">📌</span>' : '';
+      const letterheadStar = it.is_default_letterhead
+        ? '<span class="vault-letterhead-star" title="Your default letterhead — wraps every rendered draft" style="color:#b8860b">★</span>'
+        : '';
       const archived = it.archived_at ? '<span class="vault-arch-chip">archived</span>' : '';
       const score = (typeof it.score === 'number') ? '<span class="vault-score" title="Similarity">' + Math.round(it.score * 100) + '%</span>' : '';
       const checked = selected.has(it.id) ? ' checked' : '';
@@ -1499,7 +1677,7 @@
           kindBadge +
           '<div class="vr-title-wrap">' +
             '<span class="vr-title">' + escapeAttr(it.title || 'Untitled') + '</span>' +
-            '<span class="vr-sub">' + escapeAttr(sub) + (pinned ? ' ' + pinned : '') + (archived ? ' ' + archived : '') + '</span>' +
+            '<span class="vr-sub">' + escapeAttr(sub) + (letterheadStar ? ' ' + letterheadStar : '') + (pinned ? ' ' + pinned : '') + (archived ? ' ' + archived : '') + '</span>' +
           '</div>' +
           '<div class="vr-tags">' + (tags || '<span style="opacity:.4">—</span>') + '</div>' +
           '<span class="vr-size">' + (it.content_chars ? fmtChars(it.content_chars) : '—') + '</span>' +
@@ -1550,6 +1728,53 @@
     if (sec) sec.textContent = 'INDEX · ' + items.length + ' ITEM' + (items.length === 1 ? '' : 'S') + ' · ALL DESTINATIONS';
   }
 
+  // Auto-detect candidate banner — surfaces vault items that the
+  // background detector flagged as likely templates but weren't
+  // auto-promoted (confidence between the soft-detect floor and the
+  // auto-promote threshold). Click-to-review opens the first one in
+  // the detail panel; dismissal is session-scoped via localStorage.
+  function updateCandidateBanner() {
+    const banner = document.getElementById('vault-candidate-banner');
+    if (!banner) return;
+    let dismissed = false;
+    try { dismissed = !!sessionStorage.getItem('vault-candidate-dismissed'); } catch {}
+    if (dismissed) { banner.hidden = true; return; }
+    const candidates = items.filter((it) => {
+      if (it.source_kind === 'template' || it.source_kind === 'draft') return false;
+      const sch = it.template_schema;
+      if (!sch || !Array.isArray(sch.vars) || sch.vars.length === 0) return false;
+      return true;
+    });
+    if (!candidates.length) { banner.hidden = true; return; }
+    const textEl = document.getElementById('vault-candidate-text');
+    if (textEl) {
+      const n = candidates.length;
+      textEl.textContent = (n === 1 ? '1 document looks' : `${n} documents look`) +
+        ' like a template — review the detected fields?';
+    }
+    banner.hidden = false;
+    const viewBtn = document.getElementById('vault-candidate-view');
+    if (viewBtn && !viewBtn.dataset.bound) {
+      viewBtn.dataset.bound = '1';
+      viewBtn.addEventListener('click', () => {
+        const first = items.find((it) => {
+          if (it.source_kind === 'template' || it.source_kind === 'draft') return false;
+          const sch = it.template_schema;
+          return sch && Array.isArray(sch.vars) && sch.vars.length > 0;
+        });
+        if (first) openDetail(first.id);
+      });
+    }
+    const dismissBtn = document.getElementById('vault-candidate-dismiss');
+    if (dismissBtn && !dismissBtn.dataset.bound) {
+      dismissBtn.dataset.bound = '1';
+      dismissBtn.addEventListener('click', () => {
+        try { sessionStorage.setItem('vault-candidate-dismissed', '1'); } catch {}
+        banner.hidden = true;
+      });
+    }
+  }
+
   function updateFilterCounts() {
     const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = '[' + n + ']'; };
     set('fl-cnt-all', items.length);
@@ -1557,6 +1782,10 @@
     set('fl-cnt-chat', items.filter((it) => it.source_kind === 'chat').length);
     set('fl-cnt-review_finding', items.filter((it) => it.source_kind === 'review_finding').length);
     set('fl-cnt-manual_note', items.filter((it) => it.source_kind === 'manual_note').length);
+    set('fl-cnt-template', items.filter((it) => it.source_kind === 'template').length);
+    set('fl-cnt-draft', items.filter((it) => it.source_kind === 'draft').length);
+    // Refresh the banner whenever counts change (after a re-load).
+    updateCandidateBanner();
   }
 
   // ---- Bulk select bar ----
@@ -1606,6 +1835,39 @@
       });
       if (!r.ok) throw new Error('Archive failed for ' + id);
     }, 'Archiving');
+    await loadList();
+  });
+  document.getElementById('vault-bulk-make-template').addEventListener('click', async () => {
+    if (selected.size === 0) return;
+    // Only flip documents — chats, findings, notes, and existing
+    // templates/drafts skip the conversion.
+    const candidates = Array.from(selected).filter((id) => {
+      const it = items.find((x) => x.id === id);
+      return it && it.source_kind === 'document';
+    });
+    if (candidates.length === 0) {
+      if (typeof window.siteToast === 'function') {
+        window.siteToast('Select at least one document to convert.', { kind: 'warn' });
+      }
+      return;
+    }
+    const skipped = selected.size - candidates.length;
+    const msg = 'Convert ' + candidates.length + ' document' + (candidates.length === 1 ? '' : 's') +
+      ' into template' + (candidates.length === 1 ? '' : 's') + '?' +
+      (skipped > 0 ? ' (' + skipped + ' non-document item' + (skipped === 1 ? '' : 's') + ' will be skipped.)' : '') +
+      ' We\'ll auto-detect the variable fields in the background. You can edit the fields after.';
+    if (!(await window.siteConfirm(msg, { okLabel: 'Convert' }))) return;
+    await runBulk(candidates, async (id) => {
+      const r = await fetch('/.netlify/functions/workspace-vault-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken },
+        body: JSON.stringify({ id, source_kind: 'template' }),
+      });
+      if (!r.ok) throw new Error('Convert failed for ' + id);
+    }, 'Converting');
+    if (typeof window.siteToast === 'function') {
+      window.siteToast('Converted ' + candidates.length + ' to templates. Detecting fields…', { kind: 'success' });
+    }
     await loadList();
   });
 
@@ -1718,11 +1980,79 @@
           '</div>';
         })() +
 
+        // TEMPLATE-AWARE SECTION — shown when the item is a template
+        // OR has a detected template_schema (i.e. a candidate that
+        // hasn't been promoted yet). The user can edit detected
+        // fields, add/remove rows, and promote/demote between
+        // document and template.
+        (function () {
+          const sch = item.template_schema;
+          const isTemplate = item.source_kind === 'template';
+          const isCandidate = !isTemplate && sch && Array.isArray(sch.vars) && sch.vars.length > 0;
+          if (!isTemplate && !isCandidate) return '';
+          const heading = isTemplate ? 'Template fields' : 'Detected template fields';
+          const sectionTag = isTemplate ? 'TEMPLATE' : 'CANDIDATE';
+          const vars = (sch && Array.isArray(sch.vars)) ? sch.vars : [];
+          const conf = sch && typeof sch.confidence === 'number'
+            ? ' · ' + Math.round(sch.confidence * 100) + '% confidence'
+            : '';
+          const auto = sch && sch.auto_detected ? ' · auto-detected' : '';
+          // Letterhead toggle — shown ONLY on templates owned by the
+          // user (not on system-published ones). When this template
+          // is the user's current default letterhead, the button
+          // becomes "Clear default letterhead"; otherwise it offers
+          // to "Set as my letterhead".
+          const isMine = !!item.user_id;
+          const isDefault = !!item.is_default_letterhead;
+          const letterheadBtn = (isTemplate && isMine)
+            ? (isDefault
+              ? '<button class="dp-action" data-action="clear-letterhead" type="button" style="background:#b8860b;border-color:#b8860b;color:#fff">★ Default letterhead — click to clear</button>'
+              : '<button class="dp-action" data-action="set-letterhead" type="button" title="Make this template the wrapper used for every rendered draft">☆ Set as my letterhead</button>')
+            : '';
+          const promoteRow = isTemplate
+            ? '<div class="tmpl-promote-row">' +
+                '<button class="dp-action" data-action="demote-template" type="button">Not a template — demote</button>' +
+                letterheadBtn +
+                '<a class="dp-action" href="/workspace/chat/?template=' + escapeAttr(item.id) + '" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;padding:7px 14px;border:1px solid var(--ink);border-radius:4px;color:var(--paper);background:var(--ink);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Use in chat →</a>' +
+              '</div>'
+            : '<div class="tmpl-promote-row">' +
+                '<button class="dp-action" data-action="promote-template" type="button" style="background:#1f7a72;border-color:#1f7a72;color:#fff">Promote to template</button>' +
+                '<button class="dp-action" data-action="not-template" type="button">Not a template</button>' +
+              '</div>';
+          return '<div class="dp-section" data-template-editor>' +
+            '<span class="dp-section-l"><span>' + heading + '</span><span>' + sectionTag + auto + conf + '</span></span>' +
+            '<p class="dp-snippet" style="margin-bottom:6px">' +
+              'Each row is a field the AI will fill when drafting from this template. Edit, rename, or remove as needed.' +
+            '</p>' +
+            '<div class="tmpl-fields" id="tmpl-fields-list">' +
+              vars.map((v, i) => renderTemplateFieldRow(v, i)).join('') +
+            '</div>' +
+            '<button type="button" class="tmpl-add-field-btn" data-tmpl-add>+ Add field</button>' +
+            '<div style="margin-top:12px">' +
+              '<button type="button" class="tmpl-fields-save" data-tmpl-save data-item-id="' + escapeAttr(item.id) + '">Save fields</button>' +
+              '<span class="tmpl-fields-status" id="tmpl-fields-status"></span>' +
+            '</div>' +
+            promoteRow +
+          '</div>';
+        })() +
+
         '<div class="dp-section">' +
           '<span class="dp-section-l"><span>Actions</span><span>03</span></span>' +
           '<div class="dp-actions">' +
             '<button class="dp-action" data-action="pin" type="button">' + (item.pinned ? '★ Unpin' : '📌 Pin') + '</button>' +
             '<button class="dp-action" data-action="archive" type="button">' + (item.archived_at ? 'Unarchive' : 'Archive') + '</button>' +
+            // Show "Convert to template" on every regular document
+            // that ISN'T already a template/draft and ISN\'T already
+            // in the candidate-template editor block above (which has
+            // its own promote button). This makes manual promotion
+            // possible for ANY doc the user uploaded — letterheads,
+            // recurring contracts, etc.
+            (
+              item.source_kind === 'document'
+              && !(item.template_schema && Array.isArray(item.template_schema.vars) && item.template_schema.vars.length > 0)
+                ? '<button class="dp-action" data-action="convert-template" type="button" style="background:#1f7a72;border-color:#1f7a72;color:#fff">Convert to template →</button>'
+                : ''
+            ) +
             '<button class="dp-action vault-detail-delete" data-action="delete" type="button">Delete</button>' +
           '</div>' +
         '</div>' +
@@ -1732,6 +2062,74 @@
     body.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', () => doAction(item, btn.dataset.action));
     });
+
+    // Template field editor wiring — only present when the section
+    // was rendered above. Add-field appends a blank row; per-row
+    // delete removes the row; Save fields commits to the server.
+    const fieldsList = body.querySelector('#tmpl-fields-list');
+    const addBtn = body.querySelector('[data-tmpl-add]');
+    const saveBtn = body.querySelector('[data-tmpl-save]');
+    if (fieldsList) {
+      // Per-row delete
+      fieldsList.addEventListener('click', (e) => {
+        const del = e.target.closest('.tmpl-field-del');
+        if (!del) return;
+        const row = del.closest('.tmpl-field-row');
+        if (row) row.remove();
+      });
+    }
+    if (addBtn && fieldsList) {
+      addBtn.addEventListener('click', () => {
+        fieldsList.insertAdjacentHTML('beforeend', renderTemplateFieldRow({ key: '', label: '', type: 'text', hint: '', placeholder_text: '', occurrences: 1 }, fieldsList.children.length));
+      });
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        const status = body.querySelector('#tmpl-fields-status');
+        const rows = fieldsList ? Array.from(fieldsList.querySelectorAll('.tmpl-field-row')) : [];
+        const collected = rows.map((row) => ({
+          key: row.querySelector('[data-tmpl-key]')?.value || '',
+          label: row.querySelector('[data-tmpl-label]')?.value || '',
+          type: row.querySelector('[data-tmpl-type]')?.value || 'text',
+          hint: '',
+          placeholder_text: '',
+          occurrences: 1,
+        })).filter((v) => v.key.trim() && v.label.trim());
+        saveBtn.disabled = true;
+        if (status) status.textContent = 'Saving…';
+        try {
+          await call('workspace-vault-update', {
+            id: item.id,
+            template_schema: {
+              vars: collected,
+              auto_detected: !!(item.template_schema?.auto_detected),
+              detected_at: item.template_schema?.detected_at || null,
+              confidence: item.template_schema?.confidence || null,
+              model_used: item.template_schema?.model_used || null,
+            },
+          });
+          if (status) status.textContent = 'Saved · ' + collected.length + ' field' + (collected.length === 1 ? '' : 's');
+          await loadList();
+          await openDetail(item.id);
+        } catch (err) {
+          if (status) status.textContent = 'Failed: ' + (err?.message || err);
+        } finally {
+          saveBtn.disabled = false;
+        }
+      });
+    }
+  }
+
+  function renderTemplateFieldRow(v, idx) {
+    const types = ['text', 'longtext', 'date', 'currency', 'percent', 'state', 'party_block', 'signature_block'];
+    return '<div class="tmpl-field-row" data-field-idx="' + idx + '">' +
+      '<input type="text" data-tmpl-key placeholder="snake_case_key" value="' + escapeAttr(v?.key || '') + '" />' +
+      '<input type="text" data-tmpl-label placeholder="Human label" value="' + escapeAttr(v?.label || '') + '" />' +
+      '<select data-tmpl-type>' +
+        types.map((t) => '<option value="' + t + '"' + (v?.type === t ? ' selected' : '') + '>' + t + '</option>').join('') +
+      '</select>' +
+      '<button type="button" class="tmpl-field-del" aria-label="Remove">×</button>' +
+    '</div>';
   }
   async function doAction(item, action) {
     try {
@@ -1739,6 +2137,39 @@
         await call('workspace-vault-update', { id: item.id, pinned: !item.pinned });
       } else if (action === 'archive') {
         await call('workspace-vault-update', { id: item.id, archived: !item.archived_at });
+      } else if (action === 'promote-template') {
+        // User confirms this candidate IS a template — flip source_kind.
+        await call('workspace-vault-update', { id: item.id, source_kind: 'template' });
+      } else if (action === 'convert-template') {
+        // Manual promotion for a regular document with no detected
+        // schema. Server will flip source_kind AND fire-and-forget
+        // a template-detect kick to populate the field schema async.
+        if (!(await window.siteConfirm(
+          'Convert this document into a template? It will move to the Templates tab and we\'ll auto-detect the variable fields in the background. You can edit the fields after.',
+          { okLabel: 'Convert' }
+        ))) return;
+        await call('workspace-vault-update', { id: item.id, source_kind: 'template' });
+        if (typeof window.siteToast === 'function') {
+          window.siteToast('Moved to Templates. Detecting fields…', { kind: 'success' });
+        }
+      } else if (action === 'set-letterhead') {
+        // Mark this template as the user's default letterhead.
+        // Server-side mutex unsets any prior default for this user.
+        await call('workspace-vault-update', { id: item.id, is_default_letterhead: true });
+        if (typeof window.siteToast === 'function') {
+          window.siteToast('Letterhead set. Future drafts will wrap in this letterhead.', { kind: 'success' });
+        }
+      } else if (action === 'clear-letterhead') {
+        await call('workspace-vault-update', { id: item.id, is_default_letterhead: false });
+        if (typeof window.siteToast === 'function') {
+          window.siteToast('Letterhead cleared. Drafts will use their template\'s own header / footer.', { kind: 'success' });
+        }
+      } else if (action === 'demote-template') {
+        if (!(await window.siteConfirm('Convert this template back to a regular document? Detected fields will be cleared.', { okLabel: 'Demote' }))) return;
+        await call('workspace-vault-update', { id: item.id, source_kind: 'document' });
+      } else if (action === 'not-template') {
+        // Dismiss the candidate — clear the schema, mark as a regular doc.
+        await call('workspace-vault-update', { id: item.id, source_kind: 'document' });
       } else if (action === 'delete') {
         if (!(await window.siteConfirm('Permanently delete this vault item? This cannot be undone.', { okLabel: 'Delete', danger: true }))) return;
         await call('workspace-vault-delete', { id: item.id, hard: true });

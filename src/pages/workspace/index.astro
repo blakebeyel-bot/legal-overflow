@@ -685,6 +685,17 @@
     .ws-dash .ws-list-head .h-model,
     .ws-dash .ws-row-wrap > .ws-rc.ws-rc-model { display: none; }
   }
+  /* Phone-tier: drop the chat list's date column too — title +
+     delete-row only — and tighten padding. Also collapse the
+     pending strip / two-col card layouts to single column. */
+  @media (max-width: 600px) {
+    .ws-dash .ws-list-head { grid-template-columns: 18px 1fr 38px; gap: 8px; padding: 8px 12px; }
+    .ws-dash .ws-row-wrap   { grid-template-columns: 18px 1fr 38px; gap: 8px; padding: 9px 12px; }
+    .ws-dash .ws-list-head .h-updated,
+    .ws-dash .ws-row-wrap > .ws-rc.ws-rc-updated { display: none; }
+    .ws-dash .ws-dash-pending { flex-wrap: wrap; gap: 8px; }
+    .ws-dash .ws-recent-grid { grid-template-columns: 1fr !important; }
+  }
 </style>
 </head>
 <body class="ws-dashboard-page">

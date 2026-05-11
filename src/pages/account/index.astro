@@ -25,6 +25,13 @@
      visible during the JS auth check. The auth handler below removes
      the attribute on successful session load. */
   body[data-auth-gate] { visibility: hidden; }
+  /* Mobile pass — full-width form inputs so the 220px min-width
+     doesn't push the Save button off-screen on a 320-375px phone. */
+  @media (max-width: 480px) {
+    #acct-displayname-input { min-width: 0 !important; width: 100%; }
+    .acct-displayname-intro + div { flex-direction: column; align-items: stretch !important; }
+    .acct-displayname-intro + div button.ws-btn { width: 100%; min-height: 40px; }
+  }
 </style>
 </head>
 <body data-auth-gate>

@@ -68,6 +68,160 @@
     body.ws-chat #rail-resize { display: none; }
   }
 
+  /* ============================================================
+     MOBILE — chat sidebar drawer toggle (Phase: site-wide mobile pass)
+     ============================================================
+     Default state (desktop): hamburger button hidden, rail shows as
+     a normal grid column. Below 900px, the rail collapses (already
+     happens at 980px above) but now the hamburger button reveals
+     and tapping it shows the rail as a full-height left-side drawer
+     overlaying the chat content. Backdrop dims the chat. Tap
+     backdrop or press Esc to close. */
+  body.ws-chat .chat-rail-toggle {
+    display: none;
+    align-items: center; justify-content: center;
+    width: 38px; height: 38px;
+    flex: none;
+    background: transparent; border: 1px solid var(--rule-thread);
+    border-radius: 6px; cursor: pointer; color: var(--ink);
+    transition: background .12s, border-color .12s;
+  }
+  body.ws-chat .chat-rail-toggle:hover { background: rgba(0,0,0,.04); }
+  body.ws-chat .chat-rail-toggle svg { color: currentColor; }
+  body.ws-chat .chat-rail-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 90;
+    opacity: 0;
+    transition: opacity .2s var(--motion-snap);
+    pointer-events: none;
+  }
+  body.ws-chat .chat-rail-backdrop.is-open {
+    opacity: 1; pointer-events: auto;
+  }
+
+  /* Show toggle + enable drawer behavior at the same breakpoint
+     where the existing CSS hides the rail (980px). Avoids a dead
+     zone between 901-980px where the rail vanishes but the toggle
+     hasn't appeared yet. */
+  @media (max-width: 980px) {
+    body.ws-chat .chat-rail-toggle { display: inline-flex; }
+    /* When the drawer is open, force the rail visible as a fixed
+       overlay even though the desktop @media at 980px wanted to
+       display: none it. */
+    body.ws-chat .chat-rail.is-drawer-open {
+      display: block !important;
+      position: fixed;
+      top: 0; left: 0;
+      height: 100vh; height: 100dvh;
+      width: min(320px, 88vw);
+      z-index: 95;
+      background: var(--paper);
+      box-shadow: 0 16px 40px rgba(0,0,0,.18);
+      overflow-y: auto;
+      padding: 16px 14px 24px;
+      transform: translateX(0);
+      transition: transform .25s var(--motion-snap);
+    }
+    body.ws-chat .chat-rail.is-drawer-open .chat-rail-back {
+      /* Close-drawer affordance reuses the existing "← Workspace"
+         link styling; in drawer mode it's just always visible. */
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body.ws-chat .chat-rail-backdrop,
+    body.ws-chat .chat-rail.is-drawer-open { transition: none; }
+  }
+
+  /* ============================================================
+     MOBILE — touch ergonomics (msg-actions, resize handles, drop)
+     ============================================================ */
+  @media (pointer: coarse) {
+    /* Resize handles are impossible to grab on touch — hide entirely.
+       Sidebar / header fall back to their default widths / heights. */
+    body.ws-chat #rail-resize,
+    body.ws-chat .chat-head-resize { display: none !important; }
+
+    /* msg-actions buttons (Copy / Save to Vault / Use in template)
+       — bumped from 5x9px / 9.5px font up to touch-friendly. */
+    body.ws-chat .msg-actions {
+      flex-wrap: wrap;
+      row-gap: 4px;
+    }
+    body.ws-chat .msg-actions button,
+    body.ws-chat .msg-action,
+    body.ws-chat .msg-copy {
+      padding: 9px 11px;
+      font-size: 10.5px;
+      min-height: 36px;
+    }
+    body.ws-chat .msg-actions svg { width: 13px; height: 13px; }
+
+    /* Drag-and-drop overlay on the composer — touch devices can't
+       drag-drop anyway, and the overlay flickers when the user
+       scrolls. Hide it. The paperclip button still works for file
+       picker via tap. */
+    body.ws-chat .composer-drop-target,
+    body.ws-chat .composer-dropzone,
+    body.ws-chat .chat-drop-overlay { display: none !important; }
+  }
+
+  /* ============================================================
+     MOBILE — chat header layout below 600px
+     ============================================================ */
+  @media (max-width: 600px) {
+    body.ws-chat .chat-head-right { flex-wrap: wrap; row-gap: 6px; }
+    body.ws-chat .chat-head-right > * { min-height: 34px; }
+    /* Hide informational-only key-source label; the chat still works,
+       it's just metadata about which API key was used. */
+    body.ws-chat #key-source { display: none; }
+    /* Chat title needs to wrap onto its own line so the buttons have
+       room. Cap clamp() floor smaller for narrow screens. */
+    body.ws-chat .chat-title-input {
+      min-width: 100%;
+      font-size: clamp(16px, 4.4vw, 22px);
+    }
+    /* Composer textarea — cap to 30vh so it doesn't eat the whole
+       phone viewport when the user types multiple lines. */
+    body.ws-chat #composer-input { max-height: 30vh; }
+    /* Drop-target overlay sits at top:30% on mobile so it doesn't
+       overlap the keyboard fold. (Desktop / pointer:fine sees the
+       overlay; pointer:coarse hides it entirely — block above.) */
+    body.ws-chat .composer-drop-target,
+    body.ws-chat .composer-dropzone,
+    body.ws-chat .chat-drop-overlay { top: 30%; }
+    /* Research toolbar wraps to a single column at narrow widths
+       and uses larger label hit-areas. */
+    body.ws-chat .composer-research-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+    }
+    body.ws-chat .composer-research-bar > * {
+      width: 100%;
+      min-height: 32px;
+    }
+  }
+
+  /* ============================================================
+     MOBILE — modal footer button stacking below 480px
+     ============================================================ */
+  @media (max-width: 480px) {
+    body.ws-chat .attach-modal-foot,
+    body.ws-chat .cite-modal-foot,
+    body.ws-chat #save-convo-modal .cite-modal-foot {
+      flex-direction: column-reverse;
+      align-items: stretch;
+      gap: 8px;
+    }
+    body.ws-chat .attach-modal-foot button,
+    body.ws-chat .attach-modal-foot a,
+    body.ws-chat .cite-modal-foot button,
+    body.ws-chat .cite-modal-foot a {
+      width: 100%;
+    }
+  }
+
   /* ---------- sidebar (chat-rail) ---------- */
   body.ws-chat .chat-rail {
     position: relative;
@@ -826,6 +980,129 @@
   body.ws-chat .msg-action:hover,
   body.ws-chat .msg-copy:hover { color: var(--accent-deep); }
   body.ws-chat .msg-actions svg { width: 11px; height: 11px; }
+  body.ws-chat .msg-fill-template.is-pending { opacity: .55; cursor: progress; }
+
+  /* Draft bubble — emitted after template-render finishes. Shows a
+     download chip, fill-rate, and refine action. Visually distinct
+     from regular assistant bubbles (teal-tinted card). */
+  body.ws-chat .msg-draft .draft-chip {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #1f7a72;
+    border-radius: 8px;
+    background: rgba(31, 122, 114, 0.06);
+    margin: 4px 0 6px;
+  }
+  body.ws-chat .msg-draft .draft-chip svg.draft-chip-icon {
+    flex: none; width: 28px; height: 28px;
+    color: #1f7a72;
+  }
+  body.ws-chat .msg-draft .draft-chip-info {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  body.ws-chat .msg-draft .draft-chip-title {
+    font-family: var(--serif); font-size: 15px; color: var(--ink);
+    line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.ws-chat .msg-draft .draft-chip-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .08em;
+  }
+  body.ws-chat .msg-draft .draft-chip-download {
+    flex: none;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase;
+    background: #1f7a72; color: #fff;
+    border: 1px solid #1f7a72; border-radius: 4px;
+    padding: 8px 14px; text-decoration: none;
+    transition: background .15s;
+  }
+  body.ws-chat .msg-draft .draft-chip-download:hover {
+    background: #156158; border-color: #156158;
+  }
+  body.ws-chat .msg-draft .draft-missing {
+    margin-top: 6px;
+    font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+    letter-spacing: .06em;
+  }
+  body.ws-chat .msg-draft .draft-missing-field {
+    display: inline-block; margin: 0 4px 4px 0;
+    padding: 3px 9px;
+    border: 1px solid var(--md);
+    border-radius: 999px;
+    background: transparent; color: var(--md);
+    font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .08em; cursor: pointer;
+  }
+  body.ws-chat .msg-draft .draft-missing-field:hover {
+    background: var(--md); color: var(--paper);
+  }
+
+  /* Template picker rows — reused in the attach-modal styling but
+     with a small "field count" pip on each row. */
+  body.ws-chat .tmpl-picker-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule-soft);
+    cursor: pointer;
+    transition: background .12s;
+  }
+  body.ws-chat .tmpl-picker-row:hover { background: rgba(31,122,114,.06); }
+  body.ws-chat .tmpl-picker-row .tpr-icon {
+    flex: none; width: 28px; height: 28px;
+    color: #1f7a72;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-body {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-direction: column;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-title {
+    font-family: var(--serif); font-size: 15px; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-meta {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .08em;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-pip {
+    flex: none;
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-3); letter-spacing: .1em;
+    border: 1px solid var(--rule-thread); border-radius: 4px;
+    padding: 3px 8px;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-actions {
+    flex: none; display: flex; gap: 6px;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-btn {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase;
+    border: 1px solid var(--rule-thread); border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer; background: transparent;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-btn-fields {
+    color: var(--ink); border-color: var(--ink);
+  }
+  body.ws-chat .tmpl-picker-row .tpr-btn-fields:hover:not(:disabled) {
+    background: var(--ink); color: var(--paper);
+  }
+  body.ws-chat .tmpl-picker-row .tpr-btn-fields:disabled {
+    opacity: .35; cursor: not-allowed;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-btn-body {
+    color: #1f7a72; border-color: #1f7a72;
+  }
+  body.ws-chat .tmpl-picker-row .tpr-btn-body:hover {
+    background: #1f7a72; color: #fff;
+  }
+  body.ws-chat .tmpl-picker-row[data-system="1"] .tpr-meta::before {
+    content: "PREBUILT · ";
+    color: #1f7a72;
+  }
 
   /* msg-attach (paperclip chip inside user message) */
   body.ws-chat .msg-attach {
@@ -1236,6 +1513,39 @@
   body.ws-chat .chat-main.is-privacy-on #composer-send {
     background: var(--privacy); border-color: var(--privacy);
   }
+  /* Send / Stop dual-mode button. Default state shows "Send".
+     When sending=true the button picks up [data-mode="stop"] and
+     the stop label/square-icon swaps in. Same shape, different
+     accent — clear visual signal the click action has changed. */
+  body.ws-chat #composer-send .composer-stop-label {
+    display: none;
+    align-items: center; gap: 6px;
+  }
+  body.ws-chat #composer-send .composer-stop-label svg {
+    flex: none;
+  }
+  body.ws-chat #composer-send[data-mode="stop"] .composer-send-label {
+    display: none;
+  }
+  body.ws-chat #composer-send[data-mode="stop"] .composer-stop-label {
+    display: inline-flex;
+  }
+  /* Stop-mode coloring: clear destructive cue without being harsh.
+     Background subtly red-tinted, border a confident red, text white.
+     Hover deepens. Always clickable (no disabled state) so the user
+     can actually use it to interrupt the stream. */
+  body.ws-chat #composer-send[data-mode="stop"] {
+    background: #b94747; border-color: #b94747; color: var(--paper);
+    opacity: 1 !important;
+  }
+  body.ws-chat #composer-send[data-mode="stop"]:hover {
+    background: #9a3838; border-color: #9a3838;
+  }
+  /* Disabled-by-default state for the input row during stream. The
+     button itself is NOT disabled in stop mode — only the input. */
+  body.ws-chat #composer-send[data-mode="stop"]:disabled {
+    opacity: 1; cursor: pointer;
+  }
 
   /* disclaimer */
   body.ws-chat .chat-discl {
@@ -1341,7 +1651,7 @@
 </button>
 
 <main class="chat-shell">
-  <aside class="chat-rail">
+  <aside class="chat-rail" id="chat-rail-aside">
     <a href="/workspace/" class="chat-rail-back">← Workspace</a>
     <div class="side-head">
       <span class="side-kicker"><span class="pip"></span>WS / 04 · CHAT</span>
@@ -1358,6 +1668,9 @@
     </label>
     <div id="rail-list" class="chat-rail-list side-list"></div>
   </aside>
+  <!-- Mobile drawer backdrop — dims the chat area when the rail is
+       opened as an overlay below 900px. Hidden on desktop. Tap to close. -->
+  <div id="chat-rail-backdrop" class="chat-rail-backdrop" hidden></div>
   <!-- Draggable resize handle between sidebar and chat. -->
   <div id="rail-resize" class="rail-resize" role="separator" aria-label="Resize sidebar" aria-orientation="vertical" tabindex="0"></div>
 
@@ -1369,6 +1682,16 @@
         <span class="k-coord" id="chat-coord">/WS · CHAT</span>
       </div>
       <div class="chat-head-row">
+        <!-- Mobile-only hamburger toggle for the chat-rail drawer.
+             Hidden on desktop via CSS. Below 900px it appears at the
+             start of the header row and toggles the rail overlay. -->
+        <button type="button" id="chat-rail-toggle" class="chat-rail-toggle" aria-label="Open chat list" aria-controls="chat-rail-aside" aria-expanded="false">
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="17" y2="6"/>
+            <line x1="3" y1="10" x2="17" y2="10"/>
+            <line x1="3" y1="14" x2="17" y2="14"/>
+          </svg>
+        </button>
         <input type="text" id="chat-title" class="chat-title-input" placeholder="Untitled chat" />
         <div class="chat-head-right">
           <button type="button" id="chat-project-pill" class="chat-project-pill" aria-haspopup="true" title="Set project">
@@ -1558,7 +1881,13 @@
         </svg>
       </button>
       <textarea id="composer-input" rows="2" placeholder="Ask a legal research question…"></textarea>
-      <button type="submit" id="composer-send" class="ws-btn">Send</button>
+      <button type="submit" id="composer-send" class="ws-btn" aria-label="Send message">
+        <span class="composer-send-label">Send</span>
+        <span class="composer-stop-label" aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
+          Stop
+        </span>
+      </button>
     </form>
     </div><!-- /.chat-container -->
     <p class="chat-discl">Output is AI-generated and not legal advice. Verify every citation before relying on it.</p>
@@ -1587,6 +1916,36 @@
           <a href="/workspace/library/" class="lib-back">Manage library →</a>
           <button type="button" id="attach-confirm" class="ws-btn" disabled>Attach selected</button>
         </footer>
+      </div>
+    </div>
+
+    <!-- Template picker modal — opens when user clicks "Use in template"
+         on an assistant bubble. Lists the user's vault templates + any
+         published system templates. Pick one and we run the
+         extraction+merge against the bubble's content. -->
+    <div id="template-picker-modal" class="attach-modal" hidden>
+      <div class="attach-modal-inner">
+        <header class="attach-modal-head">
+          <h2 class="attach-modal-title">Fill a template with this response</h2>
+          <button type="button" id="template-picker-close" class="attach-modal-close" aria-label="Close">×</button>
+        </header>
+        <div class="attach-modal-body">
+          <input id="template-picker-search" class="attach-search" type="search" placeholder="Search your templates…" />
+          <!-- Letterhead checkbox row — visible only when the user has a
+               default letterhead set. Defaults to checked; uncheck to use
+               the source template's own header/footer instead of the
+               user's branded letterhead. -->
+          <label id="template-picker-letterhead-row" style="display:none;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--ink);margin:10px 0 6px;padding:8px 10px;border:1px solid #b8860b;border-radius:4px;background:rgba(184,134,11,.06)">
+            <input type="checkbox" id="template-picker-letterhead-check" checked style="accent-color:#b8860b" />
+            <span>Wrap in <strong id="template-picker-letterhead-title">my letterhead</strong> <span style="color:var(--ink-3);font-size:9.5px"> · ★ default</span></span>
+          </label>
+          <div id="template-picker-list" class="attach-list">
+            <div class="ws-empty">Loading templates…</div>
+          </div>
+          <p style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin:14px 0 0">
+            Don't see a template? <a href="/workspace/vault/" style="color:var(--accent-deep)">Upload one to your Vault →</a>
+          </p>
+        </div>
       </div>
     </div>
 
@@ -1755,6 +2114,64 @@
     _url.searchParams.delete('seed');
     history.replaceState(null, '', _url.toString());
   }
+  // Two valid entry points without an `id`:
+  //   1. ?template=<id> — create a new chat bound to that template
+  //      (Phase 3 "Use in chat" flow). We do this synchronously
+  //      before any chat-page logic kicks in so loadChat() finds
+  //      the new chat row.
+  //   2. nothing — bounce back to the workspace home.
+  const templateIdFromUrl = _url.searchParams.get('template');
+  if (!chatId && templateIdFromUrl) {
+    // Pull the user's preferred model from localStorage if available.
+    let preferredModel = '';
+    try { preferredModel = localStorage.getItem('workspace.dash.model') || ''; } catch {}
+    // Synchronous-ish: we need accessToken AND a chat id before
+    // anything else loads. Block here, then strip the template param
+    // from the URL.
+    (async () => {
+      try {
+        // Wait for accessToken to be set by the auth bootstrap below.
+        // The token is captured by the onAuthStateChange listener.
+        let token = accessToken;
+        if (!token) {
+          // Pull session synchronously via Supabase helper if available.
+          try {
+            const { data } = await window.supabaseClient.auth.getSession();
+            token = data?.session?.access_token || '';
+          } catch {}
+        }
+        if (!token) {
+          location.href = '/workspace/';
+          return;
+        }
+        const r = await fetch('/.netlify/functions/workspace-chats-create', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_id: templateIdFromUrl,
+            ...(preferredModel ? { model: preferredModel } : {}),
+          }),
+        });
+        const j = await r.json();
+        if (j.id) {
+          // Replace the URL so refresh works correctly. Use
+          // history.replaceState so we don't add a back-stack entry
+          // for the empty template URL.
+          const newUrl = new URL(location.href);
+          newUrl.searchParams.set('id', j.id);
+          newUrl.searchParams.delete('template');
+          location.replace(newUrl.toString());
+        } else {
+          location.href = '/workspace/';
+        }
+      } catch (err) {
+        console.error('[chat-page] template-bound chat creation failed:', err);
+        location.href = '/workspace/';
+      }
+    })();
+    // Stop the rest of this script — we'll re-enter after location.replace.
+    throw new Error('redirecting to template-bound chat');
+  }
   if (!chatId) {
     location.href = '/workspace/';
     throw new Error('missing chat id');
@@ -1880,6 +2297,10 @@
   let messages = [];
   let titleDirty = false;
   let sending = false;
+  // Abort controller for the in-flight LLM stream — populated when
+  // sendMessage starts a fetch, cleared in finally. Lets the stop
+  // button cancel mid-stream the way Claude / ChatGPT do.
+  let streamAbortController = null;
 
   function escapeHtml(s) {
     return String(s ?? '').replace(/[<>&]/g, (ch) => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
@@ -2024,6 +2445,15 @@
               <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
             </svg>
             <span>Save to Vault</span>
+          </button>
+          <button type="button" class="msg-fill-template" data-msg-fill-template aria-label="Use in template">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="8" y1="13" x2="16" y2="13"/>
+              <line x1="8" y1="17" x2="13" y2="17"/>
+            </svg>
+            <span>Use in template</span>
           </button>` : ''}
       </div>`;
     const dataSrc = ` data-src="${escapeAttr(content || '')}"`;
@@ -2106,7 +2536,19 @@
     }
     els.messages.innerHTML = msgs
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => bubble(m.role, m.content || '', { attachments: m.attachments || [], privacy_applied: !!m.privacy_applied }))
+      .map((m) => {
+        // Cancelled assistant turns show their partial content with a
+        // soft "[stopped]" marker — same shape we render mid-stream
+        // when the user clicks the stop button, so reloads look the
+        // same as the moment of cancellation.
+        let content = m.content || '';
+        if (m.role === 'assistant' && m.status === 'cancelled') {
+          content = content.trim()
+            ? `${content.trimEnd()}\n\n*[stopped]*`
+            : '*[stopped — no response received]*';
+        }
+        return bubble(m.role, content, { attachments: m.attachments || [], privacy_applied: !!m.privacy_applied });
+      })
       .join('');
     scrollToBottom();
   }
@@ -2159,10 +2601,74 @@
     // strips the class on chats without a bound workflow (the user
     // navigated from a workflow chat to a plain one).
     renderWorkflow(j.workflow || null);
+    renderBoundTemplate(j.template || null);
     // Update cache with fresh data.
     try {
-      localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages, anchors: j.anchors || [], workflow: j.workflow || null }));
+      localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages, anchors: j.anchors || [], workflow: j.workflow || null, template: j.template || null }));
     } catch {}
+  }
+
+  // ---- Bound template chip + intro card ----
+  // Visible when the chat was created via Vault → "Use in chat" on a
+  // template. Mirrors renderWorkflow but for templates: small chip
+  // in the anchor strip + an intro card in the empty-state.
+  let _boundTemplate = null;
+  function renderBoundTemplate(tmpl) {
+    _boundTemplate = tmpl;
+    const wrap = document.getElementById('chat-anchors');
+    if (!wrap) return;
+    // Remove any prior template chip on every render.
+    const existing = wrap.querySelector('[data-template-chip]');
+    if (existing) existing.remove();
+    if (tmpl && tmpl.id) {
+      const chip = document.createElement('span');
+      chip.setAttribute('data-template-chip', '1');
+      chip.className = 'chat-workflow-chip';
+      chip.style.borderColor = '#1f7a72';
+      chip.style.color = '#1f7a72';
+      chip.title = `Drafting from template "${tmpl.title}" — ${tmpl.vars_count} fields tracked.`;
+      chip.innerHTML = `<span class="chat-workflow-chip-icon">📄</span> Template · ${escapeHtml(tmpl.title || 'Untitled')}`;
+      wrap.appendChild(chip);
+      wrap.hidden = false;
+    }
+    // Render-now button — visible only when chat is bound to a template.
+    // Sits as a separate chip next to the template chip; click renders
+    // against the LATEST assistant message (or the current state of
+    // gathered values if extraction has run from a prior turn).
+    const renderBtnExisting = wrap.querySelector('[data-render-now]');
+    if (renderBtnExisting) renderBtnExisting.remove();
+    if (tmpl && tmpl.id) {
+      const renderBtn = document.createElement('button');
+      renderBtn.type = 'button';
+      renderBtn.setAttribute('data-render-now', '1');
+      renderBtn.className = 'chat-workflow-chip';
+      renderBtn.style.cursor = 'pointer';
+      renderBtn.style.background = '#1f7a72';
+      renderBtn.style.color = '#fff';
+      renderBtn.style.borderColor = '#1f7a72';
+      renderBtn.title = 'Render the draft now using the latest assistant message';
+      renderBtn.innerHTML = `<span class="chat-workflow-chip-icon">▸</span> Render draft now`;
+      renderBtn.addEventListener('click', () => triggerRenderFromLatestMessage());
+      wrap.appendChild(renderBtn);
+      wrap.hidden = false;
+    }
+    // Empty-state intro — only when no messages AND template loaded.
+    if (tmpl && tmpl.id && (messages?.length || 0) === 0) {
+      const messagesEl = els.messages;
+      if (messagesEl && !messagesEl.querySelector('.chat-workflow-intro')) {
+        const fields = (tmpl.vars || []).slice(0, 8).map((v) => escapeHtml(v.label || v.key)).join(' · ');
+        const more = (tmpl.vars_count > 8) ? ` (+${tmpl.vars_count - 8} more)` : '';
+        const introHtml = `
+          <div class="chat-workflow-intro" style="border-color:#1f7a72;background:rgba(31,122,114,.04)">
+            <div class="chat-workflow-intro-kicker" style="color:#1f7a72">📄 Drafting mode</div>
+            <h3 class="chat-workflow-intro-title">${escapeHtml(tmpl.title || 'Template')}</h3>
+            <p class="chat-workflow-intro-desc">Tracking ${tmpl.vars_count} field${tmpl.vars_count === 1 ? '' : 's'}: ${fields}${more}</p>
+            <div class="chat-workflow-intro-cta">Tell me about the matter — client, parties, key terms — and I'll fill in this template as we go. Say "render it" anytime to produce the .docx.</div>
+          </div>
+        `;
+        messagesEl.innerHTML = introHtml;
+      }
+    }
   }
 
   // ---- Workflow chip + intro card ----
@@ -2516,8 +3022,12 @@
     const hasAttachments = Array.isArray(opts.attachments) && opts.attachments.length > 0;
     if (sending || (!text.trim() && !hasAttachments)) return;
     sending = true;
-    els.send.disabled = true;
+    // Keep the send button ENABLED — its label flips to "Stop" via
+    // data-mode so the user can click it to abort the stream. Only
+    // the textarea is disabled while a response is in flight.
+    els.send.dataset.mode = 'stop';
     els.input.disabled = true;
+    streamAbortController = new AbortController();
 
     const attachmentIds = opts.attachments || [];
     const attachmentNames = opts.attachmentNames || [];
@@ -2683,6 +3193,7 @@
           law_settings: lawSettings,
           deep_think: deepThink,
         }),
+        signal: streamAbortController.signal,
       });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
@@ -2810,10 +3321,28 @@
       const bubbleEl = asstWrap.parentElement;
       if (bubbleEl) {
         bubbleEl.setAttribute('data-src', acc);
+        if (asstMessageId) bubbleEl.setAttribute('data-id', asstMessageId);
         if (!bubbleEl.querySelector('.msg-actions')) {
           bubbleEl.insertAdjacentHTML(
             'beforeend',
-            `<div class="msg-actions"><button type="button" class="msg-copy" aria-label="Copy response">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button></div>`
+            `<div class="msg-actions">
+              <button type="button" class="msg-copy" aria-label="Copy response">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button>
+              <button type="button" class="save-to-vault-btn msg-save-vault" data-msg-save-vault aria-label="Save to Vault">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span>Save to Vault</span>
+              </button>
+              <button type="button" class="msg-fill-template" data-msg-fill-template aria-label="Use in template">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="8" y1="13" x2="16" y2="13"/>
+                  <line x1="8" y1="17" x2="13" y2="17"/>
+                </svg>
+                <span>Use in template</span>
+              </button>
+            </div>`
           );
         }
       }
@@ -2832,12 +3361,75 @@
     } catch (err) {
       // Make the drainer exit so it's not spinning in the background.
       streamFinished = true;
-      asstWrap.innerHTML = `<span class="msg-error">${escapeHtml(err.message || String(err))}</span>`;
-      console.error('Chat send error:', err);
+      // User-initiated cancel — preserve whatever streamed so far and
+      // mark it with a soft "[stopped]" tail so the bubble doesn't
+      // look like an error. Persist the partial to the DB so a reload
+      // shows the same content.
+      const aborted = err && (err.name === 'AbortError' || err.code === 'ABORT_ERR' || /aborted/i.test(err.message || ''));
+      console.log('[chat] send caught error', { name: err?.name, code: err?.code, msg: err?.message, aborted });
+      if (aborted) {
+        // Drain the smoothing buffer immediately so nothing is "in
+        // flight" when we render the final partial.
+        if (smoothBuffer.length) {
+          displayed += smoothBuffer;
+          smoothBuffer = '';
+        }
+        if (asstCursor && asstCursor.isConnected) {
+          try { asstCursor.remove(); } catch {}
+        }
+        setPhase('');
+        const partial = (displayed || acc || '').trimEnd();
+        const stoppedLabel = partial
+          ? `${partial}\n\n*[stopped]*`
+          : '*[stopped — no response received]*';
+        asstText.innerHTML = renderMarkdownInline(stoppedLabel);
+        // Add copy + save-to-vault chrome on the cancelled bubble so
+        // the user can keep the partial response if it's useful.
+        const cancelBubbleEl = asstWrap.parentElement;
+        if (cancelBubbleEl) {
+          cancelBubbleEl.setAttribute('data-src', stoppedLabel);
+          if (!cancelBubbleEl.querySelector('.msg-actions')) {
+            cancelBubbleEl.insertAdjacentHTML(
+              'beforeend',
+              `<div class="msg-actions">
+                <button type="button" class="msg-copy" aria-label="Copy response">${COPY_ICON_SVG} <span class="msg-copy-label">Copy</span></button>
+                <button type="button" class="save-to-vault-btn msg-save-vault" data-msg-save-vault aria-label="Save to Vault">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  <span>Save to Vault</span>
+                </button>
+              </div>`
+            );
+          }
+        }
+        // Best-effort persist of the cancelled turn so reload shows
+        // the same partial + stop marker. Failure is silent — the UI
+        // already reflects the partial.
+        try {
+          await fetch('/.netlify/functions/workspace-chat-cancel', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, content: partial }),
+          });
+        } catch {}
+        // Mirror the cancelled turn into the in-memory cache so an
+        // immediate reload from localStorage reflects the partial.
+        messages.push({ role: 'user', content: text, status: 'complete' });
+        messages.push({ role: 'assistant', content: partial, status: 'cancelled' });
+        try {
+          localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({ chat, messages }));
+        } catch {}
+      } else {
+        asstWrap.innerHTML = `<span class="msg-error">Stream failed — please try again.</span>`;
+        console.error('Chat send error:', err);
+      }
     } finally {
       sending = false;
+      delete els.send.dataset.mode;
       els.send.disabled = false;
       els.input.disabled = false;
+      streamAbortController = null;
       els.input.focus();
       if (titleFromServer && !els.title.value) els.title.value = titleFromServer;
       if (titleFromServer) loadRail();
@@ -3416,6 +4008,370 @@
     const modal = document.getElementById('save-convo-modal');
     if (modal) modal.hidden = true;
   }
+
+  // ===========================================================
+  // Template picker + render flow
+  // ===========================================================
+  // Triggered by the "Use in template" button on any assistant
+  // bubble. Opens the modal, loads the user's templates (kind=template),
+  // and on selection calls /api/template-render with the bubble's
+  // message id. The response describes a rendered draft .docx —
+  // we drop a "draft bubble" into the chat with a download chip.
+  let _templatePickerSourceMessageId = null;
+  let _templatePickerSourceBubble = null;
+  let _templatePickerItems = [];
+
+  function openTemplatePicker(bubbleEl) {
+    const modal = document.getElementById('template-picker-modal');
+    if (!modal) return;
+    _templatePickerSourceBubble = bubbleEl;
+    _templatePickerSourceMessageId = bubbleEl?.getAttribute('data-id') || null;
+    modal.hidden = false;
+    const list = document.getElementById('template-picker-list');
+    if (list) list.innerHTML = '<div class="ws-empty">Loading templates…</div>';
+    const search = document.getElementById('template-picker-search');
+    if (search) search.value = '';
+    loadTemplatesIntoPicker();
+  }
+
+  function closeTemplatePicker() {
+    const modal = document.getElementById('template-picker-modal');
+    if (modal) modal.hidden = true;
+    _templatePickerSourceMessageId = null;
+    _templatePickerSourceBubble = null;
+  }
+
+  async function loadTemplatesIntoPicker() {
+    const list = document.getElementById('template-picker-list');
+    if (!list) return;
+    try {
+      const r = await fetch('/.netlify/functions/workspace-vault-list?kind=template&limit=200', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Load failed');
+      _templatePickerItems = j.items || [];
+      // Surface the letterhead checkbox iff the user has one set.
+      // Title is filled in from the matching item so the label is
+      // explicit about which letterhead will wrap the draft.
+      const defaultLh = _templatePickerItems.find((it) => it.is_default_letterhead);
+      const lhRow = document.getElementById('template-picker-letterhead-row');
+      const lhTitle = document.getElementById('template-picker-letterhead-title');
+      if (lhRow && defaultLh) {
+        lhRow.style.display = 'flex';
+        if (lhTitle) lhTitle.textContent = defaultLh.title || 'my letterhead';
+      } else if (lhRow) {
+        lhRow.style.display = 'none';
+      }
+      renderTemplatePickerList('');
+    } catch (err) {
+      list.innerHTML = '<div class="ws-empty">Failed: ' + escapeAttr(err.message || err) + '</div>';
+    }
+  }
+
+  function renderTemplatePickerList(q) {
+    const list = document.getElementById('template-picker-list');
+    if (!list) return;
+    const needle = (q || '').trim().toLowerCase();
+    const filtered = _templatePickerItems.filter((it) => {
+      if (!needle) return true;
+      return (it.title || '').toLowerCase().includes(needle)
+        || (it.summary || '').toLowerCase().includes(needle);
+    });
+    if (!filtered.length) {
+      list.innerHTML = '<div class="ws-empty">No templates yet. <a href="/workspace/vault/" style="color:var(--accent-deep)">Upload one →</a></div>';
+      return;
+    }
+    list.innerHTML = filtered.map((it) => {
+      const vars = it.template_schema && Array.isArray(it.template_schema.vars) ? it.template_schema.vars : [];
+      const isSystem = !it.user_id;
+      // Two action buttons per row: fill detected fields, OR write
+      // the response straight into the document body (preserves
+      // letterhead). The fields button is dimmed when there are
+      // zero fields detected. The body button always works as long
+      // as we have a source message with content.
+      const fillBtn = vars.length > 0
+        ? `<button type="button" class="tpr-btn tpr-btn-fields" data-tmpl-action="fields" data-tmpl-id="${escapeAttr(it.id)}">Fill ${vars.length} field${vars.length === 1 ? '' : 's'}</button>`
+        : `<button type="button" class="tpr-btn tpr-btn-fields" disabled title="No fields detected on this template">No fields</button>`;
+      const bodyBtn = `<button type="button" class="tpr-btn tpr-btn-body" data-tmpl-action="body" data-tmpl-id="${escapeAttr(it.id)}">Write into body</button>`;
+      return `<div class="tmpl-picker-row" data-tmpl-id="${escapeAttr(it.id)}" data-system="${isSystem ? '1' : '0'}">
+        <svg class="tpr-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <div class="tpr-body">
+          <span class="tpr-title">${escapeAttr(it.title || 'Untitled template')}</span>
+          <span class="tpr-meta">${vars.length} field${vars.length === 1 ? '' : 's'}</span>
+        </div>
+        <div class="tpr-actions">
+          ${fillBtn}
+          ${bodyBtn}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  /**
+   * Run a template render against either a chat message OR a direct
+   * values object. Inserts a draft bubble into the chat on success.
+   *
+   * @param {object} opts
+   * @param {string} opts.templateId
+   * @param {string} [opts.sourceMessageId]
+   * @param {object} [opts.values]
+   * @param {string} [opts.priorDraftId]
+   * @param {string} [opts.focusKey]
+   * @returns {Promise<object|null>}  the render response or null on failure
+   */
+  async function runTemplateRender({ templateId, sourceMessageId, sourceContent, values, priorDraftId, focusKey, mode, bodyText, applyLetterhead }) {
+    const body = { template_id: templateId, chat_id: chatId };
+    if (sourceMessageId) body.source_message_id = sourceMessageId;
+    if (sourceContent) body.source_content = sourceContent;
+    if (values) body.values = values;
+    if (priorDraftId) body.prior_draft_id = priorDraftId;
+    if (focusKey) body.focus_key = focusKey;
+    if (mode === 'body') body.mode = 'body';
+    if (bodyText) body.body_text = bodyText;
+    // Letterhead opt-in is explicit when caller passes a boolean; if
+    // omitted, the server defaults to applying when one is set. We
+    // pass false to opt out, true to force apply, or leave undefined.
+    if (typeof applyLetterhead === 'boolean') body.apply_letterhead = applyLetterhead;
+    // Drop a placeholder draft bubble immediately so the user sees
+    // something is happening. Real chip + download URL replaces it
+    // when the render returns.
+    const placeholderId = 'draft-' + Date.now();
+    insertDraftPlaceholderBubble(placeholderId);
+    try {
+      const r = await fetch('/.netlify/functions/template-render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Render failed');
+      replaceDraftPlaceholderBubble(placeholderId, j);
+      // Persist into the messages cache so reload reflects it.
+      // We store as a synthetic assistant message with metadata so
+      // bubble() can render the chip on reload (Phase 5 polish: full
+      // server-side persistence; v1 keeps it client-cache).
+      if (typeof window.siteToast === 'function') {
+        window.siteToast(j.filled_count + ' of ' + j.total_fields + ' fields filled', { kind: 'success' });
+      }
+      return j;
+    } catch (err) {
+      replaceDraftPlaceholderBubble(placeholderId, { error: err.message || String(err) });
+      if (typeof window.siteToast === 'function') {
+        window.siteToast('Template render failed: ' + (err.message || err), { kind: 'error' });
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Render the bound template using the LATEST assistant message in
+   * the chat as the source. Called by the "Render draft now" button.
+   * If a prior draft exists in the chat (msg-draft bubble), its
+   * draft_id is passed as prior_draft_id so values carry forward.
+   */
+  async function triggerRenderFromLatestMessage() {
+    if (!_boundTemplate || !_boundTemplate.id) {
+      if (typeof window.siteToast === 'function') {
+        window.siteToast('This chat is not bound to a template.', { kind: 'warn' });
+      }
+      return;
+    }
+    // Find the latest assistant message bubble.
+    const allAsst = Array.from(els.messages.querySelectorAll('.msg.asst'));
+    // Exclude draft bubbles — we want the model's REAL response, not
+    // a prior draft chip.
+    const sourceBubble = allAsst.reverse().find((el) => !el.classList.contains('msg-draft'));
+    if (!sourceBubble) {
+      if (typeof window.siteToast === 'function') {
+        window.siteToast('Send a message first so we have content to extract from.', { kind: 'warn' });
+      }
+      return;
+    }
+    const msgId = sourceBubble.getAttribute('data-id') || null;
+    if (!msgId) {
+      if (typeof window.siteToast === 'function') {
+        window.siteToast('Latest message is still streaming — try again in a moment.', { kind: 'warn' });
+      }
+      return;
+    }
+    // Find the most-recent draft in this chat to chain values forward.
+    const priorDraft = els.messages.querySelector('.msg.msg-draft[data-draft-id]:last-of-type');
+    const priorDraftId = priorDraft?.getAttribute('data-draft-id') || null;
+    await runTemplateRender({
+      templateId: _boundTemplate.id,
+      sourceMessageId: msgId,
+      priorDraftId,
+    });
+  }
+
+  function insertDraftPlaceholderBubble(placeholderId) {
+    const html = `<div class="msg asst msg-draft" data-draft-placeholder="${escapeAttr(placeholderId)}">
+      <div class="msg-body">
+        <div class="draft-chip">
+          <svg class="draft-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div class="draft-chip-info">
+            <span class="draft-chip-title">Rendering draft…</span>
+            <span class="draft-chip-meta">Extracting fields and merging template</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    els.messages.insertAdjacentHTML('beforeend', html);
+    scrollToBottom();
+  }
+
+  function replaceDraftPlaceholderBubble(placeholderId, result) {
+    const el = els.messages.querySelector(`[data-draft-placeholder="${placeholderId}"]`);
+    if (!el) return;
+    if (result.error) {
+      el.innerHTML = `<div class="msg-body"><span class="msg-error">Draft render failed: ${escapeAttr(result.error)}</span></div>`;
+      return;
+    }
+    el.setAttribute('data-draft-id', result.draft_id || '');
+    el.setAttribute('data-storage-path', result.storage_path || '');
+    el.setAttribute('data-template-id', result.template_id || '');
+    const missingHtml = (result.missing_fields && result.missing_fields.length)
+      ? `<div class="draft-missing">
+          <span>Missing:</span> ` +
+          result.missing_fields.map((f) => `<button type="button" class="draft-missing-field" data-missing-key="${escapeAttr(f.key)}">${escapeAttr(f.label || f.key)}</button>`).join('') +
+        `</div>`
+      : '';
+    const baseMeta = result.mode === 'body'
+      ? `Body mode · response written into letterhead${result.model_used ? ' · ' + escapeAttr(result.model_used) : ''}`
+      : `${result.filled_count} of ${result.total_fields} field${result.total_fields === 1 ? '' : 's'} filled${result.model_used ? ' · ' + escapeAttr(result.model_used) : ''}`;
+    const letterheadBadge = result.letterhead_applied
+      ? ` · ★ wrapped in ${escapeAttr(result.letterhead_title || 'your letterhead')}`
+      : '';
+    const metaLine = baseMeta + letterheadBadge;
+    el.innerHTML = `<div class="msg-body">
+      <div class="draft-chip">
+        <svg class="draft-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <div class="draft-chip-info">
+          <span class="draft-chip-title">${escapeAttr(result.draft_title || 'Draft')}</span>
+          <span class="draft-chip-meta">${metaLine}</span>
+        </div>
+        <a class="draft-chip-download" href="${escapeAttr(result.download_url || '#')}" download>Download .docx</a>
+      </div>
+      ${missingHtml}
+      <div class="msg-actions">
+        <button type="button" class="draft-refine-btn" data-draft-refine>Refine in chat</button>
+        <button type="button" class="draft-saved-btn" data-draft-open-vault>Open in Vault</button>
+      </div>
+    </div>`;
+    scrollToBottom();
+  }
+
+  // Picker modal wiring
+  document.addEventListener('click', (e) => {
+    const t = e.target instanceof HTMLElement ? e.target : null;
+    if (!t) return;
+    // Open picker
+    const fillBtn = t.closest('[data-msg-fill-template]');
+    if (fillBtn) {
+      e.preventDefault();
+      const bubble = fillBtn.closest('.msg.asst');
+      if (bubble) openTemplatePicker(bubble);
+      return;
+    }
+    // Close picker
+    if (t.closest('#template-picker-close')) {
+      closeTemplatePicker();
+      return;
+    }
+    // Picker action button click (Fill fields / Write into body)
+    const tmplBtn = t.closest('[data-tmpl-action]');
+    if (tmplBtn && document.getElementById('template-picker-modal')?.contains(tmplBtn)) {
+      e.preventDefault();
+      const templateId = tmplBtn.dataset.tmplId;
+      const action = tmplBtn.dataset.tmplAction;   // 'fields' or 'body'
+      if (!templateId || tmplBtn.disabled) return;
+      const srcMessageId = _templatePickerSourceMessageId;
+      const srcBubble = _templatePickerSourceBubble;
+      closeTemplatePicker();
+      // Letterhead checkbox state — only honored when the row is
+      // visible (which only happens when the user has a default
+      // letterhead set on their vault).
+      const lhCheck = document.getElementById('template-picker-letterhead-check');
+      const lhRow = document.getElementById('template-picker-letterhead-row');
+      const applyLetterhead = !!(lhCheck && lhRow && lhRow.style.display !== 'none' && lhCheck.checked);
+      // Source priority: message id (canonical DB content) > raw
+      // bubble text. The fallback path lets the user "Use in template"
+      // immediately on a still-streaming bubble or one that hasn't
+      // been server-persisted yet.
+      const rawText = srcBubble ? (srcBubble.getAttribute('data-src') || '') : '';
+      if (srcMessageId) {
+        runTemplateRender({
+          templateId,
+          sourceMessageId: srcMessageId,
+          mode: action === 'body' ? 'body' : 'fields',
+          applyLetterhead,
+        });
+      } else if (rawText && rawText.trim()) {
+        runTemplateRender({
+          templateId,
+          sourceContent: rawText,
+          mode: action === 'body' ? 'body' : 'fields',
+          applyLetterhead,
+        });
+      } else if (typeof window.siteToast === 'function') {
+        window.siteToast('The selected response is empty — nothing to draft from yet.', { kind: 'warn' });
+      }
+      return;
+    }
+    // Missing-field pill → primes the composer to ask the user for that field
+    const miss = t.closest('.draft-missing-field');
+    if (miss) {
+      e.preventDefault();
+      const key = miss.dataset.missingKey || '';
+      if (!key || !els.input) return;
+      const label = miss.textContent.trim();
+      els.input.value = `Fill in the "${label}" field with: `;
+      els.input.focus();
+      // Place cursor at end
+      const v = els.input.value;
+      els.input.setSelectionRange(v.length, v.length);
+      return;
+    }
+    // Refine in chat — primes the composer with a refinement nudge.
+    const refine = t.closest('[data-draft-refine]');
+    if (refine) {
+      e.preventDefault();
+      if (els.input) {
+        els.input.value = 'Refine the draft: ';
+        els.input.focus();
+        const v = els.input.value;
+        els.input.setSelectionRange(v.length, v.length);
+      }
+      return;
+    }
+    // Open in Vault link
+    const openVault = t.closest('[data-draft-open-vault]');
+    if (openVault) {
+      e.preventDefault();
+      window.location.href = '/workspace/vault/';
+      return;
+    }
+  });
+
+  // Picker search field — live filter
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t && t.id === 'template-picker-search') {
+      renderTemplatePickerList(t.value || '');
+    }
+  });
+
+  // Esc closes the picker too
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('template-picker-modal');
+      if (modal && !modal.hidden) closeTemplatePicker();
+    }
+  });
 
   // Step 2: actually run the save when the user confirms in the modal.
   async function performConvoSave() {
@@ -4098,8 +5054,105 @@
   // toggle which auto-hide replaces.
   document.getElementById('nav-toggle')?.remove();
 
+  // Direct click handler on the send button — primary path for the
+  // stop button. We intercept BEFORE the click bubbles to form
+  // submission so the abort runs reliably even if anything weird
+  // happens with the form-submit event in stop mode.
+  els.send.addEventListener('click', (e) => {
+    if (els.send.dataset.mode === 'stop') {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('[chat] stop click → aborting stream', { hasController: !!streamAbortController });
+      if (streamAbortController) {
+        try { streamAbortController.abort(); } catch (err) { console.error('[chat] abort failed', err); }
+      }
+      return;
+    }
+  });
+
+  // ============================================================
+  // Mobile chat-rail drawer toggle
+  // ============================================================
+  // The hamburger button in the chat header opens the rail as a
+  // left-side drawer overlay. Backdrop dim, tap-to-close, Esc-to-
+  // close. Auto-closes if the viewport grows past the mobile
+  // breakpoint (user rotates / resizes browser). Follows the same
+  // pattern as the existing top-nav hamburger in site-anim.js.
+  (function setupChatRailDrawer() {
+    const toggle = document.getElementById('chat-rail-toggle');
+    const rail = document.getElementById('chat-rail-aside');
+    const backdrop = document.getElementById('chat-rail-backdrop');
+    if (!toggle || !rail || !backdrop) return;
+
+    function openDrawer() {
+      rail.classList.add('is-drawer-open');
+      backdrop.hidden = false;
+      // Allow the .hidden removal to apply before opacity transition.
+      requestAnimationFrame(() => backdrop.classList.add('is-open'));
+      toggle.setAttribute('aria-expanded', 'true');
+      document.body.classList.add('chat-rail-drawer-open');
+    }
+    function closeDrawer() {
+      rail.classList.remove('is-drawer-open');
+      backdrop.classList.remove('is-open');
+      // Match the CSS transition duration before re-hiding so the
+      // fade-out plays. 220ms ≈ 200ms transition + a small buffer.
+      setTimeout(() => { backdrop.hidden = true; }, 220);
+      toggle.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('chat-rail-drawer-open');
+    }
+    toggle.addEventListener('click', () => {
+      if (rail.classList.contains('is-drawer-open')) closeDrawer();
+      else openDrawer();
+    });
+    backdrop.addEventListener('click', closeDrawer);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && rail.classList.contains('is-drawer-open')) {
+        closeDrawer();
+      }
+    });
+    // Tap a chat in the rail → drawer should close so the user sees
+    // the chat content. Delegated listener for any link/button inside
+    // the rail list.
+    rail.addEventListener('click', (e) => {
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (!target) return;
+      // Closing affordances inside the drawer.
+      if (target.closest('a, button')) {
+        if (rail.classList.contains('is-drawer-open')) {
+          // Close on next frame so the navigation/click handler runs
+          // first; otherwise some flows that re-render the rail can
+          // race with the close transition.
+          setTimeout(closeDrawer, 0);
+        }
+      }
+    });
+    // Auto-close drawer when viewport grows past the mobile
+    // breakpoint (user resized browser / rotated device). The
+    // 981px threshold matches the CSS @media query that hides the
+    // toggle button + restores the rail to its grid column.
+    const mq = window.matchMedia('(min-width: 981px)');
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', (e) => {
+        if (e.matches) closeDrawer();
+      });
+    } else if (typeof mq.addListener === 'function') {
+      // Older Safari fallback.
+      mq.addListener((e) => { if (e.matches) closeDrawer(); });
+    }
+  })();
+
   els.composer.addEventListener('submit', (e) => {
     e.preventDefault();
+    // Defensive: same check as the click handler above, in case
+    // the submit gets triggered via Enter / requestSubmit / etc.
+    if (els.send.dataset.mode === 'stop') {
+      console.log('[chat] stop submit → aborting stream', { hasController: !!streamAbortController });
+      if (streamAbortController) {
+        try { streamAbortController.abort(); } catch (err) { console.error('[chat] abort failed', err); }
+      }
+      return;
+    }
     const text = els.input.value;
     const attachmentIds = attachedDocs.map((a) => a.id);
     const wasAttached = attachedDocs.slice();

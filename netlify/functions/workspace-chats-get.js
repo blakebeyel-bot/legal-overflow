@@ -91,7 +91,39 @@ export default async (req) => {
     }
   }
 
-  return json({ chat, messages: messages || [], anchors, workflow });
+  // Hydrate the bound template (Phase 3 — "Use in chat" entry point).
+  // The chat page renders a "Drafting from: <title>" chip so the user
+  // knows the chat is in template-drafting mode.
+  let template = null;
+  if (chat.bound_template_id) {
+    try {
+      const { data: tmpl } = await supabase
+        .from('workspace_vault_items')
+        .select('id, title, template_schema')
+        .eq('id', chat.bound_template_id)
+        .or(`user_id.eq.${auth.user.id},user_id.is.null`)
+        .maybeSingle();
+      if (tmpl) {
+        const vars = (tmpl.template_schema && Array.isArray(tmpl.template_schema.vars))
+          ? tmpl.template_schema.vars
+          : [];
+        template = {
+          id: tmpl.id,
+          title: tmpl.title,
+          vars_count: vars.length,
+          vars: vars.map((v) => ({
+            key: v.key,
+            label: v.label,
+            type: v.type,
+          })),
+        };
+      }
+    } catch {
+      // Template missing or inaccessible — chat still works, just no chip.
+    }
+  }
+
+  return json({ chat, messages: messages || [], anchors, workflow, template });
 };
 
 function json(obj, status = 200) {
