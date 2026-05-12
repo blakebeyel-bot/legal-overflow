@@ -101,12 +101,14 @@ export function buildAuthorizeUrl({ state, codeChallenge }) {
 }
 
 export async function exchangeCodeForTokens(code, { codeVerifier } = {}) {
-  // PKCE-first: when a verifier is supplied, Microsoft treats the
-  // request as a "public client" flow and rejects requests that ALSO
-  // include client_secret (AADSTS700025). Send the secret only as a
-  // last-resort fallback for app registrations Azure has classified
-  // as confidential. We always start with PKCE-only since our flow
-  // always supplies a verifier now.
+  // OAuth auth codes are single-use — Azure consumes the code on the
+  // FIRST /token call even when the response is an error. We can't
+  // safely retry the same code with a different shape (client_secret
+  // present vs absent).
+  //
+  // Strategy: try WITH secret first (Web/confidential is the default
+  // for our app registration). If Azure rejects with "Client is public,
+  // don't send secret" (AADSTS700025), retry without secret.
   const baseParams = {
     client_id: clientId(),
     code,
@@ -119,18 +121,16 @@ export async function exchangeCodeForTokens(code, { codeVerifier } = {}) {
   let r = await fetch(OAUTH_TOKEN(tenantId()), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(baseParams).toString(),
+    body: new URLSearchParams({ ...baseParams, client_secret: clientSecret() }).toString(),
   });
   let j = await r.json();
 
-  // If Azure rejects with "client must authenticate" (confidential
-  // client app), retry once WITH the secret.
-  if (!r.ok && j.error === 'invalid_client' && /must.*authenticate|client_assertion|client_secret|AADSTS7000218/i.test(j.error_description || '')) {
-    const withSecret = new URLSearchParams({ ...baseParams, client_secret: clientSecret() });
+  // Public-client retry: only when Azure says client_secret is forbidden.
+  if (!r.ok && j.error === 'invalid_client' && /client is public|AADSTS700025/i.test(j.error_description || '')) {
     r = await fetch(OAUTH_TOKEN(tenantId()), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: withSecret.toString(),
+      body: new URLSearchParams(baseParams).toString(),
     });
     j = await r.json();
   }
@@ -142,9 +142,9 @@ export async function exchangeCodeForTokens(code, { codeVerifier } = {}) {
 }
 
 async function refreshAccessToken(refreshToken) {
-  // Same public-vs-confidential dance as exchangeCodeForTokens: try
-  // without secret first (public client / PKCE-issued refresh token),
-  // then retry with secret if Azure says we must authenticate.
+  // Same secret-first pattern as exchangeCodeForTokens — secret comes
+  // first because that's what our confidential-client registration
+  // expects. Public-client retry only if Azure explicitly rejects.
   const baseParams = {
     client_id: clientId(),
     refresh_token: refreshToken,
@@ -154,15 +154,14 @@ async function refreshAccessToken(refreshToken) {
   let r = await fetch(OAUTH_TOKEN(tenantId()), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(baseParams).toString(),
+    body: new URLSearchParams({ ...baseParams, client_secret: clientSecret() }).toString(),
   });
   let j = await r.json();
-  if (!r.ok && j.error === 'invalid_client' && /must.*authenticate|client_assertion|client_secret|AADSTS7000218/i.test(j.error_description || '')) {
-    const withSecret = new URLSearchParams({ ...baseParams, client_secret: clientSecret() });
+  if (!r.ok && j.error === 'invalid_client' && /client is public|AADSTS700025/i.test(j.error_description || '')) {
     r = await fetch(OAUTH_TOKEN(tenantId()), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: withSecret.toString(),
+      body: new URLSearchParams(baseParams).toString(),
     });
     j = await r.json();
   }
@@ -261,7 +260,22 @@ export async function graphFetch(userId, path, options = {}) {
     const text = await r.text().catch(() => '');
     let err;
     try { err = JSON.parse(text); } catch { err = { error: text }; }
-    throw new Error(`Graph ${options.method || 'GET'} ${path} failed: ${r.status} — ${err?.error?.message || err?.error || 'unknown'}`);
+    const code = err?.error?.code || err?.error_code || '';
+    const message = err?.error?.message || err?.error_description || err?.error || (text || 'unknown');
+    // Dump as much raw context as possible so we can see what Microsoft
+    // is actually sending — useful for diagnosing 401s with empty bodies.
+    const wwwAuth = r.headers.get('WWW-Authenticate') || '';
+    const reqId = r.headers.get('request-id') || r.headers.get('client-request-id') || '';
+    console.warn(`[graph] ${options.method || 'GET'} ${path}`);
+    console.warn(`[graph]   status=${r.status} text_len=${text.length} request_id=${reqId}`);
+    console.warn(`[graph]   www-authenticate: ${wwwAuth.slice(0, 400)}`);
+    console.warn(`[graph]   body: ${text.slice(0, 600)}`);
+    const out = new Error(`Graph ${options.method || 'GET'} ${path} failed: ${r.status} ${code ? `[${code}] ` : ''}— ${message || `body=${text.length}b www-auth=${wwwAuth.slice(0, 100)}`}`);
+    out.status = r.status;
+    out.code = code;
+    out.body = text.slice(0, 1000);
+    out.wwwAuthenticate = wwwAuth;
+    throw out;
   }
   return r;
 }
