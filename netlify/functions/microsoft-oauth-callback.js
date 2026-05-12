@@ -46,29 +46,36 @@ export default async (req) => {
   const secret = process.env.BYOK_ENCRYPTION_KEY;
   if (!secret) return new Response('BYOK_ENCRYPTION_KEY not set', { status: 500 });
 
-  let userId, ts;
+  let userId, ts, codeVerifier;
   try {
-    const [payloadB64, sig] = state.split('.');
-    if (!payloadB64 || !sig) throw new Error('Malformed state');
-    const payload = Buffer.from(payloadB64, 'base64url').toString();
-    const [uid, , tsStr] = payload.split('.');
-    const expected = createHmac('sha256', secret).update(payload).digest('base64url');
+    const [payloadEncoded, sig] = state.split('.');
+    if (!payloadEncoded || !sig) throw new Error('Malformed state');
+    const expected = createHmac('sha256', secret).update(payloadEncoded).digest('base64url');
     if (sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
       throw new Error('Signature mismatch');
     }
+    const payload = Buffer.from(payloadEncoded, 'base64url').toString();
+    const parts = payload.split('.');
+    // Format: user_id . nonce . ts . code_verifier
+    if (parts.length < 4) throw new Error('Bad state payload shape');
+    const [uid, , tsStr, ...verifierParts] = parts;
     const age = Date.now() - Number(tsStr || 0);
     if (age > STATE_MAX_AGE_MS) throw new Error('State token expired');
     userId = uid;
     ts = Number(tsStr);
+    // Verifier may contain `.` if base64-padding ever returned (it won't
+    // because we strip), but join the tail just to be safe.
+    codeVerifier = verifierParts.join('.');
+    if (!codeVerifier || codeVerifier.length < 43) throw new Error('Bad code_verifier');
   } catch (err) {
     console.warn(`[msoauth-callback] state validation failed: ${err.message}`);
     return new Response('Invalid state', { status: 400 });
   }
 
-  // ---- Exchange code for tokens ----
+  // ---- Exchange code for tokens (with PKCE) ----
   let tokens;
   try {
-    tokens = await exchangeCodeForTokens(code);
+    tokens = await exchangeCodeForTokens(code, { codeVerifier });
   } catch (err) {
     console.error(`[msoauth-callback] token exchange failed: ${err.message}`);
     return redirect('/account/?msft=error');

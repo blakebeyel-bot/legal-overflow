@@ -128,3 +128,19 @@
 [functions."purge-old-uploads"]
   timeout = 60
   schedule = "0 3 * * *"
+
+# =====================================================================
+# /api/* alias to /.netlify/functions/*
+# =====================================================================
+# Most function paths in this site use /.netlify/functions/<name>
+# directly. The Microsoft Graph OAuth flow (Phase 2 of the Paralegal
+# voice agent) registers its callback redirect URI as
+# /api/microsoft-oauth-callback so the URL is nicer in Azure's portal.
+# This rewrite makes /api/<name> resolve to the function for that one
+# entry point — without breaking anything that already uses the
+# /.netlify/functions/ path.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = false

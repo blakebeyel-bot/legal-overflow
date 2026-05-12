@@ -65,8 +65,23 @@ export function redirectUri() {
   return `${base.replace(/\/$/, '')}/api/microsoft-oauth-callback`;
 }
 
-// ---- OAuth flow ----
-export function buildAuthorizeUrl({ state }) {
+// ---- OAuth flow (PKCE) ----
+// Microsoft requires PKCE for any cross-origin redirect (including
+// http://localhost callbacks). Generate a 43+ char URL-safe verifier,
+// SHA-256 it, base64url-encode the digest, and pass the result as
+// code_challenge on /authorize. The verifier is embedded in the signed
+// state token so the callback handler can supply it during code exchange.
+import { createHash } from 'node:crypto';
+
+function base64UrlEncode(buf) {
+  return Buffer.from(buf).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+export function pkceChallenge(codeVerifier) {
+  return base64UrlEncode(createHash('sha256').update(codeVerifier).digest());
+}
+
+export function buildAuthorizeUrl({ state, codeChallenge }) {
   const params = new URLSearchParams({
     client_id: clientId(),
     response_type: 'code',
@@ -78,24 +93,48 @@ export function buildAuthorizeUrl({ state }) {
     // always returned (Azure caches consent and skips it otherwise).
     prompt: 'consent',
   });
+  if (codeChallenge) {
+    params.set('code_challenge', codeChallenge);
+    params.set('code_challenge_method', 'S256');
+  }
   return `${OAUTH_AUTHORIZE(tenantId())}?${params.toString()}`;
 }
 
-export async function exchangeCodeForTokens(code) {
-  const body = new URLSearchParams({
+export async function exchangeCodeForTokens(code, { codeVerifier } = {}) {
+  // PKCE-first: when a verifier is supplied, Microsoft treats the
+  // request as a "public client" flow and rejects requests that ALSO
+  // include client_secret (AADSTS700025). Send the secret only as a
+  // last-resort fallback for app registrations Azure has classified
+  // as confidential. We always start with PKCE-only since our flow
+  // always supplies a verifier now.
+  const baseParams = {
     client_id: clientId(),
-    client_secret: clientSecret(),
     code,
     redirect_uri: redirectUri(),
     grant_type: 'authorization_code',
     scope: SCOPES,
-  });
-  const r = await fetch(OAUTH_TOKEN(tenantId()), {
+  };
+  if (codeVerifier) baseParams.code_verifier = codeVerifier;
+
+  let r = await fetch(OAUTH_TOKEN(tenantId()), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    body: new URLSearchParams(baseParams).toString(),
   });
-  const j = await r.json();
+  let j = await r.json();
+
+  // If Azure rejects with "client must authenticate" (confidential
+  // client app), retry once WITH the secret.
+  if (!r.ok && j.error === 'invalid_client' && /must.*authenticate|client_assertion|client_secret|AADSTS7000218/i.test(j.error_description || '')) {
+    const withSecret = new URLSearchParams({ ...baseParams, client_secret: clientSecret() });
+    r = await fetch(OAUTH_TOKEN(tenantId()), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: withSecret.toString(),
+    });
+    j = await r.json();
+  }
+
   if (!r.ok) {
     throw new Error(`MSGraph token exchange failed: ${j.error || r.status} — ${j.error_description || ''}`);
   }
@@ -103,19 +142,30 @@ export async function exchangeCodeForTokens(code) {
 }
 
 async function refreshAccessToken(refreshToken) {
-  const body = new URLSearchParams({
+  // Same public-vs-confidential dance as exchangeCodeForTokens: try
+  // without secret first (public client / PKCE-issued refresh token),
+  // then retry with secret if Azure says we must authenticate.
+  const baseParams = {
     client_id: clientId(),
-    client_secret: clientSecret(),
     refresh_token: refreshToken,
     grant_type: 'refresh_token',
     scope: SCOPES,
-  });
-  const r = await fetch(OAUTH_TOKEN(tenantId()), {
+  };
+  let r = await fetch(OAUTH_TOKEN(tenantId()), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    body: new URLSearchParams(baseParams).toString(),
   });
-  const j = await r.json();
+  let j = await r.json();
+  if (!r.ok && j.error === 'invalid_client' && /must.*authenticate|client_assertion|client_secret|AADSTS7000218/i.test(j.error_description || '')) {
+    const withSecret = new URLSearchParams({ ...baseParams, client_secret: clientSecret() });
+    r = await fetch(OAUTH_TOKEN(tenantId()), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: withSecret.toString(),
+    });
+    j = await r.json();
+  }
   if (!r.ok) {
     throw new Error(`MSGraph refresh failed: ${j.error || r.status} — ${j.error_description || ''}`);
   }
