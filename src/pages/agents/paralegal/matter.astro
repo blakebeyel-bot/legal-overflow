@@ -974,15 +974,19 @@ if (!matterId) {
       }
     }
 
-    // ----- Activity timeline (from audit log)
+    // ----- Activity timeline (audit log + Graph mail + calendar, merged)
     const tl = document.querySelector('.col-l .tl');
+    const tlMeta = document.querySelector('.col-l .sec:nth-of-type(2) .sec-meta');
     if (tl) {
-      if (audit.length === 0) {
-        tl.innerHTML = `<div style="padding:18px 0;font-family:var(--serif);font-style:italic;font-size:16px;color:var(--ink-3)">No activity yet. Open a voice session or link items from your Vault / Library to start populating this timeline.</div>`;
-      } else {
-        tl.innerHTML = audit.slice(0, 20).map(a => renderTimelineRow(a)).join('');
-      }
+      // Audit always renders synchronously; mail + calendar load async and
+      // merge in once available (handled by appendGraphTimeline below).
+      const seedRows = audit.length === 0
+        ? `<div id="tl-seed-empty" style="padding:18px 0;font-family:var(--serif);font-style:italic;font-size:16px;color:var(--ink-3)">No activity yet. Open a voice session, link items from your Vault / Library, or connect Microsoft 365 to start populating this timeline.</div>`
+        : audit.slice(0, 20).map(a => renderTimelineRow(a)).join('');
+      tl.innerHTML = seedRows;
+      if (tlMeta) tlMeta.textContent = `${audit.length} audit events`;
     }
+    appendGraphTimeline(matter); // async — fires Graph fetches in parallel
 
     // ----- Findings list (Phase 4 fills this from TR runs; empty in Phase 1)
     const fList = document.querySelector('.f-list');
@@ -1013,6 +1017,121 @@ if (!matterId) {
     }
   }
 
+  // ---- Graph timeline (Phase 2): merge Outlook mail + Calendar into the
+  // activity timeline. Runs async after the audit-log render so the page
+  // paints instantly even if Graph is slow / disconnected. ----
+  async function appendGraphTimeline(matter) {
+    const tl = document.querySelector('.col-l .tl');
+    if (!tl) return;
+    // Kick both fetches in parallel.
+    const mailUrl = new URL('/.netlify/functions/microsoft-mail-recent', location.origin);
+    mailUrl.searchParams.set('matter_id', matter.id);
+    mailUrl.searchParams.set('days', '7');
+    mailUrl.searchParams.set('top', '15');
+    const calUrl = new URL('/.netlify/functions/microsoft-calendar-list', location.origin);
+    calUrl.searchParams.set('days_ahead', '14');
+    calUrl.searchParams.set('days_back', '3');
+
+    const [mailRes, calRes] = await Promise.allSettled([
+      fetch(mailUrl, { headers: { Authorization: `Bearer ${accessToken}` } }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, ...j }))),
+      fetch(calUrl, { headers: { Authorization: `Bearer ${accessToken}` } }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, ...j }))),
+    ]);
+
+    // Handle the not-connected case once for both
+    const notConnected = (mailRes.status === 'fulfilled' && mailRes.value.not_connected)
+      || (calRes.status === 'fulfilled' && calRes.value.not_connected);
+    if (notConnected) {
+      const seedEmpty = document.getElementById('tl-seed-empty');
+      const banner = `<div id="tl-msft-banner" style="padding:14px 16px;margin:0 0 12px;background:rgba(106,71,194,.04);border-left:3px solid var(--voice);border-radius:0 4px 4px 0;font-size:13.5px;color:var(--ink-2);font-family:var(--sans);line-height:1.5">
+        <b style="color:var(--ink)">Connect Microsoft 365</b> so the Paralegal can pull recent inbox messages, calendar events, and attachments into this matter timeline.
+        &nbsp;<a href="/account/" style="color:var(--accent-deep);font-weight:500;border-bottom:1px solid var(--accent)">Connect →</a>
+      </div>`;
+      if (seedEmpty) seedEmpty.insertAdjacentHTML('beforebegin', banner);
+      else tl.insertAdjacentHTML('afterbegin', banner);
+      return;
+    }
+
+    const mailItems = (mailRes.status === 'fulfilled' && mailRes.value.ok) ? (mailRes.value.messages || []) : [];
+    const calItems = (calRes.status === 'fulfilled' && calRes.value.ok) ? (calRes.value.events || []) : [];
+
+    if (mailItems.length === 0 && calItems.length === 0) {
+      const tlMeta = document.querySelector('.col-l .sec:nth-of-type(2) .sec-meta');
+      if (tlMeta) tlMeta.textContent = `${(tlMeta.textContent || '0').replace(/\D/g, '') || 0} audit · 0 inbox · 0 calendar`;
+      return;
+    }
+
+    // Merge with audit-driven rows. Audit rows are already in the DOM;
+    // we just append email + calendar rows and re-sort by timestamp.
+    const seedEmpty = document.getElementById('tl-seed-empty');
+    if (seedEmpty) seedEmpty.remove();
+
+    const mailRows = mailItems.map(renderMailRow).filter(Boolean);
+    const calRows = calItems.map(renderCalRow).filter(Boolean);
+    // Just append; the audit rows are most recent first already, and the
+    // new rows have data-ts attributes we sort on.
+    const existingRows = Array.from(tl.querySelectorAll('.tl-row')).map(el => ({
+      el, ts: Number(el.dataset.ts || 0),
+    }));
+    const newRows = [...mailRows, ...calRows].map(html => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const el = tmp.firstElementChild;
+      return { el, ts: Number(el.dataset.ts || 0) };
+    });
+    const merged = [...existingRows, ...newRows].sort((a, b) => b.ts - a.ts);
+    tl.innerHTML = '';
+    merged.forEach(r => tl.appendChild(r.el));
+
+    const tlMeta = document.querySelector('.col-l .sec:nth-of-type(2) .sec-meta');
+    if (tlMeta) {
+      tlMeta.textContent = `${existingRows.length} audit · ${mailItems.length} inbox · ${calItems.length} calendar`;
+    }
+  }
+
+  function renderMailRow(msg) {
+    const ts = msg.receivedDateTime ? new Date(msg.receivedDateTime).getTime() : Date.now();
+    const t = new Date(ts);
+    const hhmm = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const day = t.toLocaleDateString(undefined, { weekday: 'short' });
+    const sender = msg.from?.emailAddress?.name || msg.from?.emailAddress?.address || 'Unknown';
+    const subject = msg.subject || '(no subject)';
+    const preview = (msg.bodyPreview || '').slice(0, 180);
+    const attach = msg.hasAttachments
+      ? `<div class="tl-attach"><span class="ic">ATT</span> Has attachments · <a href="#" data-mail-id="${escapeHtml(msg.id)}" class="mail-open-link">Open</a></div>`
+      : '';
+    return `<div class="tl-row email" data-ts="${ts}">
+      <div class="tl-t"><span class="day">${day}</span>${hhmm}</div>
+      <div class="tl-dot"></div>
+      <div class="tl-body">
+        <span class="ki">Email · ${escapeHtml(sender)}</span>
+        <em>${escapeHtml(subject)}</em>
+        <div style="font-family:var(--sans);font-size:13px;color:var(--ink-3);margin-top:4px;line-height:1.4">${escapeHtml(preview)}…</div>
+        ${attach}
+      </div>
+    </div>`;
+  }
+
+  function renderCalRow(ev) {
+    const startIso = ev.start?.dateTime || ev.start;
+    const ts = startIso ? new Date(startIso).getTime() : Date.now();
+    const t = new Date(ts);
+    const hhmm = ev.isAllDay ? 'All day' : t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const day = t.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    const subject = ev.subject || '(no title)';
+    const where = ev.location?.displayName || '';
+    const organizer = ev.organizer?.emailAddress?.name || '';
+    const meta = [where, organizer].filter(Boolean).join(' · ');
+    return `<div class="tl-row tool" data-ts="${ts}">
+      <div class="tl-t"><span class="day">${day}</span>${hhmm}</div>
+      <div class="tl-dot"></div>
+      <div class="tl-body">
+        <span class="ki">Calendar</span>
+        <em>${escapeHtml(subject)}</em>
+        ${meta ? `<div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-4);letter-spacing:.04em;margin-top:3px">${escapeHtml(meta)}</div>` : ''}
+      </div>
+    </div>`;
+  }
+
   function renderTimelineRow(a) {
     const t = new Date(a.occurred_at);
     const hhmm = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1034,7 +1153,7 @@ if (!matterId) {
       cls = 'tool';
       body = escapeHtml(JSON.stringify(a.payload || {})).slice(0, 200);
     }
-    return `<div class="tl-row ${cls}">
+    return `<div class="tl-row ${cls}" data-ts="${t.getTime()}">
       <div class="tl-t"><span class="day">${day}</span>${hhmm}</div>
       <div class="tl-dot"></div>
       <div class="tl-body">

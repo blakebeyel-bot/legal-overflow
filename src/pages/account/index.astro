@@ -124,6 +124,24 @@
     </div>
   </section>
 
+  <!-- Microsoft 365 connection (Paralegal Phase 2). The site reads Outlook
+       mail + calendar via Microsoft Graph using delegated permissions;
+       the user authorizes once on portal.azure.com via the standard
+       OAuth consent screen. -->
+  <section class="ws-card">
+    <header class="ws-card-head">
+      <h2 class="ws-card-title">Microsoft 365</h2>
+    </header>
+    <div class="acct-byok-intro">
+      <p>Connect your Outlook account so the Paralegal voice agent can read your inbox, calendar, and attachments — and (Phase 5) send replies on your behalf with your voice approval.</p>
+    </div>
+    <div id="msft-row" class="acct-byok-rows">
+      <div id="msft-state" style="padding:14px 16px;font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em">Checking connection…</div>
+      <div id="msft-banner" style="display:none;margin-bottom:10px"></div>
+      <div id="msft-actions" style="display:flex;gap:10px;align-items:center;padding:6px 16px 14px"></div>
+    </div>
+  </section>
+
   <section class="ws-card">
     <header class="ws-card-head">
       <h2 class="ws-card-title">Bring your own keys</h2>
@@ -173,6 +191,82 @@
     await supabase.auth.signOut();
     location.href = '/';
   });
+
+  // ---- Microsoft 365 connection (Paralegal Phase 2) ----
+  const msftState = document.getElementById('msft-state');
+  const msftActions = document.getElementById('msft-actions');
+  const msftBanner = document.getElementById('msft-banner');
+
+  // Show any post-redirect status (from microsoft-oauth-callback).
+  const msftParam = new URLSearchParams(location.search).get('msft');
+  if (msftParam) {
+    const map = {
+      connected: { color: 'rgba(10,125,87,.08)', border: 'var(--accent-deep)', text: 'Microsoft 365 connected.' },
+      denied:    { color: 'rgba(179,83,47,.08)', border: '#b3532f', text: 'Microsoft 365 connection cancelled.' },
+      error:     { color: 'rgba(179,83,47,.08)', border: '#b3532f', text: 'Connection failed — please try again.' },
+      no_refresh:{ color: 'rgba(179,83,47,.08)', border: '#b3532f', text: 'Microsoft did not return a refresh token. Try again and grant offline access.' },
+      store_failed:{ color: 'rgba(179,83,47,.08)', border: '#b3532f', text: 'Failed to store credentials. Try again.' },
+    };
+    const m = map[msftParam];
+    if (m) {
+      msftBanner.innerHTML = `<div style="padding:10px 14px;background:${m.color};border:1px solid ${m.border};border-radius:4px;font-size:13px;color:var(--ink-2)">${m.text}</div>`;
+      msftBanner.style.display = 'block';
+      // Strip the query param so reload doesn't re-show it.
+      history.replaceState(null, '', '/account/');
+    }
+  }
+
+  async function loadMicrosoftStatus() {
+    msftState.textContent = 'Checking connection…';
+    msftActions.innerHTML = '';
+    try {
+      const r = await fetch('/.netlify/functions/microsoft-oauth-status', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Status failed');
+      renderMicrosoftState(j);
+    } catch (err) {
+      msftState.innerHTML = `<span style="color:#b3532f">Couldn't check connection: ${err.message}</span>`;
+    }
+  }
+
+  function renderMicrosoftState(s) {
+    if (!s.configured) {
+      msftState.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em">Microsoft Graph is not configured on this deployment yet. Site admin must set <code>MSGRAPH_CLIENT_ID</code>, <code>MSGRAPH_TENANT_ID</code>, and <code>MSGRAPH_CLIENT_SECRET</code> in environment variables.</span>`;
+      return;
+    }
+    if (s.connected) {
+      msftState.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:var(--accent-deep);letter-spacing:.04em">CONNECTED · ${escapeHtml(s.account_email || 'Microsoft 365')}</span>`;
+      msftActions.innerHTML = `
+        <button id="msft-disconnect" class="ws-btn" style="font-size:11px">Disconnect</button>
+        <a href="/agents/paralegal/matters/" style="font-family:var(--mono);font-size:11px;color:var(--accent-deep);text-decoration:underline">Open Paralegal →</a>
+      `;
+      document.getElementById('msft-disconnect').addEventListener('click', async () => {
+        if (!(await (window.siteConfirm?.('Disconnect Microsoft 365? The Paralegal agent will lose access to your inbox + calendar until you reconnect.', { okLabel: 'Disconnect', danger: true }) || Promise.resolve(confirm('Disconnect Microsoft 365?'))))) return;
+        const r = await fetch('/.netlify/functions/microsoft-oauth-disconnect', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          alert(`Disconnect failed: ${j.error || 'unknown'}`);
+          return;
+        }
+        await loadMicrosoftStatus();
+      });
+    } else {
+      msftState.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em">NOT CONNECTED</span>`;
+      // Use access_token in the query so the OAuth-start endpoint can
+      // authenticate the user without a custom JS fetch (it has to be a
+      // 302 redirect — the browser strips Authorization headers across
+      // top-level navigation).
+      const startUrl = `/.netlify/functions/microsoft-oauth-start?access_token=${encodeURIComponent(accessToken)}`;
+      msftActions.innerHTML = `<a href="${startUrl}" class="ws-btn" style="font-size:11px">Connect Microsoft 365</a>`;
+    }
+  }
+
+  loadMicrosoftStatus();
 
   // Display name — universal author override across the site. The
   // RLS lockdown in migration 0028 deliberately leaves this column
