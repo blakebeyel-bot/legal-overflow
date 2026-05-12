@@ -541,9 +541,25 @@ main {
   .pt-tab { padding: 10px 12px; }
   .pt-tab .pt-tnm { font-size: 16px; }
 }
+
+/* ---------- Phase 2.5 gate: hide static demo until Phase 3 wires
+   the live voice session in. Auto-redirect to the matter log so users
+   never land on dummy content. The redirect script runs at the top of
+   <body> before the page paints. */
+body[data-session-gate] { visibility: hidden; }
 </style>
 </head>
-<body>
+<body data-session-gate>
+<script is:inline>
+  // Live voice session is wired in Phase 3. Until then, route users back
+  // to the matter log so they don't see hard-coded demo content.
+  (function () {
+    var params = new URLSearchParams(location.search);
+    var matter = params.get('matter');
+    var dest = '/agents/paralegal/matters/';
+    location.replace(dest);
+  })();
+</script>
 <div id="grain"></div>
 
 <!-- ============================================================

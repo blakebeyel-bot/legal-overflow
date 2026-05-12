@@ -314,11 +314,11 @@ button{font:inherit;cursor:pointer}
           <div class="set-r row-2">
             <div class="fld">
               <span class="fld-l">First name</span>
-              <input class="inp" value="Marcus" />
+              <input class="inp" placeholder="First name" />
             </div>
             <div class="fld">
               <span class="fld-l">Form of address · voice</span>
-              <input class="inp" placeholder="Marcus, Counselor, Mr. Halloran…" value="Marcus" />
+              <input class="inp" placeholder="Marcus, Counselor, Mr. Halloran…" />
             </div>
           </div>
         </div>
@@ -331,7 +331,7 @@ button{font:inherit;cursor:pointer}
           <div class="set-r row-2">
             <div class="fld">
               <span class="fld-l">Firm</span>
-              <input class="inp" value="Beyel Brothers, P.A." />
+              <input class="inp" placeholder="Your firm" />
             </div>
             <div class="fld">
               <span class="fld-l">Jurisdiction · primary</span>
@@ -339,11 +339,11 @@ button{font:inherit;cursor:pointer}
             </div>
             <div class="fld">
               <span class="fld-l">Bar number</span>
-              <input class="inp" value="1042871" />
+              <input class="inp" placeholder="Bar number" />
             </div>
             <div class="fld">
               <span class="fld-l">Additional jurisdictions</span>
-              <input class="inp" value="Georgia · New York" />
+              <input class="inp" placeholder="Additional jurisdictions" />
             </div>
           </div>
         </div>
@@ -412,11 +412,11 @@ button{font:inherit;cursor:pointer}
             <span class="set-l-d">Currently active is bolded. Preview ▷ plays a 4-second sample reading a §12 cap clause.</span>
           </div>
           <div class="set-r" style="gap:10px">
-            <div class="voice-card is-on">
+            <div class="voice-card">
               <div class="av">Sa</div>
               <div>
                 <div class="nm">Sal <em>· warm, mid-Atlantic, deliberate</em></div>
-                <div class="meta">Grok · v4.1 · 24kHz · current</div>
+                <div class="meta">Grok · v4.1 · 24kHz</div>
               </div>
               <div class="r">
                 <button class="play" title="Preview"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
@@ -465,7 +465,7 @@ button{font:inherit;cursor:pointer}
           <div class="set-r row-2">
             <div class="fld">
               <span class="fld-l">Phrase</span>
-              <input class="inp" value="Hey Sal" />
+              <input class="inp" placeholder="Wake phrase" />
             </div>
             <div class="fld">
               <span class="fld-l">Sensitivity</span>
@@ -557,11 +557,11 @@ button{font:inherit;cursor:pointer}
           <div class="set-r row-2">
             <div class="fld">
               <span class="fld-l">Single-action</span>
-              <input class="inp" value="approve" />
+              <input class="inp" placeholder="approve" />
             </div>
             <div class="fld">
               <span class="fld-l">Batch · "approve all in this matter"</span>
-              <input class="inp" value="approve all in matter" />
+              <input class="inp" placeholder="approve all in matter" />
             </div>
           </div>
         </div>
@@ -590,7 +590,7 @@ button{font:inherit;cursor:pointer}
               <option>Cyrus playbook · 2025 v1.0 · real estate</option>
               <option>Firm-wide default · v3</option>
             </select>
-            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);margin-top:4px">Currently overrides for · <b style="color:var(--ink)">3 active matters</b></div>
+            <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);margin-top:4px">Override per-matter from the matter detail page</div>
           </div>
         </div>
 
@@ -624,11 +624,11 @@ button{font:inherit;cursor:pointer}
           <div class="int-row">
             <span class="int-ic">CL</span>
             <div>
-              <div class="int-name">Clio · matter + billing <em>· OAuth · synced 16:00</em></div>
-              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read + write · 12 matters synced · last 02h ago</div>
+              <div class="int-name">Clio · matter + billing <em></em></div>
+              <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read + write · 12 matters synced </div>
             </div>
-            <span class="int-status">Connected</span>
-            <button class="btn ghost">Configure</button>
+            <span class="int-status off">Not connected</span>
+            <button class="btn ghost">Connect</button>
           </div>
           <div class="int-row">
             <span class="int-ic">GM</span>
@@ -636,8 +636,8 @@ button{font:inherit;cursor:pointer}
               <div class="int-name">Gmail · counsel@firm.example <em>· OAuth</em></div>
               <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);">Read-only · agent drafts go to your <b style="color:var(--ink)">[ Drafts ]</b> folder</div>
             </div>
-            <span class="int-status">Connected</span>
-            <button class="btn ghost">Configure</button>
+            <span class="int-status off">Not connected</span>
+            <button class="btn ghost">Connect</button>
           </div>
           <div class="int-row">
             <span class="int-ic">GC</span>
@@ -645,8 +645,8 @@ button{font:inherit;cursor:pointer}
               <div class="int-name">Google Calendar <em>· primary + matter-holds</em></div>
               <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read + write · holds tagged <b style="color:var(--ink)">LO:MTR-####</b></div>
             </div>
-            <span class="int-status">Connected</span>
-            <button class="btn ghost">Configure</button>
+            <span class="int-status off">Not connected</span>
+            <button class="btn ghost">Connect</button>
           </div>
           <div class="int-row">
             <span class="int-ic">DS</span>
@@ -654,8 +654,8 @@ button{font:inherit;cursor:pointer}
               <div class="int-name">DocuSign · envelopes</div>
               <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Read · execution always blocked unless you click + sign</div>
             </div>
-            <span class="int-status">Connected</span>
-            <button class="btn ghost">Configure</button>
+            <span class="int-status off">Not connected</span>
+            <button class="btn ghost">Connect</button>
           </div>
           <div class="int-row">
             <span class="int-ic">CL</span>
@@ -663,16 +663,16 @@ button{font:inherit;cursor:pointer}
               <div class="int-name">CourtListener <em>· case-law research</em></div>
               <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Public API · no auth</div>
             </div>
-            <span class="int-status">Connected</span>
-            <button class="btn ghost">Configure</button>
+            <span class="int-status off">Not connected</span>
+            <button class="btn ghost">Connect</button>
           </div>
           <div class="int-row">
             <span class="int-ic">SL</span>
             <div>
-              <div class="int-name">Slack · #legal-overflow <em>· briefing channel</em></div>
+              <div class="int-name">Slack · #your-channel <em>· briefing channel</em></div>
               <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink-4)">Write · day-end summary at 18:00</div>
             </div>
-            <span class="int-status warn">Token expiring · 14 days</span>
+            <span class="int-status off">Not connected</span>
             <button class="btn ghost">Re-auth</button>
           </div>
           <div class="int-row">
@@ -705,8 +705,8 @@ button{font:inherit;cursor:pointer}
           <div class="set-r" style="gap:8px">
             <label class="tog"><input type="checkbox" checked /><span class="h">Push · Mac + iOS app</span></label>
             <label class="tog"><input type="checkbox" checked /><span class="h">Email · counsel@firm.example</span></label>
-            <label class="tog"><input type="checkbox" /><span class="h">SMS · +1 (321) ••• 4421</span></label>
-            <label class="tog"><input type="checkbox" checked /><span class="h">Slack · #legal-overflow</span></label>
+            <label class="tog"><input type="checkbox" /><span class="h">SMS · +1 (___) ___ ____</span></label>
+            <label class="tog"><input type="checkbox" checked /><span class="h">Slack · #your-channel</span></label>
             <label class="tog"><input type="checkbox" class="is-voice" /><span class="h">Voice · call me on missed-deadline only</span></label>
           </div>
         </div>
@@ -717,8 +717,8 @@ button{font:inherit;cursor:pointer}
             <span class="set-l-d">Agent will still respond to your voice / chat; only outbound nudges are suppressed.</span>
           </div>
           <div class="set-r row-2">
-            <div class="fld"><span class="fld-l">From</span><input class="inp" value="20:00" /></div>
-            <div class="fld"><span class="fld-l">Until</span><input class="inp" value="07:30" /></div>
+            <div class="fld"><span class="fld-l">From</span><input class="inp" placeholder="20:00" /></div>
+            <div class="fld"><span class="fld-l">Until</span><input class="inp" placeholder="07:30" /></div>
           </div>
         </div>
 
@@ -756,12 +756,7 @@ button{font:inherit;cursor:pointer}
             <span class="set-l-d">Audit log captures the voice turn, transcript, tool call, and approval phrase — with confidence score.</span>
           </div>
           <div class="set-r">
-            <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.05em;line-height:1.6;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;padding:12px">
-              <div>14:32:11 · YOU · "approve"</div>
-              <div>14:32:11 · STT confidence · <b style="color:var(--accent-deep)">0.97</b></div>
-              <div>14:32:11 · ACTION · email.send → counsel@firm.example</div>
-              <div>14:32:11 · MATTER · MTR-2240</div>
-            </div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.05em;line-height:1.6;background:rgba(255,255,255,.5);border:1px solid var(--rule-thread);border-radius:3px;padding:12px"><div style="color:var(--ink-4);font-style:italic;font-family:var(--serif);font-size:14px">No audit events yet. Voice turns, tool calls, and approvals will appear here once you start a session.</div></div>
             <a href="#" style="font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-3);border-bottom:1px solid var(--rule-thread);align-self:flex-start">View full audit log →</a>
           </div>
         </div>
@@ -795,7 +790,7 @@ button{font:inherit;cursor:pointer}
 
   <!-- sticky save bar -->
   <div class="save">
-    <span class="save-l">3 unsaved changes · <b>Voice character</b>, <b>Send email</b> permission, <b>Slack re-auth</b></span>
+    <span class="save-l" id="save-bar-state">No unsaved changes</span>
     <div class="save-r">
       <button class="btn ghost">Discard</button>
       <button class="btn is-primary">Save · voice-confirm</button>

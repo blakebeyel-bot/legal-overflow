@@ -864,8 +864,10 @@ import { getSupabase } from '../../../lib/supabase';
 const params = new URLSearchParams(location.search);
 const matterId = params.get('id');
 if (!matterId) {
-  // Demo mode — leave the static content alone.
-  console.debug('[matter] no ?id=, staying in demo mode');
+  // No id = no matter to display. Bounce to the matter log so the user
+  // never sees the static placeholder skeleton.
+  location.replace('/agents/paralegal/matters/');
+  throw new Error('redirecting to /matters/');
 } else {
   const supabase = getSupabase();
   const { data: { session } } = await supabase.auth.getSession();
