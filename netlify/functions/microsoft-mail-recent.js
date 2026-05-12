@@ -1,13 +1,26 @@
 /**
  * GET /api/microsoft-mail-recent
- *   ?matter_id=<uuid>    (optional — narrows results by the matter's
- *                         counter_party name as a sender filter)
- *   ?from=<substring>    (optional — direct sender filter)
- *   ?days=<n>            (default 2)
+ *   ?matter_id=<uuid>    (optional — uses the matter's client +
+ *                         counter_party as keywords; searches the
+ *                         ENTIRE inbox, no date cap)
+ *   ?search=<keyword>    (optional — direct keyword search, also
+ *                         searches the entire inbox)
+ *   ?from=<substring>    (optional — sender substring; treated as a
+ *                         search keyword)
+ *   ?days=<n>            (only used when no keyword is supplied;
+ *                         default 30, max 365)
  *   ?top=<n>             (default 25, max 50)
  *
  * Returns: { messages: [{ id, subject, from, sentDateTime, receivedDateTime,
  *                          bodyPreview, hasAttachments, webLink, ... }] }
+ *
+ * Behavior:
+ *   - When a matter_id is supplied, we build a search query from the
+ *     matter's counter_party (primary) and client (fallback). Graph's
+ *     $search runs across the full mailbox (subject, body, sender, etc.)
+ *     — there's no date cap.
+ *   - When no matter context exists, we fall back to "last N days
+ *     in the inbox" so the timeline still has something useful to show.
  */
 import { requireUser, getSupabaseAdmin, checkUserApproval } from '../lib/supabase-admin.js';
 import { listRecentMail } from '../lib/microsoft-graph.js';
@@ -20,27 +33,28 @@ export default async (req) => {
 
   const url = new URL(req.url);
   const matterId = url.searchParams.get('matter_id');
+  let search = url.searchParams.get('search') || undefined;
   let from = url.searchParams.get('from') || undefined;
-  const days = Number(url.searchParams.get('days') || 2);
+  const days = Math.min(365, Math.max(1, Number(url.searchParams.get('days') || 30)));
   const top = Math.min(50, Math.max(1, Number(url.searchParams.get('top') || 25)));
 
-  // If matter_id supplied and no explicit `from`, use the matter's
-  // counter_party as a best-effort sender filter.
-  if (matterId && !from) {
+  // Matter-scoped search: build a keyword from the matter's
+  // counter_party (priority) or client name. This searches the full
+  // inbox via Graph's $search — not limited to the last N days.
+  if (matterId && !search && !from) {
     const supabase = getSupabaseAdmin();
     const { data: matter } = await supabase
       .from('paralegal_matters')
-      .select('counter_party')
+      .select('counter_party, client')
       .eq('id', matterId)
       .eq('user_id', auth.user.id)
       .maybeSingle();
-    if (matter?.counter_party) from = matter.counter_party;
+    search = matter?.counter_party || matter?.client || undefined;
   }
 
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   try {
-    const messages = await listRecentMail(auth.user.id, { from, since, top });
-    return json({ messages });
+    const messages = await listRecentMail(auth.user.id, { search, from, days, top });
+    return json({ messages, mode: (search || from) ? 'keyword_search' : 'recent_window', keyword: search || from || null });
   } catch (err) {
     if (/not connected/i.test(err.message || '')) {
       return json({ error: err.message, not_connected: true }, 412);

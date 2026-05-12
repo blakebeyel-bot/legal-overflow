@@ -1025,11 +1025,13 @@ if (!matterId) {
   async function appendGraphTimeline(matter) {
     const tl = document.querySelector('.col-l .tl');
     if (!tl) return;
-    // Kick both fetches in parallel.
+    // Kick both fetches in parallel. Mail uses Graph $search across the
+    // ENTIRE inbox (no date cap) when the matter has a counter_party or
+    // client name; it falls back to "last 30 days" only when the matter
+    // is brand-new with no keywords yet.
     const mailUrl = new URL('/.netlify/functions/microsoft-mail-recent', location.origin);
     mailUrl.searchParams.set('matter_id', matter.id);
-    mailUrl.searchParams.set('days', '7');
-    mailUrl.searchParams.set('top', '15');
+    mailUrl.searchParams.set('top', '25');
     const calUrl = new URL('/.netlify/functions/microsoft-calendar-list', location.origin);
     calUrl.searchParams.set('days_ahead', '14');
     calUrl.searchParams.set('days_back', '3');

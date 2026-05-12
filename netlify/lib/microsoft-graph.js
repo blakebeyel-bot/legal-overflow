@@ -280,34 +280,64 @@ export async function getMe(userId) {
 }
 
 /**
- * List recent inbox messages.
+ * List inbox messages — entire mailbox by keyword, no date cap by default.
+ *
+ * Two modes depending on what's provided:
+ *
+ *   1. `search` (or `from` treated as the search term when no `search`):
+ *      uses Graph's `$search="..."` parameter to hit the FULL mailbox
+ *      across subject + body + from + to + attachment names. Microsoft
+ *      Graph forbids combining $search with $filter, so we run the
+ *      search and post-filter results in app code if a date floor is
+ *      needed. This is the "relevant to this matter" use case.
+ *
+ *   2. No search/from: returns the most recent inbox messages (default
+ *      30-day window, configurable via `days` or `since`). This is the
+ *      "what's in my inbox right now" use case for a fresh matter that
+ *      doesn't have keywords yet.
  *
  * @param {object} opts
- * @param {string} [opts.from]        — sender email substring filter
- * @param {string} [opts.since]       — ISO datetime; defaults to 48h ago
+ * @param {string} [opts.search]      — keyword query; searches the entire inbox
+ * @param {string} [opts.from]        — sender substring; used as $search term when no `search`
+ * @param {string} [opts.since]       — ISO datetime floor (ignored when $search is in use)
+ * @param {number} [opts.days]        — N days back (ignored when $search is in use)
  * @param {number} [opts.top=25]      — max results
- * @param {string} [opts.search]      — Graph $search query
  */
-export async function listRecentMail(userId, { from, since, top = 25, search } = {}) {
-  const sinceIso = since || new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+export async function listRecentMail(userId, { from, search, since, days, top = 25 } = {}) {
   const select = '$select=id,subject,from,toRecipients,sentDateTime,receivedDateTime,bodyPreview,hasAttachments,conversationId,internetMessageId,webLink';
-  const filter = `receivedDateTime ge ${sinceIso}`;
-  const params = [select, `$top=${Math.min(top, 50)}`, `$filter=${encodeURIComponent(filter)}`, '$orderby=receivedDateTime%20desc'];
-  if (search) {
-    params.push(`$search=${encodeURIComponent('"' + search + '"')}`);
-  }
-  const q = params.join('&');
-  const data = await graphJson(userId, `/me/mailFolders/inbox/messages?${q}`);
-  let messages = data?.value || [];
-  if (from) {
-    const needle = String(from).toLowerCase();
-    messages = messages.filter((m) => {
-      const addr = m?.from?.emailAddress?.address?.toLowerCase() || '';
-      const name = m?.from?.emailAddress?.name?.toLowerCase() || '';
-      return addr.includes(needle) || name.includes(needle);
+  const limitedTop = Math.min(top, 50);
+
+  // Use the keyword path when the caller wants matter-relevant mail
+  // across the whole mailbox. `from` doubles as a search term when no
+  // explicit `search` is supplied — that's how the matter detail page
+  // expresses "mail relating to this matter" via counter_party.
+  const keyword = search || from;
+  if (keyword && String(keyword).trim()) {
+    const q = [
+      select,
+      `$top=${limitedTop}`,
+      `$search=${encodeURIComponent('"' + String(keyword).trim() + '"')}`,
+    ].join('&');
+    // Graph requires the ConsistencyLevel: eventual header for $search.
+    const r = await graphFetch(userId, `/me/messages?${q}`, {
+      headers: { ConsistencyLevel: 'eventual' },
     });
+    const data = await r.json();
+    return data?.value || [];
   }
-  return messages;
+
+  // Fallback (no keyword): plain recent-mail listing with date floor.
+  const sinceIso = since
+    || new Date(Date.now() - (days != null ? days : 30) * 24 * 60 * 60 * 1000).toISOString();
+  const filter = `receivedDateTime ge ${sinceIso}`;
+  const q = [
+    select,
+    `$top=${limitedTop}`,
+    `$filter=${encodeURIComponent(filter)}`,
+    '$orderby=receivedDateTime%20desc',
+  ].join('&');
+  const data = await graphJson(userId, `/me/mailFolders/inbox/messages?${q}`);
+  return data?.value || [];
 }
 
 /** Full message with body + attachment metadata. */
